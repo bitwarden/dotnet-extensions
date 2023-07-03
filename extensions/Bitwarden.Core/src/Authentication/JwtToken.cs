@@ -15,11 +15,6 @@ public class JwtToken : IParsable<JwtToken>
         _token = token;
     }
 
-    protected JwtToken(JwtToken other)
-    {
-        _token = other._token;
-    }
-
     public DateTime ValidTo
     {
         get
