@@ -16,10 +16,10 @@ public class SymmetricCryptoKey : ISpanParsable<SymmetricCryptoKey>
     const int KeyLength = 32;
     const int MacLength = 32;
 
-    private readonly ReadOnlyMemory<byte> _rawData;
+    private readonly byte[] _rawData;
 
-    public ReadOnlyMemory<byte> Key => _rawData[..KeyLength];
-    public ReadOnlyMemory<byte> Mac => _rawData.Length == KeyLength + MacLength ? _rawData[KeyLength..] : default;
+    public byte[] Key => _rawData[..KeyLength];
+    public byte[]? Mac => _rawData.Length == KeyLength + MacLength ? _rawData[KeyLength..] : default;
 
     private SymmetricCryptoKey(ReadOnlySpan<byte> rawData)
     {
@@ -99,6 +99,6 @@ public class SymmetricCryptoKey : ISpanParsable<SymmetricCryptoKey>
 
     public override string ToString()
     {
-        return Convert.ToBase64String(_rawData.Span);
+        return Convert.ToBase64String(_rawData);
     }
 }

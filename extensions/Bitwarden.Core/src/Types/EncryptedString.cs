@@ -61,8 +61,6 @@ public class EncryptedString : IDecryptable<SymmetricCryptoKey>
             throw new FormatException();
         }
 
-        // TODO: Validate mac
-
         Span<byte> data = stackalloc byte[dataPart.Length];
         converted = Convert.TryFromBase64Chars(dataPart, data, out bytesWritten);
         if (!converted)
@@ -71,6 +69,15 @@ public class EncryptedString : IDecryptable<SymmetricCryptoKey>
         }
 
         data = data[..bytesWritten];
+
+        Span<byte> validatedMac = stackalloc byte[32];
+        ValidateMac(symmetricCryptoKey.Mac, iv, data, validatedMac);
+
+        if (!validatedMac.SequenceEqual(mac))
+        {
+            throw new FormatException("Invalid MAC");
+        }
+
         Span<byte> output = stackalloc byte[data.Length];
 
         using var aes = Aes.Create();
@@ -103,6 +110,14 @@ public class EncryptedString : IDecryptable<SymmetricCryptoKey>
         }
         
         return new EncryptedString(type, encryptionPart);
+    }
+
+    private static void ValidateMac(Span<byte> macKey, ReadOnlySpan<byte> iv, ReadOnlySpan<byte> data, Span<byte> destination)
+    {
+        var hmac = IncrementalHash.CreateHMAC(HashAlgorithmName.SHA256, macKey);
+        hmac.AppendData(iv);
+        hmac.AppendData(data);
+        hmac.TryGetCurrentHash(destination, out _);
     }
 
     public static bool TryParse(ReadOnlySpan<char> s, [MaybeNullWhen(false)] out EncryptedString result)
