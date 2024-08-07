@@ -1,0 +1,6 @@
+<Project>
+  <ItemGroup>
+    <Service Route="one" Project="../ServiceOne/ServiceOne.csproj" />
+    <CatchallService Project="../ServiceTwo/ServiceTwo.csproj" />
+  </ItemGroup>
+</Project>
