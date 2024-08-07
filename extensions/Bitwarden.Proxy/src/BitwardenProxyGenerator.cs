@@ -7,7 +7,10 @@ namespace Bitwarden.Proxy
     {
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
-            context.
+            var proxyOptions = context.AnalyzerConfigOptionsProvider
+                .Select(static (options, ct) => new BitwardenProxyGeneratorOptions(options.GlobalOptions));
+
+
         }
     }
 }
