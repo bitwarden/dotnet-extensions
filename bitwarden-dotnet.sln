@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -22,6 +22,14 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalApis", "extensions\Bitwarden.Extensions.Configuration\examples\MinimalApis\MinimalApis.csproj", "{1BD7DE1A-F62C-4E6F-8BC5-6574E2C2E258}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Core.Microbenchmarks", "extensions\Bitwarden.Core\perf\Bitwarden.Core.Microbenchmarks.csproj", "{6DBBD50B-4FA1-4043-A0F0-D4D4A5BBC1BD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Extensions.Hosting", "extensions\Bitwarden.Extensions.Hosting\src\Bitwarden.Extensions.Hosting.csproj", "{F5B1A2C7-2B1D-4164-9A8E-41FD9E0FF6F0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Extensions.WebHosting", "extensions\Bitwarden.Extensions.WebHosting\src\Bitwarden.Extensions.WebHosting.csproj", "{C076410E-E0AD-431B-81E0-D32E03303C4A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Bitwarden.Extensions.Hosting", "Bitwarden.Extensions.Hosting", "{A1C893A6-887B-44FE-9DA3-B85E6ACADC55}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Bitwarden.Extensions.WebHosting", "Bitwarden.Extensions.WebHosting", "{321B8585-227A-4F9F-914F-190B4F586320}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -56,6 +64,14 @@ Global
 		{6DBBD50B-4FA1-4043-A0F0-D4D4A5BBC1BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6DBBD50B-4FA1-4043-A0F0-D4D4A5BBC1BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6DBBD50B-4FA1-4043-A0F0-D4D4A5BBC1BD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F5B1A2C7-2B1D-4164-9A8E-41FD9E0FF6F0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F5B1A2C7-2B1D-4164-9A8E-41FD9E0FF6F0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F5B1A2C7-2B1D-4164-9A8E-41FD9E0FF6F0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F5B1A2C7-2B1D-4164-9A8E-41FD9E0FF6F0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C076410E-E0AD-431B-81E0-D32E03303C4A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C076410E-E0AD-431B-81E0-D32E03303C4A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C076410E-E0AD-431B-81E0-D32E03303C4A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C076410E-E0AD-431B-81E0-D32E03303C4A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{5EC8B943-2E9E-437D-9FFC-D18B5DB4D7D0} = {695C76EF-1102-4805-970F-7C995EE54930}
@@ -67,5 +83,9 @@ Global
 		{8308DD08-D336-4A13-ACD1-4FA367C3C2D4} = {0008B44C-95E9-4A33-92EF-66741AC8AE47}
 		{1BD7DE1A-F62C-4E6F-8BC5-6574E2C2E258} = {8308DD08-D336-4A13-ACD1-4FA367C3C2D4}
 		{6DBBD50B-4FA1-4043-A0F0-D4D4A5BBC1BD} = {5EC8B943-2E9E-437D-9FFC-D18B5DB4D7D0}
+		{A1C893A6-887B-44FE-9DA3-B85E6ACADC55} = {695C76EF-1102-4805-970F-7C995EE54930}
+		{F5B1A2C7-2B1D-4164-9A8E-41FD9E0FF6F0} = {A1C893A6-887B-44FE-9DA3-B85E6ACADC55}
+		{321B8585-227A-4F9F-914F-190B4F586320} = {695C76EF-1102-4805-970F-7C995EE54930}
+		{C076410E-E0AD-431B-81E0-D32E03303C4A} = {321B8585-227A-4F9F-914F-190B4F586320}
 	EndGlobalSection
 EndGlobal
