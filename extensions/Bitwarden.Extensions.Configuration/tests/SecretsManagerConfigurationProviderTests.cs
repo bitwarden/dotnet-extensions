@@ -8,7 +8,7 @@ public class SecretsManagerConfigurationProviderTests
     private static readonly Guid _testingProjectId = Guid.Parse("e9ebeeea-7aea-48c8-9adb-afcc014f1d46");
     private static readonly AccessToken _testingAccessToken = AccessToken.Parse("0.4eaea7be-6a0b-4c0b-861e-b033001532a9.ydNqCpyZ8E7a171FjZn89WhKE1eEQF:2WQh70hSQQZFXm+QteNYsg==");
 
-    [Fact]
+    [DebuggerFact]
     public void Load_Simple_Works()
     {
         using var provider = CreateProvider();
