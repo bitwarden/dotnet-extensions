@@ -1,0 +1,87 @@
+name: Publish
+
+on:
+  pull_request:
+  release:
+    types:
+      - "published"
+
+jobs:
+  version:
+    name: Calculate version
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+
+    steps:
+      - name: Determine stable version
+        id: stable-version
+        if: ${{ github.event_name == 'release' }}
+        run: |
+          if ! [[ "${{ github.event.release.tag_name }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z].*)?$ ]]; then
+              echo "Invalid version: ${{ github.event.release.tag_name }}"
+              exit 1
+          fi
+
+          echo "version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+
+      - name: Determine prerelease version
+        id: pre-version
+        if: ${{ github.event_name != 'release' }}
+        run: |
+          hash="${{ github.event.pull_request.head.sha }}"
+          echo "version=0.0.0-${hash:0:7}" >> $GITHUB_OUTPUT
+
+    outputs:
+      version: ${{ steps.stable-version.outputs.version || steps.pre-version.outputs.version }}
+
+  pack:
+    name: Package
+    needs: version
+    runs-on: ubuntu-22.04
+    permissions:
+      actions: write
+      contents: read
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@6bd8b7f7774af54e05809fcc5431931b3eb1ddee # v4.0.1
+
+      - name: Pack
+        run: dotnet pack -p:Version=${{ needs.version.outputs.version }} -p:ContinuousIntegrationBuild=true --configuration Release
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+        with:
+          name: packages
+          path: "**/*.nupkg"
+
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-22.04
+    if: ${{ github.event_name == 'release' }}
+    needs:
+      - version
+      - pack
+    strategy:
+      matrix:
+        environment:
+          - nuget
+        exclude:
+          - environment: ${{ github.event_name != 'release' && 'nuget' }}
+
+    steps:
+      - name: Dispatch deployment
+        env:
+          GITHUB_TOKEN: ${{ secrets.DEPLOYMENT_GITHUB_TOKEN }}
+        run: >
+          gh workflow run deploy-dotnet-extensions
+          --repo bitwarden/devops
+          --field repository=${{ github.repository }}
+          --field run-id=${{ github.run_id }}
+          --field artifact=packages
+          --field environment=${{ matrix.environment }}
+          --field version=${{ needs.version.outputs.version }}
