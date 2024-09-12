@@ -69,18 +69,16 @@ jobs:
     strategy:
       matrix:
         environment:
-          - nuget
-        exclude:
-          - environment: ${{ github.event_name != 'release' && 'nuget' }}
+          - ghpr
 
     steps:
       - name: Dispatch deployment
         env:
           GITHUB_TOKEN: ${{ secrets.DEPLOYMENT_GITHUB_TOKEN }}
         run: >
-          gh workflow run deploy-dotnet-extensions
+          gh workflow run deploy-nuget
           --repo bitwarden/devops
-          --field repository=${{ github.repository }}
+          --field repository=${{ github.event.repository.name }}
           --field run-id=${{ github.run_id }}
           --field artifact=packages
           --field environment=${{ matrix.environment }}
