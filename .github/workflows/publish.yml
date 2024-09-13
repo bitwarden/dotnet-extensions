@@ -59,8 +59,8 @@ jobs:
           name: packages
           path: "**/*.nupkg"
 
-  deploy:
-    name: Deploy
+  publish:
+    name: Publish
     runs-on: ubuntu-22.04
     if: ${{ github.event_name == 'release' }}
     needs:
@@ -72,11 +72,11 @@ jobs:
           - ghpr
 
     steps:
-      - name: Dispatch deployment
+      - name: Dispatch publishing
         env:
-          GITHUB_TOKEN: ${{ secrets.DEPLOYMENT_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PUBLISH_GITHUB_TOKEN }}
         run: >
-          gh workflow run deploy-nuget
+          gh workflow run publish-nuget
           --repo bitwarden/devops
           --field repository=${{ github.event.repository.name }}
           --field run-id=${{ github.run_id }}
