@@ -2,8 +2,23 @@
 
   <PropertyGroup>
     <TargetFramework>net7.0</TargetFramework>
+    <IsPackable>true</IsPackable>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Authors>Bitwarden</Authors>
+    <Description>Core .NET extensions library</Description>
+    <PackageProjectUrl>https://github.com/bitwarden/dotnet-extensions</PackageProjectUrl>
+    <PackageReleaseNotes>https://github.com/bitwarden/dotnet-extensions/releases</PackageReleaseNotes>
+    <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <DebugType>embedded</DebugType>
   </PropertyGroup>
 
   <ItemGroup>
