@@ -9,7 +9,7 @@
 
   <PropertyGroup>
     <Authors>Bitwarden</Authors>
-    <Description>Core .NET configuration extensions library</Description>
+    <Description>.NET configuration extensions library</Description>
     <PackageProjectUrl>https://github.com/bitwarden/dotnet-extensions</PackageProjectUrl>
     <PackageReleaseNotes>https://github.com/bitwarden/dotnet-extensions/releases</PackageReleaseNotes>
     <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
@@ -27,6 +27,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Bitwarden.Core\src\Bitwarden.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>
