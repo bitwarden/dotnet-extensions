@@ -81,7 +81,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.PUBLISH_GITHUB_TOKEN }}
         run: >
-          gh workflow run publish-nuget
+          gh workflow run publish-nuget.yml
           --repo bitwarden/devops
           --field repository=${{ github.event.repository.name }}
           --field run-id=${{ github.run_id }}
