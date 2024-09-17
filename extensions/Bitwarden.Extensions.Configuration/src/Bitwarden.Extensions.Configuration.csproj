@@ -29,4 +29,8 @@
     <ProjectReference Include="..\..\Bitwarden.Core\src\Bitwarden.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
 </Project>
