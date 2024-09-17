@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>net7.0</TargetFramework>
+    <WarnOnPackingNonPackableProject>false</WarnOnPackingNonPackableProject>
+    <IsPackable>false</IsPackable>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>028d6508-d103-4515-919b-20704c502472</UserSecretsId>
