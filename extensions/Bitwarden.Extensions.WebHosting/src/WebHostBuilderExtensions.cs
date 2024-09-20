@@ -5,8 +5,17 @@ using Serilog;
 
 namespace Bitwarden.Extensions.WebHosting;
 
+/// <summary>
+/// Extensions for <see cref="IWebHostBuilder"/>.
+/// </summary>
 public static class WebHostBuilderExtensions
 {
+    /// <summary>
+    /// Configures the web host with Bitwarden defaults.
+    /// </summary>
+    /// <param name="webHostBuilder">Web host builder.</param>
+    /// <param name="configure">Configuration action.</param>
+    /// <returns></returns>
     public static IWebHostBuilder UseBitwardenWebDefaults(this IWebHostBuilder webHostBuilder, Action<BitwardenWebHostOptions>? configure = null)
     {
         var bitwardenWebHostOptions = new BitwardenWebHostOptions();
@@ -14,6 +23,12 @@ public static class WebHostBuilderExtensions
         return webHostBuilder.UseBitwardenWebDefaults(bitwardenWebHostOptions);
     }
 
+    /// <summary>
+    /// Configures the web host with Bitwarden defaults.
+    /// </summary>
+    /// <param name="webHostBuilder">Web host builder.</param>
+    /// <param name="bitwardenWebHostOptions">Web host options.</param>
+    /// <returns></returns>
     public static IWebHostBuilder UseBitwardenWebDefaults(this IWebHostBuilder webHostBuilder, BitwardenWebHostOptions bitwardenWebHostOptions)
     {
         // TODO: Add services and default starting middleware
@@ -35,6 +50,13 @@ public static class WebHostBuilderExtensions
         return webHostBuilder;
     }
 
+    /// <summary>
+    /// Configures the web host with Bitwarden defaults via a startup class.
+    /// </summary>
+    /// <param name="hostBuilder">Host builder.</param>
+    /// <param name="configure">Configuration action.</param>
+    /// <typeparam name="TStartup">Startup class.</typeparam>
+    /// <returns>Configured host builder.</returns>
     public static IHostBuilder UseBitwardenWebDefaults<TStartup>(this IHostBuilder hostBuilder, Action<BitwardenWebHostOptions>? configure = null)
         where TStartup : class
     {

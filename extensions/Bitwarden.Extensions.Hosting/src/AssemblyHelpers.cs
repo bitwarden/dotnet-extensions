@@ -2,6 +2,9 @@
 
 namespace Bitwarden.Extensions.Hosting;
 
+/// <summary>
+/// Helper class for working with assembly attributes.
+/// </summary>
 public static class AssemblyHelpers
 {
     private const string _gitHashAssemblyKey = "GitHash";
@@ -19,6 +22,10 @@ public static class AssemblyHelpers
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>();
     }
 
+    /// <summary>
+    /// Gets the version of the entry assembly.
+    /// </summary>
+    /// <returns></returns>
     public static string? GetVersion()
     {
         if (string.IsNullOrWhiteSpace(_version))
@@ -29,6 +36,10 @@ public static class AssemblyHelpers
         return _version;
     }
 
+    /// <summary>
+    /// Gets the Git hash of the entry assembly.
+    /// </summary>
+    /// <returns></returns>
     public static string? GetGitHash()
     {
         if (string.IsNullOrWhiteSpace(_gitHash))

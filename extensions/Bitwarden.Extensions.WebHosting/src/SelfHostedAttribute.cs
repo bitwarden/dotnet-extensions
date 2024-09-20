@@ -1,5 +1,8 @@
 ﻿namespace Bitwarden.Extensions.WebHosting;
 
+/// <summary>
+/// Attribute to indicate that an instance is self-hosted.
+/// </summary>
 public class SelfHostedAttribute : Attribute
 {
     // TODO: Need to try and build this so it works for both MVC and Minimal APIs

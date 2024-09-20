@@ -12,8 +12,15 @@ using Serilog.Formatting.Compact;
 
 namespace Bitwarden.Extensions.Hosting;
 
+/// <summary>
+/// Extensions for <see cref="IHostBuilder"/>.
+/// </summary>
 public static class HostBuilderExtensions
 {
+    /// <summary>
+    /// Gets a logger that is suitable for use during the bootstrapping (startup) process.
+    /// </summary>
+    /// <returns></returns>
     public static ILogger GetBootstrapLogger()
     {
         return new LoggerConfiguration()
@@ -24,7 +31,7 @@ public static class HostBuilderExtensions
     }
 
     /// <summary>
-    ///
+    /// Configures the host to use Bitwarden defaults.
     /// </summary>
     public static IHostBuilder UseBitwardenDefaults(this IHostBuilder hostBuilder, Action<BitwardenHostOptions>? configure = null)
     {
@@ -34,9 +41,15 @@ public static class HostBuilderExtensions
         return hostBuilder.UseBitwardenDefaults(bitwardenHostOptions);
     }
 
+    /// <summary>
+    /// Configures the host to use Bitwarden defaults.
+    /// </summary>
+    /// <param name="hostBuilder">Host builder.</param>
+    /// <param name="bitwardenHostOptions">Host options.</param>
+    /// <returns></returns>
     public static IHostBuilder UseBitwardenDefaults(this IHostBuilder hostBuilder, BitwardenHostOptions bitwardenHostOptions)
     {
-        hostBuilder.ConfigureServices((context, services) =>
+        hostBuilder.ConfigureServices((_, services) =>
         {
             services.AddOptions<GlobalSettingsBase>()
                 .Configure<IConfiguration>((options, config) =>
@@ -117,7 +130,7 @@ public static class HostBuilderExtensions
 
         if (bitwardenHostOptions.IncludeMetrics)
         {
-            hostBuilder.ConfigureServices((context, services) =>
+            hostBuilder.ConfigureServices((_, services) =>
             {
                 services.AddOpenTelemetry()
                     .WithMetrics(options =>
