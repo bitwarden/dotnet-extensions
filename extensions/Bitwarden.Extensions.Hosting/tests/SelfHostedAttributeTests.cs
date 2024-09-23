@@ -1,3 +1,4 @@
+using Bitwarden.Extensions.Hosting.Attributes;
 using Bitwarden.Extensions.Hosting.Exceptions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;

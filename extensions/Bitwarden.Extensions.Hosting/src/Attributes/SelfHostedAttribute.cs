@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Bitwarden.Extensions.Hosting;
+namespace Bitwarden.Extensions.Hosting.Attributes;
 
 /// <summary>
 /// Attribute to indicate that an instance is self-hosted.
