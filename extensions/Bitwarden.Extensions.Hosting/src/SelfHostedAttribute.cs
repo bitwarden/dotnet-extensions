@@ -28,11 +28,11 @@ public class SelfHostedAttribute : ActionFilterAttribute
         var globalSettings = context.HttpContext.RequestServices.GetRequiredService<GlobalSettingsBase>();
         if (SelfHostedOnly && !globalSettings.IsSelfHosted)
         {
-            throw new BadRequestException("Only allowed when self hosted.");
+            throw new BadRequestException("Only allowed when self-hosted.");
         }
         else if (NotSelfHostedOnly && globalSettings.IsSelfHosted)
         {
-            throw new BadRequestException("Only allowed when not self hosted.");
+            throw new BadRequestException("Only allowed when not self-hosted.");
         }
     }
 }

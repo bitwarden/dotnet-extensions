@@ -85,7 +85,7 @@ public static class HostBuilderExtensions
                 // 11. Command line args, if present
 
                 // As you can see there was a lot of doubling up,
-                // I would rather insert the self hosted config, when necessary into
+                // I would rather insert the self-hosted config, when necessary into
                 // the index.
 
                 // These would fail if two main things happen, the default host setup from .NET changes
@@ -100,7 +100,7 @@ public static class HostBuilderExtensions
                 Debug.Assert(builder.Sources[3] is FileConfigurationSource environmentJsonSource
                     && environmentJsonSource.Path == $"appsettings.{context.HostingEnvironment.EnvironmentName}.json");
 
-                // If both of those are true, I feel good about inserting our own self hosted config after
+                // If both of those are true, I feel good about inserting our own self-hosted config after
                 builder.Sources.Insert(4, new JsonConfigurationSource
                 {
                     Path = "appsettings.SelfHosted.json",
