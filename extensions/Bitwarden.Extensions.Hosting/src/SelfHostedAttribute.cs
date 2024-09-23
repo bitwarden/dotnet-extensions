@@ -1,4 +1,4 @@
-﻿namespace Bitwarden.Extensions.WebHosting;
+﻿namespace Bitwarden.Extensions.Hosting;
 
 /// <summary>
 /// Attribute to indicate that an instance is self-hosted.
