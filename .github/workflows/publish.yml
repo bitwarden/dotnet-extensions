@@ -64,35 +64,10 @@ jobs:
           name: packages
           path: "**/*.nupkg"
 
-  publish-prerelease:
-    name: Publish prerelease
+  publish:
+    name: Publish
     runs-on: ubuntu-22.04
-    if: ${{ github.event_name == 'release' && github.event.release.prerelease }}
-    needs:
-      - version
-      - pack
-    strategy:
-      matrix:
-        environment:
-          - ghpr
-
-    steps:
-      - name: Dispatch publishing
-        env:
-          GITHUB_TOKEN: ${{ secrets.PUBLISH_GITHUB_TOKEN }}
-        run: >
-          gh workflow run publish-nuget.yml
-          --repo bitwarden/devops
-          --field repository=${{ github.event.repository.name }}
-          --field run-id=${{ github.run_id }}
-          --field artifact=packages
-          --field environment=${{ matrix.environment }}
-          --field version=${{ needs.version.outputs.version }}
-
-  publish-release:
-    name: Publish release
-    runs-on: ubuntu-22.04
-    if: ${{ github.event_name == 'release' && !github.event.release.prerelease }}
+    if: ${{ github.event_name == 'release' }}
     needs:
       - version
       - pack
@@ -101,6 +76,9 @@ jobs:
         environment:
           - ghpr
           - nuget
+        exclude:
+          # exclude nuget for prereleases
+          - environment: ${{ github.event.release.prerelease && 'nuget' }}
 
     steps:
       - name: Dispatch publishing
