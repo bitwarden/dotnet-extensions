@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -28,6 +28,10 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Bitwarden.Extensions.Hosting", "Bitwarden.Extensions.Hosting", "{A1C893A6-887B-44FE-9DA3-B85E6ACADC55}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Extensions.Hosting.Tests", "extensions\Bitwarden.Extensions.Hosting\tests\Bitwarden.Extensions.Hosting.Tests.csproj", "{2EABE7A5-6B68-4DAC-9D37-F312059C3C27}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{062DA103-1F85-4FA0-ACD2-56483BD98DF4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sample.Minimal", "extensions\Bitwarden.Extensions.Hosting\samples\Sample.Minimal\Sample.Minimal.csproj", "{405597BE-436B-43DA-B6F9-8B2D06D69738}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -70,6 +74,10 @@ Global
 		{2EABE7A5-6B68-4DAC-9D37-F312059C3C27}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2EABE7A5-6B68-4DAC-9D37-F312059C3C27}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2EABE7A5-6B68-4DAC-9D37-F312059C3C27}.Release|Any CPU.Build.0 = Release|Any CPU
+		{405597BE-436B-43DA-B6F9-8B2D06D69738}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{405597BE-436B-43DA-B6F9-8B2D06D69738}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{405597BE-436B-43DA-B6F9-8B2D06D69738}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{405597BE-436B-43DA-B6F9-8B2D06D69738}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{5EC8B943-2E9E-437D-9FFC-D18B5DB4D7D0} = {695C76EF-1102-4805-970F-7C995EE54930}
@@ -84,5 +92,7 @@ Global
 		{A1C893A6-887B-44FE-9DA3-B85E6ACADC55} = {695C76EF-1102-4805-970F-7C995EE54930}
 		{F5B1A2C7-2B1D-4164-9A8E-41FD9E0FF6F0} = {A1C893A6-887B-44FE-9DA3-B85E6ACADC55}
 		{2EABE7A5-6B68-4DAC-9D37-F312059C3C27} = {A1C893A6-887B-44FE-9DA3-B85E6ACADC55}
+		{062DA103-1F85-4FA0-ACD2-56483BD98DF4} = {A1C893A6-887B-44FE-9DA3-B85E6ACADC55}
+		{405597BE-436B-43DA-B6F9-8B2D06D69738} = {062DA103-1F85-4FA0-ACD2-56483BD98DF4}
 	EndGlobalSection
 EndGlobal

@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Reflection;
-using Bitwarden.Extensions.WebHosting;
+using Bitwarden.Extensions.Hosting;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Json;
@@ -12,13 +12,15 @@ using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
 
-namespace Bitwarden.Extensions.Hosting;
+namespace Microsoft.Extensions.Hosting;
 
 /// <summary>
 /// Extensions for <see cref="IHostBuilder"/>.
 /// </summary>
 public static class HostBuilderExtensions
 {
+    const string SelfHostedConfigKey = "globalSettings:selfHosted";
+
     /// <summary>
     /// Gets a logger that is suitable for use during the bootstrapping (startup) process.
     /// </summary>
@@ -30,6 +32,46 @@ public static class HostBuilderExtensions
             .Enrich.FromLogContext()
             .WriteTo.Console()
             .CreateBootstrapLogger();
+    }
+
+    /// <summary>
+    /// Configures the host to use Bitwarden defaults.
+    /// </summary>
+    public static TBuilder UseBitwardenDefaults<TBuilder>(this TBuilder builder, Action<BitwardenHostOptions>? configure = null)
+        where TBuilder : IHostApplicationBuilder
+    {
+        var bitwardenHostOptions = new BitwardenHostOptions();
+        configure?.Invoke(bitwardenHostOptions);
+        builder.UseBitwardenDefaults(bitwardenHostOptions);
+        return builder;
+    }
+
+    public static TBuilder UseBitwardenDefaults<TBuilder>(this TBuilder builder, BitwardenHostOptions bitwardenHostOptions)
+        where TBuilder : IHostApplicationBuilder
+    {
+        builder.Services.AddOptions<GlobalSettingsBase>()
+            .Configure<IConfiguration>((options, config) =>
+            {
+                options.IsSelfHosted = config.GetValue(SelfHostedConfigKey, false);
+            });
+
+
+        if (builder.Configuration.GetValue(SelfHostedConfigKey, false))
+        {
+            AddSelfHostedConfig(builder.Configuration, builder.Environment);
+        }
+
+        if (bitwardenHostOptions.IncludeLogging)
+        {
+            AddLogging(builder.Services, builder.Configuration, builder.Environment);
+        }
+
+        if (bitwardenHostOptions.IncludeMetrics)
+        {
+            AddMetrics(builder.Services);
+        }
+
+        return builder;
     }
 
     /// <summary>
@@ -62,71 +104,17 @@ public static class HostBuilderExtensions
 
         hostBuilder.ConfigureAppConfiguration((context, builder) =>
         {
-            if (context.Configuration.GetValue("globalSettings:selfHosted", false))
+            if (context.Configuration.GetValue(SelfHostedConfigKey, false))
             {
-                // Current ordering of Configuration:
-                // 1. Chained (from Host config)
-                //      1. Memory
-                //      2. Memory
-                //      3. Environment (DOTNET_)
-                //      4. Chained
-                //          1. Memory
-                //          2. Environment (ASPNETCORE_)
-                // 2. Json (appsettings.json)
-                // 3. Json (appsettings.Environment.json)
-                // 4. Secrets
-                // 5. Environment (*)
-                // 6. Command line args, if present
-                // vv If selfhosted vv
-                // 7. Json (appsettings.json) again
-                // 8. Json (appsettings.Environment.json)
-                // 9. Secrets (if development)
-                // 10. Environment (*)
-                // 11. Command line args, if present
-
-                // As you can see there was a lot of doubling up,
-                // I would rather insert the self-hosted config, when necessary into
-                // the index.
-
-                // These would fail if two main things happen, the default host setup from .NET changes
-                // and a new source is added before the appsettings ones.
-                // or someone change the order or adding this helper, both things I believe would be quickly
-                // discovered during development.
-
-                // I expect the 3rd source to be the main appsettings.json file
-                Debug.Assert(builder.Sources[2] is FileConfigurationSource mainJsonSource
-                    && mainJsonSource.Path == "appsettings.json");
-                // I expect the 4th source to be the environment specific json file
-                Debug.Assert(builder.Sources[3] is FileConfigurationSource environmentJsonSource
-                    && environmentJsonSource.Path == $"appsettings.{context.HostingEnvironment.EnvironmentName}.json");
-
-                // If both of those are true, I feel good about inserting our own self-hosted config after
-                builder.Sources.Insert(4, new JsonConfigurationSource
-                {
-                    Path = "appsettings.SelfHosted.json",
-                    Optional = true,
-                    ReloadOnChange = true
-                });
-
-                if (context.HostingEnvironment.IsDevelopment())
-                {
-                    var appAssembly = Assembly.Load(new AssemblyName(context.HostingEnvironment.ApplicationName));
-                    builder.AddUserSecrets(appAssembly, optional: true);
-                }
-
-                builder.AddEnvironmentVariables();
+                AddSelfHostedConfig(builder, context.HostingEnvironment);
             }
         });
 
         if (bitwardenHostOptions.IncludeLogging)
         {
-            hostBuilder.UseSerilog((context, services, configuration) =>
+            hostBuilder.ConfigureServices((context, services) =>
             {
-                configuration.ReadFrom.Configuration(context.Configuration)
-                    .ReadFrom.Services(services)
-                    .Enrich.WithProperty("Project", context.HostingEnvironment.ApplicationName)
-                    .Enrich.FromLogContext()
-                    .WriteTo.Console(new RenderedCompactJsonFormatter());
+                AddLogging(services, context.Configuration, context.HostingEnvironment);
             });
         }
 
@@ -134,76 +122,89 @@ public static class HostBuilderExtensions
         {
             hostBuilder.ConfigureServices((_, services) =>
             {
-                services.AddOpenTelemetry()
-                    .WithMetrics(options =>
-                        options.AddOtlpExporter())
-                    .WithTracing(options =>
-                        options.AddOtlpExporter());
+                AddMetrics(services);
             });
         }
 
         return hostBuilder;
     }
 
-    /// <summary>
-    /// Configures the web host with Bitwarden defaults.
-    /// </summary>
-    /// <param name="webHostBuilder">Web host builder.</param>
-    /// <param name="configure">Configuration action.</param>
-    /// <returns></returns>
-    public static IWebHostBuilder UseBitwardenWebDefaults(this IWebHostBuilder webHostBuilder, Action<BitwardenWebHostOptions>? configure = null)
+    private static void AddSelfHostedConfig(IConfigurationBuilder configurationBuilder, IHostEnvironment environment)
     {
-        var bitwardenWebHostOptions = new BitwardenWebHostOptions();
-        configure?.Invoke(bitwardenWebHostOptions);
-        return webHostBuilder.UseBitwardenWebDefaults(bitwardenWebHostOptions);
+        // Current ordering of Configuration:
+        // 1. Chained (from Host config)
+        //      1. Memory
+        //      2. Memory
+        //      3. Environment (DOTNET_)
+        //      4. Chained
+        //          1. Memory
+        //          2. Environment (ASPNETCORE_)
+        // 2. Json (appsettings.json)
+        // 3. Json (appsettings.Environment.json)
+        // 4. Secrets
+        // 5. Environment (*)
+        // 6. Command line args, if present
+        // vv If selfhosted vv
+        // 7. Json (appsettings.json) again
+        // 8. Json (appsettings.Environment.json)
+        // 9. Secrets (if development)
+        // 10. Environment (*)
+        // 11. Command line args, if present
+
+        // As you can see there was a lot of doubling up,
+        // I would rather insert the self-hosted config, when necessary into
+        // the index.
+
+        // These would fail if two main things happen, the default host setup from .NET changes
+        // and a new source is added before the appsettings ones.
+        // or someone change the order or adding this helper, both things I believe would be quickly
+        // discovered during development.
+
+        var sources = configurationBuilder.Sources;
+
+        // I expect the 3rd source to be the main appsettings.json file
+        Debug.Assert(sources[2] is FileConfigurationSource mainJsonSource
+            && mainJsonSource.Path == "appsettings.json");
+        // I expect the 4th source to be the environment specific json file
+        Debug.Assert(sources[3] is FileConfigurationSource environmentJsonSource
+            && environmentJsonSource.Path == $"appsettings.{environment.EnvironmentName}.json");
+
+        // If both of those are true, I feel good about inserting our own self-hosted config after
+        configurationBuilder.Sources.Insert(4, new JsonConfigurationSource
+        {
+            Path = "appsettings.SelfHosted.json",
+            Optional = true,
+            ReloadOnChange = true
+        });
+
+        if (environment.IsDevelopment())
+        {
+            var appAssembly = Assembly.Load(new AssemblyName(environment.ApplicationName));
+            configurationBuilder.AddUserSecrets(appAssembly, optional: true);
+        }
+
+        configurationBuilder.AddEnvironmentVariables();
     }
 
-    /// <summary>
-    /// Configures the web host with Bitwarden defaults.
-    /// </summary>
-    /// <param name="webHostBuilder">Web host builder.</param>
-    /// <param name="bitwardenWebHostOptions">Web host options.</param>
-    /// <returns></returns>
-    public static IWebHostBuilder UseBitwardenWebDefaults(this IWebHostBuilder webHostBuilder, BitwardenWebHostOptions bitwardenWebHostOptions)
+
+    private static void AddLogging(IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
     {
-        // TODO: Add services and default starting middleware
-        webHostBuilder.Configure((context, builder) =>
+        services.AddSerilog((sp, serilog) =>
         {
-            if (bitwardenWebHostOptions.IncludeRequestLogging)
-            {
-                builder.UseSerilogRequestLogging();
-            }
-
-            // Exception handling middleware?
+            serilog.ReadFrom.Configuration(configuration)
+                .ReadFrom.Services(sp)
+                .Enrich.WithProperty("Project", environment.ApplicationName)
+                .Enrich.FromLogContext()
+                .WriteTo.Console(new RenderedCompactJsonFormatter());
         });
-
-        webHostBuilder.ConfigureServices(static (context, services) =>
-        {
-            // Default services that are web specific?
-        });
-
-        return webHostBuilder;
     }
 
-    /// <summary>
-    /// Configures the web host with Bitwarden defaults via a startup class.
-    /// </summary>
-    /// <param name="hostBuilder">Host builder.</param>
-    /// <param name="configure">Configuration action.</param>
-    /// <typeparam name="TStartup">Startup class.</typeparam>
-    /// <returns>Configured host builder.</returns>
-    public static IHostBuilder UseBitwardenWebDefaults<TStartup>(this IHostBuilder hostBuilder, Action<BitwardenWebHostOptions>? configure = null)
-        where TStartup : class
+    private static void AddMetrics(IServiceCollection services)
     {
-        var bitwardenWebHostOptions = new BitwardenWebHostOptions();
-        configure?.Invoke(bitwardenWebHostOptions);
-
-        hostBuilder.UseBitwardenDefaults(bitwardenWebHostOptions);
-        return hostBuilder.ConfigureWebHostDefaults(webHost =>
-        {
-            // Make sure to call our thing first, so that if we add middleware it is first
-            webHost.UseBitwardenWebDefaults(bitwardenWebHostOptions);
-            webHost.UseStartup<TStartup>();
-        });
+        services.AddOpenTelemetry()
+            .WithMetrics(options =>
+                options.AddOtlpExporter())
+            .WithTracing(options =>
+                options.AddOtlpExporter());
     }
 }
