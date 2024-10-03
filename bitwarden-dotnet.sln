@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -17,10 +17,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Core.Tests", "ext
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Extensions.Configuration.Tests", "extensions\Bitwarden.Extensions.Configuration\tests\Bitwarden.Extensions.Configuration.Tests.csproj", "{6158572C-9D17-4709-AC6B-D87EC838FFBA}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{8308DD08-D336-4A13-ACD1-4FA367C3C2D4}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalApis", "extensions\Bitwarden.Extensions.Configuration\examples\MinimalApis\MinimalApis.csproj", "{1BD7DE1A-F62C-4E6F-8BC5-6574E2C2E258}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Core.Microbenchmarks", "extensions\Bitwarden.Core\perf\Bitwarden.Core.Microbenchmarks.csproj", "{6DBBD50B-4FA1-4043-A0F0-D4D4A5BBC1BD}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Extensions.Hosting", "extensions\Bitwarden.Extensions.Hosting\src\Bitwarden.Extensions.Hosting.csproj", "{F5B1A2C7-2B1D-4164-9A8E-41FD9E0FF6F0}"
@@ -28,6 +24,14 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Bitwarden.Extensions.Hosting", "Bitwarden.Extensions.Hosting", "{A1C893A6-887B-44FE-9DA3-B85E6ACADC55}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Extensions.Hosting.Tests", "extensions\Bitwarden.Extensions.Hosting\tests\Bitwarden.Extensions.Hosting.Tests.csproj", "{2EABE7A5-6B68-4DAC-9D37-F312059C3C27}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{C0631F08-D41D-4FCE-AE2B-2F4990254ACC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalApi", "extensions\Bitwarden.Extensions.Configuration\examples\MinimalApi\MinimalApi.csproj", "{0C4EE450-B1FF-42F6-AE44-9E79493A47B5}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{1D751C2C-4102-4A95-B411-95F31FC50A26}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalApi", "extensions\Bitwarden.Extensions.Hosting\examples\MinimalApi\MinimalApi.csproj", "{441E6BF0-4C2B-4512-9ECD-3C0390CE83C5}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -54,10 +58,6 @@ Global
 		{6158572C-9D17-4709-AC6B-D87EC838FFBA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6158572C-9D17-4709-AC6B-D87EC838FFBA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6158572C-9D17-4709-AC6B-D87EC838FFBA}.Release|Any CPU.Build.0 = Release|Any CPU
-		{1BD7DE1A-F62C-4E6F-8BC5-6574E2C2E258}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1BD7DE1A-F62C-4E6F-8BC5-6574E2C2E258}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1BD7DE1A-F62C-4E6F-8BC5-6574E2C2E258}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{1BD7DE1A-F62C-4E6F-8BC5-6574E2C2E258}.Release|Any CPU.Build.0 = Release|Any CPU
 		{6DBBD50B-4FA1-4043-A0F0-D4D4A5BBC1BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{6DBBD50B-4FA1-4043-A0F0-D4D4A5BBC1BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6DBBD50B-4FA1-4043-A0F0-D4D4A5BBC1BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -70,6 +70,14 @@ Global
 		{2EABE7A5-6B68-4DAC-9D37-F312059C3C27}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2EABE7A5-6B68-4DAC-9D37-F312059C3C27}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2EABE7A5-6B68-4DAC-9D37-F312059C3C27}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0C4EE450-B1FF-42F6-AE44-9E79493A47B5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0C4EE450-B1FF-42F6-AE44-9E79493A47B5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0C4EE450-B1FF-42F6-AE44-9E79493A47B5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0C4EE450-B1FF-42F6-AE44-9E79493A47B5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{441E6BF0-4C2B-4512-9ECD-3C0390CE83C5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{441E6BF0-4C2B-4512-9ECD-3C0390CE83C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{441E6BF0-4C2B-4512-9ECD-3C0390CE83C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{441E6BF0-4C2B-4512-9ECD-3C0390CE83C5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{5EC8B943-2E9E-437D-9FFC-D18B5DB4D7D0} = {695C76EF-1102-4805-970F-7C995EE54930}
@@ -78,11 +86,13 @@ Global
 		{A5B1A5A3-509F-46D4-A675-F0054BB4D5FF} = {0008B44C-95E9-4A33-92EF-66741AC8AE47}
 		{052CFA9A-11A1-46AF-B890-62256746A7E2} = {5EC8B943-2E9E-437D-9FFC-D18B5DB4D7D0}
 		{6158572C-9D17-4709-AC6B-D87EC838FFBA} = {0008B44C-95E9-4A33-92EF-66741AC8AE47}
-		{8308DD08-D336-4A13-ACD1-4FA367C3C2D4} = {0008B44C-95E9-4A33-92EF-66741AC8AE47}
-		{1BD7DE1A-F62C-4E6F-8BC5-6574E2C2E258} = {8308DD08-D336-4A13-ACD1-4FA367C3C2D4}
 		{6DBBD50B-4FA1-4043-A0F0-D4D4A5BBC1BD} = {5EC8B943-2E9E-437D-9FFC-D18B5DB4D7D0}
 		{A1C893A6-887B-44FE-9DA3-B85E6ACADC55} = {695C76EF-1102-4805-970F-7C995EE54930}
 		{F5B1A2C7-2B1D-4164-9A8E-41FD9E0FF6F0} = {A1C893A6-887B-44FE-9DA3-B85E6ACADC55}
 		{2EABE7A5-6B68-4DAC-9D37-F312059C3C27} = {A1C893A6-887B-44FE-9DA3-B85E6ACADC55}
+		{C0631F08-D41D-4FCE-AE2B-2F4990254ACC} = {0008B44C-95E9-4A33-92EF-66741AC8AE47}
+		{0C4EE450-B1FF-42F6-AE44-9E79493A47B5} = {C0631F08-D41D-4FCE-AE2B-2F4990254ACC}
+		{1D751C2C-4102-4A95-B411-95F31FC50A26} = {A1C893A6-887B-44FE-9DA3-B85E6ACADC55}
+		{441E6BF0-4C2B-4512-9ECD-3C0390CE83C5} = {1D751C2C-4102-4A95-B411-95F31FC50A26}
 	EndGlobalSection
 EndGlobal
