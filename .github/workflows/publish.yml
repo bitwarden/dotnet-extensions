@@ -75,6 +75,10 @@ jobs:
       matrix:
         environment:
           - ghpr
+          - nuget
+        exclude:
+          # exclude nuget for prereleases
+          - environment: ${{ github.event.release.prerelease && 'nuget' }}
 
     steps:
       - name: Dispatch publishing
