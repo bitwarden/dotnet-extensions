@@ -22,6 +22,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="LaunchDarkly.ServerSdk" Version="8.5.2" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.9.0" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.9.0" />
@@ -43,5 +44,9 @@
   <ItemGroup>
     <None Include=".\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
-  
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bitwarden.Extensions.Hosting.Tests" />
+  </ItemGroup>
+
 </Project>
