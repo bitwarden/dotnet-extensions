@@ -61,7 +61,7 @@ internal sealed class FeatureCheckMiddleware
     {
         if (_logger.IsEnabled(LogLevel.Debug))
         {
-            _logger.LogFailedFeatureCheck(failedFeature.ToString() ?? "Unknown Check");
+            _logger.LogFailedFeatureCheck(failedFeature.ToString()!);
         }
 
         context.Response.StatusCode = StatusCodes.Status404NotFound;
