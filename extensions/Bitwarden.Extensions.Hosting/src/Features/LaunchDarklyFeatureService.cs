@@ -188,7 +188,6 @@ internal sealed class LaunchDarklyClientProvider
 
     private TestData BuildDataSource(Dictionary<string, string> data)
     {
-        _loggerFactory.CreateLogger("Test").LogWarning("KnownValues: {Count}", data.Count);
         // TODO: We could support updating just the test data source with
         // changes from the OnChange of options, we currently support it through creating
         // a whole new client but that could be pretty heavy just for flag
