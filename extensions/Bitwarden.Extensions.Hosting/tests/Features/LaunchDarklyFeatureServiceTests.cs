@@ -4,6 +4,7 @@ using LaunchDarkly.Sdk.Server;
 using LaunchDarkly.Sdk.Server.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
 namespace Bitwarden.Extensions.Hosting.Tests.Features;
@@ -22,7 +23,12 @@ public class LaunchDarklyFeatureServiceTests
         _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
         _featureFlagOptions = Substitute.For<IOptionsMonitor<FeatureFlagOptions>>();
 
-        _sut = new LaunchDarklyFeatureService(_ldClient, _httpContextAccessor, _featureFlagOptions);
+        _sut = new LaunchDarklyFeatureService(
+            _ldClient,
+            _httpContextAccessor,
+            _featureFlagOptions,
+            NullLogger<LaunchDarklyFeatureService>.Instance
+        );
     }
 
     [Fact]

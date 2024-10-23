@@ -21,6 +21,7 @@ internal sealed class LaunchDarklyFeatureService : IFeatureService
     private readonly ILdClient _ldClient;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IOptionsMonitor<FeatureFlagOptions> _featureFlagOptions;
+    private readonly ILogger<LaunchDarklyFeatureService> _logger;
 
     // Should not change during the course of a request, so cache this
     private Context? _context;
@@ -28,15 +29,18 @@ internal sealed class LaunchDarklyFeatureService : IFeatureService
     public LaunchDarklyFeatureService(
         ILdClient ldClient,
         IHttpContextAccessor httpContextAccessor,
-        IOptionsMonitor<FeatureFlagOptions> featureFlagOptions)
+        IOptionsMonitor<FeatureFlagOptions> featureFlagOptions,
+        ILogger<LaunchDarklyFeatureService> logger)
     {
         ArgumentNullException.ThrowIfNull(ldClient);
         ArgumentNullException.ThrowIfNull(httpContextAccessor);
         ArgumentNullException.ThrowIfNull(featureFlagOptions);
+        ArgumentNullException.ThrowIfNull(logger);
 
         _ldClient = ldClient;
         _httpContextAccessor = httpContextAccessor;
         _featureFlagOptions = featureFlagOptions;
+        _logger = logger;
     }
 
     public bool IsEnabled(string key, bool defaultValue = false)
@@ -109,7 +113,7 @@ internal sealed class LaunchDarklyFeatureService : IFeatureService
         var httpContext = _httpContextAccessor.HttpContext;
         if (httpContext == null)
         {
-            // Likely a mistake, should we log a warning?
+            _logger.LogMissingHttpContext();
             return Context.Builder(AnonymousUser)
                 .Kind(ContextKind.Default)
                 .Anonymous(true)
