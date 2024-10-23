@@ -9,7 +9,7 @@ var app = builder.Build();
 
 app.UseRouting();
 
-app.UseFeatureChecks();
+app.UseFeatureFlagChecks();
 
 app.MapGet("/", (IConfiguration config) => ((IConfigurationRoot)config).GetDebugView());
 

@@ -174,7 +174,7 @@ public class FeatureCheckMiddlewareTests
                     {
                         app.UseRouting();
 
-                        app.UseFeatureChecks();
+                        app.UseFeatureFlagChecks();
 
                         app.UseEndpoints(endpoints =>
                         {

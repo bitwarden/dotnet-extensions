@@ -10,7 +10,7 @@ namespace Bitwarden.Extensions.Hosting.Tests.Features;
 public class FeatureApplicationBuilderExtensionsTests
 {
     [Fact]
-    public async Task UseFeatureChecks_RegistersMiddleware()
+    public async Task UseFeatureFlagChecks_RegistersMiddleware()
     {
         // Arrange
         var featureService = Substitute.For<IFeatureService>();
@@ -18,7 +18,7 @@ public class FeatureApplicationBuilderExtensionsTests
 
         var app = new ApplicationBuilder(services);
 
-        app.UseFeatureChecks();
+        app.UseFeatureFlagChecks();
 
         var appFunc = app.Build();
 

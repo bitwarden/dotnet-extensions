@@ -15,7 +15,7 @@ public static class FeatureApplicationBuilderExtensions
     /// </summary>
     /// <param name="app">The <see cref="IApplicationBuilder"/> to add the middleware to.</param>
     /// <returns>A reference to <paramref name="app"/> after the operation has completed.</returns>
-    public static IApplicationBuilder UseFeatureChecks(this IApplicationBuilder app)
+    public static IApplicationBuilder UseFeatureFlagChecks(this IApplicationBuilder app)
     {
         ArgumentNullException.ThrowIfNull(app);
 
