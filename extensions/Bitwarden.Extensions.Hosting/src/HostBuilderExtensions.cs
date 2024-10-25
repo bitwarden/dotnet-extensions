@@ -1,15 +1,15 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Reflection;
 using Bitwarden.Extensions.Hosting;
-using Microsoft.AspNetCore.Hosting;
+using Bitwarden.Extensions.Hosting.Features;
+using LaunchDarkly.Sdk.Server.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using Serilog;
-using Serilog.Events;
 using Serilog.Formatting.Compact;
 
 namespace Microsoft.Extensions.Hosting;
@@ -22,33 +22,35 @@ public static class HostBuilderExtensions
     const string SelfHostedConfigKey = "globalSettings:selfHosted";
 
     /// <summary>
-    /// Gets a logger that is suitable for use during the bootstrapping (startup) process.
-    /// </summary>
-    /// <returns></returns>
-    public static ILogger GetBootstrapLogger()
-    {
-        return new LoggerConfiguration()
-            .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
-            .Enrich.FromLogContext()
-            .WriteTo.Console()
-            .CreateBootstrapLogger();
-    }
-
-    /// <summary>
     /// Configures the host to use Bitwarden defaults.
     /// </summary>
+    /// <param name="builder">The host application builder.</param>
+    /// <param name="configure">The function to customize the Bitwarden defaults.</param>
+    /// <returns>The original host application builder parameter.</returns>
     public static TBuilder UseBitwardenDefaults<TBuilder>(this TBuilder builder, Action<BitwardenHostOptions>? configure = null)
         where TBuilder : IHostApplicationBuilder
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         var bitwardenHostOptions = new BitwardenHostOptions();
         configure?.Invoke(bitwardenHostOptions);
         builder.UseBitwardenDefaults(bitwardenHostOptions);
         return builder;
     }
 
+    /// <summary>
+    /// Configures the host to use Bitwarden defaults.
+    /// </summary>
+    /// <typeparam name="TBuilder"></typeparam>
+    /// <param name="builder"></param>
+    /// <param name="bitwardenHostOptions"></param>
+    /// <returns></returns>
     public static TBuilder UseBitwardenDefaults<TBuilder>(this TBuilder builder, BitwardenHostOptions bitwardenHostOptions)
         where TBuilder : IHostApplicationBuilder
     {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bitwardenHostOptions);
+
         builder.Services.AddOptions<GlobalSettingsBase>()
             .Configure<IConfiguration>((options, config) =>
             {
@@ -70,6 +72,8 @@ public static class HostBuilderExtensions
         {
             AddMetrics(builder.Services);
         }
+
+        AddFeatureFlagServices(builder.Services, builder.Configuration);
 
         return builder;
     }
@@ -125,6 +129,11 @@ public static class HostBuilderExtensions
                 AddMetrics(services);
             });
         }
+
+        hostBuilder.ConfigureServices((context, services) =>
+        {
+            AddFeatureFlagServices(services, context.Configuration);
+        });
 
         return hostBuilder;
     }
@@ -191,11 +200,19 @@ public static class HostBuilderExtensions
     {
         services.AddSerilog((sp, serilog) =>
         {
-            serilog.ReadFrom.Configuration(configuration)
+            var builder = serilog.ReadFrom.Configuration(configuration)
                 .ReadFrom.Services(sp)
                 .Enrich.WithProperty("Project", environment.ApplicationName)
-                .Enrich.FromLogContext()
-                .WriteTo.Console(new RenderedCompactJsonFormatter());
+                .Enrich.FromLogContext();
+
+            if (environment.IsProduction())
+            {
+                builder.WriteTo.Console(new RenderedCompactJsonFormatter());
+            }
+            else
+            {
+                builder.WriteTo.Console();
+            }
         });
     }
 
@@ -206,5 +223,22 @@ public static class HostBuilderExtensions
                 options.AddOtlpExporter())
             .WithTracing(options =>
                 options.AddOtlpExporter());
+    }
+
+    private static void AddFeatureFlagServices(IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddProblemDetails();
+        services.AddHttpContextAccessor();
+
+        services.Configure<FeatureFlagOptions>(configuration.GetSection("Features"));
+        // TODO: Register service to do legacy support from configuration.
+
+        services.TryAddSingleton<LaunchDarklyClientProvider>();
+
+        // This needs to be scoped so a "new" ILdClient can be given per request, this makes it possible to
+        // have the ILdClient be rebuilt if configuration changes but for the most part this will return a cached
+        // client from LaunchDarklyClientProvider, effectively being a singleton.
+        services.TryAddScoped<ILdClient>(sp => sp.GetRequiredService<LaunchDarklyClientProvider>().Get());
+        services.TryAddScoped<IFeatureService, LaunchDarklyFeatureService>();
     }
 }

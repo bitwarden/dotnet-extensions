@@ -1,4 +1,4 @@
-﻿namespace Bitwarden.Extensions.Hosting;
+namespace Bitwarden.Extensions.Hosting;
 
 /// <summary>
 /// Global settings.
