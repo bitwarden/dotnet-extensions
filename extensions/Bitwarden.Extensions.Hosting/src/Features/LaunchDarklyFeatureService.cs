@@ -186,7 +186,7 @@ internal sealed class LaunchDarklyClientProvider
             .ApplicationInfo(Components.ApplicationInfo()
                 .ApplicationId(_hostEnvironment.ApplicationName)
                 .ApplicationName(_hostEnvironment.ApplicationName)
-                .ApplicationVersion(_versionInfo.GitHash)
+                .ApplicationVersion(_versionInfo.GitHash ?? _versionInfo.Version.ToString())
                 .ApplicationVersionName(_versionInfo.Version.ToString())
             )
             .DataSource(BuildDataSource(featureFlagOptions.FlagValues))

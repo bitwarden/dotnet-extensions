@@ -8,14 +8,14 @@ internal sealed partial class VersionInfo : ISpanParsable<VersionInfo>
     [GeneratedRegex("[0-9a-f]{5,40}")]
     private static partial Regex GitHashRegex();
 
-    private VersionInfo(Version version, string gitHash)
+    private VersionInfo(Version version, string? gitHash)
     {
         Version = version;
         GitHash = gitHash;
     }
 
     public Version Version { get; }
-    public string GitHash { get; }
+    public string? GitHash { get; }
 
     /// <inheritdoc />
     public static VersionInfo Parse(ReadOnlySpan<char> s, IFormatProvider? provider)
@@ -43,7 +43,14 @@ internal sealed partial class VersionInfo : ISpanParsable<VersionInfo>
 
         if (plusIndex == -1)
         {
-            return false;
+            // No split char, treat it as version only
+            if (!Version.TryParse(s, out var versionOnly))
+            {
+                return false;
+            }
+
+            result = new VersionInfo(versionOnly, null);
+            return true;
         }
 
         if (!Version.TryParse(s[0..plusIndex], out var version))
