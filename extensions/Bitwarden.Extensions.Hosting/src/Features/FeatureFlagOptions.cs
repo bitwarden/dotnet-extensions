@@ -1,5 +1,3 @@
-using System.Text.Json.Nodes;
-
 namespace Bitwarden.Extensions.Hosting.Features;
 
 /// <summary>

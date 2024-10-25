@@ -1,4 +1,4 @@
-﻿using Bitwarden.Extensions.Hosting.Exceptions;
+using Bitwarden.Extensions.Hosting.Exceptions;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 

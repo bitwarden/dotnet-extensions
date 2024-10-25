@@ -1,4 +1,4 @@
-﻿namespace Bitwarden.Extensions.Hosting;
+namespace Bitwarden.Extensions.Hosting;
 
 /// <summary>
 /// Options for configuring the Bitwarden host.
