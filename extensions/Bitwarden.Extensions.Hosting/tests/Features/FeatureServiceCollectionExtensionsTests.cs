@@ -1,4 +1,3 @@
-using System.Text.Json.Nodes;
 using Bitwarden.Extensions.Hosting.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
