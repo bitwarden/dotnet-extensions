@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Bitwarden.Extensions.Hosting.Utilities;
 using LaunchDarkly.Logging;
 using LaunchDarkly.Sdk;
 using LaunchDarkly.Sdk.Server;
@@ -152,6 +153,7 @@ internal sealed class LaunchDarklyClientProvider
 {
     private readonly ILoggerFactory _loggerFactory;
     private readonly IHostEnvironment _hostEnvironment;
+    private readonly VersionInfo _versionInfo;
 
     private LdClient _client;
 
@@ -162,6 +164,15 @@ internal sealed class LaunchDarklyClientProvider
     {
         _loggerFactory = loggerFactory;
         _hostEnvironment = hostEnvironment;
+
+        var versionInfo = _hostEnvironment.GetVersionInfo();
+
+        if (versionInfo == null)
+        {
+            throw new InvalidOperationException("Unable to attain version information for the current application.");
+        }
+
+        _versionInfo = versionInfo;
 
         BuildClient(featureFlagOptions.CurrentValue);
         // Subscribe to options changes.
@@ -176,8 +187,8 @@ internal sealed class LaunchDarklyClientProvider
             .ApplicationInfo(Components.ApplicationInfo()
                 .ApplicationId(_hostEnvironment.ApplicationName)
                 .ApplicationName(_hostEnvironment.ApplicationName)
-                .ApplicationVersion(AssemblyHelpers.GetGitHash() ?? $"v{AssemblyHelpers.GetVersion()}")
-            // .ApplicationVersionName(AssemblyHelpers.GetVersion()) THIS DOESN'T WORK
+                .ApplicationVersion(_versionInfo.GitHash)
+                .ApplicationVersionName(_versionInfo.Version.ToString())
             )
             .DataSource(BuildDataSource(featureFlagOptions.FlagValues))
             .Events(Components.NoEvents);
