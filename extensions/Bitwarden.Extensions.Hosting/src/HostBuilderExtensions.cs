@@ -2,11 +2,13 @@ using System.Diagnostics;
 using System.Reflection;
 using Bitwarden.Extensions.Hosting;
 using Bitwarden.Extensions.Hosting.Features;
+using Bitwarden.Extensions.Hosting.Licensing;
 using LaunchDarkly.Sdk.Server.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using Serilog;
@@ -74,6 +76,7 @@ public static class HostBuilderExtensions
         }
 
         AddFeatureFlagServices(builder.Services, builder.Configuration);
+        AddLicensingServices(builder.Services, builder.Configuration);
 
         return builder;
     }
@@ -133,6 +136,7 @@ public static class HostBuilderExtensions
         hostBuilder.ConfigureServices((context, services) =>
         {
             AddFeatureFlagServices(services, context.Configuration);
+            AddLicensingServices(services, context.Configuration);
         });
 
         return hostBuilder;
@@ -240,5 +244,14 @@ public static class HostBuilderExtensions
         // client from LaunchDarklyClientProvider, effectively being a singleton.
         services.TryAddScoped<ILdClient>(sp => sp.GetRequiredService<LaunchDarklyClientProvider>().Get());
         services.TryAddScoped<IFeatureService, LaunchDarklyFeatureService>();
+    }
+
+    private static void AddLicensingServices(IServiceCollection services, IConfiguration configuration)
+    {
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IPostConfigureOptions<LicensingOptions>, PostConfigureLicensingOptions>()
+        );
+
+        services.Configure<LicensingOptions>(configuration.GetSection("Licensing"));
     }
 }
