@@ -69,7 +69,11 @@ public static class HostBuilderExtensions
         }
 
         AddFeatureFlagServices(builder.Services, builder.Configuration);
-        AddLicensingServices(builder.Services, builder.Configuration);
+
+        if (bitwardenHostOptions.IncludeSelfHosting)
+        {
+            AddLicensingServices(builder.Services, builder.Configuration);
+        }
 
         return builder;
     }
@@ -120,8 +124,15 @@ public static class HostBuilderExtensions
         hostBuilder.ConfigureServices((context, services) =>
         {
             AddFeatureFlagServices(services, context.Configuration);
-            AddLicensingServices(services, context.Configuration);
         });
+
+        if (bitwardenHostOptions.IncludeSelfHosting)
+        {
+            hostBuilder.ConfigureServices((context, services) =>
+            {
+                AddLicensingServices(services, context.Configuration);
+            });
+        }
 
         return hostBuilder;
     }
