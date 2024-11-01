@@ -39,6 +39,7 @@ public sealed class AzureBlobLicensingOptions
     /// </summary>
     public string? CertificatePassword { get; set; }
 
+    // TODO: Do we actually need to allow these to be customized?
     /// <summary>
     /// The name of the blob the certificate is stored in, defaults to <c>certificates</c>.
     /// </summary>

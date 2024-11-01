@@ -4,10 +4,12 @@ using System.Security.Cryptography.X509Certificates;
 using Azure.Storage.Blobs;
 using Bitwarden.Extensions.Hosting.Licensing;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using DotNet.Testcontainers.Builders;
 using NSubstitute;
+using Xunit.Abstractions;
 
 namespace Bitwarden.Extensions.Hosting.Tests.Licensing;
 
@@ -15,17 +17,23 @@ public class PostConfigureLicensingOptionsTests
 {
     private readonly InternalLicensingOptions _internalLicensingOptions;
     private readonly IHostEnvironment _hostEnvironment;
+    private readonly ILoggerFactory _loggerFactory;
 
     private readonly PostConfigureLicensingOptions _sut;
 
-    public PostConfigureLicensingOptionsTests()
+    public PostConfigureLicensingOptionsTests(ITestOutputHelper testOutputHelper)
     {
+        _loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.AddXunit(testOutputHelper);
+        });
+
         _internalLicensingOptions = new InternalLicensingOptions();
         _hostEnvironment = Substitute.For<IHostEnvironment>();
 
         _sut = new PostConfigureLicensingOptions(
             Options.Create(_internalLicensingOptions),
-            NullLogger<PostConfigureLicensingOptions>.Instance,
+            _loggerFactory.CreateLogger<PostConfigureLicensingOptions>(),
             _hostEnvironment
         );
     }
@@ -151,20 +159,47 @@ public class PostConfigureLicensingOptionsTests
         Assert.Equal(allowedCertThumbprint, options.SigningCertificate.Thumbprint);
     }
 
-    private async Task<IAsyncDisposable> PrepareBlobStorageAsync()
+    [Fact]
+    public async Task PostConfigure_InBlob_CustomOptions_RetrievesCertFromBlob()
+    {
+        await using var test = await PrepareBlobStorageAsync("custom", "myLicense.pfx");
+
+        var allowedCertThumbprint = "AC6C1CDD9050FC943A4A67DAA181C85CF89AE9C7";
+
+        _hostEnvironment
+            .EnvironmentName
+            .Returns("Development");
+
+        _internalLicensingOptions.DevelopmentThumbprint = allowedCertThumbprint;
+
+        var options = new LicensingOptions();
+        options.AzureBlob.ConnectionString = "UseDevelopmentStorage=true;";
+        options.AzureBlob.CertificatePassword = TestData.PfxPassword;
+        options.AzureBlob.BlobName = "custom";
+        options.AzureBlob.LicenseName = "myLicense.pfx";
+
+        _sut.PostConfigure(Options.DefaultName, options);
+
+        Assert.NotNull(options.SigningCertificate);
+        Assert.Equal(allowedCertThumbprint, options.SigningCertificate.Thumbprint);
+    }
+
+    private async Task<IAsyncDisposable> PrepareBlobStorageAsync(
+        string containerName = "certificates",
+        string licenseName = "licensing.pfx")
     {
         var container = new ContainerBuilder()
             .WithImage("mcr.microsoft.com/azure-storage/azurite:3.33.0")
-            .WithPortBinding(10000, 10000)
+            .WithPortBinding(10000, 10000) // Default port for blob storage
+            .WithLogger(_loggerFactory.CreateLogger("Testcontainer"))
             .Build();
 
         await container.StartAsync();
 
         // Add certs to blob storage
-        // TODO: Let test customize these?
         var blobServiceClient = new BlobServiceClient("UseDevelopmentStorage=true;");
-        var blobContainerClient = blobServiceClient.CreateBlobContainer("certificates").Value;
-        var blobClient = blobContainerClient.GetBlobClient("licensing.pfx");
+        var blobContainerClient = blobServiceClient.CreateBlobContainer(containerName).Value;
+        var blobClient = blobContainerClient.GetBlobClient(licenseName);
 
         await blobClient.UploadAsync(new BinaryData(TestData.TestCertificateWithPrivateKey));
 

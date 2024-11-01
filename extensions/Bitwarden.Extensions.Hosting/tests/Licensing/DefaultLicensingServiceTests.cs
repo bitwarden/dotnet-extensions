@@ -19,8 +19,6 @@ public class DefaultLicensingServiceTests
         _fakeTimeProvider = new FakeTimeProvider(DateTimeOffset.UtcNow);
     }
 
-
-
     [Fact]
     public async Task RoundTrip_Works()
     {
