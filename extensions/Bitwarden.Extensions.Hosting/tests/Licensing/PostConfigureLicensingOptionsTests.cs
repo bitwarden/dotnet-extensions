@@ -1,7 +1,12 @@
+using System.Diagnostics;
+using System.Reflection;
+using System.Security.Cryptography.X509Certificates;
+using Azure.Storage.Blobs;
 using Bitwarden.Extensions.Hosting.Licensing;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using DotNet.Testcontainers.Builders;
 using NSubstitute;
 
 namespace Bitwarden.Extensions.Hosting.Tests.Licensing;
@@ -26,16 +31,179 @@ public class PostConfigureLicensingOptionsTests
     }
 
     [Fact]
-    public void PostConfigure_Works()
+    public void PostConfigure_NoBlobConfigured_NotInStore_LoadsProductionCert()
     {
+        var allowedCertThumbprint = "569A8AD2907FB3A20DE200C04C8B1069E90F20AD";
+
+        // Update our test cert as the allowed certificate
+        _internalLicensingOptions.NonDevelopmentThumbprint = allowedCertThumbprint;
+
         _hostEnvironment
             .ApplicationName
-            .Returns("Test");
+            .Returns("Bitwarden.Extensions.Hosting.Tests");
+
+        _hostEnvironment
+            .EnvironmentName
+            .Returns("Production");
 
         var options = new LicensingOptions();
 
         _sut.PostConfigure(Options.DefaultName, options);
 
         Assert.NotNull(options.SigningCertificate);
+        Assert.Equal(allowedCertThumbprint, options.SigningCertificate.Thumbprint);
+    }
+
+    [Fact]
+    public void PostConfigure_NoBlobConfigured_NotInStore_LoadsDevCert()
+    {
+        var allowedCertThumbprint = "AC6C1CDD9050FC943A4A67DAA181C85CF89AE9C7";
+
+        // Update our test cert as the allowed certificate
+        _internalLicensingOptions.DevelopmentThumbprint = allowedCertThumbprint;
+
+        _hostEnvironment
+            .ApplicationName
+            .Returns("Bitwarden.Extensions.Hosting.Tests");
+
+        _hostEnvironment
+            .EnvironmentName
+            .Returns("Development");
+
+        var options = new LicensingOptions();
+
+        _sut.PostConfigure(Options.DefaultName, options);
+
+        Assert.NotNull(options.SigningCertificate);
+        Assert.Equal(allowedCertThumbprint, options.SigningCertificate.Thumbprint);
+    }
+
+    [Fact]
+    public void PostConfigure_NoBlobConfigured_InStore_Development_LoadsStoreCert()
+    {
+        var allowedCertThumbprint = "AC6C1CDD9050FC943A4A67DAA181C85CF89AE9C7";
+
+        // Update our test cert as the allowed certificate
+        _internalLicensingOptions.DevelopmentThumbprint = allowedCertThumbprint;
+
+        _hostEnvironment
+            .EnvironmentName
+            .Returns("Development");
+
+        var options = new LicensingOptions();
+
+        UseTempStoreCert(
+            "Bitwarden.Extensions.Hosting.Tests.Resources.licensing_dev.cer",
+            allowedCertThumbprint, () =>
+            {
+                _sut.PostConfigure(Options.DefaultName, options);
+            });
+
+        Assert.NotNull(options.SigningCertificate);
+        Assert.Equal(allowedCertThumbprint, options.SigningCertificate.Thumbprint);
+    }
+
+    [Fact]
+    public void PostConfigure_NoBlobConfigured_InStore_Production_LoadsStoreCert()
+    {
+        var allowedCertThumbprint = "569A8AD2907FB3A20DE200C04C8B1069E90F20AD";
+
+        // Update our test cert as the allowed certificate
+        _internalLicensingOptions.NonDevelopmentThumbprint = allowedCertThumbprint;
+
+        _hostEnvironment
+            .EnvironmentName
+            .Returns("Production");
+
+        var options = new LicensingOptions();
+
+        UseTempStoreCert(
+            "Bitwarden.Extensions.Hosting.Tests.Resources.licensing.cer",
+            allowedCertThumbprint, () =>
+            {
+                _sut.PostConfigure(Options.DefaultName, options);
+            });
+
+        Assert.NotNull(options.SigningCertificate);
+        Assert.Equal(allowedCertThumbprint, options.SigningCertificate.Thumbprint);
+    }
+
+    [Fact]
+    public async Task PostConfigure_InBlob_RetrievesCertFromBlob()
+    {
+        await using var test = await PrepareBlobStorageAsync();
+
+        var allowedCertThumbprint = "AC6C1CDD9050FC943A4A67DAA181C85CF89AE9C7";
+
+        _hostEnvironment
+            .EnvironmentName
+            .Returns("Development");
+
+        _internalLicensingOptions.DevelopmentThumbprint = allowedCertThumbprint;
+
+        var options = new LicensingOptions();
+        options.AzureBlob.ConnectionString = "UseDevelopmentStorage=true;";
+        options.AzureBlob.CertificatePassword = TestData.PfxPassword;
+
+        _sut.PostConfigure(Options.DefaultName, options);
+
+        Assert.NotNull(options.SigningCertificate);
+        Assert.Equal(allowedCertThumbprint, options.SigningCertificate.Thumbprint);
+    }
+
+    private async Task<IAsyncDisposable> PrepareBlobStorageAsync()
+    {
+        var container = new ContainerBuilder()
+            .WithImage("mcr.microsoft.com/azure-storage/azurite:3.33.0")
+            .WithPortBinding(10000, 10000)
+            .Build();
+
+        await container.StartAsync();
+
+        // Add certs to blob storage
+        // TODO: Let test customize these?
+        var blobServiceClient = new BlobServiceClient("UseDevelopmentStorage=true;");
+        var blobContainerClient = blobServiceClient.CreateBlobContainer("certificates").Value;
+        var blobClient = blobContainerClient.GetBlobClient("licensing.pfx");
+
+        await blobClient.UploadAsync(new BinaryData(TestData.TestCertificateWithPrivateKey));
+
+        return container;
+    }
+
+    private void UseTempStoreCert(string resourceName, string thumbprint, Action test)
+    {
+        X509Certificate2? certificate = null;
+        try
+        {
+            var certStore = new X509Store(StoreName.My, StoreLocation.CurrentUser);
+            certStore.Open(OpenFlags.ReadWrite);
+
+            using var resourceStream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName)!;
+            using var memoryStream = new MemoryStream();
+            resourceStream.CopyTo(memoryStream);
+            certificate = new X509Certificate2(memoryStream.ToArray());
+
+            // Test code should never have us place a cert that different from the given thumbprint.
+            Debug.Assert(certificate.Thumbprint == thumbprint);
+
+            certStore.Add(certificate);
+
+            // Close the store before running the test
+            certStore.Dispose();
+
+            test();
+        }
+        finally
+        {
+            // Was the certificate loaded?
+            if (certificate != null)
+            {
+                // Delete from store via thumbprint
+                using var deletingCertStore = new X509Store(StoreName.My, StoreLocation.CurrentUser);
+                deletingCertStore.Open(OpenFlags.ReadWrite);
+                deletingCertStore.Remove(certificate);
+            }
+        }
     }
 }

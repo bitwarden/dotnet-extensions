@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
+using Azure.Storage.Blobs;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
@@ -35,6 +36,9 @@ internal sealed class PostConfigureLicensingOptions : IPostConfigureOptions<Lice
             return;
         }
 
+        // TODO: Apply old config locations to new place
+
+
         void DoFinalValidation()
         {
             var signingCertificate = options.SigningCertificate;
@@ -44,7 +48,14 @@ internal sealed class PostConfigureLicensingOptions : IPostConfigureOptions<Lice
                 throw new InvalidOperationException("No signing certificate could be retrieved.");
             }
 
-            // TODO: Validate thumbprint one last time
+            var expectedThumbprint = _hostEnvironment.IsDevelopment()
+                ? _internalLicensingOptions.DevelopmentThumbprint
+                : _internalLicensingOptions.NonDevelopmentThumbprint;
+
+            if (!string.Equals(expectedThumbprint, signingCertificate.Thumbprint, StringComparison.InvariantCultureIgnoreCase))
+            {
+                throw new InvalidOperationException("The supplied certificate does not contain the expected thumbprint.");
+            }
 
             if (options.ForceSelfHost && !_hostEnvironment.IsDevelopment())
             {
@@ -96,8 +107,23 @@ internal sealed class PostConfigureLicensingOptions : IPostConfigureOptions<Lice
             return false;
         }
 
-        // TODO: Do azure blob stuff
-        // TODO: Set SigningCertificate
+        try
+        {
+            var blobServiceClient = new BlobServiceClient(options.AzureBlob.ConnectionString);
+            var blobContainerClient = blobServiceClient.GetBlobContainerClient(options.AzureBlob.BlobName);
+            var blobClient = blobContainerClient.GetBlobClient(options.AzureBlob.LicenseName);
+            using var memoryStream = new MemoryStream();
+            blobClient.DownloadTo(memoryStream);
+            var certificate = new X509Certificate2(memoryStream.ToArray(), options.AzureBlob.CertificatePassword);
+
+            options.SigningCertificate = certificate;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while retrieving signing certificate from azure blob storage.");
+            throw; // I think we should want this to be as fatal as possible.
+        }
+
         return true;
     }
 
@@ -129,7 +155,12 @@ internal sealed class PostConfigureLicensingOptions : IPostConfigureOptions<Lice
                 ? "licensing_dev.cer"
                 : "licensing.cer";
 
-            var resourceName = appAssembly.GetManifestResourceNames().Single(n => n.EndsWith(certName));
+            var resourceName = appAssembly.GetManifestResourceNames().SingleOrDefault(n => n.EndsWith(certName));
+
+            if (resourceName == null)
+            {
+                throw new InvalidOperationException($"An embedded certificate ending with the name {certName} could not be found.");
+            }
 
             using var resourceStream = appAssembly.GetManifestResourceStream(resourceName)!;
             using var memoryStream = new MemoryStream();
