@@ -53,13 +53,6 @@ public static class HostBuilderExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(bitwardenHostOptions);
 
-        builder.Services.AddOptions<GlobalSettingsBase>()
-            .Configure<IConfiguration>((options, config) =>
-            {
-                options.IsSelfHosted = config.GetValue(SelfHostedConfigKey, false);
-            });
-
-
         if (builder.Configuration.GetValue(SelfHostedConfigKey, false))
         {
             AddSelfHostedConfig(builder.Configuration, builder.Environment);
@@ -100,15 +93,6 @@ public static class HostBuilderExtensions
     /// <returns></returns>
     public static IHostBuilder UseBitwardenDefaults(this IHostBuilder hostBuilder, BitwardenHostOptions bitwardenHostOptions)
     {
-        hostBuilder.ConfigureServices((_, services) =>
-        {
-            services.AddOptions<GlobalSettingsBase>()
-                .Configure<IConfiguration>((options, config) =>
-                {
-                    options.IsSelfHosted = config.GetValue("globalSettings:selfHosted", false);
-                });
-        });
-
         hostBuilder.ConfigureAppConfiguration((context, builder) =>
         {
             if (context.Configuration.GetValue(SelfHostedConfigKey, false))

@@ -1,5 +1,6 @@
 using Bitwarden.Extensions.Hosting.Attributes;
 using Bitwarden.Extensions.Hosting.Exceptions;
+using Bitwarden.Extensions.Hosting.Licensing;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
@@ -64,12 +65,12 @@ public class SelfHostedAttributeTests
     {
         IServiceCollection services = new ServiceCollection();
 
-        var globalSettings = new GlobalSettingsBase
-        {
-            IsSelfHosted = selfHosted
-        };
+        var licensingService = Substitute.For<ILicensingService>();
+        licensingService
+            .IsCloud
+            .Returns(!selfHosted);
 
-        services.AddSingleton(globalSettings);
+        services.AddSingleton(licensingService);
 
         var httpContext = new DefaultHttpContext
         {
