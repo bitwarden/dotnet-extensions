@@ -3,11 +3,10 @@ using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using Azure.Storage.Blobs;
 using Bitwarden.Extensions.Hosting.Licensing;
+using DotNet.Testcontainers.Builders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using DotNet.Testcontainers.Builders;
 using NSubstitute;
 using Xunit.Abstractions;
 

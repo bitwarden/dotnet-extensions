@@ -1,6 +1,5 @@
-using System.Text;
-using System.Security.Cryptography.X509Certificates;
 using System.Security.Claims;
+using System.Security.Cryptography.X509Certificates;
 using Bitwarden.Extensions.Hosting.Licensing;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;

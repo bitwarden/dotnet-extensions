@@ -2,8 +2,8 @@ using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Bitwarden.Extensions.Hosting.Licensing;
 
