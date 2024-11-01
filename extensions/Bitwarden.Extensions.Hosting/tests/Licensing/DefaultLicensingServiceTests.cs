@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Security.Cryptography.X509Certificates;
 using Bitwarden.Extensions.Hosting.Licensing;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Xunit.Abstractions;
@@ -80,19 +81,70 @@ public class DefaultLicensingServiceTests
             options.SigningCertificate = new X509Certificate2(TestData.TestCertificateCerFormat);
         });
 
-        var validationException = Assert.ThrowsAsync<Exception>(
+        var validationException = await Assert.ThrowsAsync<InvalidLicenseException>(
             async () => await selfHostSut.VerifyLicenseAsync(license)
         );
+
+        Assert.Equal(InvalidLicenseReason.Expired, validationException.Reason);
     }
 
-    // TODO: Test license signed with a different key
+    [Fact]
+    public async Task SignedWithAlternateKey_Fails()
+    {
+        var cloudSut = CreateSut(options =>
+        {
+            options.SigningCertificate = new X509Certificate2(TestData.TestCertificateAlternate, "PfxPassword");
+        });
 
-    // TODO: Test verifying license with a different key
+        Assert.True(cloudSut.IsCloud);
+
+        var license = cloudSut.CreateLicense(Enumerable.Empty<Claim>(), TimeSpan.FromMinutes(5));
+
+        var selfHostSut = CreateSut(options =>
+        {
+            options.SigningCertificate = new X509Certificate2(TestData.TestCertificateCerFormat);
+        });
+
+        var invalidLicenseException = await Assert.ThrowsAsync<InvalidLicenseException>(
+            async () => await selfHostSut.VerifyLicenseAsync(license)
+        );
+
+        Assert.Equal(InvalidLicenseReason.WrongKey, invalidLicenseException.Reason);
+    }
+
+
+    [Fact]
+    public async Task SignedWithMainKey_VerifyingWithAlternateKey_Fails()
+    {
+        var cloudSut = CreateSut(options =>
+        {
+            options.SigningCertificate = new X509Certificate2(TestData.TestCertificateWithPrivateKey, "PfxPassword");
+        });
+
+        Assert.True(cloudSut.IsCloud);
+
+        var license = cloudSut.CreateLicense(Enumerable.Empty<Claim>(), TimeSpan.FromMinutes(5));
+
+        var selfHostSut = CreateSut(options =>
+        {
+            options.SigningCertificate = new X509Certificate2(TestData.TestCertificateCerFormatAlternate);
+        });
+
+        var invalidLicenseException = await Assert.ThrowsAsync<InvalidLicenseException>(
+            async () => await selfHostSut.VerifyLicenseAsync(license)
+        );
+
+        Assert.Equal(InvalidLicenseReason.WrongKey, invalidLicenseException.Reason);
+    }
 
     private DefaultLicensingService CreateSut(Action<LicensingOptions> configureOptions)
     {
         var options = new LicensingOptions();
         configureOptions(options);
-        return new DefaultLicensingService(Options.Create(options), _fakeTimeProvider);
+        return new DefaultLicensingService(
+            Options.Create(options),
+            _fakeTimeProvider,
+            NullLogger<DefaultLicensingService>.Instance
+        );
     }
 }

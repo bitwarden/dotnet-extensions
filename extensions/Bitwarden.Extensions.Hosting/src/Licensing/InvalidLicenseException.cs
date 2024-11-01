@@ -16,6 +16,11 @@ public enum InvalidLicenseReason
     Expired,
 
     /// <summary>
+    /// The license was signed with a different key than the one that was used to verify it.
+    /// </summary>
+    WrongKey,
+
+    /// <summary>
     /// The license is invalid for an unknown reason, checks logs for additional details.
     /// </summary>
     Unknown,

@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 
 namespace Bitwarden.Extensions.Hosting.Licensing;
@@ -9,14 +10,21 @@ internal sealed class DefaultLicensingService : ILicensingService
 {
     private readonly LicensingOptions _licensingOptions;
     private readonly TimeProvider _timeProvider;
+    private readonly ILogger<DefaultLicensingService> _logger;
 
-    public DefaultLicensingService(IOptions<LicensingOptions> licensingOptions, TimeProvider timeProvider)
+    public DefaultLicensingService(
+        IOptions<LicensingOptions> licensingOptions,
+        TimeProvider timeProvider,
+        ILogger<DefaultLicensingService> logger)
     {
         ArgumentNullException.ThrowIfNull(licensingOptions);
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(logger);
 
         // TODO: Do we need to support runtime changes to these settings at all, I don't think we do...
         _licensingOptions = licensingOptions.Value;
         _timeProvider = timeProvider;
+        _logger = logger;
 
         // We are cloud if the signing certificate has a private key that can sign licenses and local development
         // hasn't forced self host.
@@ -78,13 +86,29 @@ internal sealed class DefaultLicensingService : ILicensingService
             ValidateLifetime = true,
             ValidateIssuer = false, // TODO: Do we want to have no issuer?
             ValidateAudience = false, // TODO: Do we want to have no audience?
+#if DEBUG
+            // It's useful to be stricter in tests so that we don't have to wait 5 minutes
+            ClockSkew = TimeSpan.Zero,
+#endif
         };
 
         var tokenValidationResult = await tokenHandler.ValidateTokenAsync(license, tokenValidateParameters);
 
         if (!tokenValidationResult.IsValid)
         {
-            throw tokenValidationResult.Exception;
+            var exception = tokenValidationResult.Exception;
+            _logger.LogWarning(exception, "The given license is not valid.");
+            if (exception is SecurityTokenExpiredException securityTokenExpiredException)
+            {
+                throw new InvalidLicenseException(InvalidLicenseReason.Expired, null, securityTokenExpiredException);
+            }
+            else if (exception is SecurityTokenSignatureKeyNotFoundException securityTokenSignatureKeyNotFoundException)
+            {
+                throw new InvalidLicenseException(InvalidLicenseReason.WrongKey, null, securityTokenSignatureKeyNotFoundException);
+            }
+            // TODO: Handle other known failures
+
+            throw new InvalidLicenseException(InvalidLicenseReason.Unknown, null, exception);
         }
 
         // Should I even take a ClaimsIdentity and return it here instead of a list of claims?
