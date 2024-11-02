@@ -46,6 +46,57 @@ public class DefaultLicensingServiceTests
     }
 
     [Fact]
+    public async Task VerifyLicenseAsync_DifferentProduct_Fails()
+    {
+        var cloudSut = CreateSut(options =>
+        {
+            options.SigningCertificate = new X509Certificate2(TestData.TestCertificateWithPrivateKey, TestData.PfxPassword);
+        }, "product1");
+
+        var license = cloudSut.CreateLicense(
+        [
+            new Claim("myClaim", "hello world!"),
+        ], TimeSpan.FromMinutes(5));
+
+        _fakeTimeProvider.Advance(TimeSpan.FromSeconds(1));
+
+        var selfHostSut = CreateSut(options =>
+        {
+            options.SigningCertificate = new X509Certificate2(TestData.TestCertificateCerFormat);
+        }, "product2");
+
+        await Assert.ThrowsAsync<InvalidLicenseException>(
+            async () => await selfHostSut.VerifyLicenseAsync(license)
+        );
+    }
+
+    [Fact]
+    public async Task VerifyLicenseAsync_DifferentCloudHost_Fails()
+    {
+        var cloudSut = CreateSut(options =>
+        {
+            options.SigningCertificate = new X509Certificate2(TestData.TestCertificateWithPrivateKey, TestData.PfxPassword);
+        });
+
+        var license = cloudSut.CreateLicense(
+        [
+            new Claim("myClaim", "hello world!"),
+        ], TimeSpan.FromMinutes(5));
+
+        _fakeTimeProvider.Advance(TimeSpan.FromSeconds(1));
+
+        var selfHostSut = CreateSut(options =>
+        {
+            options.CloudHost = "bitwarden.eu";
+            options.SigningCertificate = new X509Certificate2(TestData.TestCertificateCerFormat);
+        });
+
+        await Assert.ThrowsAsync<InvalidLicenseException>(
+            async () => await selfHostSut.VerifyLicenseAsync(license)
+        );
+    }
+
+    [Fact]
     public void CreateLicense_WithSelfHost_Fails()
     {
         var selfHostSut = CreateSut(options =>
