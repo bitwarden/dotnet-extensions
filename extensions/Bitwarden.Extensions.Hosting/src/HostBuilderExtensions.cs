@@ -243,6 +243,16 @@ public static class HostBuilderExtensions
 
     private static void AddLicensingServices(IServiceCollection services, IConfiguration configuration)
     {
+        // Default the product name to the application name if no one else has added it.
+        services.AddOptions<InternalLicensingOptions>()
+            .PostConfigure<IHostEnvironment>((options, environment) =>
+            {
+                if (string.IsNullOrEmpty(options.ProductName))
+                {
+                    options.ProductName = environment.ApplicationName;
+                }
+            });
+
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IPostConfigureOptions<LicensingOptions>, PostConfigureLicensingOptions>()
         );

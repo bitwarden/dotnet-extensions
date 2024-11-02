@@ -29,7 +29,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\src\Bitwarden.Extensions.Hosting.csproj" />
-    <ProjectReference Include="..\..\Bitwarden.Core\src\Bitwarden.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

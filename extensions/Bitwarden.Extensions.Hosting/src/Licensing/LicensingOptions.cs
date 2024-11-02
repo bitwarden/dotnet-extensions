@@ -1,4 +1,5 @@
 using System.Security.Cryptography.X509Certificates;
+using Microsoft.Extensions.Hosting;
 
 namespace Bitwarden.Extensions.Hosting.Licensing;
 
@@ -7,6 +8,11 @@ namespace Bitwarden.Extensions.Hosting.Licensing;
 /// </summary>
 public sealed class LicensingOptions
 {
+    /// <summary>
+    /// The base url of the cloud instance.
+    /// </summary>
+    public string CloudHost { get; set; } = "bitwarden.com";
+
     /// <summary>
     /// Options for configuring license retrieval from azure blob storage.
     /// </summary>
@@ -52,13 +58,28 @@ public sealed class AzureBlobLicensingOptions
 }
 
 /// <summary>
-/// It's important that these can't be set through configuration, only through code.
+///
 /// </summary>
 /// <remarks>
-/// We would need to make this public for services to customize this.
+/// You should not allow these to be set through configuration, only through code.
 /// </remarks>
-internal sealed class InternalLicensingOptions
+public sealed class InternalLicensingOptions
 {
+    /// <summary>
+    /// The name of the product, defaults to the <see cref="IHostEnvironment.ApplicationName"/>.
+    /// </summary>
+    /// <remarks>
+    /// This should NOT be changed once you have issued licenses, changing this will invalidate any already existing licenses.
+    /// </remarks>
+    public string ProductName { get; set; } = null!;
+
+    /// <summary>
+    /// The thumbprint of the certificate that should be allowed when running in development mode.
+    /// </summary>
     public string DevelopmentThumbprint { get; set; } = "207E64A231E8AA32AAF68A61037C075EBEBD553F";
+
+    /// <summary>
+    /// The thumbprint of the certificate that should be allowed when running in non-development mode.
+    /// </summary>
     public string NonDevelopmentThumbprint { get; set; } = "B34876439FCDA2846505B2EFBBA6C4A951313EBE";
 }

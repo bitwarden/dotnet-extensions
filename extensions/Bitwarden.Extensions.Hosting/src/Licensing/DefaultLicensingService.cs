@@ -11,20 +11,24 @@ internal sealed class DefaultLicensingService : ILicensingService
     private readonly LicensingOptions _licensingOptions;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<DefaultLicensingService> _logger;
+    private readonly InternalLicensingOptions _internalLicensingOptions;
 
     public DefaultLicensingService(
         IOptions<LicensingOptions> licensingOptions,
         TimeProvider timeProvider,
-        ILogger<DefaultLicensingService> logger)
+        ILogger<DefaultLicensingService> logger,
+        IOptions<InternalLicensingOptions> internalLicensingOptions)
     {
         ArgumentNullException.ThrowIfNull(licensingOptions);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(internalLicensingOptions);
 
         // TODO: Do we need to support runtime changes to these settings at all, I don't think we do...
         _licensingOptions = licensingOptions.Value;
         _timeProvider = timeProvider;
         _logger = logger;
+        _internalLicensingOptions = internalLicensingOptions.Value;
 
         // We are cloud if the signing certificate has a private key that can sign licenses and local development
         // hasn't forced self host.
@@ -49,8 +53,8 @@ internal sealed class DefaultLicensingService : ILicensingService
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),
-            // Issuer = "bitwarden.com", // TODO: Is this what we want?
-            // Audience = "configurable_product_name??", // TODO: Is this what we want?
+            Issuer = _licensingOptions.CloudHost,
+            Audience = _internalLicensingOptions.ProductName,
             SigningCredentials = new SigningCredentials(
                 new X509SecurityKey(_licensingOptions.SigningCertificate), SecurityAlgorithms.RsaSha256),
             IssuedAt = now,
@@ -84,8 +88,10 @@ internal sealed class DefaultLicensingService : ILicensingService
             IssuerSigningKey = new X509SecurityKey(_licensingOptions.SigningCertificate),
             ValidateIssuerSigningKey = true,
             ValidateLifetime = true,
-            ValidateIssuer = false, // TODO: Do we want to have no issuer?
-            ValidateAudience = false, // TODO: Do we want to have no audience?
+            ValidIssuer = _licensingOptions.CloudHost,
+            ValidateIssuer = true,
+            ValidAudience = _internalLicensingOptions.ProductName,
+            ValidateAudience = true,
 #if DEBUG
             // It's useful to be stricter in tests so that we don't have to wait 5 minutes
             ClockSkew = TimeSpan.Zero,

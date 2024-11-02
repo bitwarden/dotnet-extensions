@@ -137,14 +137,18 @@ public class DefaultLicensingServiceTests
         Assert.Equal(InvalidLicenseReason.WrongKey, invalidLicenseException.Reason);
     }
 
-    private DefaultLicensingService CreateSut(Action<LicensingOptions> configureOptions)
+    private DefaultLicensingService CreateSut(Action<LicensingOptions> configureOptions, string productName = "test")
     {
         var options = new LicensingOptions();
         configureOptions(options);
         return new DefaultLicensingService(
             Options.Create(options),
             _fakeTimeProvider,
-            NullLogger<DefaultLicensingService>.Instance
+            NullLogger<DefaultLicensingService>.Instance,
+            Options.Create(new InternalLicensingOptions
+            {
+                ProductName = productName,
+            })
         );
     }
 }
