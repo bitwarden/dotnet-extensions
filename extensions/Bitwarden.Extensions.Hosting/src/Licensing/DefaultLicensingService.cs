@@ -36,17 +36,19 @@ internal sealed class DefaultLicensingService : ILicensingService
 
     public bool IsCloud { get; }
 
-    public string CreateLicense(IEnumerable<Claim> claims, TimeSpan validFor)
+    public string CreateLicense(IEnumerable<Claim> claims, DateTime expirationDate)
     {
         ArgumentNullException.ThrowIfNull(claims);
-        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(validFor, TimeSpan.Zero);
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
+
+        // Expiration date must be in the future
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(expirationDate, now);
 
         if (!IsCloud)
         {
             throw new InvalidOperationException("Self-hosted services can not create a license, please check 'IsCloud' before calling this method.");
         }
 
-        var now = _timeProvider.GetUtcNow().UtcDateTime;
 
 
         var tokenDescriptor = new SecurityTokenDescriptor
@@ -58,7 +60,7 @@ internal sealed class DefaultLicensingService : ILicensingService
                 new X509SecurityKey(_licensingOptions.SigningCertificate), SecurityAlgorithms.RsaSha256),
             IssuedAt = now,
             NotBefore = now,
-            Expires = now.Add(validFor),
+            Expires = expirationDate,
         };
 
         var tokenHandler = new JwtSecurityTokenHandler();

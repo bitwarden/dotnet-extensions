@@ -30,7 +30,7 @@ public class DefaultLicensingServiceTests
         var license = cloudSut.CreateLicense(
         [
             new Claim("myClaim", "hello world!"),
-        ], TimeSpan.FromMinutes(5));
+        ], Expiration(TimeSpan.FromMinutes(5)));
 
         _fakeTimeProvider.Advance(TimeSpan.FromSeconds(1));
 
@@ -56,7 +56,7 @@ public class DefaultLicensingServiceTests
         var license = cloudSut.CreateLicense(
         [
             new Claim("myClaim", "hello world!"),
-        ], TimeSpan.FromMinutes(5));
+        ], Expiration(TimeSpan.FromMinutes(5)));
 
         _fakeTimeProvider.Advance(TimeSpan.FromSeconds(1));
 
@@ -81,7 +81,7 @@ public class DefaultLicensingServiceTests
         var license = cloudSut.CreateLicense(
         [
             new Claim("myClaim", "hello world!"),
-        ], TimeSpan.FromMinutes(5));
+        ], Expiration(TimeSpan.FromMinutes(5)));
 
         _fakeTimeProvider.Advance(TimeSpan.FromSeconds(1));
 
@@ -105,7 +105,7 @@ public class DefaultLicensingServiceTests
         });
 
         var invalidOperation = Assert.Throws<InvalidOperationException>(
-            () => selfHostSut.CreateLicense(Enumerable.Empty<Claim>(), TimeSpan.FromMinutes(5))
+            () => selfHostSut.CreateLicense(Enumerable.Empty<Claim>(), Expiration(TimeSpan.FromMinutes(5)))
         );
 
         Assert.Equal(
@@ -123,7 +123,7 @@ public class DefaultLicensingServiceTests
             options.SigningCertificate = new X509Certificate2(TestData.TestCertificateWithPrivateKey, TestData.PfxPassword);
         });
 
-        var license = cloudSut.CreateLicense(Enumerable.Empty<Claim>(), TimeSpan.FromMilliseconds(10));
+        var license = cloudSut.CreateLicense(Enumerable.Empty<Claim>(), Expiration(TimeSpan.FromMilliseconds(10)));
 
         await Task.Delay(TimeSpan.FromMilliseconds(100));
 
@@ -149,7 +149,7 @@ public class DefaultLicensingServiceTests
 
         Assert.True(cloudSut.IsCloud);
 
-        var license = cloudSut.CreateLicense(Enumerable.Empty<Claim>(), TimeSpan.FromMinutes(5));
+        var license = cloudSut.CreateLicense(Enumerable.Empty<Claim>(), Expiration(TimeSpan.FromMinutes(5)));
 
         var selfHostSut = CreateSut(options =>
         {
@@ -174,7 +174,7 @@ public class DefaultLicensingServiceTests
 
         Assert.True(cloudSut.IsCloud);
 
-        var license = cloudSut.CreateLicense(Enumerable.Empty<Claim>(), TimeSpan.FromMinutes(5));
+        var license = cloudSut.CreateLicense(Enumerable.Empty<Claim>(), Expiration(TimeSpan.FromMinutes(5)));
 
         var selfHostSut = CreateSut(options =>
         {
@@ -186,6 +186,11 @@ public class DefaultLicensingServiceTests
         );
 
         Assert.Equal(InvalidLicenseReason.WrongKey, invalidLicenseException.Reason);
+    }
+
+    private DateTime Expiration(TimeSpan timeSpan)
+    {
+        return _fakeTimeProvider.GetUtcNow().UtcDateTime.Add(timeSpan);
     }
 
     private DefaultLicensingService CreateSut(Action<LicensingOptions> configureOptions, string productName = "test")
