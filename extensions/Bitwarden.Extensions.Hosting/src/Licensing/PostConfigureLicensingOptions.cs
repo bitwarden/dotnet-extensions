@@ -64,7 +64,6 @@ internal sealed class PostConfigureLicensingOptions : IPostConfigureOptions<Lice
             }
         }
 
-
         // Try Azure Blob first
         if (TryAzureBlob(options))
         {

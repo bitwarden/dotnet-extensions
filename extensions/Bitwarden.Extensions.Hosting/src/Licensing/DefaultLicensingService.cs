@@ -24,7 +24,6 @@ internal sealed class DefaultLicensingService : ILicensingService
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(internalLicensingOptions);
 
-        // TODO: Do we need to support runtime changes to these settings at all, I don't think we do...
         _licensingOptions = licensingOptions.Value;
         _timeProvider = timeProvider;
         _logger = logger;
@@ -72,9 +71,6 @@ internal sealed class DefaultLicensingService : ILicensingService
     public async Task<IEnumerable<Claim>> VerifyLicenseAsync(string license)
     {
         ArgumentNullException.ThrowIfNull(license);
-        // TODO: Should we validate that this is self host?
-        // It's not technically wrong to be able to do that but we don't do it currently
-        // so we could disallow it.
 
         var tokenHandler = new JwtSecurityTokenHandler();
 
@@ -113,11 +109,9 @@ internal sealed class DefaultLicensingService : ILicensingService
                 throw new InvalidLicenseException(InvalidLicenseReason.WrongKey, null, securityTokenSignatureKeyNotFoundException);
             }
             // TODO: Handle other known failures
-
             throw new InvalidLicenseException(InvalidLicenseReason.Unknown, null, exception);
         }
 
-        // Should I even take a ClaimsIdentity and return it here instead of a list of claims?
         return tokenValidationResult.ClaimsIdentity.Claims;
     }
 }
