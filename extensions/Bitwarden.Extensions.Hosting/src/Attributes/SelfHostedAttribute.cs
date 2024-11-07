@@ -1,4 +1,5 @@
 using Bitwarden.Extensions.Hosting.Exceptions;
+using Bitwarden.Extensions.Hosting.Licensing;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -25,12 +26,12 @@ public class SelfHostedAttribute : ActionFilterAttribute
     /// <exception cref="BadRequestException"></exception>
     public override void OnActionExecuting(ActionExecutingContext context)
     {
-        var globalSettings = context.HttpContext.RequestServices.GetRequiredService<GlobalSettingsBase>();
-        if (SelfHostedOnly && !globalSettings.IsSelfHosted)
+        var licensingService = context.HttpContext.RequestServices.GetRequiredService<ILicensingService>();
+        if (SelfHostedOnly && licensingService.IsCloud)
         {
             throw new BadRequestException("Only allowed when self-hosted.");
         }
-        else if (NotSelfHostedOnly && globalSettings.IsSelfHosted)
+        else if (NotSelfHostedOnly && !licensingService.IsCloud)
         {
             throw new BadRequestException("Only allowed when not self-hosted.");
         }

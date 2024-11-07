@@ -2,11 +2,13 @@ using System.Diagnostics;
 using System.Reflection;
 using Bitwarden.Extensions.Hosting;
 using Bitwarden.Extensions.Hosting.Features;
+using Bitwarden.Extensions.Hosting.Licensing;
 using LaunchDarkly.Sdk.Server.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using Serilog;
@@ -51,13 +53,6 @@ public static class HostBuilderExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(bitwardenHostOptions);
 
-        builder.Services.AddOptions<GlobalSettingsBase>()
-            .Configure<IConfiguration>((options, config) =>
-            {
-                options.IsSelfHosted = config.GetValue(SelfHostedConfigKey, false);
-            });
-
-
         if (builder.Configuration.GetValue(SelfHostedConfigKey, false))
         {
             AddSelfHostedConfig(builder.Configuration, builder.Environment);
@@ -74,6 +69,11 @@ public static class HostBuilderExtensions
         }
 
         AddFeatureFlagServices(builder.Services, builder.Configuration);
+
+        if (bitwardenHostOptions.IncludeSelfHosting)
+        {
+            AddLicensingServices(builder.Services, builder.Configuration);
+        }
 
         return builder;
     }
@@ -97,15 +97,6 @@ public static class HostBuilderExtensions
     /// <returns></returns>
     public static IHostBuilder UseBitwardenDefaults(this IHostBuilder hostBuilder, BitwardenHostOptions bitwardenHostOptions)
     {
-        hostBuilder.ConfigureServices((_, services) =>
-        {
-            services.AddOptions<GlobalSettingsBase>()
-                .Configure<IConfiguration>((options, config) =>
-                {
-                    options.IsSelfHosted = config.GetValue("globalSettings:selfHosted", false);
-                });
-        });
-
         hostBuilder.ConfigureAppConfiguration((context, builder) =>
         {
             if (context.Configuration.GetValue(SelfHostedConfigKey, false))
@@ -134,6 +125,14 @@ public static class HostBuilderExtensions
         {
             AddFeatureFlagServices(services, context.Configuration);
         });
+
+        if (bitwardenHostOptions.IncludeSelfHosting)
+        {
+            hostBuilder.ConfigureServices((context, services) =>
+            {
+                AddLicensingServices(services, context.Configuration);
+            });
+        }
 
         return hostBuilder;
     }
@@ -240,5 +239,24 @@ public static class HostBuilderExtensions
         // client from LaunchDarklyClientProvider, effectively being a singleton.
         services.TryAddScoped<ILdClient>(sp => sp.GetRequiredService<LaunchDarklyClientProvider>().Get());
         services.TryAddScoped<IFeatureService, LaunchDarklyFeatureService>();
+    }
+
+    private static void AddLicensingServices(IServiceCollection services, IConfiguration configuration)
+    {
+        // Default the product name to the application name if no one else has added it.
+        services.AddOptions<InternalLicensingOptions>()
+            .PostConfigure<IHostEnvironment>((options, environment) =>
+            {
+                if (string.IsNullOrEmpty(options.ProductName))
+                {
+                    options.ProductName = environment.ApplicationName;
+                }
+            });
+
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IPostConfigureOptions<LicensingOptions>, PostConfigureLicensingOptions>()
+        );
+
+        services.Configure<LicensingOptions>(configuration.GetSection("Licensing"));
     }
 }
