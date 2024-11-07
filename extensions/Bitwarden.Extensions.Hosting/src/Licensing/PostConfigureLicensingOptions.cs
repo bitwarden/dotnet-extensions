@@ -38,7 +38,6 @@ internal sealed class PostConfigureLicensingOptions : IPostConfigureOptions<Lice
 
         // TODO: Apply old config locations to new place
 
-
         void DoFinalValidation()
         {
             var signingCertificate = options.SigningCertificate;
