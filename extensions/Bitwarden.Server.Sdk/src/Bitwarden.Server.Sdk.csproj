@@ -17,7 +17,7 @@
 
   <PropertyGroup>
     <Authors>Bitwarden Inc.</Authors>
-    <Description>Bitwarden server sdk</Description>
+    <Description>Bitwarden Server SDK.</Description>
   </PropertyGroup>
 
   <PropertyGroup>
