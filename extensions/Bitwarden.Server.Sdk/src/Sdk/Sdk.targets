@@ -21,7 +21,7 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(UsingBitwardenServerSdk)' == 'true'">
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
   </ItemGroup>
 
   <!-- TODO: Allow for overriding specific package versions? -->
