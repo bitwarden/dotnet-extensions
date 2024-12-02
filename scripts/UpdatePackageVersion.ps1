@@ -23,7 +23,7 @@ $propertyGroup = ($csproj | Select-Xml "Project/PropertyGroup/VersionPrefix").No
 $versionPrefix = $propertyGroup.VersionPrefix
 $currentVersion = New-Object -TypeName System.Version -ArgumentList $versionPrefix
 
-Write-Host "Current VersionPrefix: $currentVersion"
+$showPreRelease = $false
 
 Switch ($BumpType)
 {
@@ -36,6 +36,7 @@ Switch ($BumpType)
         # Keep the same version and bump prerelease iteration
         $newVersion = $currentVersion
         $newPreReleaseIteration = ([int]$propertyGroup.PreReleaseVersionIteration + 1)
+        $showPreRelease = $true
     }
     "hotfix" {
         # Bump just the build number and reset the prerelease iteration
@@ -44,7 +45,15 @@ Switch ($BumpType)
     }
 }
 
-Write-Host "New VersionPrefix $newVersion"
+if ($showPreRelease)
+{
+    $label = $propertyGroup.PreReleaseVersionLabel;
+    Write-Host "$newVersion-$label.$newPreReleaseIteration"
+}
+else
+{
+    Write-Host "$newVersion"
+}
 
 $propertyGroup.VersionPrefix = $newVersion.ToString()
 $propertyGroup.PreReleaseVersionIteration = $newPreReleaseIteration
