@@ -38,9 +38,65 @@ jobs:
         env:
           IS_PRERELEASE: ${{ inputs.type == 'prerelease' }}
 
+      - name: Get Current Version
+        id: current-version
+        run: echo "VERSION=$(dotnet msbuild -p:IsPreRelease=$IS_PRERELEASE --getProperty:Version)"
+        env:
+          IS_PRERELEASE: ${{ inputs.type == 'prerelease' }}
+
       # Creating this github release is what should trigger the actual releasing of the nuget package
       - name: Create GitHub Release
-        run: echo "Create GitHub Release"
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const package = '${{ inputs.package }}';
+            const currentVersion = '${{ steps.current-version.outputs.VERSION }}';
+
+            // configure git
+            await exec.exec(`git config user.name "github-actions"`);
+            await exec.exec(`git config user.email "github-actions@github.com"`);
+
+            // Create tag
+            const tag = `${package}_v${currentVersion}`;
+
+            console.log(`Creating tag & release: ${tag}`);
+
+            await exec.exec(`git tag "${tag}"`);
+            await exec.exec(`git push origin --tags`);
+
+            // Create release
+            const { data } = await github.rest.repos.createRelease({
+              owner: "bitwarden",
+              repo: "dotnet-extensions",
+              tag_name: tag,
+              target_commitish: "${{ github.event.ref }}",
+              name: tag,
+              body: "WIP",
+              prerelease: ${{ inputs.type == 'prerelease' }},
+              generate_release_notes: true,
+            });
+
+            console.log(`Uploading asset to: ${data.upload_url}`);
+
+            const globber = await glob.create("*/*.nupkg");
+            const files = globber.glob();
+
+            const fs = require("fs");
+
+            for (const file of files) {
+              console.log(`Uploading file: ${file}`);
+              // do the upload
+              const uploadResponse = await github.request({
+                method: "POST",
+                url: data.upload_url,
+                data: fs.readFileSync(file),
+              });
+
+              console.log(`Upload response: ${uploadResponse.status}`);
+            }
+
+            console.log("Finished creating release.");
+
 
       - name: Run Version Bumper
         id: version-bumper
