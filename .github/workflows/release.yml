@@ -90,8 +90,6 @@ jobs:
               url = url.substring(0, templateMarker);
             }
 
-            console.log(`Uploading asset to: ${url}`);
-
             const globber = await glob.create("**/*.nupkg");
             const files = await globber.glob();
 
@@ -104,13 +102,14 @@ jobs:
             }
 
             for (const file of files) {
-              console.log(`Uploading file: ${file}`);
               const endpoint = new URL(url);
               endpoint.searchParams.append("name", path.basename(file));
+              const endpointString = endpoint.toString();
+              console.log(`Uploading file: ${file} to ${endpointString}`);
               // do the upload
               const uploadResponse = await github.request({
                 method: "POST",
-                url: endpoint.toString(),
+                url: endpointString,
                 data: fs.readFileSync(file),
               });
 
