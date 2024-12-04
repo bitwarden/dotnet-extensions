@@ -89,6 +89,11 @@ jobs:
 
             const fs = require("fs");
 
+            if (files.length === 0) {
+              core.setFailed("No files found, cannot create release.");
+              return;
+            }
+
             for (const file of files) {
               console.log(`Uploading file: ${file}`);
               // do the upload
