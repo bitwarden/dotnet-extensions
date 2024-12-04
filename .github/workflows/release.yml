@@ -15,7 +15,7 @@ on:
         type: choice
         options:
         - ga
-        - beta
+        - prerelease
         - hotfix
 
 permissions:
