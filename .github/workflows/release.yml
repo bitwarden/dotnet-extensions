@@ -82,12 +82,21 @@ jobs:
               generate_release_notes: true,
             });
 
-            console.log(`Uploading asset to: ${data.upload_url}`);
+            const templateMarker = data.upload_url.indexOf("{");
+
+            let url = data.upload_url;
+
+            if (templateMarker > -1) {
+              url = url.substring(0, templateMarker);
+            }
+
+            console.log(`Uploading asset to: ${url}`);
 
             const globber = await glob.create("**/*.nupkg");
             const files = await globber.glob();
 
             const fs = require("fs");
+            const path = require("path");
 
             if (files.length === 0) {
               core.setFailed("No files found, cannot create release.");
@@ -96,10 +105,12 @@ jobs:
 
             for (const file of files) {
               console.log(`Uploading file: ${file}`);
+              const endpoint = new URL(url);
+              endpoint.searchParams.append("name", path.basename(file));
               // do the upload
               const uploadResponse = await github.request({
                 method: "POST",
-                url: data.upload_url,
+                url: endpoint.toString(),
                 data: fs.readFileSync(file),
               });
 
