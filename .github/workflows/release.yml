@@ -84,7 +84,7 @@ jobs:
             console.log(`Uploading asset to: ${data.upload_url}`);
 
             const globber = await glob.create("*/*.nupkg");
-            const files = globber.glob();
+            const files = await globber.glob();
 
             const fs = require("fs");
 
