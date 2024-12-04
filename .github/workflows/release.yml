@@ -1,4 +1,5 @@
 name: Release
+run-name: ${{ inputs.type }} release for ${{ inputs.package }}
 
 on:
   workflow_dispatch:
@@ -15,7 +16,7 @@ on:
         type: choice
         options:
         - ga
-        - beta
+        - prerelease
         - hotfix
 
 permissions:
@@ -44,7 +45,8 @@ jobs:
 
       - name: Get current version
         id: current-version
-        run: echo "VERSION=$(dotnet msbuild -p:IsPreRelease=$IS_PRERELEASE --getProperty:Version)"
+        run: echo "VERSION=$(dotnet msbuild -p:IsPreRelease=$IS_PRERELEASE --getProperty:Version)" >> $GITHUB_OUTPUT
+        working-directory: '${{ env.PACKAGE_DIRECTORY }}/src'
         env:
           IS_PRERELEASE: ${{ inputs.type == 'prerelease' }}
 
@@ -80,19 +82,34 @@ jobs:
               generate_release_notes: true,
             });
 
-            console.log(`Uploading asset to: ${data.upload_url}`);
+            const templateMarker = data.upload_url.indexOf("{");
 
-            const globber = await glob.create("*/*.nupkg");
-            const files = globber.glob();
+            let url = data.upload_url;
+
+            if (templateMarker > -1) {
+              url = url.substring(0, templateMarker);
+            }
+
+            const globber = await glob.create("**/*.nupkg");
+            const files = await globber.glob();
 
             const fs = require("fs");
+            const path = require("path");
+
+            if (files.length === 0) {
+              core.setFailed("No files found, cannot create release.");
+              return;
+            }
 
             for (const file of files) {
-              console.log(`Uploading file: ${file}`);
+              const endpoint = new URL(url);
+              endpoint.searchParams.append("name", path.basename(file));
+              const endpointString = endpoint.toString();
+              console.log(`Uploading file: ${file} to ${endpointString}`);
               // do the upload
               const uploadResponse = await github.request({
                 method: "POST",
-                url: data.upload_url,
+                url: endpointString,
                 data: fs.readFileSync(file),
               });
 
@@ -108,7 +125,8 @@ jobs:
           PACKAGE_NAME: ${{ inputs.package }}
           BUMP_TYPE: ${{ inputs.type }}
         run: |
-          echo "NEW_VERSION=$(./scripts/UpdatePackageVersion.ps1 -PackageName $env:PACKAGE_NAME -BumpType $env:BUMP_TYPE)" >> $env:GITHUB_OUTPUT
+          $NEW_VERSION=$(./scripts/UpdatePackageVersion.ps1 -PackageName $env:PACKAGE_NAME -BumpType $env:BUMP_TYPE)
+          Write-Output "NEW_VERSION=$NEW_VERSION" >> $Env:GITHUB_OUTPUT
 
       - name: Create PR
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
@@ -118,6 +136,11 @@ jobs:
             const packageName = '${{ inputs.package }}';
             const bumpType = '${{ inputs.type }}';
             const newVersion = '${{ steps.version-bumper.outputs.NEW_VERSION }}';
+
+            if (newVersion === '') {
+              core.setFailed('New version was not set.');
+              return;
+            }
 
             // Configure Git
             await exec.exec(`git config user.name "github-actions"`);
@@ -130,7 +153,7 @@ jobs:
             // opened earlier and force pushing to the branch updates the existing PR
             let shouldOpenPullRequest = true;
             try {
-              await exec.exec(`git ls-remote --exit-code --heads origin ${versionBumpBranch});
+              await exec.exec(`git ls-remote --exit-code --heads origin ${versionBumpBranch}`);
               shouldOpenPullRequest = false;
             } catch { }
 
@@ -143,7 +166,7 @@ jobs:
             try {
               await exec.exec(gitCommitCommand, [], {
                 listeners: {
-                  stdout: function stdout(data) { gitCommitOutput += data }
+                  stdout: function stdout(data) { gitCommitOutput += data },
                   stderr: function stderr(data) { gitCommitOutput += data }
                 }
               });
@@ -162,7 +185,7 @@ jobs:
             const pullRequestBody = `
             Version Bump for ${packageName} to ${newVersion}
 
-            /cc ${{ github.event.sender.login }}
+            /cc @${{ github.event.sender.login }}
             `;
 
             await github.rest.pulls.create({
