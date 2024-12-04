@@ -101,7 +101,6 @@ jobs:
 
             console.log("Finished creating release.");
 
-
       - name: Bump version
         id: version-bumper
         shell: pwsh
