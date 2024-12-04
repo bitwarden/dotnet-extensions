@@ -163,7 +163,7 @@ jobs:
             const pullRequestBody = `
             Version Bump for ${packageName} to ${newVersion}
 
-            /cc ${{ github.event.sender.login }}
+            /cc @${{ github.event.sender.login }}
             `;
 
             await github.rest.pulls.create({
