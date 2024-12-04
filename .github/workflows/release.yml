@@ -144,7 +144,7 @@ jobs:
             try {
               await exec.exec(gitCommitCommand, [], {
                 listeners: {
-                  stdout: function stdout(data) { gitCommitOutput += data }
+                  stdout: function stdout(data) { gitCommitOutput += data },
                   stderr: function stderr(data) { gitCommitOutput += data }
                 }
               });
