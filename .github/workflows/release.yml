@@ -109,7 +109,7 @@ jobs:
           PACKAGE_NAME: ${{ inputs.package }}
           BUMP_TYPE: ${{ inputs.type }}
         run: |
-          $NEW_VERSION=./scripts/UpdatePackageVersion.ps1 -PackageName $env:PACKAGE_NAME -BumpType $env:BUMP_TYPE
+          $NEW_VERSION=$(./scripts/UpdatePackageVersion.ps1 -PackageName $env:PACKAGE_NAME -BumpType $env:BUMP_TYPE)
           Write-Host "NEW_VERSION=$NEW_VERSION"
           Write-Output "NEW_VERSION=$NEW_VERSION" | Out-File -FilePath "${Env:GITHUB_PATH}" -Append
 
