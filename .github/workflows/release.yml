@@ -18,6 +18,10 @@ on:
         - beta
         - hotfix
 
+permissions:
+  pull-requests: write
+  contents: write
+
 env:
   PACKAGE_DIRECTORY: './extensions/${{ inputs.package }}'
 
