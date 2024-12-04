@@ -131,7 +131,7 @@ jobs:
             // opened earlier and force pushing to the branch updates the existing PR
             let shouldOpenPullRequest = true;
             try {
-              await exec.exec(`git ls-remote --exit-code --heads origin ${versionBumpBranch});
+              await exec.exec(`git ls-remote --exit-code --heads origin ${versionBumpBranch}`);
               shouldOpenPullRequest = false;
             } catch { }
 
