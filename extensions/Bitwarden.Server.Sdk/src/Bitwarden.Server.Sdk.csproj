@@ -12,7 +12,10 @@
     <PackageReadmeFile>./README.md</PackageReadmeFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 
-    <Version>0.1.10</Version>
+    <VersionPrefix>0.1.10</VersionPrefix>
+    <PreReleaseVersionLabel>beta</PreReleaseVersionLabel>
+    <PreReleaseVersionIteration>1</PreReleaseVersionIteration>
+    <VersionSuffix Condition="'$(VersionSuffix)' == '' AND '$(IsPreRelease)' == 'true'">$(PreReleaseVersionLabel).$(PreReleaseVersionIteration)</VersionSuffix>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -30,14 +33,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content
-      Include="$(ExtensionsHostingRoot)**/*.cs"
-      Exclude="$(ExtensionsHostingRoot)bin/**;$(ExtensionsHostingRoot)obj/**"
-      Pack="true"
-      PackagePath="content/Bitwarden.Server.Sdk"
-      Visible="false"
-      BuildAction="none"
-    />
+    <Content Include="$(ExtensionsHostingRoot)**/*.cs" Exclude="$(ExtensionsHostingRoot)bin/**;$(ExtensionsHostingRoot)obj/**" Pack="true" PackagePath="content/Bitwarden.Server.Sdk" Visible="false" BuildAction="none" />
   </ItemGroup>
 
 </Project>

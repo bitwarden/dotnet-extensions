@@ -1,0 +1,177 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Which package to release
+        required: true
+        type: choice
+        options:
+        - Bitwarden.Server.Sdk
+      type:
+        description: The type of this release
+        required: true
+        type: choice
+        options:
+        - ga
+        - beta
+        - hotfix
+
+permissions:
+  pull-requests: write
+  contents: write
+
+env:
+  PACKAGE_DIRECTORY: './extensions/${{ inputs.package }}'
+
+jobs:
+  build-artifact:
+    name: Build artifacts
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@3e891b0cb619bf60e2c25674b222b8940e2c1c25 # v4.1.0
+
+      - name: Pack
+        run: dotnet pack -c Release -p:IsPreRelease=$IS_PRERELEASE
+        working-directory: '${{ env.PACKAGE_DIRECTORY }}/src'
+        env:
+          IS_PRERELEASE: ${{ inputs.type == 'prerelease' }}
+
+      - name: Get current version
+        id: current-version
+        run: echo "VERSION=$(dotnet msbuild -p:IsPreRelease=$IS_PRERELEASE --getProperty:Version)"
+        env:
+          IS_PRERELEASE: ${{ inputs.type == 'prerelease' }}
+
+      # Creating a GitHub Release triggers package publishing
+      - name: Create GitHub Release
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const package = '${{ inputs.package }}';
+            const currentVersion = '${{ steps.current-version.outputs.VERSION }}';
+
+            // Configure Git
+            await exec.exec(`git config user.name "github-actions"`);
+            await exec.exec(`git config user.email "github-actions@github.com"`);
+
+            // Create tag
+            const tag = `${package}_v${currentVersion}`;
+
+            console.log(`Creating tag & release: ${tag}`);
+
+            await exec.exec(`git tag "${tag}"`);
+            await exec.exec(`git push origin --tags`);
+
+            // Create release
+            const { data } = await github.rest.repos.createRelease({
+              owner: "bitwarden",
+              repo: "dotnet-extensions",
+              tag_name: tag,
+              target_commitish: "${{ github.event.ref }}",
+              name: tag,
+              body: "WIP",
+              prerelease: ${{ inputs.type == 'prerelease' }},
+              generate_release_notes: true,
+            });
+
+            console.log(`Uploading asset to: ${data.upload_url}`);
+
+            const globber = await glob.create("*/*.nupkg");
+            const files = globber.glob();
+
+            const fs = require("fs");
+
+            for (const file of files) {
+              console.log(`Uploading file: ${file}`);
+              // do the upload
+              const uploadResponse = await github.request({
+                method: "POST",
+                url: data.upload_url,
+                data: fs.readFileSync(file),
+              });
+
+              console.log(`Upload response: ${uploadResponse.status}`);
+            }
+
+            console.log("Finished creating release.");
+
+      - name: Bump version
+        id: version-bumper
+        shell: pwsh
+        env:
+          PACKAGE_NAME: ${{ inputs.package }}
+          BUMP_TYPE: ${{ inputs.type }}
+        run: |
+          echo "NEW_VERSION=$(./scripts/UpdatePackageVersion.ps1 -PackageName $env:PACKAGE_NAME -BumpType $env:BUMP_TYPE)" >> $env:GITHUB_OUTPUT
+
+      - name: Create PR
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const baseBranch = '${{ github.event.ref }}';
+            const packageName = '${{ inputs.package }}';
+            const bumpType = '${{ inputs.type }}';
+            const newVersion = '${{ steps.version-bumper.outputs.NEW_VERSION }}';
+
+            // Configure Git
+            await exec.exec(`git config user.name "github-actions"`);
+            await exec.exec(`git config user.email "github-actions@github.com"`);
+
+            const versionBumpBranch = `version-bump/${packageName}-to-${newVersion}`;
+            await exec.exec(`git checkout -b ${versionBumpBranch}`);
+
+            // Skip opening PR if branch already exists on the origin remote since that means it was
+            // opened earlier and force pushing to the branch updates the existing PR
+            let shouldOpenPullRequest = true;
+            try {
+              await exec.exec(`git ls-remote --exit-code --heads origin ${versionBumpBranch});
+              shouldOpenPullRequest = false;
+            } catch { }
+
+            // Add and commit changes
+            const commitMessage = `Bump ${packageName} version to ${newVersion}`;
+            const gitCommitCommand = `git commit --all --message "${commitMessage}"`;
+            let gitCommitOutput = `$ ${gitCommitCommand}\n\n`;
+            let gitCommitFailed = false;
+
+            try {
+              await exec.exec(gitCommitCommand, [], {
+                listeners: {
+                  stdout: function stdout(data) { gitCommitOutput += data }
+                  stderr: function stderr(data) { gitCommitOutput += data }
+                }
+              });
+            } catch (error) {
+              gitCommitOutput += error;
+              gitCommitFailed = true;
+            }
+
+            if (gitCommitFailed) {
+              console.log(`Failed:\n\n${gitCommitOutput}`);
+              throw new Error("git commit command failed.");
+            }
+
+            await exec.exec(`git push --force --set-upstream origin HEAD:${versionBumpBranch}`);
+
+            const pullRequestBody = `
+            Version Bump for ${packageName} to ${newVersion}
+
+            /cc ${{ github.event.sender.login }}
+            `;
+
+            await github.rest.pulls.create({
+              owner: "bitwarden",
+              repo: "dotnet-extensions",
+              title: commitMessage,
+              body: pullRequestBody,
+              head: versionBumpBranch,
+              base: baseBranch,
+            });
+
+            console.log("Successfully open GitHub PR.");
