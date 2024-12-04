@@ -49,11 +49,11 @@ Switch ($BumpType)
 if ($showPreRelease)
 {
     $label = $propertyGroup.PreReleaseVersionLabel;
-    Write-Host "$newVersion-$label.$newPreReleaseIteration"
+    Write-Output "$newVersion-$label.$newPreReleaseIteration"
 }
 else
 {
-    Write-Host "$newVersion"
+    Write-Output "$newVersion"
 }
 
 $propertyGroup.VersionPrefix = $newVersion.ToString()
