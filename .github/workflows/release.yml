@@ -45,6 +45,7 @@ jobs:
       - name: Get current version
         id: current-version
         run: echo "VERSION=$(dotnet msbuild -p:IsPreRelease=$IS_PRERELEASE --getProperty:Version)"
+        working-directory: '${{ env.PACKAGE_DIRECTORY }}/src'
         env:
           IS_PRERELEASE: ${{ inputs.type == 'prerelease' }}
 
