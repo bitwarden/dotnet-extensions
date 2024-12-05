@@ -177,4 +177,4 @@ jobs:
         uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
         with:
           package: ${{ needs.parse.outputs.package }}
-          type: ${{ inputs.prerelease && 'prerelease' || 'ga' }}
+          type: ${{ inputs.prerelease && 'prerelease' || 'hotfix' }}
