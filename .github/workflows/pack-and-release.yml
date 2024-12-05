@@ -6,7 +6,6 @@ on:
       prerelease:
         type: boolean
 
-
 jobs:
   parse:
     runs-on: ubuntu-22.04
@@ -29,7 +28,6 @@ jobs:
             // Example: refs/heads/release/{packageName}/{version}
             //          0   /1    /2      /3            /4
             const refParts = ref.split('/');
-
 
             if (refParts.length < 4) {
               core.setFailed(`Not at least 4 parts split by forward slash: ${ref}`);
