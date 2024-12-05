@@ -1,0 +1,182 @@
+name: Publish
+
+on:
+  workflow_call:
+    inputs:
+      prerelease:
+        type: boolean
+
+
+jobs:
+  parse:
+    runs-on: ubuntu-22.04
+    outputs:
+      package: ${{ steps.parse-package.outputs.result }}
+    steps:
+      - name: Parse Package
+        id: parse-package
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          result-encoding: string
+          script: |
+            const ref = '${{ github.ref }}';
+
+            if (!ref.startsWith('refs/heads/')) {
+              core.setFailed(`Unexpected ref: ${ref}`);
+              return;
+            }
+
+            // Example: refs/heads/release/{packageName}/{version}
+            //          0   /1    /2      /3            /4
+            const refParts = ref.split('/');
+
+
+            if (refParts.length < 4) {
+              core.setFailed(`Not at least 4 parts split by forward slash: ${ref}`);
+              return;
+            }
+
+            return refParts[3];
+
+  pack:
+    name: Pack
+    runs-on: ubuntu-22.04
+    needs:
+      - parse
+    outputs:
+      current-version: ${{ steps.current-version.outputs.VERSION }}
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@3e891b0cb619bf60e2c25674b222b8940e2c1c25 # v4.1.0
+
+      - name: Pack
+        run: dotnet pack -c Release -p:IsPreRelease=$IS_PRERELEASE
+        working-directory: '${{ needs.parse.outputs.package }}/src'
+        env:
+          IS_PRERELEASE: ${{ inputs.prerelease }}
+
+      - name: Get current version
+        id: current-version
+        run: echo "VERSION=$(dotnet msbuild -p:IsPreRelease=$IS_PRERELEASE --getProperty:Version)" >> $GITHUB_OUTPUT
+        working-directory: '${{ needs.parse.outputs.package }}/src'
+        env:
+          IS_PRERELEASE: ${{ inputs.prerelease }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: packages
+          path: "**/*.nupkg"
+
+  publish:
+    name: Publish
+    runs-on: ubuntu-22.04
+    needs:
+      - pack
+    steps:
+      - name: Dispatch publishing
+        env:
+          GITHUB_TOKEN: ${{ secrets.PUBLISH_GITHUB_TOKEN }}
+        # TODO: Make version optional in workflow
+        run: >
+          gh workflow run publish-nuget.yml
+          --repo bitwarden/devops
+          --field repository=${{ github.event.repository.name }}
+          --field run-id=${{ github.run_id }}
+          --field artifact=packages
+          --field environment=nuget
+          --field version=1.0.0
+
+  create-release:
+    name: Create release
+    runs-on: ubuntu-22.04
+    needs:
+      - parse
+      - pack
+      - publish
+    steps:
+      - name: Create GitHub Release
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const package = '${{ inputs.package }}';
+            const currentVersion = '${{ needs.pack.outputs.current-version }}';
+
+            // Configure Git
+            await exec.exec(`git config user.name "github-actions"`);
+            await exec.exec(`git config user.email "github-actions@github.com"`);
+
+            // List existing tags so that we could use them to link to the best full changelog
+            // Debug purposes only right now until there is enough data for me to make this command bullet proof
+            await exec.exec(`git --no-pager tag --list "${package}_v*" --no-contains $(git rev-parse HEAD)`, [], {
+              listeners: {
+                stdout: function stdout(data) {
+                  console.log(`Found tags:\n${data}`);
+                }
+              }
+            });
+
+            // Create tag
+            const tag = `${package}_v${currentVersion}`;
+
+            console.log(`Creating tag & release: ${tag}`);
+
+            await exec.exec(`git tag "${tag}"`);
+            await exec.exec(`git push origin --tags`);
+
+            // Create release
+            const { data } = await github.rest.repos.createRelease({
+              owner: "bitwarden",
+              repo: "dotnet-extensions",
+              tag_name: tag,
+              target_commitish: "${{ github.event.ref }}",
+              name: tag,
+              body: "",
+              prerelease: ${{ inputs.prerelease }},
+              generate_release_notes: false, // This creates a link between this and the last tag but that might not be our version
+            });
+
+            const templateMarker = data.upload_url.indexOf("{");
+
+            let url = data.upload_url;
+
+            if (templateMarker > -1) {
+              url = url.substring(0, templateMarker);
+            }
+
+            const globber = await glob.create("**/*.nupkg");
+            const files = await globber.glob();
+
+            const fs = require("fs");
+            const path = require("path");
+
+            if (files.length === 0) {
+              core.setFailed("No files found, cannot create release.");
+              return;
+            }
+
+            for (const file of files) {
+              const endpoint = new URL(url);
+              endpoint.searchParams.append("name", path.basename(file));
+              const endpointString = endpoint.toString();
+              console.log(`Uploading file: ${file} to ${endpointString}`);
+              // do the upload
+              const uploadResponse = await github.request({
+                method: "POST",
+                url: endpointString,
+                data: fs.readFileSync(file),
+              });
+
+              console.log(`Upload response: ${uploadResponse.status}`);
+            }
+
+            console.log("Finished creating release.");
+
+      - name: Do version bump
+        uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
+        with:
+          package: ${{ needs.parse.outputs.package }}
+          type: ${{ inputs.prerelease && 'prerelease' || 'ga' }}

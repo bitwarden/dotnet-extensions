@@ -1,14 +1,16 @@
-name: Do Release
+name: Do PreRelease
 
 on:
-  workflow_dispatch: {}
+  push:
+    paths:
+      - "release/*"
 
 jobs:
-  do-release:
-    name: Do release
+  do-prerelease:
+    name: Do prerelease
     runs-on: ubuntu-22.04
     steps:
       - name: Pack & Release
         uses: bitwarden/dotnet-extensions/.github/workflows/pack-and-release.yml@main
         with:
-          prerelease: false
+          prerelease: true

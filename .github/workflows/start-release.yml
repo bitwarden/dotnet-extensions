@@ -1,0 +1,67 @@
+name: Release
+run-name: Starting release for ${{ inputs.package }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Which package to release
+        required: true
+        type: choice
+        options:
+        - Bitwarden.Server.Sdk
+
+permissions:
+  pull-requests: write
+  contents: write
+
+env:
+  PACKAGE_DIRECTORY: './extensions/${{ inputs.package }}'
+
+jobs:
+  start-release:
+    name: Create Release Candidate
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@3e891b0cb619bf60e2c25674b222b8940e2c1c25 # v4.1.0
+
+      # get current version
+      - name: Get current version
+        id: current-version
+        run: echo "VERSION=$(dotnet msbuild --getProperty:Version)" >> $GITHUB_OUTPUT
+        working-directory: '${{ env.PACKAGE_DIRECTORY }}/src'
+
+      - name: Create release candidate branch
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const packageName = '${{ inputs.package }}';
+            const currentVersion = '${{ steps.current-version.outputs.VERSION }}';
+            console.log("Creating release candidate branch");
+
+            // Configure Git
+            await exec.exec(`git config user.name "github-actions"`);
+            await exec.exec(`git config user.email "github-actions@github.com"`);
+
+            var versionParts = currentVersion.split('.');
+
+            if (versionParts.length <= 2) {
+              core.setFailed(`Invalid current version: ${currentVersion}`);
+              return;
+            }
+
+            const releaseCandidateBranch = `release/${packageName}/${versionParts[0]}.${versionParts[1]}`;
+
+            await exec.exec(`git checkout -b ${releaseCandidateBranch}`);
+
+            await exec.exec(`git push --set-upstream origin HEAD:${releaseCandidateBranch}`);
+
+      - name: Do version bump
+        uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
+        with:
+          type: ga
+          package: ${{ inputs.package }}
