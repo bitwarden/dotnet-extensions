@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       package:
-        description: Which package to release
+        description: Package to release
         required: true
         type: choice
         options:
@@ -59,8 +59,9 @@ jobs:
 
             await exec.exec(`git push --set-upstream origin HEAD:${releaseCandidateBranch}`);
 
-      - name: Bump version
-        uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
-        with:
-          type: ga
-          package: ${{ inputs.package }}
+  bump-version:
+    name: Bump version
+    uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
+    with:
+      type: ga
+      package: ${{ inputs.package }}

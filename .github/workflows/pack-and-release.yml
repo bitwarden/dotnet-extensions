@@ -94,7 +94,6 @@ jobs:
     needs:
       - parse
       - pack
-      - publish
     steps:
       - name: Create GitHub Release
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
@@ -171,8 +170,11 @@ jobs:
               console.log(`Upload response: ${uploadResponse.status}`);
             }
 
-      - name: Bump version
-        uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
-        with:
-          package: ${{ needs.parse.outputs.package }}
-          type: ${{ inputs.prerelease && 'prerelease' || 'hotfix' }}
+  bump-version:
+    needs:
+      - create-release
+      - parse
+    uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
+    with:
+      package: ${{ needs.parse.outputs.package }}
+      type: ${{ inputs.prerelease && 'prerelease' || 'hotfix' }}
