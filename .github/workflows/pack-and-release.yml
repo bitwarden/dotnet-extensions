@@ -5,6 +5,10 @@ on:
     inputs:
       prerelease:
         type: boolean
+    secrets:
+      publish-token:
+        required: true
+        description: Token used to publish packages
 
 jobs:
   parse:
@@ -77,7 +81,7 @@ jobs:
     steps:
       - name: Dispatch publishing
         env:
-          GITHUB_TOKEN: ${{ secrets.PUBLISH_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.publish-token }}
         # TODO: Make version optional in workflow
         run: >
           gh workflow run publish-nuget.yml
@@ -95,6 +99,9 @@ jobs:
       - parse
       - pack
     steps:
+      - name: Check out repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
       - name: Create GitHub Release
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
