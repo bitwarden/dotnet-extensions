@@ -169,6 +169,7 @@ jobs:
 
               console.log(`Upload response: ${uploadResponse.status}`);
             }
+
   bump-version:
     needs:
       - create-release
