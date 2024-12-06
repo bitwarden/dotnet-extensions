@@ -109,18 +109,21 @@ jobs:
             const package = '${{ needs.parse.outputs.package }}';
             const currentVersion = '${{ needs.pack.outputs.current-version }}';
 
+            const currentRef = '${{ github.sha }}';
+
             // Configure Git
             await exec.exec(`git config user.name "github-actions"`);
             await exec.exec(`git config user.email "github-actions@github.com"`);
 
             // List existing tags so that we could use them to link to the best full changelog
             // Debug purposes only right now until there is enough data for me to make this command bullet proof
-            await exec.exec(`git --no-pager tag --list "${package}_v*" --no-contains $(git rev-parse HEAD)`, [], {
+            await exec.exec(`git --no-pager tag --list "${package}_v*" --no-contains "${currentRef}"`, [], {
               listeners: {
                 stdout: function stdout(data) {
                   console.log(`Found tags:\n${data}`);
                 }
-              }
+              },
+              ignoreErrorCode: true // Just for research purposes right now, it's fine if this fails
             });
 
             // Create tag
