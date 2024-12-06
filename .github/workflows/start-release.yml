@@ -20,7 +20,7 @@ env:
 
 jobs:
   start-release:
-    name: Create Release Candidate
+    name: Create release candidate
     runs-on: ubuntu-22.04
     steps:
       - name: Check out repo
@@ -60,7 +60,7 @@ jobs:
 
             await exec.exec(`git push --set-upstream origin HEAD:${releaseCandidateBranch}`);
 
-      - name: Do version bump
+      - name: Bump version
         uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
         with:
           type: ga

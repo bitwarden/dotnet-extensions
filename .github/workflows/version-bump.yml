@@ -1,20 +1,20 @@
-name: Version Bump
+name: Bump version
 
 on:
   workflow_call:
     inputs:
       type:
-        description: The type of this release
+        description: Type of release
         required: true
         type: string
       package:
-        description: Which package to release
+        description: Package to release
         required: true
         type: string
 
 jobs:
   version-bump:
-    name: Version bump
+    name: Bump version
     runs-on: ubuntu-22.04
     steps:
       - name: Check out repo
@@ -98,4 +98,4 @@ jobs:
               base: baseBranch,
             });
 
-            console.log("Successfully open GitHub PR.");
+            console.log("Successfully opened GitHub PR.");

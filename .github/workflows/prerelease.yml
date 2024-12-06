@@ -1,4 +1,4 @@
-name: Do PreRelease
+name: Perform prerelease
 
 on:
   push:
@@ -6,11 +6,11 @@ on:
       - "release/*"
 
 jobs:
-  do-prerelease:
+  prerelease:
     name: Do prerelease
     runs-on: ubuntu-22.04
     steps:
-      - name: Pack & Release
+      - name: Pack and release
         uses: bitwarden/dotnet-extensions/.github/workflows/pack-and-release.yml@main
         with:
           prerelease: true

@@ -12,7 +12,7 @@ jobs:
     outputs:
       package: ${{ steps.parse-package.outputs.result }}
     steps:
-      - name: Parse Package
+      - name: Parse package
         id: parse-package
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
@@ -173,7 +173,7 @@ jobs:
 
             console.log("Finished creating release.");
 
-      - name: Do version bump
+      - name: Bump version
         uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
         with:
           package: ${{ needs.parse.outputs.package }}
