@@ -11,11 +11,18 @@ on:
         description: Token used to publish packages
 
 jobs:
-  parse:
+  release:
+    name: Release
     runs-on: ubuntu-22.04
     outputs:
       package: ${{ steps.parse-package.outputs.result }}
     steps:
+      - name: Check out repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@3e891b0cb619bf60e2c25674b222b8940e2c1c25 # v4.1.0
+
       - name: Parse package
         id: parse-package
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
@@ -40,74 +47,25 @@ jobs:
 
             return refParts[3];
 
-  pack:
-    name: Pack
-    runs-on: ubuntu-22.04
-    needs:
-      - parse
-    outputs:
-      current-version: ${{ steps.current-version.outputs.VERSION }}
-    steps:
-      - name: Check out repo
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Set up .NET
-        uses: actions/setup-dotnet@3e891b0cb619bf60e2c25674b222b8940e2c1c25 # v4.1.0
-
       - name: Pack
         run: dotnet pack -c Release -p:IsPreRelease=$IS_PRERELEASE
-        working-directory: './extensions/${{ needs.parse.outputs.package }}/src'
+        working-directory: './extensions/${{ steps.parse-package.outputs.result }}/src'
         env:
           IS_PRERELEASE: ${{ inputs.prerelease }}
 
       - name: Get current version
         id: current-version
         run: echo "VERSION=$(dotnet msbuild -p:IsPreRelease=$IS_PRERELEASE --getProperty:Version)" >> $GITHUB_OUTPUT
-        working-directory: './extensions/${{ needs.parse.outputs.package }}/src'
+        working-directory: './extensions/${{ steps.parse-package.outputs.result }}/src'
         env:
           IS_PRERELEASE: ${{ inputs.prerelease }}
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        with:
-          name: packages
-          path: "**/*.nupkg"
-
-  publish:
-    name: Publish
-    runs-on: ubuntu-22.04
-    needs:
-      - pack
-    steps:
-      - name: Dispatch publishing
-        env:
-          GITHUB_TOKEN: ${{ secrets.publish-token }}
-        # TODO: Make version optional in workflow
-        run: >
-          gh workflow run publish-nuget.yml
-          --repo bitwarden/devops
-          --field repository=${{ github.event.repository.name }}
-          --field run-id=${{ github.run_id }}
-          --field artifact=packages
-          --field environment=nuget
-          --field version=1.0.0
-
-  create-release:
-    name: Create release
-    runs-on: ubuntu-22.04
-    needs:
-      - parse
-      - pack
-    steps:
-      - name: Check out repo
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Create GitHub Release
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
           script: |
-            const package = '${{ needs.parse.outputs.package }}';
-            const currentVersion = '${{ needs.pack.outputs.current-version }}';
+            const package = '${{ steps.parse-package.outputs.result }}';
+            const currentVersion = '${{ steps.current-version.outputs.VERSION }}';
 
             const currentRef = '${{ github.sha }}';
 
@@ -180,11 +138,28 @@ jobs:
               console.log(`Upload response: ${uploadResponse.status}`);
             }
 
+      - name: Upload artifacts
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: packages
+          path: "**/*.nupkg"
+
+      - name: Dispatch publishing
+        env:
+          GITHUB_TOKEN: ${{ secrets.publish-token }}
+        run: >
+          gh workflow run publish-nuget.yml
+          --repo bitwarden/devops
+          --field repository=${{ github.event.repository.name }}
+          --field run-id=${{ github.run_id }}
+          --field artifact=packages
+          --field environment=nuget
+          --field version=${{ steps.current-version.outputs.VERSION }}
+
   bump-version:
     needs:
-      - create-release
-      - parse
+      - release
     uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
     with:
-      package: ${{ needs.parse.outputs.package }}
+      package: ${{ needs.release.outputs.package }}
       type: ${{ inputs.prerelease && 'prerelease' || 'hotfix' }}
