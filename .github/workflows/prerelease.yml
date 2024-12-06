@@ -11,3 +11,5 @@ jobs:
     uses: bitwarden/dotnet-extensions/.github/workflows/pack-and-release.yml@main
     with:
       prerelease: true
+    secrets:
+      publish-token: ${{ secrets.PUBLISH_GITHUB_TOKEN }}
