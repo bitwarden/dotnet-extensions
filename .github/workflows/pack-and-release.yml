@@ -48,14 +48,18 @@ jobs:
             return refParts[3];
 
       - name: Pack
-        run: dotnet pack -c Release -p:IsPreRelease=$IS_PRERELEASE
+        run: |
+          hash="${{ github.ref }}"
+          dotnet pack -c Release -p:IsPreRelease=$IS_PRERELEASE -p:PreReleaseVersionIteration=${hash:0:7}
         working-directory: './extensions/${{ steps.parse-package.outputs.result }}/src'
         env:
           IS_PRERELEASE: ${{ inputs.prerelease }}
 
       - name: Get current version
         id: current-version
-        run: echo "VERSION=$(dotnet msbuild -p:IsPreRelease=$IS_PRERELEASE --getProperty:Version)" >> $GITHUB_OUTPUT
+        run: |
+          hash="${{ github.ref }}"
+          echo "VERSION=$(dotnet msbuild -p:IsPreRelease=$IS_PRERELEASE -p:PreReleaseVersionIteration=${hash:0:7} --getProperty:Version)" >> $GITHUB_OUTPUT
         working-directory: './extensions/${{ steps.parse-package.outputs.result }}/src'
         env:
           IS_PRERELEASE: ${{ inputs.prerelease }}
@@ -157,9 +161,10 @@ jobs:
           --field version=${{ steps.current-version.outputs.VERSION }}
 
   bump-version:
+    if: ${{ !inputs.prerelease }}
     needs:
       - release
     uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
     with:
       package: ${{ needs.release.outputs.package }}
-      type: ${{ inputs.prerelease && 'prerelease' || 'hotfix' }}
+      type: hotfix
