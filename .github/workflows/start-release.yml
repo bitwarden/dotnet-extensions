@@ -41,7 +41,6 @@ jobs:
           script: |
             const packageName = '${{ inputs.package }}';
             const currentVersion = '${{ steps.current-version.outputs.VERSION }}';
-            console.log("Creating release candidate branch");
 
             // Configure Git
             await exec.exec(`git config user.name "github-actions"`);

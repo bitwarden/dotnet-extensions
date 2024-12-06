@@ -171,8 +171,6 @@ jobs:
               console.log(`Upload response: ${uploadResponse.status}`);
             }
 
-            console.log("Finished creating release.");
-
       - name: Bump version
         uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
         with:
