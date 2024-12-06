@@ -1,4 +1,4 @@
-name: Release
+name: Start release
 run-name: Starting release for ${{ inputs.package }}
 
 on:
