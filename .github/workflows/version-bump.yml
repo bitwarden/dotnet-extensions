@@ -47,6 +47,10 @@ jobs:
               return;
             }
 
+            // Configure Git
+            await exec.exec(`git config user.name "github-actions"`);
+            await exec.exec(`git config user.email "github-actions@github.com"`);
+
             const versionBumpBranch = `version-bump/${packageName}-to-${newVersion}`;
             await exec.exec(`git checkout -b ${versionBumpBranch}`);
 
