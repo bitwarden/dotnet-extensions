@@ -1,4 +1,4 @@
-name: Publish
+name: Pack and release
 
 on:
   workflow_call:
