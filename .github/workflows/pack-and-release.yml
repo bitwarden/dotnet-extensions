@@ -109,7 +109,7 @@ jobs:
             const package = '${{ needs.parse.outputs.package }}';
             const currentVersion = '${{ needs.pack.outputs.current-version }}';
 
-            const currentRef = '${{ github.ref }}';
+            const currentRef = '${{ github.sha }}';
 
             // Configure Git
             await exec.exec(`git config user.name "github-actions"`);
