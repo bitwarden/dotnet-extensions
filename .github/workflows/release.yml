@@ -6,9 +6,6 @@ on:
 jobs:
   release:
     name: Do release
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Pack and release
-        uses: bitwarden/dotnet-extensions/.github/workflows/pack-and-release.yml@main
-        with:
-          prerelease: false
+    uses: bitwarden/dotnet-extensions/.github/workflows/pack-and-release.yml@main
+    with:
+      prerelease: false
