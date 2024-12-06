@@ -3,7 +3,7 @@ name: Perform prerelease
 on:
   push:
     paths:
-      - "release/*"
+      - "release/**"
 
 jobs:
   prerelease:
