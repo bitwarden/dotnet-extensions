@@ -2,7 +2,7 @@ name: Perform prerelease
 
 on:
   push:
-    paths:
+    branches:
       - "release/**"
 
 jobs:
