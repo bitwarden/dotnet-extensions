@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace Bitwarden.Extensions.Hosting.Features;
+namespace Bitwarden.Server.Sdk.Features;
 
 internal static partial class LoggerExtensions
 {

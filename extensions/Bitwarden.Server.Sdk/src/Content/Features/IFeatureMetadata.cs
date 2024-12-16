@@ -1,4 +1,4 @@
-namespace Bitwarden.Extensions.Hosting.Features;
+namespace Bitwarden.Server.Sdk.Features;
 
 internal interface IFeatureMetadata
 {

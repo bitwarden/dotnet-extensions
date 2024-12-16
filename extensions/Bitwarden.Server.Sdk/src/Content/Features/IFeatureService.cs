@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 
-namespace Bitwarden.Extensions.Hosting.Features;
+namespace Bitwarden.Server.Sdk.Features;
 
 /// <summary>
 /// Checks feature status for the current request.

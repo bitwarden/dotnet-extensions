@@ -1,7 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using System.Text.Json.Nodes;
-using Bitwarden.Extensions.Hosting.Utilities;
+using Bitwarden.Server.Sdk.Utilities;
 using LaunchDarkly.Logging;
 using LaunchDarkly.Sdk;
 using LaunchDarkly.Sdk.Server;
@@ -12,7 +12,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Bitwarden.Extensions.Hosting.Features;
+namespace Bitwarden.Server.Sdk.Features;
 
 internal sealed class LaunchDarklyFeatureService : IFeatureService
 {

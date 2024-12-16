@@ -1,7 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 
-namespace Bitwarden.Extensions.Hosting;
+namespace Bitwarden.Server.Sdk.Utilities;
 
 internal sealed partial class VersionInfo : ISpanParsable<VersionInfo>
 {

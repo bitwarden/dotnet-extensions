@@ -1,9 +1,12 @@
 using System.Diagnostics;
 using System.Reflection;
 using Bitwarden.Extensions.Hosting;
+using Bitwarden.Server.Sdk.Features;
+using LaunchDarkly.Sdk.Server.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using Serilog;
@@ -21,32 +24,14 @@ public static class HostBuilderExtensions
     /// <summary>
     /// Configures the host to use Bitwarden defaults.
     /// </summary>
-    /// <param name="builder">The host application builder.</param>
-    /// <param name="configure">The function to customize the Bitwarden defaults.</param>
-    /// <returns>The original host application builder parameter.</returns>
-    public static TBuilder UseBitwardenDefaults<TBuilder>(this TBuilder builder, Action<BitwardenHostOptions>? configure = null)
-        where TBuilder : IHostApplicationBuilder
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-
-        var bitwardenHostOptions = new BitwardenHostOptions();
-        configure?.Invoke(bitwardenHostOptions);
-        builder.UseBitwardenDefaults(bitwardenHostOptions);
-        return builder;
-    }
-
-    /// <summary>
-    /// Configures the host to use Bitwarden defaults.
-    /// </summary>
     /// <typeparam name="TBuilder"></typeparam>
     /// <param name="builder"></param>
     /// <param name="bitwardenHostOptions"></param>
     /// <returns></returns>
-    public static TBuilder UseBitwardenDefaults<TBuilder>(this TBuilder builder, BitwardenHostOptions bitwardenHostOptions)
+    public static TBuilder UseBitwardenSdk<TBuilder>(this TBuilder builder)
         where TBuilder : IHostApplicationBuilder
     {
         ArgumentNullException.ThrowIfNull(builder);
-        ArgumentNullException.ThrowIfNull(bitwardenHostOptions);
 
         builder.Services.AddOptions<GlobalSettingsBase>()
             .Configure<IConfiguration>((options, config) =>
@@ -60,28 +45,11 @@ public static class HostBuilderExtensions
             AddSelfHostedConfig(builder.Configuration, builder.Environment);
         }
 
-        if (bitwardenHostOptions.IncludeLogging)
-        {
-            AddLogging(builder.Services, builder.Configuration, builder.Environment);
-        }
-
-        if (bitwardenHostOptions.IncludeMetrics)
-        {
-            AddMetrics(builder.Services);
-        }
+        AddLogging(builder.Services, builder.Configuration, builder.Environment);
+        AddMetrics(builder.Services);
+        AddFeatureFlagServices(builder.Services, builder.Configuration);
 
         return builder;
-    }
-
-    /// <summary>
-    /// Configures the host to use Bitwarden defaults.
-    /// </summary>
-    public static IHostBuilder UseBitwardenDefaults(this IHostBuilder hostBuilder, Action<BitwardenHostOptions>? configure = null)
-    {
-        // We could default to not including logging in development environments like we currently do.
-        var bitwardenHostOptions = new BitwardenHostOptions();
-        configure?.Invoke(bitwardenHostOptions);
-        return hostBuilder.UseBitwardenDefaults(bitwardenHostOptions);
     }
 
     /// <summary>
@@ -90,7 +58,7 @@ public static class HostBuilderExtensions
     /// <param name="hostBuilder">Host builder.</param>
     /// <param name="bitwardenHostOptions">Host options.</param>
     /// <returns></returns>
-    public static IHostBuilder UseBitwardenDefaults(this IHostBuilder hostBuilder, BitwardenHostOptions bitwardenHostOptions)
+    public static IHostBuilder UseBitwardenSdk(this IHostBuilder hostBuilder)
     {
         hostBuilder.ConfigureServices((_, services) =>
         {
@@ -109,21 +77,20 @@ public static class HostBuilderExtensions
             }
         });
 
-        if (bitwardenHostOptions.IncludeLogging)
+        hostBuilder.ConfigureServices((context, services) =>
         {
-            hostBuilder.ConfigureServices((context, services) =>
-            {
-                AddLogging(services, context.Configuration, context.HostingEnvironment);
-            });
-        }
+            AddLogging(services, context.Configuration, context.HostingEnvironment);
+        });
 
-        if (bitwardenHostOptions.IncludeMetrics)
+        hostBuilder.ConfigureServices((_, services) =>
         {
-            hostBuilder.ConfigureServices((_, services) =>
-            {
-                AddMetrics(services);
-            });
-        }
+            AddMetrics(services);
+        });
+
+        hostBuilder.ConfigureServices((context, services) =>
+        {
+            AddFeatureFlagServices(services, context.Configuration);
+        });
 
         return hostBuilder;
     }
@@ -213,5 +180,22 @@ public static class HostBuilderExtensions
                 options.AddOtlpExporter())
             .WithTracing(options =>
                 options.AddOtlpExporter());
+    }
+
+    private static void AddFeatureFlagServices(IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddProblemDetails();
+        services.AddHttpContextAccessor();
+
+        services.Configure<FeatureFlagOptions>(configuration.GetSection("Features"));
+        // TODO: Register service to do legacy support from configuration.
+
+        services.TryAddSingleton<LaunchDarklyClientProvider>();
+
+        // This needs to be scoped so a "new" ILdClient can be given per request, this makes it possible to
+        // have the ILdClient be rebuilt if configuration changes but for the most part this will return a cached
+        // client from LaunchDarklyClientProvider, effectively being a singleton.
+        services.TryAddScoped<ILdClient>(sp => sp.GetRequiredService<LaunchDarklyClientProvider>().Get());
+        services.TryAddScoped<IFeatureService, LaunchDarklyFeatureService>();
     }
 }

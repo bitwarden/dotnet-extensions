@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace Bitwarden.Extensions.Hosting.Features;
+namespace Bitwarden.Server.Sdk.Features;
 
 internal sealed class FeatureCheckMiddleware
 {

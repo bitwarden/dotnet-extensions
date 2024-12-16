@@ -1,4 +1,4 @@
-using Bitwarden.Extensions.Hosting.Features;
+using Bitwarden.Server.Sdk.Features;
 
 namespace Microsoft.AspNetCore.Builder;
 

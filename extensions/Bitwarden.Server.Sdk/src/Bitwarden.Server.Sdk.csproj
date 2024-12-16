@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <!-- Not a true dependency, we just need one to make the CLI happy -->
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <PackageType>MSBuildSdk</PackageType>
     <!-- We are a meta package, we don't actually want people to have to use netstandard to use us. -->
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
@@ -16,7 +15,13 @@
     <PreReleaseVersionLabel>beta</PreReleaseVersionLabel>
     <PreReleaseVersionIteration>1</PreReleaseVersionIteration>
     <VersionSuffix Condition="'$(VersionSuffix)' == '' AND '$(IsPreRelease)' == 'true'">$(PreReleaseVersionLabel).$(PreReleaseVersionIteration)</VersionSuffix>
+    <ImplicitUsings>true</ImplicitUsings>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
 
   <PropertyGroup>
     <Authors>Bitwarden Inc.</Authors>
@@ -33,7 +38,19 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="$(ExtensionsHostingRoot)**/*.cs" Exclude="$(ExtensionsHostingRoot)bin/**;$(ExtensionsHostingRoot)obj/**" Pack="true" PackagePath="content/Bitwarden.Server.Sdk" Visible="false" BuildAction="none" />
+    <Content Include="$(ExtensionsHostingRoot)**/*.cs" Exclude="$(ExtensionsHostingRoot)bin/**;$(ExtensionsHostingRoot)obj/**" Pack="true" PackagePath="Content" Visible="false" BuildAction="none" />
+    <Content Include="Content/**/*.cs" Pack="true" PackagePath="Content" Visible="false" BuildAction="none" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Serilog.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Serilog.Formatting.Compact" Version="3.0.0" />
+    <PackageReference Include="Serilog.Settings.Configuration" Version="8.0.4" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.9.0" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.9.0" />
+    <PackageReference Include="LaunchDarkly.ServerSdk" Version="8.6.0" />
   </ItemGroup>
 
 </Project>

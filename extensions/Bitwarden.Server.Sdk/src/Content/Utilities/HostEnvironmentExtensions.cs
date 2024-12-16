@@ -1,7 +1,7 @@
 using System.Reflection;
 using Microsoft.Extensions.Hosting;
 
-namespace Bitwarden.Extensions.Hosting.Utilities;
+namespace Bitwarden.Server.Sdk.Utilities;
 
 internal static class HostEnvironmentExtensions
 {

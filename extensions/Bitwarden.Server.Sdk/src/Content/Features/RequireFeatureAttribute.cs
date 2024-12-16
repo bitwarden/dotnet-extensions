@@ -1,4 +1,4 @@
-namespace Bitwarden.Extensions.Hosting.Features;
+namespace Bitwarden.Server.Sdk.Features;
 
 /// <summary>
 /// Specifies that the class or method that this attribute is applied to requires a feature check to run.

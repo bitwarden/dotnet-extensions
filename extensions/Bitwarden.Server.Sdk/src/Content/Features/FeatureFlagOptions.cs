@@ -1,4 +1,4 @@
-namespace Bitwarden.Extensions.Hosting.Features;
+namespace Bitwarden.Server.Sdk.Features;
 
 /// <summary>
 /// A collection of Launch Darkly specific options.

@@ -7,6 +7,10 @@
     <Compile Include="$(MSBuildThisFileDirectory)../content/Bitwarden.Server.Sdk/**/*.cs" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <ImplicitUsings>true</ImplicitUsings>
+  </PropertyGroup>
+
   <!-- TODO Use the constants in places to avoid any configuration that doesn't compile -->
   <PropertyGroup>
     <!-- Logging defaults to on -->
