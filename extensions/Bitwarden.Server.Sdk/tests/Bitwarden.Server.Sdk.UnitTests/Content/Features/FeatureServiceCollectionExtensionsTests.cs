@@ -1,8 +1,8 @@
-using Bitwarden.Extensions.Hosting.Features;
+using Bitwarden.Server.Sdk.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace Bitwarden.Extensions.Hosting.Tests.Features;
+namespace Bitwarden.Server.Sdk.UnitTests.Features;
 
 public class FeatureServiceCollectionExtensionsTests
 {

@@ -1,16 +1,23 @@
+#pragma warning disable BWSDK0001
+
 using System.Diagnostics;
 using System.Reflection;
-using Bitwarden.Extensions.Hosting;
+#if BIT_INCLUDE_FEATURES
 using Bitwarden.Server.Sdk.Features;
 using LaunchDarkly.Sdk.Server.Interfaces;
+#endif
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+#if BIT_INCLUDE_TELEMETRY
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+#endif
+#if BIT_INCLUDE_LOGGING
 using Serilog;
 using Serilog.Formatting.Compact;
+#endif
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -33,13 +40,6 @@ public static class HostBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        builder.Services.AddOptions<GlobalSettingsBase>()
-            .Configure<IConfiguration>((options, config) =>
-            {
-                options.IsSelfHosted = config.GetValue(SelfHostedConfigKey, false);
-            });
-
-
         if (builder.Configuration.GetValue(SelfHostedConfigKey, false))
         {
             AddSelfHostedConfig(builder.Configuration, builder.Environment);
@@ -60,15 +60,6 @@ public static class HostBuilderExtensions
     /// <returns></returns>
     public static IHostBuilder UseBitwardenSdk(this IHostBuilder hostBuilder)
     {
-        hostBuilder.ConfigureServices((_, services) =>
-        {
-            services.AddOptions<GlobalSettingsBase>()
-                .Configure<IConfiguration>((options, config) =>
-                {
-                    options.IsSelfHosted = config.GetValue("globalSettings:selfHosted", false);
-                });
-        });
-
         hostBuilder.ConfigureAppConfiguration((context, builder) =>
         {
             if (context.Configuration.GetValue(SelfHostedConfigKey, false))
@@ -155,6 +146,7 @@ public static class HostBuilderExtensions
 
     private static void AddLogging(IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
     {
+#if BIT_INCLUDE_LOGGING
         services.AddSerilog((sp, serilog) =>
         {
             var builder = serilog.ReadFrom.Configuration(configuration)
@@ -171,19 +163,23 @@ public static class HostBuilderExtensions
                 builder.WriteTo.Console();
             }
         });
+#endif
     }
 
     private static void AddMetrics(IServiceCollection services)
     {
+#if BIT_INCLUDE_TELEMETRY
         services.AddOpenTelemetry()
             .WithMetrics(options =>
                 options.AddOtlpExporter())
             .WithTracing(options =>
                 options.AddOtlpExporter());
+#endif
     }
 
     private static void AddFeatureFlagServices(IServiceCollection services, IConfiguration configuration)
     {
+#if BIT_INCLUDE_FEATURES
         services.AddProblemDetails();
         services.AddHttpContextAccessor();
 
@@ -197,5 +193,6 @@ public static class HostBuilderExtensions
         // client from LaunchDarklyClientProvider, effectively being a singleton.
         services.TryAddScoped<ILdClient>(sp => sp.GetRequiredService<LaunchDarklyClientProvider>().Get());
         services.TryAddScoped<IFeatureService, LaunchDarklyFeatureService>();
+#endif
     }
 }

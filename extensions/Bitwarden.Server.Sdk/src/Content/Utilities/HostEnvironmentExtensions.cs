@@ -1,8 +1,15 @@
+#nullable enable
+
+using System.ComponentModel;
 using System.Reflection;
+using Bitwarden.Server.Sdk.Utilities.Internal;
 using Microsoft.Extensions.Hosting;
 
 namespace Bitwarden.Server.Sdk.Utilities;
 
+
+[EditorBrowsable(EditorBrowsableState.Never)]
+[Obsolete(InternalConstants.InternalMessage, DiagnosticId = InternalConstants.InternalId)]
 internal static class HostEnvironmentExtensions
 {
     public static VersionInfo? GetVersionInfo(this IHostEnvironment hostEnvironment)

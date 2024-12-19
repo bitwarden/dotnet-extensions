@@ -1,8 +1,15 @@
+#nullable enable
+
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
+using Bitwarden.Server.Sdk.Utilities.Internal;
 
 namespace Bitwarden.Server.Sdk.Utilities;
 
+
+[EditorBrowsable(EditorBrowsableState.Never)]
+[Obsolete(InternalConstants.InternalMessage, DiagnosticId = InternalConstants.InternalId)]
 internal sealed partial class VersionInfo : ISpanParsable<VersionInfo>
 {
     [GeneratedRegex("[0-9a-f]{5,40}")]

@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using Bitwarden.Server.Sdk.Utilities.Internal;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
@@ -5,6 +7,8 @@ using Microsoft.Extensions.Logging;
 
 namespace Bitwarden.Server.Sdk.Features;
 
+[EditorBrowsable(EditorBrowsableState.Never)]
+[Obsolete(InternalConstants.InternalMessage, DiagnosticId = InternalConstants.InternalId)]
 internal sealed class FeatureCheckMiddleware
 {
     private readonly RequestDelegate _next;

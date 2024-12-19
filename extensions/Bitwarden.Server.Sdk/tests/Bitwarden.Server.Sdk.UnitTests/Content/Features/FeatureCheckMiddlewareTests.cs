@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-using Bitwarden.Extensions.Hosting.Features;
+using Bitwarden.Server.Sdk.Features;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
-namespace Bitwarden.Extensions.Hosting.Tests.Features;
+namespace Bitwarden.Server.Sdk.UnitTests.Features;
 
 public class FeatureCheckMiddlewareTests
 {
@@ -158,7 +158,7 @@ public class FeatureCheckMiddlewareTests
     {
         return new HostBuilder()
             .UseEnvironment("Development") // To get easier to read logs
-            .UseBitwardenDefaults()
+            .UseBitwardenSdk()
             .ConfigureWebHost((webHostBuilder) =>
             {
                 webHostBuilder

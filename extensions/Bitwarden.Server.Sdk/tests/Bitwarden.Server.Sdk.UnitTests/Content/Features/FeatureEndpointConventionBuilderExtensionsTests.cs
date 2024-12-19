@@ -1,9 +1,9 @@
-using Bitwarden.Extensions.Hosting.Features;
+using Bitwarden.Server.Sdk.Features;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 
-namespace Bitwarden.Extensions.Hosting.Tests.Features;
+namespace Bitwarden.Server.Sdk.UnitTests.Features;
 
 public class FeatureEndpointConventionBuilderExtensionsTests
 {

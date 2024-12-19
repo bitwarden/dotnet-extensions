@@ -1,3 +1,5 @@
+#nullable enable
+
 using System.Text.Json.Nodes;
 
 namespace Bitwarden.Server.Sdk.Features;

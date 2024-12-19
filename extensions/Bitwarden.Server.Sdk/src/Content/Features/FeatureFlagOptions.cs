@@ -1,3 +1,5 @@
+#nullable enable
+
 namespace Bitwarden.Server.Sdk.Features;
 
 /// <summary>

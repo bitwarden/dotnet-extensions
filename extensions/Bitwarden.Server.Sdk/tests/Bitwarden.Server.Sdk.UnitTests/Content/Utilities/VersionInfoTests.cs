@@ -1,4 +1,6 @@
-namespace Bitwarden.Extensions.Hosting.Tests.Utilities;
+using Bitwarden.Server.Sdk.Utilities;
+
+namespace Bitwarden.Server.Sdk.UnitTests.Utilities;
 
 public class VersionInfoTests
 {

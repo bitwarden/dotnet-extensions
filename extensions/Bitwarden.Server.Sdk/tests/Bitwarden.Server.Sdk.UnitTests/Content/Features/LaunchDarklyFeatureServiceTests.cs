@@ -1,4 +1,4 @@
-using Bitwarden.Extensions.Hosting.Features;
+using Bitwarden.Server.Sdk.Features;
 using LaunchDarkly.Sdk;
 using LaunchDarkly.Sdk.Server;
 using LaunchDarkly.Sdk.Server.Interfaces;
@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 
-namespace Bitwarden.Extensions.Hosting.Tests.Features;
+namespace Bitwarden.Server.Sdk.UnitTests.Features;
 
 public class LaunchDarklyFeatureServiceTests
 {

@@ -1,7 +1,12 @@
+#pragma warning disable BWSDK0001
+#nullable enable
+
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using System.Text.Json.Nodes;
 using Bitwarden.Server.Sdk.Utilities;
+using Bitwarden.Server.Sdk.Utilities.Internal;
 using LaunchDarkly.Logging;
 using LaunchDarkly.Sdk;
 using LaunchDarkly.Sdk.Server;
@@ -14,6 +19,9 @@ using Microsoft.Extensions.Options;
 
 namespace Bitwarden.Server.Sdk.Features;
 
+
+[EditorBrowsable(EditorBrowsableState.Never)]
+[Obsolete(InternalConstants.InternalMessage, DiagnosticId = InternalConstants.InternalId)]
 internal sealed class LaunchDarklyFeatureService : IFeatureService
 {
     const string AnonymousUser = "25a15cac-58cf-4ac0-ad0f-b17c4bd92294";

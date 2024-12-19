@@ -19,6 +19,14 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <DefineConstants>$(DefineConstants);BIT_INCLUDE_FEATURES;BIT_INCLUDE_TELEMETRY</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.UnitTests" />
+  </ItemGroup>
+
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
@@ -30,6 +38,8 @@
 
   <PropertyGroup>
     <ExtensionsHostingRoot>../../Bitwarden.Extensions.Hosting/src/</ExtensionsHostingRoot>
+    <!-- Don't warn about our own internal usage of items -->
+    <NoWarn>$(NoWarn);BWSDK0001</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -38,7 +48,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="$(ExtensionsHostingRoot)**/*.cs" Exclude="$(ExtensionsHostingRoot)bin/**;$(ExtensionsHostingRoot)obj/**" Pack="true" PackagePath="Content" Visible="false" BuildAction="none" />
     <Content Include="Content/**/*.cs" Pack="true" PackagePath="Content" Visible="false" BuildAction="none" />
   </ItemGroup>
 

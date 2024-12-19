@@ -1,7 +1,12 @@
+using System.ComponentModel;
+using Bitwarden.Server.Sdk.Utilities.Internal;
 using Microsoft.Extensions.Logging;
 
 namespace Bitwarden.Server.Sdk.Features;
 
+
+[EditorBrowsable(EditorBrowsableState.Never)]
+[Obsolete(InternalConstants.InternalMessage, DiagnosticId = InternalConstants.InternalId)]
 internal static partial class LoggerExtensions
 {
     [LoggerMessage(1, LogLevel.Warning, "No endpoint set -- did you forget to call 'UseRouting()'?")]
