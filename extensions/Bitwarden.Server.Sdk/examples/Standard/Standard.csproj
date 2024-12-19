@@ -17,7 +17,7 @@
     <BitIncludeTelemetry>false</BitIncludeTelemetry>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Mode)' == '2'">
+  <PropertyGroup Condition="'$(Mode)' == '3'">
     <BitIncludeLogging>false</BitIncludeLogging>
     <BitIncludeTelemetry>false</BitIncludeTelemetry>
     <BitIncludeFeatures>false</BitIncludeFeatures>
