@@ -3,9 +3,18 @@
   These properties are read in targets to allow the csproj file to customize the behavior
 -->
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <SdkContentRoot>$(MSBuildThisFileDirectory)../Content</SdkContentRoot>
+  </PropertyGroup>
+
   <ItemGroup Condition="'$(UsingBitwardenServerSdk)' == 'true'">
-    <Compile Include="$(MSBuildThisFileDirectory)../content/Bitwarden.Server.Sdk/**/*.cs" />
+    <Compile Include="$(SdkContentRoot)/*.cs" />
+    <Compile Include="$(SdkContentRoot)/Utilities/**/*.cs" />
   </ItemGroup>
+
+  <PropertyGroup>
+    <ImplicitUsings>true</ImplicitUsings>
+  </PropertyGroup>
 
   <!-- TODO Use the constants in places to avoid any configuration that doesn't compile -->
   <PropertyGroup>
@@ -19,10 +28,6 @@
     <BitIncludeFeatures Condition="'$(BitIncludeFeatures)' == ''">true</BitIncludeFeatures>
     <DefineConstants Condition="'$(BitIncludeFeatures)' == 'true'">$(DefineConstants);BIT_INCLUDE_FEATURES</DefineConstants>
   </PropertyGroup>
-
-  <ItemGroup Condition="'$(UsingBitwardenServerSdk)' == 'true'">
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
-  </ItemGroup>
 
   <!-- TODO: Allow for overriding specific package versions? -->
   <ItemGroup Condition="'$(BitIncludeLogging)' == 'true'">
@@ -40,5 +45,7 @@
 
   <ItemGroup Condition="'$(BitIncludeFeatures)' == 'true'">
     <PackageReference Include="LaunchDarkly.ServerSdk" Version="8.6.0" />
+
+    <Compile Include="$(SdkContentRoot)/Features/**/*.cs" />
   </ItemGroup>
 </Project>
