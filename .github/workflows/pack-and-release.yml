@@ -49,14 +49,14 @@ jobs:
 
       - name: Pack
         run: dotnet pack -c Release -p:IsPreRelease=$IS_PRERELEASE
-        working-directory: './extensions/${{ steps.parse-package.outputs.result }}/src'
+        working-directory: "./extensions/${{ steps.parse-package.outputs.result }}/src"
         env:
           IS_PRERELEASE: ${{ inputs.prerelease }}
 
       - name: Get current version
         id: current-version
         run: echo "VERSION=$(dotnet msbuild -p:IsPreRelease=$IS_PRERELEASE --getProperty:Version)" >> $GITHUB_OUTPUT
-        working-directory: './extensions/${{ steps.parse-package.outputs.result }}/src'
+        working-directory: "./extensions/${{ steps.parse-package.outputs.result }}/src"
         env:
           IS_PRERELEASE: ${{ inputs.prerelease }}
 
@@ -157,6 +157,7 @@ jobs:
           --field version=${{ steps.current-version.outputs.VERSION }}
 
   bump-version:
+    name: Bump version
     needs:
       - release
     uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
