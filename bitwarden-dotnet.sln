@@ -41,6 +41,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{384C7FC2
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Server.Sdk.UnitTests", "extensions\Bitwarden.Server.Sdk\tests\Bitwarden.Server.Sdk.UnitTests\Bitwarden.Server.Sdk.UnitTests.csproj", "{6CF2554F-67DA-494F-A414-3974FAB96E6E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Server.Sdk.IntegrationTests", "extensions\Bitwarden.Server.Sdk\tests\Bitwarden.Server.Sdk.IntegrationTests\Bitwarden.Server.Sdk.IntegrationTests.csproj", "{C0601B8C-1A72-400F-8CCF-C5493221E555}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -94,6 +96,10 @@ Global
 		{6CF2554F-67DA-494F-A414-3974FAB96E6E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6CF2554F-67DA-494F-A414-3974FAB96E6E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6CF2554F-67DA-494F-A414-3974FAB96E6E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C0601B8C-1A72-400F-8CCF-C5493221E555}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C0601B8C-1A72-400F-8CCF-C5493221E555}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C0601B8C-1A72-400F-8CCF-C5493221E555}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C0601B8C-1A72-400F-8CCF-C5493221E555}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{5EC8B943-2E9E-437D-9FFC-D18B5DB4D7D0} = {695C76EF-1102-4805-970F-7C995EE54930}
@@ -114,5 +120,6 @@ Global
 		{061FB6BF-6F7E-4E48-BD89-6BA826B15432} = {AEF7870E-D4E5-4ECC-88A1-BD2C5A6CC9C7}
 		{384C7FC2-51CB-4723-B2EC-353833AB4354} = {82253883-A5E2-4917-A690-A744C3855FAB}
 		{6CF2554F-67DA-494F-A414-3974FAB96E6E} = {384C7FC2-51CB-4723-B2EC-353833AB4354}
+		{C0601B8C-1A72-400F-8CCF-C5493221E555} = {384C7FC2-51CB-4723-B2EC-353833AB4354}
 	EndGlobalSection
 EndGlobal
