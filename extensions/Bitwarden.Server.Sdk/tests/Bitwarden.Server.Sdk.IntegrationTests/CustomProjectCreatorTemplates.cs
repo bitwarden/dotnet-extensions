@@ -30,9 +30,9 @@ public static class CustomProjectCreatorTemplates
                 path: Path.Combine(dir, "Test.csproj"),
                 sdk: "Microsoft.NET.Sdk.Web",
                 targetFramework: "net8.0")
-            .Import(Path.Combine(ThisAssemblyDirectory, "sdk", "Sdk.props"))
+            .Import(Path.Combine(ThisAssemblyDirectory, "Sdk", "Sdk.props"))
             .CustomAction(customAction)
-            .Import(Path.Combine(ThisAssemblyDirectory, "sdk", "Sdk.targets"));
+            .Import(Path.Combine(ThisAssemblyDirectory, "Sdk", "Sdk.targets"));
     }
 
     public static ProjectCreator TryGetConstant(this ProjectCreator project, string constant, out bool result)
