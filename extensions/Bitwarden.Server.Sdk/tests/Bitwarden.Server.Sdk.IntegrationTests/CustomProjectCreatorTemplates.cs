@@ -29,7 +29,7 @@ public static class CustomProjectCreatorTemplates
         return ProjectCreator.Templates.SdkCsproj(
                 path: Path.Combine(dir, "Test.csproj"),
                 sdk: "Microsoft.NET.Sdk.Web",
-                targetFramework: "net9.0")
+                targetFramework: "net8.0")
             .Import(Path.Combine(ThisAssemblyDirectory, "sdk", "Sdk.props"))
             .CustomAction(customAction)
             .Import(Path.Combine(ThisAssemblyDirectory, "sdk", "Sdk.targets"));
