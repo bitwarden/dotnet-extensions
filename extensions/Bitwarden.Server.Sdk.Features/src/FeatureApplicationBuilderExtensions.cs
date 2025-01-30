@@ -1,5 +1,3 @@
-#pragma warning disable BWSDK0001
-
 using Bitwarden.Server.Sdk.Features;
 
 namespace Microsoft.AspNetCore.Builder;

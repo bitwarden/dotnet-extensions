@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+using Microsoft.Build.Evaluation;
 using Microsoft.Build.Utilities.ProjectCreation;
 
 namespace Bitwarden.Server.Sdk.IntegrationTests;
@@ -18,6 +20,25 @@ public class SdkTests : MSBuildTestBase
         Assert.True(hasLoggingConstant);
         Assert.True(hasTelementryConstant);
         Assert.True(hasFeaturesConstant);
+    }
+
+    [Fact]
+    public void ShouldBuildWithNoWarningsIfProjectHasNullableDisabled()
+    {
+        ProjectCreator.Templates.SdkProject(
+            customAction: (project) =>
+            {
+                project.Property("Nullable", "disable");
+            }
+        )
+            .TryBuild(restore: true, out var result, out var buildOutput)
+            .TryGetItems("Compile", out var compileItems);
+
+        Assert.True(result, buildOutput.GetConsoleLog());
+
+        TestContext.Current.TestOutputHelper!.WriteLine($"Compile Items:\n{string.Join("\n", compileItems.Select(c => c.EvaluatedInclude))}");
+
+        Assert.NotEmpty(buildOutput.WarningEvents);
     }
 
     [Fact]
@@ -80,6 +101,23 @@ public class SdkTests : MSBuildTestBase
 
         // error CS0234: The type or namespace name 'Features' does not exist in the namespace 'Bitwarden.Server.Sdk' (are you missing an assembly reference?)
         Assert.Contains(buildOutput.ErrorEvents, e => e.Code == "CS0234");
+    }
+
+    [Fact]
+    public void FeaturesTurnedOn_CanUseFeatureService()
+    {
+        ProjectCreator.Templates.SdkProject(
+            customAction: (project) =>
+            {
+                project.Property("BitIncludeFeatures", bool.TrueString);
+            },
+            additional: """
+                app.MapGet("/test", (Bitwarden.Server.Sdk.Features.IFeatureService featureService) => featureService.GetAll());
+                """
+        )
+            .TryBuild(restore: true, out var result, out var buildOutput);
+
+        Assert.True(result, buildOutput.GetConsoleLog());
     }
 
     public static TheoryData<bool, bool, bool> MatrixData

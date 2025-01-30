@@ -5,7 +5,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <NoWarn>$(NoWarn);BWSDK0001</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.csproj" />
+    <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.Features.csproj" />
   </ItemGroup>
 
 </Project>

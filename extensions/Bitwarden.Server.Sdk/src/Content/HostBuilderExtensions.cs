@@ -2,10 +2,6 @@
 
 using System.Diagnostics;
 using System.Reflection;
-#if BIT_INCLUDE_FEATURES
-using Bitwarden.Server.Sdk.Features;
-using LaunchDarkly.Sdk.Server.Interfaces;
-#endif
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,7 +43,9 @@ public static class HostBuilderExtensions
 
         AddLogging(builder.Services, builder.Configuration, builder.Environment);
         AddMetrics(builder.Services);
-        AddFeatureFlagServices(builder.Services, builder.Configuration);
+#if BIT_INCLUDE_FEATURES
+        builder.Services.AddFeatureFlagServices(builder.Configuration);
+#endif
 
         return builder;
     }
@@ -78,10 +76,12 @@ public static class HostBuilderExtensions
             AddMetrics(services);
         });
 
+#if BIT_INCLUDE_FEATURES
         hostBuilder.ConfigureServices((context, services) =>
         {
-            AddFeatureFlagServices(services, context.Configuration);
+            services.AddFeatureFlagServices(context.Configuration);
         });
+#endif
 
         return hostBuilder;
     }
@@ -174,25 +174,6 @@ public static class HostBuilderExtensions
                 options.AddOtlpExporter())
             .WithTracing(options =>
                 options.AddOtlpExporter());
-#endif
-    }
-
-    private static void AddFeatureFlagServices(IServiceCollection services, IConfiguration configuration)
-    {
-#if BIT_INCLUDE_FEATURES
-        services.AddProblemDetails();
-        services.AddHttpContextAccessor();
-
-        services.Configure<FeatureFlagOptions>(configuration.GetSection("Features"));
-        // TODO: Register service to do legacy support from configuration.
-
-        services.TryAddSingleton<LaunchDarklyClientProvider>();
-
-        // This needs to be scoped so a "new" ILdClient can be given per request, this makes it possible to
-        // have the ILdClient be rebuilt if configuration changes but for the most part this will return a cached
-        // client from LaunchDarklyClientProvider, effectively being a singleton.
-        services.TryAddScoped<ILdClient>(sp => sp.GetRequiredService<LaunchDarklyClientProvider>().Get());
-        services.TryAddScoped<IFeatureService, LaunchDarklyFeatureService>();
 #endif
     }
 }

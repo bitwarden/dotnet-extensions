@@ -1,4 +1,7 @@
 using Bitwarden.Server.Sdk.Features;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using LaunchDarkly.Sdk.Server.Interfaces;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -7,6 +10,26 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
+    internal static IServiceCollection AddFeatureFlagServices(this IServiceCollection services, IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddProblemDetails();
+        services.AddHttpContextAccessor();
+
+        services.Configure<FeatureFlagOptions>(configuration.GetSection("Features"));
+
+        services.TryAddSingleton<LaunchDarklyClientProvider>();
+
+        // This needs to be scoped so a "new" ILdClient can be given per request, this makes it possible to
+        // have the ILdClient be rebuilt if configuration changes but for the most part this will return a cached
+        // client from LaunchDarklyClientProvider, effectively being a singleton.
+        services.TryAddScoped<ILdClient>(sp => sp.GetRequiredService<LaunchDarklyClientProvider>().Get());
+        services.TryAddScoped<IFeatureService, LaunchDarklyFeatureService>();
+
+        return services;
+    }
+
     /// <summary>
     /// Adds known feature flags to the <see cref="FeatureFlagOptions"/>. This makes these flags
     /// show up in <see cref="IFeatureService.GetAll()"/>.

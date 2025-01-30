@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -158,7 +159,6 @@ public class FeatureCheckMiddlewareTests
     {
         return new HostBuilder()
             .UseEnvironment("Development") // To get easier to read logs
-            .UseBitwardenSdk()
             .ConfigureWebHost((webHostBuilder) =>
             {
                 webHostBuilder
@@ -166,6 +166,9 @@ public class FeatureCheckMiddlewareTests
                     .ConfigureServices(services =>
                     {
                         services.AddRouting();
+
+                        // We will manually add configuration later so this being empty is fine
+                        services.AddFeatureFlagServices(new ConfigurationBuilder().Build());
 
                         configureServices?.Invoke(services);
                     })
