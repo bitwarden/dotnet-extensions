@@ -1,5 +1,3 @@
-#pragma warning disable BWSDK0001
-
 using System.Diagnostics;
 using System.Reflection;
 using Microsoft.Extensions.Configuration;
