@@ -44,8 +44,6 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(BitIncludeFeatures)' == 'true'">
-    <PackageReference Include="LaunchDarkly.ServerSdk" Version="8.6.0" />
-
-    <Compile Include="$(SdkContentRoot)/Features/**/*.cs" />
+    <PackageReference Include="Bitwarden.Server.Sdk.Features" Version="0.0.1" />
   </ItemGroup>
 </Project>

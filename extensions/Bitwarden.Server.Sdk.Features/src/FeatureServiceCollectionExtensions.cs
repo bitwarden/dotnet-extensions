@@ -10,7 +10,13 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
-    internal static IServiceCollection AddFeatureFlagServices(this IServiceCollection services, IConfiguration configuration)
+    /// <summary>
+    ///
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="configuration"></param>
+    /// <returns></returns>
+    public static IServiceCollection AddFeatureFlagServices(this IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
 

@@ -9,8 +9,7 @@ public class SdkTests : MSBuildTestBase
     [Fact]
     public void NoOverridingProperties_CanCompile()
     {
-        ProjectCreator.Templates.SdkProject()
-            .TryBuild(restore: true, out var result, out var buildOutput)
+        ProjectCreator.Templates.SdkProject(out var result, out var buildOutput)
             .TryGetConstant("BIT_INCLUDE_LOGGING", out var hasLoggingConstant)
             .TryGetConstant("BIT_INCLUDE_TELEMETRY", out var hasTelementryConstant)
             .TryGetConstant("BIT_INCLUDE_FEATURES", out var hasFeaturesConstant);
@@ -26,12 +25,13 @@ public class SdkTests : MSBuildTestBase
     public void ShouldBuildWithNoWarningsIfProjectHasNullableDisabled()
     {
         ProjectCreator.Templates.SdkProject(
+            out var result,
+            out var buildOutput,
             customAction: (project) =>
             {
                 project.Property("Nullable", "disable");
             }
         )
-            .TryBuild(restore: true, out var result, out var buildOutput)
             .TryGetItems("Compile", out var compileItems);
 
         Assert.True(result, buildOutput.GetConsoleLog());
@@ -45,12 +45,13 @@ public class SdkTests : MSBuildTestBase
     public void LoggingTurnedOff_CanCompile()
     {
         ProjectCreator.Templates.SdkProject(
+            out var result,
+            out var buildOutput,
             customAction: (project) =>
             {
                 project.Property("BitIncludeLogging", bool.FalseString);
             }
-        )
-            .TryBuild(restore: true, out var result, out var buildOutput);
+        );
 
         Assert.True(result, buildOutput.GetConsoleLog());
     }
@@ -59,12 +60,13 @@ public class SdkTests : MSBuildTestBase
     public void TelemetryTurnedOff_CanCompile()
     {
         ProjectCreator.Templates.SdkProject(
+            out var result,
+            out var buildOutput,
             customAction: (project) =>
             {
                 project.Property("BitIncludeTelemetry", bool.FalseString);
             }
-        )
-            .TryBuild(restore: true, out var result, out var buildOutput);
+        );
 
         Assert.True(result, buildOutput.GetConsoleLog());
     }
@@ -73,12 +75,13 @@ public class SdkTests : MSBuildTestBase
     public void FeaturesTurnedOff_CanCompile()
     {
         ProjectCreator.Templates.SdkProject(
+            out var result,
+            out var buildOutput,
             customAction: (project) =>
             {
                 project.Property("BitIncludeFeatures", bool.FalseString);
             }
-        )
-            .TryBuild(restore: true, out var result, out var buildOutput);
+        );
 
         Assert.True(result, buildOutput.GetConsoleLog());
     }
@@ -87,6 +90,8 @@ public class SdkTests : MSBuildTestBase
     public void FeaturesTurnedOff_CanNotUseFeatureService()
     {
         ProjectCreator.Templates.SdkProject(
+            out var result,
+            out var buildOutput,
             customAction: (project) =>
             {
                 project.Property("BitIncludeFeatures", bool.FalseString);
@@ -94,19 +99,20 @@ public class SdkTests : MSBuildTestBase
             additional: """
                 app.MapGet("/test", (Bitwarden.Server.Sdk.Features.IFeatureService featureService) => featureService.GetAll());
                 """
-        )
-            .TryBuild(restore: true, out var result, out var buildOutput);
+        );
 
         Assert.False(result, buildOutput.GetConsoleLog());
 
-        // error CS0234: The type or namespace name 'Features' does not exist in the namespace 'Bitwarden.Server.Sdk' (are you missing an assembly reference?)
-        Assert.Contains(buildOutput.ErrorEvents, e => e.Code == "CS0234");
+        // error CS0246: The type or namespace name 'Bitwarden' could not be found (are you missing a using directive or an assembly reference?)
+        Assert.Contains(buildOutput.ErrorEvents, e => e.Code == "CS0246");
     }
 
     [Fact]
     public void FeaturesTurnedOn_CanUseFeatureService()
     {
         ProjectCreator.Templates.SdkProject(
+            out var result,
+            out var buildOutput,
             customAction: (project) =>
             {
                 project.Property("BitIncludeFeatures", bool.TrueString);
@@ -114,8 +120,7 @@ public class SdkTests : MSBuildTestBase
             additional: """
                 app.MapGet("/test", (Bitwarden.Server.Sdk.Features.IFeatureService featureService) => featureService.GetAll());
                 """
-        )
-            .TryBuild(restore: true, out var result, out var buildOutput);
+        );
 
         Assert.True(result, buildOutput.GetConsoleLog());
     }
@@ -141,14 +146,15 @@ public class SdkTests : MSBuildTestBase
         }
 
         ProjectCreator.Templates.SdkProject(
+            out var result,
+            out var buildOutput,
             customAction: (project) =>
             {
                 project.Property("BitIncludeLogging", includeLogging.ToString());
                 project.Property("BitIncludeTelemetry", includeTelemetry.ToString());
                 project.Property("BitIncludeFeatures", includeFeatures.ToString());
             }
-        )
-            .TryBuild(restore: true, out var result, out var buildOutput);
+        );
 
         Assert.True(result, buildOutput.GetConsoleLog());
     }

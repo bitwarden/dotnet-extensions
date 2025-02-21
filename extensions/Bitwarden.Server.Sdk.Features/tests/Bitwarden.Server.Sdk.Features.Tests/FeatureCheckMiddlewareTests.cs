@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -163,12 +162,12 @@ public class FeatureCheckMiddlewareTests
             {
                 webHostBuilder
                     .UseTestServer()
-                    .ConfigureServices(services =>
+                    .ConfigureServices((context, services) =>
                     {
                         services.AddRouting();
 
                         // We will manually add configuration later so this being empty is fine
-                        services.AddFeatureFlagServices(new ConfigurationBuilder().Build());
+                        services.AddFeatureFlagServices(context.Configuration);
 
                         configureServices?.Invoke(services);
                     })
