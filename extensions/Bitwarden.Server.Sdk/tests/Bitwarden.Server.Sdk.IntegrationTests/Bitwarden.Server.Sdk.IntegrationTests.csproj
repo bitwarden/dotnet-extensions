@@ -23,13 +23,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\src\Sdk\**\*"
-      Link="Sdk\%(RecursiveDir)%(Filename)%(Extension)"
-      CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Sdk\**\*" Link="Sdk\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
 
-    <None Include="..\..\src\Content\**\*"
-      Link="Content\%(RecursiveDir)%(Filename)%(Extension)"
-      CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Content\**\*" Link="Content\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- All local features -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Bitwarden.Server.Sdk.Features\src\Bitwarden.Server.Sdk.Features.csproj" />
   </ItemGroup>
 
 </Project>

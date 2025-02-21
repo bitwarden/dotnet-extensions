@@ -158,14 +158,16 @@ public class FeatureCheckMiddlewareTests
     {
         return new HostBuilder()
             .UseEnvironment("Development") // To get easier to read logs
-            .UseBitwardenSdk()
             .ConfigureWebHost((webHostBuilder) =>
             {
                 webHostBuilder
                     .UseTestServer()
-                    .ConfigureServices(services =>
+                    .ConfigureServices((context, services) =>
                     {
                         services.AddRouting();
+
+                        // We will manually add configuration later so this being empty is fine
+                        services.AddFeatureFlagServices(context.Configuration);
 
                         configureServices?.Invoke(services);
                     })

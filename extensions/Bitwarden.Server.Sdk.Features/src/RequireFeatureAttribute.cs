@@ -1,5 +1,3 @@
-#pragma warning disable BWSDK0001
-
 namespace Bitwarden.Server.Sdk.Features;
 
 /// <summary>

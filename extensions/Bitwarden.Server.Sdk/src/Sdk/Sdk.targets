@@ -7,9 +7,13 @@
     <SdkContentRoot>$(MSBuildThisFileDirectory)../Content</SdkContentRoot>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(UsingBitwardenServerSdk)' == 'true'">
-    <Compile Include="$(SdkContentRoot)/*.cs" />
-    <Compile Include="$(SdkContentRoot)/Utilities/**/*.cs" />
+  <!--
+    Only include our entrypoint file if the consuming project is using the Web SDK.
+    If they aren't, they aren't guaranteed that they will have the necessary
+    packages we need to reference and they likely aren't going to use the entrypoint anyways.
+  -->
+  <ItemGroup Condition="'$(UsingMicrosoftNETSdkWeb)' == 'true'">
+    <Compile Include="$(SdkContentRoot)/HostBuilderExtensions.cs" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -44,8 +48,6 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(BitIncludeFeatures)' == 'true'">
-    <PackageReference Include="LaunchDarkly.ServerSdk" Version="8.6.0" />
-
-    <Compile Include="$(SdkContentRoot)/Features/**/*.cs" />
+    <PackageReference Include="Bitwarden.Server.Sdk.Features" Version="0.0.1" />
   </ItemGroup>
 </Project>
