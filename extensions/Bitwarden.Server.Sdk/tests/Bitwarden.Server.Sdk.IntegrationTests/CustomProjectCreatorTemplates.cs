@@ -44,6 +44,9 @@ public static class CustomProjectCreatorTemplates
     public static PackageRepository CreateDefaultPackageRepository(string dir)
     {
         const string TargetFramework = "net8.0";
+
+        // Use this as a list of marker types for assemblies that should be added as available in a
+        // pseudo nuget feed.
         List<Type> packages = [typeof(IFeatureService)];
 
         var feeds = new List<Uri>();
