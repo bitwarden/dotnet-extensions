@@ -5,6 +5,7 @@ namespace Bitwarden.Server.Sdk.IntegrationTests;
 
 public static class CustomProjectCreatorTemplates
 {
+    private const string TargetFramework = "net8.0";
     private static readonly string ThisAssemblyDirectory = Path.GetDirectoryName(typeof(CustomProjectCreatorTemplates).Assembly.Location)!;
 
     public static ProjectCreator SdkProject(this ProjectCreatorTemplates templates,
@@ -33,7 +34,7 @@ public static class CustomProjectCreatorTemplates
             return ProjectCreator.Templates.SdkCsproj(
                     path: Path.Combine(dir, "Test.csproj"),
                     sdk: "Microsoft.NET.Sdk.Web",
-                    targetFramework: "net8.0")
+                    targetFramework: TargetFramework)
                 .Import(Path.Combine(ThisAssemblyDirectory, "Sdk", "Sdk.props"))
                 .CustomAction(customAction)
                 .Import(Path.Combine(ThisAssemblyDirectory, "Sdk", "Sdk.targets"))
@@ -43,8 +44,6 @@ public static class CustomProjectCreatorTemplates
 
     public static PackageRepository CreateDefaultPackageRepository(string dir)
     {
-        const string TargetFramework = "net8.0";
-
         // Use this as a list of marker types for assemblies that should be added as available in a
         // pseudo nuget feed.
         List<Type> packages = [typeof(IFeatureService)];
