@@ -27,7 +27,6 @@ public static class HostBuilderExtensions
     /// </summary>
     /// <typeparam name="TBuilder"></typeparam>
     /// <param name="builder"></param>
-    /// <param name="bitwardenHostOptions"></param>
     /// <returns></returns>
     public static TBuilder UseBitwardenSdk<TBuilder>(this TBuilder builder)
         where TBuilder : IHostApplicationBuilder
