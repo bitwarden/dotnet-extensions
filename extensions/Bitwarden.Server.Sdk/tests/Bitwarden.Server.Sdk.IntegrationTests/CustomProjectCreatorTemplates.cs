@@ -55,7 +55,7 @@ public static class CustomProjectCreatorTemplates
             var assembly = package.Assembly;
             var assemblyName = assembly.GetName()!;
             var pr = PackageFeed.Create(new FileInfo(assembly.Location).Directory!)
-                .Package(assemblyName.Name, assemblyName.Version.ToString(3))
+                .Package(assemblyName.Name!, assemblyName.Version!.ToString(3))
                 .FileCustom(Path.Combine("lib", TargetFramework, assemblyName.Name + ".dll"), new FileInfo(assembly.Location))
                 .Save();
 
