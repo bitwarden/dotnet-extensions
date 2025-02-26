@@ -36,9 +36,7 @@ public class SdkTests : MSBuildTestBase
 
         Assert.True(result, buildOutput.GetConsoleLog());
 
-        TestContext.Current.TestOutputHelper!.WriteLine($"Compile Items:\n{string.Join("\n", compileItems.Select(c => c.EvaluatedInclude))}");
-
-        Assert.NotEmpty(buildOutput.WarningEvents);
+        Assert.Empty(buildOutput.WarningEvents);
     }
 
     [Fact]
