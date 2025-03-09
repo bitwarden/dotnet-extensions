@@ -51,7 +51,6 @@ public static class HostBuilderExtensions
     /// Configures the host to use Bitwarden defaults.
     /// </summary>
     /// <param name="hostBuilder">Host builder.</param>
-    /// <param name="bitwardenHostOptions">Host options.</param>
     /// <returns></returns>
     public static IHostBuilder UseBitwardenSdk(this IHostBuilder hostBuilder)
     {
