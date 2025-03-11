@@ -44,30 +44,11 @@ jobs:
       - name: Cache cargo registry
         uses: Swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaab # v2.7.5
 
-      - name: Install Zig
-        if: ${{ contains(matrix.settings.target, 'musl') }}
-        uses: goto-bus-stop/setup-zig@abea47f85e598557f500fa1fd2ab7464fcb39406 # v2.2.1
-        with:
-          version: 0.12.0
-
-      - name: Install Zigbuild
-        if: ${{ contains(matrix.settings.target, 'musl') }}
-        run: cargo install cargo-zigbuild --locked --git https://github.com/rust-cross/cargo-zigbuild --rev 6f7e1336c9cd13cf1b3704f93c40fcf84caaed6b # 0.18.4
-
       - name: Add build architecture
         run: rustup target add ${{ matrix.settings.target }}
 
-      # Build Rust for musl
+      # Build Rust
       - name: Build Rust for - ${{ matrix.settings.target }}
-        if: ${{ contains(matrix.settings.target, 'musl') }}
-        env:
-          RUSTFLAGS: "-D warnings"
-        run: cargo zigbuild --target ${{ matrix.settings.target }} --release
-        working-directory: extensions/Bitwarden.OPAQUE/rust
-
-      # Build Rust for !musl
-      - name: Build Rust for - ${{ matrix.settings.target }}
-        if: ${{ !contains(matrix.settings.target, 'musl') }}
         env:
           RUSTFLAGS: "-D warnings"
           MACOSX_DEPLOYMENT_TARGET: "10.14" # allows using new macos runner versions while still supporting older systems
