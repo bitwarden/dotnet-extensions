@@ -8,7 +8,6 @@ on:
   pull_request:
 
 jobs:
-
   testing:
     name: Run tests
     runs-on: ubuntu-22.04
@@ -28,6 +27,11 @@ jobs:
         uses: dtolnay/rust-toolchain@c5a29ddb4d9d194e7c84ec8c3fba61b1c31fee8c # stable
         with:
           toolchain: stable
+
+      # This is needed because MSBuild is trying to copy the native library before it's built.
+      # TODO: Improve the build process so this isn't needed.
+      - name: Run build to ensure that the native modules are built
+        run: dotnet build
 
       - name: Test solution
         run: dotnet test --configuration Debug --logger "trx;LogFileName=test-results.trx" /p:CoverletOutputFormatter="cobertura" --collect:"XPlat Code Coverage"
