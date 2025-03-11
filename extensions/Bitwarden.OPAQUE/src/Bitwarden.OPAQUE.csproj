@@ -36,6 +36,9 @@
   <Target Name="BuildRustLibrary" BeforeTargets="BeforeBuild">
     <Exec WorkingDirectory="$(ProjectDir)/../rust"
       Command="cargo build" />
+
+    <Exec WorkingDirectory="$(ProjectDir)/../rust"
+      Command="ls -la target/debug" />
   </Target>
 
   <ItemGroup>
