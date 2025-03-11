@@ -15,3 +15,8 @@ opaque-ke = { version = "3.0.0", features = ["std", "argon2", "curve25519"] }
 rand = "0.8.5"
 voprf = "0.5.0"
 zeroizing-alloc = "0.1.0"
+
+# Turn on LTO on release mode
+[profile.release]
+lto = "thin"
+codegen-units = 1
