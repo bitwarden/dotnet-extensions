@@ -8,6 +8,7 @@ on:
   pull_request:
 
 jobs:
+
   testing:
     name: Run tests
     runs-on: ubuntu-22.04

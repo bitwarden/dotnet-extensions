@@ -50,19 +50,19 @@
 
   <ItemGroup Condition="'$(Configuration)'=='Debug'">
     <Content Include="$(RustDebug)/libopaque_ke_binding.dylib"
-      Condition="$([MSBuild]::IsOsPlatform('OSX')) == 'true'">
+      Condition="Exists('$(RustDebug)/libopaque_ke_binding.dylib')">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <PackageCopyToOutput>true</PackageCopyToOutput>
     </Content>
 
     <Content Include="$(RustDebug)/libopaque_ke_binding.so"
-      Condition="$([MSBuild]::IsOsPlatform('Linux')) == 'true'">
+      Condition="Exists('$(RustDebug)/libopaque_ke_binding.so')">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <PackageCopyToOutput>true</PackageCopyToOutput>
     </Content>
 
     <Content Include="$(RustDebug)/opaque_ke_binding.dll"
-      Condition="$([MSBuild]::IsOsPlatform('Windows')) == 'true'">
+      Condition="Exists('$(RustDebug)/opaque_ke_binding.dll')">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <PackageCopyToOutput>true</PackageCopyToOutput>
     </Content>
