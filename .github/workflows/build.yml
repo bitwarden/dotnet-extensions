@@ -87,4 +87,4 @@ jobs:
         with:
           name: Bitwarden.OPAQUE.nupkg
           path: |
-            ./nuget-output/*.nupkg
+            ./nuget-output/Bitwarden.OPAQUE*.nupkg
