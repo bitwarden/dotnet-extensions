@@ -5,7 +5,7 @@ edition = "2024"
 publish = false
 
 [lib]
-crate-type = ["staticlib", "cdylib"]
+crate-type = ["cdylib"]
 
 [dependencies]
 argon2 = "0.5.3"
