@@ -33,6 +33,11 @@
     <Version>1.0.0</Version>
   </PropertyGroup>
 
+  <Target Name="BuildRustLibrary" BeforeTargets="BeforeBuild">
+    <Exec WorkingDirectory="$(ProjectDir)/../rust"
+      Command="cargo build" />
+  </Target>
+
   <ItemGroup>
     <None Include="bitwarden.png" Pack="true" PackagePath="\" />
     <None Include="../README.md" Pack="true" PackagePath="\" />
