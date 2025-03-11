@@ -44,15 +44,28 @@ jobs:
       - name: Cache cargo registry
         uses: Swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaab # v2.7.5
 
+      - name: Install cross
+        if: ${{ startsWith(matrix.settings.os, 'ubuntu') && !startsWith(matrix.settings.target, 'x86_64') }}
+        run: cargo install cross --git https://github.com/cross-rs/cross --rev 36c0d7810ddde073f603c82d896c2a6c886ff7a4
+
       - name: Add build architecture
         run: rustup target add ${{ matrix.settings.target }}
 
-      # Build Rust
-      - name: Build Rust for - ${{ matrix.settings.target }}
+      # Build Rust natively
+      - name: Build Rust native for - ${{ matrix.settings.target }}
+        if: ${{ !startsWith(matrix.settings.os, 'ubuntu') || startsWith(matrix.settings.target, 'x86_64') }}
         env:
           RUSTFLAGS: "-D warnings"
           MACOSX_DEPLOYMENT_TARGET: "10.14" # allows using new macos runner versions while still supporting older systems
         run: cargo build --target ${{ matrix.settings.target }} --release
+        working-directory: extensions/Bitwarden.OPAQUE/rust
+
+      # Build Rust using cross
+      - name: Build Rust cross for - ${{ matrix.settings.target }}
+        if: ${{ startsWith(matrix.settings.os, 'ubuntu') && !startsWith(matrix.settings.target, 'x86_64') }}
+        env:
+          RUSTFLAGS: "-D warnings"
+        run: cross build --target ${{ matrix.settings.target }} --release
         working-directory: extensions/Bitwarden.OPAQUE/rust
 
       - name: Upload Artifact
