@@ -94,6 +94,12 @@
       <PackagePath>runtimes/linux-arm64/native</PackagePath>
     </Content>
 
+    <Content Include="../rust/dist/linux-arm/libopaque_ke_binding.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
+      <PackagePath>runtimes/linux-arm/native</PackagePath>
+    </Content>
+
     <Content Include="../rust/dist/win-x64/opaque_ke_binding.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <PackageCopyToOutput>true</PackageCopyToOutput>

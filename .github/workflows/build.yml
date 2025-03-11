@@ -71,7 +71,13 @@ jobs:
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
           name: libopaque_ke_binding_files-aarch64-unknown-linux-gnu
-          path: extensions/Bitwarden.OPAQUE/rust/dist/linux-x64
+          path: extensions/Bitwarden.OPAQUE/rust/dist/linux-arm64
+
+      - name: Download arm-unknown-linux-gnueabihf files
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: libopaque_ke_binding_files-arm-unknown-linux-gnueabihf
+          path: extensions/Bitwarden.OPAQUE/rust/dist/linux-arm
 
       - name: Pack solution
         run: dotnet pack -c Release --output ./nuget-output
