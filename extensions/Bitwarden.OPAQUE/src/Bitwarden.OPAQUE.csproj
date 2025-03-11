@@ -1,0 +1,92 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Authors>Bitwarden Inc.</Authors>
+    <Description>OPAQUE-KE bindings for .NET and C# by Bitwarden</Description>
+
+    <PackageProjectUrl>https://github.com/bitwarden/dotnet-extensions</PackageProjectUrl>
+    <PackageReleaseNotes>https://github.com/bitwarden/dotnet-extensions/releases</PackageReleaseNotes>
+    <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+    <RootNamespace>Bitwarden.OPAQUE</RootNamespace>
+    <Title>Bitwarden OPAQUE-KE library</Title>
+    <Copyright>Bitwarden Inc.</Copyright>
+    <Product>OPAQUE</Product>
+
+    <PackageId>Bitwarden.OPAQUE</PackageId>
+    <PackageIcon>bitwarden.png</PackageIcon>
+    <PackageTags>Bitwarden;OPAQUE;PAKE;.NET</PackageTags>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="bitwarden.png" Pack="true" PackagePath="\" />
+    <None Include="../README.md" Pack="true" PackagePath="\" />
+    <None Include="../LICENSE.txt" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(Configuration)'=='Debug'">
+    <Content Include="../rust/target/debug/libopaque_ke_binding.dylib"
+      Condition="Exists('../rust/target/debug/libopaque_ke_binding.dylib')">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
+    </Content>
+    <Content Include="../rust/target/debug/libopaque_ke_binding.so"
+      Condition="Exists('../rust/target/debug/libopaque_ke_binding.so')">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
+    </Content>
+    <Content Include="../rust/target/debug/opaque_ke_binding.dll"
+      Condition="Exists('../rust/target/debug/opaque_ke_binding.dll')">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(Configuration)'=='Release'">
+    <Content Include="dist/macos-x64/libopaque_ke_binding.dylib">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
+      <PackagePath>runtimes/osx-x64/native</PackagePath>
+    </Content>
+    <Content Include="dist/macos-arm64/libopaque_ke_binding.dylib">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
+      <PackagePath>runtimes/osx-arm64/native</PackagePath>
+    </Content>
+    <Content Include="dist/linux-x64/libopaque_ke_binding.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
+      <PackagePath>runtimes/linux-x64/native</PackagePath>
+    </Content>
+    <Content Include="dist/linux-arm64/libopaque_ke_binding.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
+      <PackagePath>runtimes/linux-arm64/native</PackagePath>
+    </Content>
+    <Content Include="dist/windows-x64/opaque_ke_binding.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
+      <PackagePath>runtimes/win-x64/native</PackagePath>
+    </Content>
+    <Content Include="dist/windows-arm64/opaque_ke_binding.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
+      <PackagePath>runtimes/win-arm64/native</PackagePath>
+    </Content>
+  </ItemGroup>
+</Project>

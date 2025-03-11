@@ -1,0 +1,17 @@
+[package]
+name = "opaque-ke-binding"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+argon2 = "0.5.3"
+digest = "0.10.7"
+generic-array = "0.14.7"
+opaque-ke = { version = "3.0.0", features = ["std", "argon2", "curve25519"] }
+rand = "0.8.5"
+voprf = "0.5.0"
+zeroizing-alloc = "0.1.0"
