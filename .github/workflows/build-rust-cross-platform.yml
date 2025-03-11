@@ -27,7 +27,7 @@ jobs:
           - os: ubuntu-22.04
             target: armv7-unknown-linux-gnueabihf
           - os: ubuntu-22.04
-            target: armv6-unknown-linux-gnueabihf
+            target: arm-unknown-linux-gnueabihf
           - os: ubuntu-22.04
             target: armv5te-unknown-linux-gnueabi
 
