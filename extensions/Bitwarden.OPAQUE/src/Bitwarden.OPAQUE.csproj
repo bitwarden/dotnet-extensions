@@ -45,8 +45,7 @@
 
   <!-- Build and copy native libraries in debug mode -->
   <Target Name="BuildRustLibrary" BeforeTargets="Build" Condition="'$(Configuration)'=='Debug'">
-    <Exec WorkingDirectory="$(ProjectDir)/../rust"
-      Command="cargo build" />
+    <Exec WorkingDirectory="$(ProjectDir)/../rust" Command="cargo build" />
   </Target>
 
   <ItemGroup Condition="'$(Configuration)'=='Debug'">
@@ -71,13 +70,13 @@
 
   <!-- Copy native libraries in release mode -->
   <ItemGroup Condition="'$(Configuration)'=='Release'">
-    <Content Include="../rust/dist/macos-x64/libopaque_ke_binding.dylib">
+    <Content Include="../rust/dist/osx-x64/libopaque_ke_binding.dylib">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <PackageCopyToOutput>true</PackageCopyToOutput>
       <PackagePath>runtimes/osx-x64/native</PackagePath>
     </Content>
 
-    <Content Include="../rust/dist/macos-arm64/libopaque_ke_binding.dylib">
+    <Content Include="../rust/dist/osx-arm64/libopaque_ke_binding.dylib">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <PackageCopyToOutput>true</PackageCopyToOutput>
       <PackagePath>runtimes/osx-arm64/native</PackagePath>
@@ -95,16 +94,18 @@
       <PackagePath>runtimes/linux-arm64/native</PackagePath>
     </Content>
 
-    <Content Include="../rust/dist/windows-x64/opaque_ke_binding.dll">
+    <Content Include="../rust/dist/win-x64/opaque_ke_binding.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <PackageCopyToOutput>true</PackageCopyToOutput>
       <PackagePath>runtimes/win-x64/native</PackagePath>
     </Content>
 
+    <!--
     <Content Include="../rust/dist/windows-arm64/opaque_ke_binding.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <PackageCopyToOutput>true</PackageCopyToOutput>
       <PackagePath>runtimes/win-arm64/native</PackagePath>
     </Content>
+    -->
   </ItemGroup>
 </Project>
