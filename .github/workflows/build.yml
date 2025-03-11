@@ -30,7 +30,15 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Build solution
+      # This is needed because MSBuild is trying to copy the native library before it's built.
+      # TODO: Improve the build process so this isn't needed.
+      - name: Build native module in debug
+        run: |
+          cargo build
+          ls -la target/debug
+        working-directory: extensions/Bitwarden.OPAQUE/rust
+
+      - name: Build solution in debug
         run: dotnet build
 
       # TODO: Testing OPAQUE building, remove this when done and add it to pack-and-release.yml?
