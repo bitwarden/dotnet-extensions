@@ -52,25 +52,25 @@ jobs:
       - name: Download aarch64-apple-darwin files
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          name: libbitwarden_c_files-aarch64-apple-darwin
+          name: libopaque_ke_binding_files-aarch64-apple-darwin
           path: extensions/Bitwarden.OPAQUE/rust/dist/osx-arm64
 
       - name: Download x86_64-pc-windows-msvc files
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          name: libbitwarden_c_files-x86_64-pc-windows-msvc
+          name: libopaque_ke_binding_files-x86_64-pc-windows-msvc
           path: extensions/Bitwarden.OPAQUE/rust/dist/win-x64
 
       - name: Download x86_64-unknown-linux-musl files
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          name: libbitwarden_c_files-x86_64-unknown-linux-musl
+          name: libopaque_ke_binding_files-x86_64-unknown-linux-musl
           path: extensions/Bitwarden.OPAQUE/rust/dist/linux-x64
 
       - name: Download aarch64-unknown-linux-musl files
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          name: libbitwarden_c_files-aarch64-unknown-linux-musl
+          name: libopaque_ke_binding_files-aarch64-unknown-linux-musl
           path: extensions/Bitwarden.OPAQUE/rust/dist/linux-x64
 
       - name: Pack solution
