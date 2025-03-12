@@ -70,6 +70,8 @@ jobs:
       - name: Copy output library
         run: |
           mkdir libopaque_output
+          ls -la target/${{ matrix.settings.target }}/release
+          ls -la target/${{ matrix.settings.target }}/release/*opaque_ke_binding.{dll,so,dylib}
           cp target/${{ matrix.settings.target }}/release/*opaque_ke_binding.{dll,so,dylib} libopaque_output/
 
       - name: Upload Artifact
