@@ -67,16 +67,11 @@ jobs:
         run: cross build --target ${{ matrix.settings.target }} --release
         working-directory: extensions/Bitwarden.OPAQUE/rust
 
-      - name: Copy output library
-        run: |
-          mkdir libopaque_output
-          cp extensions/Bitwarden.OPAQUE/rust/target/${{ matrix.settings.target }}/release/*opaque_ke_binding.{dll,so,dylib} libopaque_output/
-
       - name: Upload Artifact
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: libopaque_ke_binding_files-${{ matrix.settings.target }}
-          path: libopaque_output/*
+          path: extensions/Bitwarden.OPAQUE/rust/target/${{ matrix.settings.target }}/release/*opaque_ke_binding.*
 
   collect_artifacts:
     name: Collect and Upload All Artifacts
