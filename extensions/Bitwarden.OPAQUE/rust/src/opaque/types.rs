@@ -55,16 +55,16 @@ pub(crate) struct ClientRegistrationStartResult {
     pub(crate) state: Vec<u8>,
 }
 
+pub(crate) struct ServerRegistrationStartResult {
+    pub(crate) registration_response: Vec<u8>,
+    pub(crate) server_setup: Vec<u8>,
+}
+
 pub(crate) struct ClientRegistrationFinishResult {
     // The message is sent to the server for the last step of the registration protocol.
     pub(crate) registration_upload: Vec<u8>,
     pub(crate) export_key: Vec<u8>,
     pub(crate) server_s_pk: Vec<u8>,
-}
-
-pub(crate) struct ServerRegistrationStartResult {
-    pub(crate) registration_response: Vec<u8>,
-    pub(crate) server_setup: Vec<u8>,
 }
 
 pub(crate) struct ServerRegistrationFinishResult {
@@ -78,16 +78,16 @@ pub(crate) struct ClientLoginStartResult {
     pub(crate) state: Vec<u8>,
 }
 
+pub(crate) struct ServerLoginStartResult {
+    pub(crate) credential_response: Vec<u8>,
+    pub(crate) state: Vec<u8>,
+}
+
 pub(crate) struct ClientLoginFinishResult {
     pub(crate) credential_finalization: Vec<u8>,
     pub(crate) session_key: Vec<u8>,
     pub(crate) export_key: Vec<u8>,
     pub(crate) server_s_pk: Vec<u8>,
-}
-
-pub(crate) struct ServerLoginStartResult {
-    pub(crate) credential_response: Vec<u8>,
-    pub(crate) state: Vec<u8>,
 }
 
 pub(crate) struct ServerLoginFinishResult {

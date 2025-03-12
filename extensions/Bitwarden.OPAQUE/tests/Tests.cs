@@ -17,18 +17,37 @@ public class SampleTests
 
         var config = CipherConfiguration.Default;
 
+        ///// Registration
+
         // Start the client registration
-        var clientStartResult = client.StartRegistration(config, password);
+        var clientRegisterStartResult = client.StartRegistration(config, password);
 
         // Client sends reg_start to server
-        var serverStartResult = server.StartRegistration(config, null, clientStartResult.registrationRequest, username);
+        var serverRegisterStartResult = server.StartRegistration(config, null, clientRegisterStartResult.registrationRequest, username);
 
         // Server sends server_start_result to client
-        var clientFinishResult = client.FinishRegistration(config, clientStartResult.state, serverStartResult.registrationResponse, password);
+        var clientRegisterFinishResult = client.FinishRegistration(config, clientRegisterStartResult.state, serverRegisterStartResult.registrationResponse, password);
 
         // Client sends client_finish_result to server
-        var serverFinishResult = server.FinishRegistration(config, clientFinishResult.registrationUpload);
+        var serverRegisterFinishResult = server.FinishRegistration(config, clientRegisterFinishResult.registrationUpload);
 
-        Assert.NotNull(serverFinishResult.serverRegistration);
+        Assert.NotNull(serverRegisterFinishResult.serverRegistration);
+
+        ///// Login
+
+        // Start the client login
+        var clientLoginStartResult = client.StartLogin(config, password);
+
+        // Client sends login_start to server
+        var serverLoginStartResult = server.StartLogin(config, serverRegisterStartResult.serverSetup, serverRegisterFinishResult.serverRegistration, clientLoginStartResult.credentialRequest, username);
+
+        // Server sends login_start_result to client
+        var clientLoginFinishResult = client.FinishLogin(config, clientLoginStartResult.state, serverLoginStartResult.credentialResponse, password);
+
+        // Client sends login_finish_result to server
+        var serverLoginFinishResult = server.FinishLogin(config, serverLoginStartResult.state, clientLoginFinishResult.credentialFinalization);
+
+        Assert.NotNull(serverLoginFinishResult.sessionKey);
+
     }
 }

@@ -22,6 +22,20 @@ public struct ClientRegistrationFinishResult
     public byte[] serverSPKey;
 }
 
+public struct ClientLoginStartResult
+{
+    public byte[] credentialRequest;
+    public byte[] state;
+}
+
+public struct ClientLoginFinishResult
+{
+    public byte[] credentialFinalization;
+    public byte[] sessionKey;
+    public byte[] exportKey;
+    public byte[] serverSPKey;
+}
+
 /// A class to represent client side functionality the Bitwarden OPAQUE library.
 public sealed partial class BitwardenOpaqueClient
 {
@@ -56,6 +70,30 @@ public sealed partial class BitwardenOpaqueClient
         return new ClientRegistrationFinishResult
         {
             registrationUpload = registrationUpload,
+            exportKey = exportKey,
+            serverSPKey = serverSPKey
+        };
+    }
+
+
+    public ClientLoginStartResult StartLogin(CipherConfiguration config, string password)
+    {
+        var (credentialRequest, state) = BitwardenLibrary.StartClientLogin(password);
+        return new ClientLoginStartResult
+        {
+            credentialRequest = credentialRequest,
+            state = state
+        };
+
+    }
+
+    public ClientLoginFinishResult FinishLogin(CipherConfiguration config, byte[] state, byte[] credentialResponse, string password)
+    {
+        var (credentialFinalization, sessionKey, exportKey, serverSPKey) = BitwardenLibrary.FinishClientLogin(state, credentialResponse, password);
+        return new ClientLoginFinishResult
+        {
+            credentialFinalization = credentialFinalization,
+            sessionKey = sessionKey,
             exportKey = exportKey,
             serverSPKey = serverSPKey
         };

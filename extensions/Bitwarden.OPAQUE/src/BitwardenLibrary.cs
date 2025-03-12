@@ -32,23 +32,36 @@ internal static partial class BitwardenLibrary
         public Buffer data1;
         public Buffer data2;
         public Buffer data3;
+        public Buffer data4;
     }
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
     private static partial void free_buffer(Buffer buf);
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
+    private static partial Response start_client_registration(string password);
+
+    [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
     private static partial Response start_server_registration(Buffer server_setup, Buffer registration_request, string username);
+
+    [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
+    private static partial Response finish_client_registration(Buffer state, Buffer registration_response, string password);
+
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
     private static partial Response finish_server_registration(Buffer registration_upload);
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
-    private static partial Response start_client_registration(string password);
+    private static partial Response start_client_login(string password);
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
-    private static partial Response finish_client_registration(Buffer state, Buffer registration_response, string password);
+    private static partial Response start_server_login(Buffer server_setup, Buffer server_registration, Buffer credential_request, string username);
 
+    [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
+    private static partial Response finish_client_login(Buffer state, Buffer credential_response, string password);
+
+    [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
+    private static partial Response finish_server_login(Buffer state, Buffer credential_finalization);
 
     private static Buffer BuildBuffer(byte[]? data, out GCHandle handle)
     {
@@ -83,7 +96,7 @@ internal static partial class BitwardenLibrary
         }
 
         // If we don't receive an error, parse all the return types
-        var buffers = new Buffer[] { response.data1, response.data2, response.data3 };
+        var buffers = new Buffer[] { response.data1, response.data2, response.data3, response.data4 };
         var arrays = new List<byte[]> { };
 
         foreach (var buffer in buffers)
@@ -98,6 +111,13 @@ internal static partial class BitwardenLibrary
         }
 
         return arrays;
+    }
+
+    internal static (byte[], byte[]) StartClientRegistration(string password)
+    {
+        var response = start_client_registration(password);
+        var ret = HandleResponse(response, 2);
+        return (ret[0], ret[1]);
     }
 
     internal static (byte[], byte[]) StartServerRegistration(byte[]? serverSetup, byte[] registrationRequest, string username)
@@ -118,28 +138,6 @@ internal static partial class BitwardenLibrary
 
     }
 
-    internal static byte[] FinishServerRegistration(byte[] registrationUpload)
-    {
-        var registrationUploadBuf = BuildBuffer(registrationUpload, out var handle);
-        try
-        {
-            var response = finish_server_registration(registrationUploadBuf);
-            return HandleResponse(response, 1)[0];
-        }
-        finally
-        {
-            handle.Free();
-        }
-
-    }
-
-    internal static (byte[], byte[]) StartClientRegistration(string password)
-    {
-        var response = start_client_registration(password);
-        var ret = HandleResponse(response, 2);
-        return (ret[0], ret[1]);
-    }
-
     internal static (byte[], byte[], byte[]) FinishClientRegistration(byte[] state, byte[] registrationResponse, string password)
     {
         var stateBuf = BuildBuffer(state, out var stateHandle);
@@ -157,4 +155,82 @@ internal static partial class BitwardenLibrary
             registrationResponseHandle.Free();
         }
     }
+
+    internal static byte[] FinishServerRegistration(byte[] registrationUpload)
+    {
+        var registrationUploadBuf = BuildBuffer(registrationUpload, out var handle);
+        try
+        {
+            var response = finish_server_registration(registrationUploadBuf);
+            return HandleResponse(response, 1)[0];
+        }
+        finally
+        {
+            handle.Free();
+        }
+
+    }
+
+    internal static (byte[], byte[]) StartClientLogin(string password)
+    {
+        var response = start_client_login(password);
+        var ret = HandleResponse(response, 2);
+        return (ret[0], ret[1]);
+    }
+
+    internal static (byte[], byte[]) StartServerLogin(byte[] serverSetup, byte[] serverRegistration, byte[] credentialRequest, string username)
+    {
+        var serverSetupBuf = BuildBuffer(serverSetup, out var serverSetupHandle);
+        var serverRegistrationBuf = BuildBuffer(serverRegistration, out var serverRegistrationHandle);
+        var credentialRequestBuf = BuildBuffer(credentialRequest, out var credentialRequestHandle);
+        try
+        {
+            var response = start_server_login(serverSetupBuf, serverRegistrationBuf, credentialRequestBuf, username);
+            var ret = HandleResponse(response, 2);
+            return (ret[0], ret[1]);
+        }
+        finally
+        {
+            serverSetupHandle.Free();
+            serverRegistrationHandle.Free();
+            credentialRequestHandle.Free();
+        }
+
+    }
+
+    internal static (byte[], byte[], byte[], byte[]) FinishClientLogin(byte[] state, byte[] credentialResponse, string password)
+    {
+        var stateBuf = BuildBuffer(state, out var stateHandle);
+        var credentialResponseBuf = BuildBuffer(credentialResponse, out var credentialResponseHandle);
+
+        try
+        {
+            var response = finish_client_login(stateBuf, credentialResponseBuf, password);
+            var ret = HandleResponse(response, 4);
+            return (ret[0], ret[1], ret[2], ret[3]);
+        }
+        finally
+        {
+            stateHandle.Free();
+            credentialResponseHandle.Free();
+        }
+    }
+
+    internal static byte[] FinishServerLogin(byte[] state, byte[] credentialFinalization)
+    {
+        var stateBuf = BuildBuffer(state, out var stateHandle);
+        var credentialFinalizationBuf = BuildBuffer(credentialFinalization, out var credentialFinalizationHandle);
+        try
+        {
+            var response = finish_server_login(stateBuf, credentialFinalizationBuf);
+            return HandleResponse(response, 1)[0];
+        }
+        finally
+        {
+            stateHandle.Free();
+            credentialFinalizationHandle.Free();
+        }
+
+    }
+
 }

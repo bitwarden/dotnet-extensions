@@ -67,6 +67,7 @@ pub struct Response {
     pub data1: Buffer,
     pub data2: Buffer,
     pub data3: Buffer,
+    pub data4: Buffer,
 }
 
 impl Response {
@@ -78,6 +79,7 @@ impl Response {
             data1: Buffer::from_vec(data1),
             data2: Buffer::empty(),
             data3: Buffer::empty(),
+            data4: Buffer::empty(),
         }
     }
 
@@ -89,6 +91,7 @@ impl Response {
             data1: Buffer::from_vec(data1),
             data2: Buffer::from_vec(data2),
             data3: Buffer::empty(),
+            data4: Buffer::empty(),
         }
     }
 
@@ -100,6 +103,19 @@ impl Response {
             data1: Buffer::from_vec(data1),
             data2: Buffer::from_vec(data2),
             data3: Buffer::from_vec(data3),
+            data4: Buffer::empty(),
+        }
+    }
+
+    pub fn ok4(data1: Vec<u8>, data2: Vec<u8>, data3: Vec<u8>, data4: Vec<u8>) -> Self {
+        Response {
+            error: 0,
+            error_message: Buffer::empty(),
+
+            data1: Buffer::from_vec(data1),
+            data2: Buffer::from_vec(data2),
+            data3: Buffer::from_vec(data3),
+            data4: Buffer::from_vec(data4),
         }
     }
 
@@ -117,6 +133,7 @@ impl Response {
             data1: Buffer::empty(),
             data2: Buffer::empty(),
             data3: Buffer::empty(),
+            data4: Buffer::empty(),
         }
     }
 }
