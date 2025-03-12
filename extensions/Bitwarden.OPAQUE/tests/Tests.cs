@@ -5,29 +5,30 @@ using Xunit;
 public class SampleTests
 {
     [Fact]
-    public void RunSample_Works()
+    public void TestRegistration()
     {
         // Get environment variables
         var username = "demo_username";
         var password = "demo_password";
 
-        // Create the OPAQUE Client
-        var client = new BitwardenOpaque();
+        // Create the OPAQUE Clients
+        var server = new BitwardenOpaqueServer();
+        var client = new BitwardenOpaqueClient();
 
         var config = CipherConfiguration.Default;
 
         // Start the client registration
-        var (clientRequest, clientState) = client.StartClientRegistration(config, password);
+        var clientStartResult = client.StartRegistration(config, password);
 
         // Client sends reg_start to server
-        var (serverResponse, serverSetup) = client.StartServerRegistration(config, clientRequest, username);
+        var serverStartResult = server.StartRegistration(config, clientStartResult.registrationRequest, username);
 
         // Server sends server_start_result to client
-        var (registrationUpload, exportKey, serverSPKey) = client.FinishClientRegistration(config, clientState, serverResponse, password);
+        var clientFinishResult = client.FinishRegistration(config, clientStartResult.state, serverStartResult.registrationResponse, password);
 
         // Client sends client_finish_result to server
-        var result = client.FinishServerRegistration(config, registrationUpload);
+        var serverFinishResult = server.FinishRegistration(config, clientFinishResult.registrationUpload);
 
-        Assert.NotNull(result);
+        Assert.NotNull(serverFinishResult.serverRegistration);
     }
 }

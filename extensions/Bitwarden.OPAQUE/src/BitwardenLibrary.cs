@@ -38,16 +38,16 @@ internal static partial class BitwardenLibrary
     private static partial void free_buffer(Buffer buf);
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
-    private static partial Response start_server_registration(Buffer request_bytes, string username);
+    private static partial Response start_server_registration(Buffer registration_request, string username);
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
-    private static partial Response finish_server_registration(Buffer registration_upload_bytes);
+    private static partial Response finish_server_registration(Buffer registration_upload);
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
     private static partial Response start_client_registration(string password);
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
-    private static partial Response finish_client_registration(Buffer state_bytes, Buffer registration_response_bytes, string password);
+    private static partial Response finish_client_registration(Buffer state, Buffer registration_response, string password);
 
 
     private static Buffer BuildBuffer(byte[] data, out GCHandle handle)

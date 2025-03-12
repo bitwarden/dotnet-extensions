@@ -65,20 +65,20 @@ mod tests {
             client::start_client_registration::<DefaultCipherSuite>(password).unwrap();
 
         let server_start_result = server::start_server_registration::<DefaultCipherSuite>(
-            &registration_request.message,
+            &registration_request.registration_request,
             username,
         )
         .unwrap();
 
         let client_finish_result = client::finish_client_registration::<DefaultCipherSuite>(
             &registration_request.state,
-            &server_start_result.message,
+            &server_start_result.registration_response,
             password,
         )
         .unwrap();
 
         let server_finish_result =
-            server::finish_server_registration::<DefaultCipherSuite>(&client_finish_result.message)
+            server::finish_server_registration::<DefaultCipherSuite>(&client_finish_result.registration_upload)
                 .unwrap();
 
         let _ = server_finish_result;

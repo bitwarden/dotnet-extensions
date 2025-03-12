@@ -19,10 +19,10 @@ unsafe fn handle_string_input<'a>(
 /// ABC
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn start_server_registration(
-    request_bytes: Buffer,
+    registration_request: Buffer,
     username: *const c_char,
 ) -> Response {
-    let registration_request_bytes = unsafe { request_bytes.as_slice() };
+    let registration_request = unsafe { registration_request.as_slice() };
     let username = match unsafe { handle_string_input(username, "username") } {
         Ok(s) => s,
         Err(e) => {
@@ -31,7 +31,7 @@ pub unsafe extern "C" fn start_server_registration(
     };
 
     let response = match super::server::start_server_registration::<DefaultCipherSuite>(
-        registration_request_bytes,
+        registration_request,
         username,
     ) {
         Ok(response) => response,
@@ -40,7 +40,7 @@ pub unsafe extern "C" fn start_server_registration(
         }
     };
 
-    Response::ok2(response.message, response.server_setup)
+    Response::ok2(response.registration_response, response.server_setup)
 }
 
 ///
@@ -48,11 +48,11 @@ pub unsafe extern "C" fn start_server_registration(
 /// # Safety
 /// ABC
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn finish_server_registration(registration_upload_bytes: Buffer) -> Response {
-    let registration_upload_bytes = unsafe { registration_upload_bytes.as_slice() };
+pub unsafe extern "C" fn finish_server_registration(registration_upload: Buffer) -> Response {
+    let registration_upload = unsafe { registration_upload.as_slice() };
 
     let response = match super::server::finish_server_registration::<DefaultCipherSuite>(
-        registration_upload_bytes,
+        registration_upload,
     ) {
         Ok(response) => response,
         Err(e) => {
@@ -60,7 +60,7 @@ pub unsafe extern "C" fn finish_server_registration(registration_upload_bytes: B
         }
     };
 
-    Response::ok1(response)
+    Response::ok1(response.server_registration)
 }
 
 ///
@@ -83,7 +83,7 @@ pub unsafe extern "C" fn start_client_registration(password: *const c_char) -> R
         }
     };
 
-    Response::ok2(result.message, result.state)
+    Response::ok2(result.registration_request, result.state)
 }
 
 ///
@@ -92,12 +92,12 @@ pub unsafe extern "C" fn start_client_registration(password: *const c_char) -> R
 /// ABC
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn finish_client_registration(
-    state_bytes: Buffer,
-    registration_response_bytes: Buffer,
+    state: Buffer,
+    registration_response: Buffer,
     password: *const c_char,
 ) -> Response {
-    let registration_response_bytes = unsafe { registration_response_bytes.as_slice() };
-    let state_bytes = unsafe { state_bytes.as_slice() };
+    let registration_response = unsafe { registration_response.as_slice() };
+    let state = unsafe { state.as_slice() };
 
     let password = match unsafe { handle_string_input(password, "password") } {
         Ok(s) => s,
@@ -107,8 +107,8 @@ pub unsafe extern "C" fn finish_client_registration(
     };
 
     let response = match super::client::finish_client_registration::<DefaultCipherSuite>(
-        state_bytes,
-        registration_response_bytes,
+        state,
+        registration_response,
         password,
     ) {
         Ok(response) => response,
@@ -117,5 +117,9 @@ pub unsafe extern "C" fn finish_client_registration(
         }
     };
 
-    Response::ok3(response.message, response.export_key, response.server_s_pk)
+    Response::ok3(
+        response.registration_upload,
+        response.export_key,
+        response.server_s_pk,
+    )
 }
