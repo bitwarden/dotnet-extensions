@@ -213,7 +213,8 @@ impl OpaqueImpl for CipherConfiguration {
 // Define the cipher suite and implement OpaqueImpl for it.
 // Note that in the future if we want to support multiple cipher suites,
 // we will need to duplicate most of this code. It should be entirely the same,
-// with the exception of the KDF settings, so we should build a macro for that
+// with the exception of the KDF settings, so we should build a macro for that.
+// There is an example of this macro at the bottom of this file.
 struct RistrettoTripleDhArgonSuite(Argon2id);
 
 impl OpaqueKsf for RistrettoTripleDhArgonSuite {
@@ -378,3 +379,51 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
         })
     }
 }
+
+/*
+    TODO: If in the future we add more cipher suites, we will need to create
+    a new OpaqueImpl implementation and add it to the CipherConfiguration matches.
+    This will require a lot of duplication, but can be simplified with a macro as follows:
+
+    macro_rules! implement_cipher_suites {
+        (  $shared_type:ident; $( $name:ident : $pat:pat => $cipher:expr );+  ) => {
+            // Check that any type implements the required traits
+            const fn _assert_opaque_ksf_and_cipher_suite<T: OpaqueKsf + opaque_ke::CipherSuite>() {}
+            const _: () = { $( _assert_opaque_ksf_and_cipher_suite::<$name>(); )+ };
+
+            // Implement OpaqueImpl for the shared type, and dispatch to the correct cipher suite
+            impl OpaqueImpl for $shared_type {
+                fn start_client_registration(&self, password: &str) -> Result<types::ClientRegistrationStartResult, Error> {
+                    match self {
+                    $( $pat => $cipher.start_client_registration(password), )+
+                        _ => Err(Error::InvalidInput("Invalid cipher configuration")),
+                    }
+                }
+                ...
+            }
+
+            // Implement OpaqueImpl for each cipher suite.
+            // This is just copying the implementation on RistrettoTripleDhArgonSuite and wrapping it in $()+
+            $(impl OpaqueImpl for $name {
+                fn start_client_registration(&self, password: &str) -> Result<types::ClientRegistrationStartResult, Error> {
+                    let result = ClientRegistration::<Self>::start(&mut OsRng, password.as_bytes())?;
+                    Ok(types::ClientRegistrationStartResult {
+                        registration_request: result.message.serialize().to_vec(),
+                        state: result.state.serialize().to_vec(),
+                    })
+                }
+                ...
+            })+
+        };
+    }
+
+    implement_cipher_suites! {
+        CipherConfiguration;
+        RistrettoTripleDhArgonSuite: CipherConfiguration {
+            oprf_cs: OprfCs::Ristretto255,
+            ke_group: KeGroup::Ristretto255,
+            key_exchange: KeyExchange::TripleDh,
+            ksf: Ksf::Argon2id(argon),
+        } => RistrettoTripleDhArgonSuite(*argon)
+    }
+*/
