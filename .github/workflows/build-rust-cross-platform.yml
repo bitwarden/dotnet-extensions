@@ -93,7 +93,17 @@ jobs:
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
           pattern: libopaque_ke_binding_files-*
-          path: runtimes/
+          path: downloaded_runtimes/
+
+      - name: Move files to the correct directory
+        run: |
+          for file in downloaded_runtimes/libopaque_ke_binding_files-*; do
+            echo "Processing $file"
+            platform="${file#downloaded_runtimes/libopaque_ke_binding_files-}"
+            echo "Platform: $platform"
+            mkdir -p runtimes/${platform}/native
+            mv $file/* runtimes/${platform}/native
+          done
 
       - name: Upload Combined Artifact
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
