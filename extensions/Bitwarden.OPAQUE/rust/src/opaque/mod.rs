@@ -46,7 +46,6 @@ pub trait OpaqueImpl {
         credential_response: &[u8],
         password: &str,
     ) -> Result<types::ClientLoginFinishResult, Error>;
-
     fn finish_server_login(
         &self,
         state: &[u8],
@@ -54,100 +53,63 @@ pub trait OpaqueImpl {
     ) -> Result<types::ServerLoginFinishResult, Error>;
 }
 
-pub trait OpaqueKsf {
+// This trait exists to extract the differences between all the OpaqueImpl implementations.
+// This would allow replacing those impls by a macro in the future.
+pub trait OpaqueUtil: Sized {
     type Output;
+    fn as_variant(config: &CipherConfiguration) -> Option<Self>;
     fn get_ksf(&self) -> Result<Self::Output, Error>;
 }
 
 // Implement the OpaqueImpl trait for the CipherConfiguration enum, which allows us to dynamically dispatch to the correct cipher suite.
-#[allow(unreachable_patterns)]
 impl OpaqueImpl for CipherConfiguration {
     fn start_client_registration(
         &self,
         password: &str,
     ) -> Result<types::ClientRegistrationStartResult, Error> {
-        match self {
-            CipherConfiguration {
-                oprf_cs: OprfCs::Ristretto255,
-                ke_group: KeGroup::Ristretto255,
-                key_exchange: KeyExchange::TripleDh,
-                ksf: Ksf::Argon2id(argon),
-            } => RistrettoTripleDhArgonSuite(*argon).start_client_registration(password),
-            _ => Err(Error::InvalidInput("Invalid cipher configuration")),
-        }
+        if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
+            return suite.start_client_registration(password);
+        };
+        Err(Error::InvalidInput("Invalid cipher configuration"))
     }
-
     fn start_server_registration(
         &self,
         server_setup: Option<&[u8]>,
         registration_request: &[u8],
         username: &str,
     ) -> Result<types::ServerRegistrationStartResult, Error> {
-        match self {
-            CipherConfiguration {
-                oprf_cs: OprfCs::Ristretto255,
-                ke_group: KeGroup::Ristretto255,
-                key_exchange: KeyExchange::TripleDh,
-                ksf: Ksf::Argon2id(argon),
-            } => RistrettoTripleDhArgonSuite(*argon).start_server_registration(
-                server_setup,
-                registration_request,
-                username,
-            ),
-            _ => Err(Error::InvalidInput("Invalid cipher configuration")),
-        }
+        if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
+            return suite.start_server_registration(server_setup, registration_request, username);
+        };
+        Err(Error::InvalidInput("Invalid cipher configuration"))
     }
-
     fn finish_client_registration(
         &self,
         state: &[u8],
         registration_response: &[u8],
         password: &str,
     ) -> Result<types::ClientRegistrationFinishResult, Error> {
-        match self {
-            CipherConfiguration {
-                oprf_cs: OprfCs::Ristretto255,
-                ke_group: KeGroup::Ristretto255,
-                key_exchange: KeyExchange::TripleDh,
-                ksf: Ksf::Argon2id(argon),
-            } => RistrettoTripleDhArgonSuite(*argon).finish_client_registration(
-                state,
-                registration_response,
-                password,
-            ),
-            _ => Err(Error::InvalidInput("Invalid cipher configuration")),
-        }
+        if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
+            return suite.finish_client_registration(state, registration_response, password);
+        };
+        Err(Error::InvalidInput("Invalid cipher configuration"))
     }
-
     fn finish_server_registration(
         &self,
         registration_upload: &[u8],
     ) -> Result<types::ServerRegistrationFinishResult, Error> {
-        match self {
-            CipherConfiguration {
-                oprf_cs: OprfCs::Ristretto255,
-                ke_group: KeGroup::Ristretto255,
-                key_exchange: KeyExchange::TripleDh,
-                ksf: Ksf::Argon2id(argon),
-            } => {
-                RistrettoTripleDhArgonSuite(*argon).finish_server_registration(registration_upload)
-            }
-            _ => Err(Error::InvalidInput("Invalid cipher configuration")),
-        }
+        if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
+            return suite.finish_server_registration(registration_upload);
+        };
+        Err(Error::InvalidInput("Invalid cipher configuration"))
     }
 
     fn start_client_login(&self, password: &str) -> Result<types::ClientLoginStartResult, Error> {
-        match self {
-            CipherConfiguration {
-                oprf_cs: OprfCs::Ristretto255,
-                ke_group: KeGroup::Ristretto255,
-                key_exchange: KeyExchange::TripleDh,
-                ksf: Ksf::Argon2id(argon),
-            } => RistrettoTripleDhArgonSuite(*argon).start_client_login(password),
-            _ => Err(Error::InvalidInput("Invalid cipher configuration")),
-        }
+        if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
+            return suite.start_client_login(password);
+        };
+        Err(Error::InvalidInput("Invalid cipher configuration"))
     }
-
     fn start_server_login(
         &self,
         server_setup: &[u8],
@@ -155,70 +117,61 @@ impl OpaqueImpl for CipherConfiguration {
         credential_request: &[u8],
         username: &str,
     ) -> Result<types::ServerLoginStartResult, Error> {
-        match self {
-            CipherConfiguration {
-                oprf_cs: OprfCs::Ristretto255,
-                ke_group: KeGroup::Ristretto255,
-                key_exchange: KeyExchange::TripleDh,
-                ksf: Ksf::Argon2id(argon),
-            } => RistrettoTripleDhArgonSuite(*argon).start_server_login(
+        if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
+            return suite.start_server_login(
                 server_setup,
                 server_registration,
                 credential_request,
                 username,
-            ),
-            _ => Err(Error::InvalidInput("Invalid cipher configuration")),
-        }
+            );
+        };
+        Err(Error::InvalidInput("Invalid cipher configuration"))
     }
-
     fn finish_client_login(
         &self,
         state: &[u8],
         credential_response: &[u8],
         password: &str,
     ) -> Result<types::ClientLoginFinishResult, Error> {
-        match self {
-            CipherConfiguration {
-                oprf_cs: OprfCs::Ristretto255,
-                ke_group: KeGroup::Ristretto255,
-                key_exchange: KeyExchange::TripleDh,
-                ksf: Ksf::Argon2id(argon),
-            } => RistrettoTripleDhArgonSuite(*argon).finish_client_login(
-                state,
-                credential_response,
-                password,
-            ),
-            _ => Err(Error::InvalidInput("Invalid cipher configuration")),
-        }
+        if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
+            return suite.finish_client_login(state, credential_response, password);
+        };
+        Err(Error::InvalidInput("Invalid cipher configuration"))
     }
-
     fn finish_server_login(
         &self,
         state: &[u8],
         credential_finalization: &[u8],
     ) -> Result<types::ServerLoginFinishResult, Error> {
-        match self {
+        if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
+            return suite.finish_server_login(state, credential_finalization);
+        };
+        Err(Error::InvalidInput("Invalid cipher configuration"))
+    }
+}
+
+// Define the cipher suite and implement the required traits on it (OpaqueImpl+OpaqueKsf+opaque_ke::CipherSuite)
+struct RistrettoTripleDhArgonSuite(Argon2id);
+impl opaque_ke::CipherSuite for RistrettoTripleDhArgonSuite {
+    type OprfCs = opaque_ke::Ristretto255;
+    type KeGroup = opaque_ke::Ristretto255;
+    type KeyExchange = opaque_ke::key_exchange::tripledh::TripleDh;
+    type Ksf = argon2::Argon2<'static>;
+}
+impl OpaqueUtil for RistrettoTripleDhArgonSuite {
+    type Output = argon2::Argon2<'static>;
+
+    fn as_variant(config: &CipherConfiguration) -> Option<Self> {
+        match config {
             CipherConfiguration {
                 oprf_cs: OprfCs::Ristretto255,
                 ke_group: KeGroup::Ristretto255,
                 key_exchange: KeyExchange::TripleDh,
                 ksf: Ksf::Argon2id(argon),
-            } => RistrettoTripleDhArgonSuite(*argon)
-                .finish_server_login(state, credential_finalization),
-            _ => Err(Error::InvalidInput("Invalid cipher configuration")),
+            } => Some(Self(*argon)),
+            _ => None,
         }
     }
-}
-
-// Define the cipher suite and implement OpaqueImpl for it.
-// Note that in the future if we want to support multiple cipher suites,
-// we will need to duplicate most of this code. It should be entirely the same,
-// with the exception of the KDF settings, so we should build a macro for that.
-// There is an example of this macro at the bottom of this file.
-struct RistrettoTripleDhArgonSuite(Argon2id);
-
-impl OpaqueKsf for RistrettoTripleDhArgonSuite {
-    type Output = argon2::Argon2<'static>;
     fn get_ksf(&self) -> Result<Self::Output, Error> {
         Ok(Argon2::new(
             argon2::Algorithm::Argon2id,
@@ -234,13 +187,8 @@ impl OpaqueKsf for RistrettoTripleDhArgonSuite {
     }
 }
 
-impl opaque_ke::CipherSuite for RistrettoTripleDhArgonSuite {
-    type OprfCs = opaque_ke::Ristretto255;
-    type KeGroup = opaque_ke::Ristretto255;
-    type KeyExchange = opaque_ke::key_exchange::tripledh::TripleDh;
-    type Ksf = argon2::Argon2<'static>;
-}
-
+// This implementation will be identical between any cipher suite, but we can't simply reuse it because of all the generic bounds on the CipherSuite trait.
+// If we need to add more cipher suites, we will need to copy this implementation over, or ideally use a macro to generate it.
 impl OpaqueImpl for RistrettoTripleDhArgonSuite {
     fn start_client_registration(
         &self,
@@ -252,7 +200,6 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
             state: result.state.serialize().to_vec(),
         })
     }
-
     fn start_server_registration(
         &self,
         server_setup: Option<&[u8]>,
@@ -273,7 +220,6 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
             server_setup: server_setup.serialize().to_vec(),
         })
     }
-
     fn finish_client_registration(
         &self,
         state: &[u8],
@@ -287,14 +233,12 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
             RegistrationResponse::deserialize(registration_response)?,
             ClientRegistrationFinishParameters::new(Identifiers::default(), Some(&self.get_ksf()?)),
         )?;
-
         Ok(types::ClientRegistrationFinishResult {
             registration_upload: result.message.serialize().to_vec(),
             export_key: result.export_key.to_vec(),
             server_s_pk: result.server_s_pk.serialize().to_vec(),
         })
     }
-
     fn finish_server_registration(
         &self,
         registration_upload: &[u8],
@@ -308,26 +252,21 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
     }
 
     fn start_client_login(&self, password: &str) -> Result<types::ClientLoginStartResult, Error> {
-        let mut client_rng = OsRng;
-        let result = ClientLogin::<Self>::start(&mut client_rng, password.as_bytes())?;
+        let result = ClientLogin::<Self>::start(&mut OsRng, password.as_bytes())?;
         Ok(types::ClientLoginStartResult {
             credential_request: result.message.serialize().to_vec(),
             state: result.state.serialize().to_vec(),
         })
     }
-
     fn start_server_login(
         &self,
         server_setup: &[u8],
         server_registration: &[u8],
         credential_request: &[u8],
-
         username: &str,
     ) -> Result<types::ServerLoginStartResult, Error> {
-        let mut server_rng = OsRng;
-
         let result = ServerLogin::start(
-            &mut server_rng,
+            &mut OsRng,
             &ServerSetup::<Self>::deserialize(server_setup)?,
             Some(ServerRegistration::<Self>::deserialize(
                 server_registration,
@@ -341,7 +280,6 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
             state: result.state.serialize().to_vec(),
         })
     }
-
     fn finish_client_login(
         &self,
         state: &[u8],
@@ -354,7 +292,6 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
             CredentialResponse::deserialize(credential_response)?,
             ClientLoginFinishParameters::new(None, Identifiers::default(), Some(&self.get_ksf()?)),
         )?;
-
         Ok(types::ClientLoginFinishResult {
             credential_finalization: result.message.serialize().to_vec(),
             session_key: result.session_key.to_vec(),
@@ -362,18 +299,15 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
             server_s_pk: result.server_s_pk.serialize().to_vec(),
         })
     }
-
     fn finish_server_login(
         &self,
         state: &[u8],
         credential_finalization: &[u8],
     ) -> Result<types::ServerLoginFinishResult, Error> {
         let server_login = ServerLogin::<Self>::deserialize(state)?;
-
         let result = server_login.finish(CredentialFinalization::deserialize(
             credential_finalization,
         )?)?;
-
         Ok(types::ServerLoginFinishResult {
             session_key: result.session_key.to_vec(),
         })
@@ -394,10 +328,10 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
             // Implement OpaqueImpl for the shared type, and dispatch to the correct cipher suite
             impl OpaqueImpl for $shared_type {
                 fn start_client_registration(&self, password: &str) -> Result<types::ClientRegistrationStartResult, Error> {
-                    match self {
-                    $( $pat => $cipher.start_client_registration(password), )+
-                        _ => Err(Error::InvalidInput("Invalid cipher configuration")),
-                    }
+                    $(if let Some(suite) = $name::as_variant(self) {
+                        return suite.start_client_registration(password);
+                    };)+
+                    Err(Error::InvalidInput("Invalid cipher configuration"))
                 }
                 ...
             }

@@ -16,6 +16,7 @@ pub enum KeyExchange {
 #[derive(Debug, Clone, Copy)]
 pub enum Ksf {
     Argon2id(Argon2id),
+    __NonExhaustive(()),
 }
 
 #[derive(Debug, Clone, Copy)]
