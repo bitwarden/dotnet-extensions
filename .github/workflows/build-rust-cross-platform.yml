@@ -13,23 +13,31 @@ jobs:
         settings:
           - os: macos-13
             target: x86_64-apple-darwin
+            dotnet_rid: osx-x64
           - os: macos-13
             target: aarch64-apple-darwin
+            dotnet_rid: osx-arm64
           - os: windows-2022
             target: x86_64-pc-windows-msvc
+            dotnet_rid: win-x64
           # caution: updating the linux runner OS version for GNU
           #   targets will likely break the library for older OS versions.
           #   prefer using oldest supported runner for for these targets
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
+            dotnet_rid: linux-x64
           - os: ubuntu-22.04
             target: aarch64-unknown-linux-gnu
+            dotnet_rid: linux-arm64
           - os: ubuntu-22.04
             target: armv7-unknown-linux-gnueabihf
+            dotnet_rid: linux-arm
           - os: ubuntu-22.04
             target: arm-unknown-linux-gnueabihf
+            dotnet_rid: linux-armv6
           - os: ubuntu-22.04
             target: armv5te-unknown-linux-gnueabi
+            dotnet_rid: linux-armel
 
     steps:
       - name: Checkout
@@ -70,7 +78,7 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
-          name: libopaque_ke_binding_files-${{ matrix.settings.target }}
+          name: libopaque_ke_binding_files-${{ matrix.settings.dotnet_rid }}
           path: |
             extensions/Bitwarden.OPAQUE/rust/target/${{ matrix.settings.target }}/release/opaque_ke_binding.dll
             extensions/Bitwarden.OPAQUE/rust/target/${{ matrix.settings.target }}/release/libopaque_ke_binding.so
@@ -81,52 +89,52 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build_rust
     steps:
-      - name: Download x86_64-apple-darwin files
+      - name: Download osx-x64 files
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          name: libopaque_ke_binding_files-x86_64-apple-darwin
+          name: libopaque_ke_binding_files-osx-x64
           path: runtimes/osx-x64/native
 
-      - name: Download aarch64-apple-darwin files
+      - name: Download osx-arm64 files
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          name: libopaque_ke_binding_files-aarch64-apple-darwin
+          name: libopaque_ke_binding_files-osx-arm64
           path: runtimes/osx-arm64/native
 
-      - name: Download x86_64-pc-windows-msvc files
+      - name: Download win-x64 files
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          name: libopaque_ke_binding_files-x86_64-pc-windows-msvc
+          name: libopaque_ke_binding_files-win-x64
           path: runtimes/win-x64/native
 
-      - name: Download x86_64-unknown-linux-gnu files
+      - name: Download linux-x64 files
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          name: libopaque_ke_binding_files-x86_64-unknown-linux-gnu
+          name: libopaque_ke_binding_files-linux-x64
           path: runtimes/linux-x64/native
 
-      - name: Download aarch64-unknown-linux-gnu files
+      - name: Download linux-arm64 files
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          name: libopaque_ke_binding_files-aarch64-unknown-linux-gnu
+          name: libopaque_ke_binding_files-linux-arm64
           path: runtimes/linux-arm64/native
 
-      - name: Download armv7-unknown-linux-gnueabihf files
+      - name: Download linux-arm files
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          name: libopaque_ke_binding_files-armv7-unknown-linux-gnueabihf
+          name: libopaque_ke_binding_files-linux-arm
           path: runtimes/linux-arm/native
 
-      - name: Download arm-unknown-linux-gnueabihf files
+      - name: Download linux-armv6 files
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          name: libopaque_ke_binding_files-arm-unknown-linux-gnueabihf
+          name: libopaque_ke_binding_files-linux-armv6
           path: runtimes/linux-armv6/native
 
-      - name: Download armv5te-unknown-linux-gnueabi files
+      - name: Download linux-armel files
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          name: libopaque_ke_binding_files-armv5te-unknown-linux-gnueabi
+          name: libopaque_ke_binding_files-linux-armel
           path: runtimes/linux-armel/native
 
       - name: Upload Combined Artifact
