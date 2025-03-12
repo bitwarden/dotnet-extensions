@@ -79,6 +79,9 @@ jobs:
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: libopaque_ke_binding_files-${{ matrix.settings.dotnet_rid }}
+          # We only need these until the next step, so delete them as soon as possible
+          retention-days: 1
+          if-no-files-found: error
           path: |
             extensions/Bitwarden.OPAQUE/rust/target/${{ matrix.settings.target }}/release/opaque_ke_binding.dll
             extensions/Bitwarden.OPAQUE/rust/target/${{ matrix.settings.target }}/release/libopaque_ke_binding.so
@@ -109,5 +112,6 @@ jobs:
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: libopaque_ke_binding_all_files
+          if-no-files-found: error
           path: |
             runtimes/**/*
