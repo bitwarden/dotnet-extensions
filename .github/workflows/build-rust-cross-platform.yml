@@ -70,8 +70,6 @@ jobs:
       - name: Copy output library
         run: |
           mkdir libopaque_output
-          ls -la extensions/Bitwarden.OPAQUE/rust/target/${{ matrix.settings.target }}/release
-          ls -la extensions/Bitwarden.OPAQUE/rust/target/${{ matrix.settings.target }}/release/*opaque_ke_binding.{dll,so,dylib}
           cp extensions/Bitwarden.OPAQUE/rust/target/${{ matrix.settings.target }}/release/*opaque_ke_binding.{dll,so,dylib} libopaque_output/
 
       - name: Upload Artifact
