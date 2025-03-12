@@ -71,7 +71,7 @@ jobs:
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: libopaque_ke_binding_files-${{ matrix.settings.target }}
-          path: rust/target/${{ matrix.settings.target }}/release/*opaque_ke_binding.{dll,so,dylib}
+          path: extensions/Bitwarden.OPAQUE/rust/target/${{ matrix.settings.target }}/release/*opaque_ke_binding.{dll,so,dylib}
 
   collect_artifacts:
     name: Collect and Upload All Artifacts
