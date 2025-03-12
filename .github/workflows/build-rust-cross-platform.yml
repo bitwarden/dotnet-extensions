@@ -81,30 +81,53 @@ jobs:
     runs-on: ubuntu-22.04
     needs: build_rust
     steps:
-      - name: Download artifacts
+      - name: Download x86_64-apple-darwin files
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          name: libopaque_ke_binding_files-${{ matrix.target }}
-          path: ${{ matrix.path }}
-        strategy:
-          matrix:
-            include:
-              - target: x86_64-apple-darwin
-                path: runtimes/osx-x64/native
-              - target: aarch64-apple-darwin
-                path: runtimes/osx-arm64/native
-              - target: x86_64-pc-windows-msvc
-                path: runtimes/win-x64/native
-              - target: x86_64-unknown-linux-gnu
-                path: runtimes/linux-x64/native
-              - target: aarch64-unknown-linux-gnu
-                path: runtimes/linux-arm64/native
-              - target: armv7-unknown-linux-gnueabihf
-                path: runtimes/linux-arm/native
-              - target: arm-unknown-linux-gnueabihf
-                path: runtimes/linux-armv6/native
-              - target: armv5te-unknown-linux-gnueabi
-                path: runtimes/linux-armel/native
+          name: libopaque_ke_binding_files-x86_64-apple-darwin
+          path: runtimes/osx-x64/native
+
+      - name: Download aarch64-apple-darwin files
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: libopaque_ke_binding_files-aarch64-apple-darwin
+          path: runtimes/osx-arm64/native
+
+      - name: Download x86_64-pc-windows-msvc files
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: libopaque_ke_binding_files-x86_64-pc-windows-msvc
+          path: runtimes/win-x64/native
+
+      - name: Download x86_64-unknown-linux-gnu files
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: libopaque_ke_binding_files-x86_64-unknown-linux-gnu
+          path: runtimes/linux-x64/native
+
+      - name: Download aarch64-unknown-linux-gnu files
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: libopaque_ke_binding_files-aarch64-unknown-linux-gnu
+          path: runtimes/linux-arm64/native
+
+      - name: Download armv7-unknown-linux-gnueabihf files
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: libopaque_ke_binding_files-armv7-unknown-linux-gnueabihf
+          path: runtimes/linux-arm/native
+
+      - name: Download arm-unknown-linux-gnueabihf files
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: libopaque_ke_binding_files-arm-unknown-linux-gnueabihf
+          path: runtimes/linux-armv6/native
+
+      - name: Download armv5te-unknown-linux-gnueabi files
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: libopaque_ke_binding_files-armv5te-unknown-linux-gnueabi
+          path: runtimes/linux-armel/native
 
       - name: Upload Combined Artifact
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
