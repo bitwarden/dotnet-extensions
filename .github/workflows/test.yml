@@ -29,14 +29,6 @@ jobs:
         with:
           toolchain: stable
 
-      # This is needed because MSBuild is trying to copy the native library before it's built.
-      # TODO: Improve the build process so this isn't needed.
-      - name: Build native module in debug
-        run: |
-          cargo build
-          ls -la target/debug
-        working-directory: extensions/Bitwarden.OPAQUE/rust
-
       - name: Test solution
         run: dotnet test --configuration Debug --logger "trx;LogFileName=test-results.trx" /p:CoverletOutputFormatter="cobertura" --collect:"XPlat Code Coverage"
 

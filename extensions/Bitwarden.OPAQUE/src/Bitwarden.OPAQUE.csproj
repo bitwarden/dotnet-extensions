@@ -39,34 +39,37 @@
     <None Include="../../../LICENSE.txt" Pack="true" PackagePath="\" />
   </ItemGroup>
 
+  <!-- Build and copy native libraries in debug mode -->
+
   <PropertyGroup>
     <RustDebug>../rust/target/debug/</RustDebug>
   </PropertyGroup>
 
-  <!-- Build and copy native libraries in debug mode -->
-  <Target Name="BuildRustLibrary" BeforeTargets="Build" Condition="'$(Configuration)'=='Debug'">
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <RustLibraryFile>opaque_ke_binding.dll</RustLibraryFile>
+  </PropertyGroup>
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Linux'))">
+    <RustLibraryFile>libopaque_ke_binding.so</RustLibraryFile>
+  </PropertyGroup>
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <RustLibraryFile>libopaque_ke_binding.dylib</RustLibraryFile>
+  </PropertyGroup>
+
+  <Target Name="CargoBuildDebug" BeforeTargets="CopyLibDebug"
+    Condition="'$(Configuration)' == 'Debug'">
     <Exec WorkingDirectory="$(ProjectDir)/../rust" Command="cargo build" />
   </Target>
 
-  <ItemGroup Condition="'$(Configuration)'=='Debug'">
-    <Content Include="$(RustDebug)/libopaque_ke_binding.dylib"
-      Condition="Exists('$(RustDebug)/libopaque_ke_binding.dylib')">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      <PackageCopyToOutput>true</PackageCopyToOutput>
-    </Content>
+  <Target Name="CopyLibDebug" BeforeTargets="PreBuildEvent"
+    Condition="'$(Configuration)' == 'Debug'">
+    <ItemGroup>
+      <Content Include="$(RustDebug)/$(RustLibraryFile)">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        <PackageCopyToOutput>true</PackageCopyToOutput>
+      </Content>
+    </ItemGroup>
+  </Target>
 
-    <Content Include="$(RustDebug)/libopaque_ke_binding.so"
-      Condition="Exists('$(RustDebug)/libopaque_ke_binding.so')">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      <PackageCopyToOutput>true</PackageCopyToOutput>
-    </Content>
-
-    <Content Include="$(RustDebug)/opaque_ke_binding.dll"
-      Condition="Exists('$(RustDebug)/opaque_ke_binding.dll')">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      <PackageCopyToOutput>true</PackageCopyToOutput>
-    </Content>
-  </ItemGroup>
 
   <!-- Copy native libraries in release mode -->
   <ItemGroup Condition="'$(Configuration)'=='Release'">
