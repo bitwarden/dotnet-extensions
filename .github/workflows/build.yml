@@ -9,7 +9,7 @@ on:
 
 jobs:
   build_rust:
-    name: Build Rust
+    name: Build Rust Cross Platform
     uses: ./.github/workflows/build-rust-cross-platform.yml
 
   build-artifacts:
