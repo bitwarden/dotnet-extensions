@@ -54,6 +54,11 @@ pub trait OpaqueImpl {
     ) -> Result<types::ServerLoginFinishResult, Error>;
 }
 
+pub trait OpaqueKsf {
+    type Output;
+    fn get_ksf(&self) -> Result<Self::Output, Error>;
+}
+
 // Implement the OpaqueImpl trait for the CipherConfiguration enum, which allows us to dynamically dispatch to the correct cipher suite.
 #[allow(unreachable_patterns)]
 impl OpaqueImpl for CipherConfiguration {
@@ -210,6 +215,24 @@ impl OpaqueImpl for CipherConfiguration {
 // we will need to duplicate most of this code. It should be entirely the same,
 // with the exception of the KDF settings, so we should build a macro for that
 struct RistrettoTripleDhArgonSuite(Argon2id);
+
+impl OpaqueKsf for RistrettoTripleDhArgonSuite {
+    type Output = argon2::Argon2<'static>;
+    fn get_ksf(&self) -> Result<Self::Output, Error> {
+        Ok(Argon2::new(
+            argon2::Algorithm::Argon2id,
+            argon2::Version::V0x13,
+            argon2::Params::new(
+                self.0.memory_kib,
+                self.0.iterations,
+                self.0.parallelism,
+                None,
+            )
+            .map_err(|_| Error::InvalidInput("Invalid Argon2 parameters"))?,
+        ))
+    }
+}
+
 impl opaque_ke::CipherSuite for RistrettoTripleDhArgonSuite {
     type OprfCs = opaque_ke::Ristretto255;
     type KeGroup = opaque_ke::Ristretto255;
@@ -261,20 +284,7 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
             &mut OsRng,
             password.as_bytes(),
             RegistrationResponse::deserialize(registration_response)?,
-            ClientRegistrationFinishParameters::new(
-                Identifiers::default(),
-                Some(&Argon2::new(
-                    argon2::Algorithm::Argon2id,
-                    argon2::Version::V0x13,
-                    argon2::Params::new(
-                        self.0.memory_kib,
-                        self.0.iterations,
-                        self.0.parallelism,
-                        None,
-                    )
-                    .map_err(|_| Error::InvalidInput("Invalid Argon2 parameters"))?,
-                )),
-            ),
+            ClientRegistrationFinishParameters::new(Identifiers::default(), Some(&self.get_ksf()?)),
         )?;
 
         Ok(types::ClientRegistrationFinishResult {
@@ -341,21 +351,7 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
         let result = client_login.finish(
             password.as_bytes(),
             CredentialResponse::deserialize(credential_response)?,
-            ClientLoginFinishParameters::new(
-                None,
-                Identifiers::default(),
-                Some(&Argon2::new(
-                    argon2::Algorithm::Argon2id,
-                    argon2::Version::V0x13,
-                    argon2::Params::new(
-                        self.0.memory_kib,
-                        self.0.iterations,
-                        self.0.parallelism,
-                        None,
-                    )
-                    .map_err(|_| Error::InvalidInput("Invalid Argon2 parameters"))?,
-                )),
-            ),
+            ClientLoginFinishParameters::new(None, Identifiers::default(), Some(&self.get_ksf()?)),
         )?;
 
         Ok(types::ClientLoginFinishResult {
