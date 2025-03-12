@@ -1,6 +1,13 @@
 use std::ffi::c_char;
 
-use crate::{DefaultCipherSuite, Error, ffi_types::*};
+use crate::{
+    Error,
+    opaque::{CipherConfiguration, OpaqueImpl},
+};
+
+mod types;
+
+use types::*;
 
 unsafe fn handle_string_input<'a>(
     input: *const c_char,
@@ -19,9 +26,11 @@ unsafe fn handle_string_input<'a>(
 /// ABC
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn start_server_registration(
+    server_setup: Buffer,
     registration_request: Buffer,
     username: *const c_char,
 ) -> Response {
+    let server_setup = unsafe { server_setup.as_slice2() }.ok();
     let registration_request = unsafe { registration_request.as_slice() };
     let username = match unsafe { handle_string_input(username, "username") } {
         Ok(s) => s,
@@ -30,15 +39,16 @@ pub unsafe extern "C" fn start_server_registration(
         }
     };
 
-    let response = match super::server::start_server_registration::<DefaultCipherSuite>(
-        registration_request,
-        username,
-    ) {
-        Ok(response) => response,
-        Err(e) => {
-            return Response::error(e);
-        }
-    };
+    // TODO: Allow configuring the ciphers
+    let config = CipherConfiguration::default();
+
+    let response =
+        match config.start_server_registration(server_setup, registration_request, username) {
+            Ok(response) => response,
+            Err(e) => {
+                return Response::error(e);
+            }
+        };
 
     Response::ok2(response.registration_response, response.server_setup)
 }
@@ -51,9 +61,10 @@ pub unsafe extern "C" fn start_server_registration(
 pub unsafe extern "C" fn finish_server_registration(registration_upload: Buffer) -> Response {
     let registration_upload = unsafe { registration_upload.as_slice() };
 
-    let response = match super::server::finish_server_registration::<DefaultCipherSuite>(
-        registration_upload,
-    ) {
+    // TODO: Allow configuring the ciphers
+    let config = CipherConfiguration::default();
+
+    let response = match config.finish_server_registration(registration_upload) {
         Ok(response) => response,
         Err(e) => {
             return Response::error(e);
@@ -76,7 +87,10 @@ pub unsafe extern "C" fn start_client_registration(password: *const c_char) -> R
         }
     };
 
-    let result = match super::client::start_client_registration::<DefaultCipherSuite>(password) {
+    // TODO: Allow configuring the ciphers
+    let config = CipherConfiguration::default();
+
+    let result = match config.start_client_registration(password) {
         Ok(result) => result,
         Err(e) => {
             return Response::error(e);
@@ -106,11 +120,10 @@ pub unsafe extern "C" fn finish_client_registration(
         }
     };
 
-    let response = match super::client::finish_client_registration::<DefaultCipherSuite>(
-        state,
-        registration_response,
-        password,
-    ) {
+    // TODO: Allow configuring the ciphers
+    let config = CipherConfiguration::default();
+
+    let response = match config.finish_client_registration(state, registration_response, password) {
         Ok(response) => response,
         Err(e) => {
             return Response::error(e);

@@ -26,16 +26,17 @@ public sealed partial class BitwardenOpaqueServer
     /// Start the server registration process. This must happen after <see cref="Bitwarden.OPAQUE.BitwardenOpaqueClient.StartRegistration"/> 
     /// </summary>
     /// <param name="config">The Cipher configuration, must be the same for all the operation</param>
+    /// <param name="serverSetup">The server setup. Use null to let the library create a new random one</param>
     /// <param name="registrationRequest">The client registration request, <see cref="Bitwarden.OPAQUE.ClientRegistrationStartResult.registrationRequest"/> </param>
     /// <param name="username">The username to register</param>
     /// <returns></returns>
-    public ServerRegistrationStartResult StartRegistration(CipherConfiguration config, byte[] registrationRequest, string username)
+    public ServerRegistrationStartResult StartRegistration(CipherConfiguration config, byte[]? serverSetup, byte[] registrationRequest, string username)
     {
-        var (registrationResponse, serverSetup) = BitwardenLibrary.StartServerRegistration(registrationRequest, username);
+        var (registrationResponse, serverSetupRet) = BitwardenLibrary.StartServerRegistration(serverSetup, registrationRequest, username);
         return new ServerRegistrationStartResult
         {
             registrationResponse = registrationResponse,
-            serverSetup = serverSetup
+            serverSetup = serverSetupRet
         };
     }
 

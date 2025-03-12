@@ -40,6 +40,13 @@ impl Buffer {
         unsafe { std::slice::from_raw_parts(self.data, self.len) }
     }
 
+    pub unsafe fn as_slice2(&self) -> Result<&[u8], Error> {
+        if self.data.is_null() {
+            return Err(Error::InvalidInput("Buffer data is null"));
+        }
+        Ok(unsafe { std::slice::from_raw_parts(self.data, self.len) })
+    }
+
     pub fn free(self) {
         if !self.data.is_null() {
             let _ = unsafe { Vec::from_raw_parts(self.data, self.len, self.len) };

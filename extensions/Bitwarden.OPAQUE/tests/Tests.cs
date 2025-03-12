@@ -21,7 +21,7 @@ public class SampleTests
         var clientStartResult = client.StartRegistration(config, password);
 
         // Client sends reg_start to server
-        var serverStartResult = server.StartRegistration(config, clientStartResult.registrationRequest, username);
+        var serverStartResult = server.StartRegistration(config, null, clientStartResult.registrationRequest, username);
 
         // Server sends server_start_result to client
         var clientFinishResult = client.FinishRegistration(config, clientStartResult.state, serverStartResult.registrationResponse, password);

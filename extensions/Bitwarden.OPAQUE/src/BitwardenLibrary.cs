@@ -38,7 +38,7 @@ internal static partial class BitwardenLibrary
     private static partial void free_buffer(Buffer buf);
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
-    private static partial Response start_server_registration(Buffer registration_request, string username);
+    private static partial Response start_server_registration(Buffer server_setup, Buffer registration_request, string username);
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
     private static partial Response finish_server_registration(Buffer registration_upload);
@@ -50,13 +50,13 @@ internal static partial class BitwardenLibrary
     private static partial Response finish_client_registration(Buffer state, Buffer registration_response, string password);
 
 
-    private static Buffer BuildBuffer(byte[] data, out GCHandle handle)
+    private static Buffer BuildBuffer(byte[]? data, out GCHandle handle)
     {
         handle = GCHandle.Alloc(data, GCHandleType.Pinned);
         return new Buffer
         {
             data = handle.AddrOfPinnedObject(),
-            size = data.Length
+            size = data?.Length ?? 0
         };
     }
 
@@ -100,28 +100,30 @@ internal static partial class BitwardenLibrary
         return arrays;
     }
 
-    internal static (byte[], byte[]) StartServerRegistration(byte[] requestBytes, string username)
+    internal static (byte[], byte[]) StartServerRegistration(byte[]? serverSetup, byte[] registrationRequest, string username)
     {
-        var requestBuffer = BuildBuffer(requestBytes, out var handle);
+        var serverSetupBuf = BuildBuffer(serverSetup, out var serverSetupHandle);
+        var registrationRequestBuf = BuildBuffer(registrationRequest, out var registrationRequestHandle);
         try
         {
-            var response = start_server_registration(requestBuffer, username);
+            var response = start_server_registration(serverSetupBuf, registrationRequestBuf, username);
             var ret = HandleResponse(response, 2);
             return (ret[0], ret[1]);
         }
         finally
         {
-            handle.Free();
+            serverSetupHandle.Free();
+            registrationRequestHandle.Free();
         }
 
     }
 
-    internal static byte[] FinishServerRegistration(byte[] registrationUploadBytes)
+    internal static byte[] FinishServerRegistration(byte[] registrationUpload)
     {
-        var registrationUploadBuffer = BuildBuffer(registrationUploadBytes, out var handle);
+        var registrationUploadBuf = BuildBuffer(registrationUpload, out var handle);
         try
         {
-            var response = finish_server_registration(registrationUploadBuffer);
+            var response = finish_server_registration(registrationUploadBuf);
             return HandleResponse(response, 1)[0];
         }
         finally
@@ -138,14 +140,14 @@ internal static partial class BitwardenLibrary
         return (ret[0], ret[1]);
     }
 
-    internal static (byte[], byte[], byte[]) FinishClientRegistration(byte[] stateBytes, byte[] registrationResponseBytes, string password)
+    internal static (byte[], byte[], byte[]) FinishClientRegistration(byte[] state, byte[] registrationResponse, string password)
     {
-        var stateBuffer = BuildBuffer(stateBytes, out var stateHandle);
-        var registrationResponseBuffer = BuildBuffer(registrationResponseBytes, out var registrationResponseHandle);
+        var stateBuf = BuildBuffer(state, out var stateHandle);
+        var registrationResponseBuf = BuildBuffer(registrationResponse, out var registrationResponseHandle);
 
         try
         {
-            var response = finish_client_registration(stateBuffer, registrationResponseBuffer, password);
+            var response = finish_client_registration(stateBuf, registrationResponseBuf, password);
             var ret = HandleResponse(response, 3);
             return (ret[0], ret[1], ret[2]);
         }
