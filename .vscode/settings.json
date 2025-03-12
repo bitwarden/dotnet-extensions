@@ -1,0 +1,3 @@
+{
+  "rust-analyzer.linkedProjects": ["extensions/Bitwarden.OPAQUE/rust/Cargo.toml"],
+}
