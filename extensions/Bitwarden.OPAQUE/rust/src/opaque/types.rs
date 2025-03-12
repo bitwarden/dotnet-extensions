@@ -70,3 +70,26 @@ pub(crate) struct ServerRegistrationStartResult {
 pub(crate) struct ServerRegistrationFinishResult {
     pub(crate) server_registration: Vec<u8>,
 }
+
+////////////////////////////////////////
+
+pub(crate) struct ClientLoginStartResult {
+    pub(crate) credential_request: Vec<u8>,
+    pub(crate) state: Vec<u8>,
+}
+
+pub(crate) struct ClientLoginFinishResult {
+    pub(crate) credential_finalization: Vec<u8>,
+    pub(crate) session_key: Vec<u8>,
+    pub(crate) export_key: Vec<u8>,
+    pub(crate) server_s_pk: Vec<u8>,
+}
+
+pub(crate) struct ServerLoginStartResult {
+    pub(crate) credential_response: Vec<u8>,
+    pub(crate) state: Vec<u8>,
+}
+
+pub(crate) struct ServerLoginFinishResult {
+    pub(crate) session_key: Vec<u8>,
+}

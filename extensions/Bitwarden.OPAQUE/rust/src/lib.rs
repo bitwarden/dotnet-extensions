@@ -31,6 +31,8 @@ mod tests {
 
         let config = CipherConfiguration::default();
 
+        // Registration
+
         let registration_request = config.start_client_registration(password).unwrap();
 
         let server_start_result = config
@@ -49,6 +51,34 @@ mod tests {
             .finish_server_registration(&client_finish_result.registration_upload)
             .unwrap();
 
-        let _ = server_finish_result;
+        // Login
+
+        let login_request = config.start_client_login(password).unwrap();
+
+        let server_login_result = config
+            .start_server_login(
+                &server_start_result.server_setup,
+                &server_finish_result.server_registration,
+                &login_request.credential_request,
+                username,
+            )
+            .unwrap();
+
+        let client_login_result = config
+            .finish_client_login(
+                &login_request.state,
+                &server_login_result.credential_response,
+                password,
+            )
+            .unwrap();
+
+        let server_login_finish_result = config
+            .finish_server_login(
+                &server_login_result.state,
+                &client_login_result.credential_finalization,
+            )
+            .unwrap();
+
+        let _ = server_login_finish_result.session_key;
     }
 }
