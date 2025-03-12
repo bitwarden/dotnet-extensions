@@ -150,7 +150,7 @@ impl OpaqueImpl for CipherConfiguration {
     }
 }
 
-// Define the cipher suite and implement the required traits on it (OpaqueImpl+OpaqueKsf+opaque_ke::CipherSuite)
+// Define the cipher suite and implement the required traits on it (opaque_ke::CipherSuite+OpaqueUtil+OpaqueImpl)
 struct RistrettoTripleDhArgonSuite(Argon2id);
 impl opaque_ke::CipherSuite for RistrettoTripleDhArgonSuite {
     type OprfCs = opaque_ke::Ristretto255;
