@@ -19,7 +19,7 @@ public class SampleTests
         var config = new CipherConfiguration
         {
             OpaqueVersion = 3,
-            OprfCS = OprfCS.Ristretto255,
+            OprfCs = OprfCs.Ristretto255,
             KeGroup = KeGroup.Ristretto255,
             KeyExchange = KeyExchange.TripleDH,
             Ksf = new Ksf
