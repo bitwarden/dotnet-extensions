@@ -61,6 +61,10 @@ pub trait OpaqueUtil: Sized {
     fn get_ksf(&self) -> Result<Self::Output, Error>;
 }
 
+fn invalid_config(config: &CipherConfiguration) -> Error {
+    Error::InvalidConfig(serde_json::to_string(config).unwrap_or_default())
+}
+
 // Implement the OpaqueImpl trait for the CipherConfiguration enum, which allows us to dynamically dispatch to the correct cipher suite.
 impl OpaqueImpl for CipherConfiguration {
     fn start_client_registration(
@@ -70,7 +74,9 @@ impl OpaqueImpl for CipherConfiguration {
         if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
             return suite.start_client_registration(password);
         };
-        Err(Error::InvalidInput("Invalid cipher configuration"))
+        Err(Error::InvalidConfig(
+            serde_json::to_string(self).unwrap_or_default(),
+        ))
     }
     fn start_server_registration(
         &self,
@@ -81,7 +87,7 @@ impl OpaqueImpl for CipherConfiguration {
         if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
             return suite.start_server_registration(server_setup, registration_request, username);
         };
-        Err(Error::InvalidInput("Invalid cipher configuration"))
+        Err(invalid_config(self))
     }
     fn finish_client_registration(
         &self,
@@ -92,7 +98,7 @@ impl OpaqueImpl for CipherConfiguration {
         if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
             return suite.finish_client_registration(state, registration_response, password);
         };
-        Err(Error::InvalidInput("Invalid cipher configuration"))
+        Err(invalid_config(self))
     }
     fn finish_server_registration(
         &self,
@@ -101,14 +107,14 @@ impl OpaqueImpl for CipherConfiguration {
         if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
             return suite.finish_server_registration(registration_upload);
         };
-        Err(Error::InvalidInput("Invalid cipher configuration"))
+        Err(invalid_config(self))
     }
 
     fn start_client_login(&self, password: &str) -> Result<types::ClientLoginStartResult, Error> {
         if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
             return suite.start_client_login(password);
         };
-        Err(Error::InvalidInput("Invalid cipher configuration"))
+        Err(invalid_config(self))
     }
     fn start_server_login(
         &self,
@@ -125,7 +131,7 @@ impl OpaqueImpl for CipherConfiguration {
                 username,
             );
         };
-        Err(Error::InvalidInput("Invalid cipher configuration"))
+        Err(invalid_config(self))
     }
     fn finish_client_login(
         &self,
@@ -136,7 +142,7 @@ impl OpaqueImpl for CipherConfiguration {
         if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
             return suite.finish_client_login(state, credential_response, password);
         };
-        Err(Error::InvalidInput("Invalid cipher configuration"))
+        Err(invalid_config(self))
     }
     fn finish_server_login(
         &self,
@@ -146,7 +152,7 @@ impl OpaqueImpl for CipherConfiguration {
         if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
             return suite.finish_server_login(state, credential_finalization);
         };
-        Err(Error::InvalidInput("Invalid cipher configuration"))
+        Err(invalid_config(self))
     }
 }
 
@@ -164,6 +170,7 @@ impl OpaqueUtil for RistrettoTripleDhArgonSuite {
     fn as_variant(config: &CipherConfiguration) -> Option<Self> {
         match config {
             CipherConfiguration {
+                opaque_version: 3,
                 oprf_cs: OprfCs::Ristretto255,
                 ke_group: KeGroup::Ristretto255,
                 key_exchange: KeyExchange::TripleDh,
@@ -176,13 +183,8 @@ impl OpaqueUtil for RistrettoTripleDhArgonSuite {
         Ok(Argon2::new(
             argon2::Algorithm::Argon2id,
             argon2::Version::V0x13,
-            argon2::Params::new(
-                self.0.memory_kib,
-                self.0.iterations,
-                self.0.parallelism,
-                None,
-            )
-            .map_err(|_| Error::InvalidInput("Invalid Argon2 parameters"))?,
+            argon2::Params::new(self.0.memory, self.0.iterations, self.0.parallelism, None)
+                .map_err(|_| Error::InvalidConfig("Invalid Argon2 parameters".into()))?,
         ))
     }
 }

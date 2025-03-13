@@ -1,33 +1,48 @@
-#[derive(Debug, Clone, Copy)]
+use std::str::FromStr;
+
+use serde::{Deserialize, Serialize};
+
+use crate::Error;
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum OprfCs {
     Ristretto255,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum KeGroup {
     Ristretto255,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum KeyExchange {
+    #[serde(alias = "tripleDH", alias = "triple-dh")]
     TripleDh,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "algorithm", content = "parameters")]
 pub enum Ksf {
     Argon2id(Argon2id),
     __NonExhaustive(()),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Argon2id {
-    pub memory_kib: u32,
+    pub memory: u32,
     pub iterations: u32,
     pub parallelism: u32,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CipherConfiguration {
+    pub opaque_version: u32,
+    #[serde(alias = "oprfCS")]
     pub oprf_cs: OprfCs,
     pub ke_group: KeGroup,
     pub key_exchange: KeyExchange,
@@ -37,15 +52,24 @@ pub struct CipherConfiguration {
 impl Default for CipherConfiguration {
     fn default() -> Self {
         Self {
+            opaque_version: 3,
             oprf_cs: OprfCs::Ristretto255,
             ke_group: KeGroup::Ristretto255,
             key_exchange: KeyExchange::TripleDh,
             ksf: Ksf::Argon2id(Argon2id {
-                memory_kib: 64,
-                iterations: 3,
-                parallelism: 1,
+                memory: 65536,
+                iterations: 4,
+                parallelism: 4,
             }),
         }
+    }
+}
+
+impl FromStr for CipherConfiguration {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        serde_json::from_str(s).map_err(|e| Error::InvalidConfig(e.to_string()))
     }
 }
 

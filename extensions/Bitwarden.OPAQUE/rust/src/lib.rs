@@ -10,7 +10,8 @@ mod opaque;
 
 #[derive(Debug)]
 pub enum Error {
-    InvalidInput(&'static str),
+    InvalidInput(String),
+    InvalidConfig(String),
     Protocol(opaque_ke::errors::ProtocolError),
 }
 

@@ -44,7 +44,7 @@ public sealed partial class BitwardenOpaqueServer
     /// <returns></returns>
     public ServerRegistrationStartResult StartRegistration(CipherConfiguration config, byte[]? serverSetup, byte[] registrationRequest, string username)
     {
-        var (registrationResponse, serverSetupRet) = BitwardenLibrary.StartServerRegistration(serverSetup, registrationRequest, username);
+        var (registrationResponse, serverSetupRet) = BitwardenLibrary.StartServerRegistration(config, serverSetup, registrationRequest, username);
         return new ServerRegistrationStartResult
         {
             registrationResponse = registrationResponse,
@@ -60,7 +60,7 @@ public sealed partial class BitwardenOpaqueServer
     /// <returns></returns>
     public ServerRegistrationFinishResult FinishRegistration(CipherConfiguration config, byte[] registrationUpload)
     {
-        var serverRegistration = BitwardenLibrary.FinishServerRegistration(registrationUpload);
+        var serverRegistration = BitwardenLibrary.FinishServerRegistration(config, registrationUpload);
         return new ServerRegistrationFinishResult
         {
             serverRegistration = serverRegistration
@@ -69,7 +69,7 @@ public sealed partial class BitwardenOpaqueServer
 
     public ServerLoginStartResult StartLogin(CipherConfiguration config, byte[] serverSetup, byte[] serverRegistration, byte[] credentialRequest, string username)
     {
-        var (credentialResponse, state) = BitwardenLibrary.StartServerLogin(serverSetup, serverRegistration, credentialRequest, username);
+        var (credentialResponse, state) = BitwardenLibrary.StartServerLogin(config, serverSetup, serverRegistration, credentialRequest, username);
         return new ServerLoginStartResult
         {
             credentialResponse = credentialResponse,
@@ -79,7 +79,7 @@ public sealed partial class BitwardenOpaqueServer
 
     public ServerLoginFinishResult FinishLogin(CipherConfiguration config, byte[] state, byte[] credentialFinalization)
     {
-        var sessionKey = BitwardenLibrary.FinishServerLogin(state, credentialFinalization);
+        var sessionKey = BitwardenLibrary.FinishServerLogin(config, state, credentialFinalization);
         return new ServerLoginFinishResult
         {
             sessionKey = sessionKey

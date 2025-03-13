@@ -30,7 +30,12 @@
     <PackageId>Bitwarden.OPAQUE</PackageId>
     <PackageIcon>bitwarden.png</PackageIcon>
     <PackageTags>Bitwarden;OPAQUE;PAKE;.NET</PackageTags>
-    <Version>1.0.0</Version>
+
+    <VersionPrefix>0.5.0</VersionPrefix>
+    <PreReleaseVersionLabel>beta</PreReleaseVersionLabel>
+    <PreReleaseVersionIteration>1</PreReleaseVersionIteration>
+    <VersionSuffix Condition="'$(VersionSuffix)' == '' AND '$(IsPreRelease)' == 'true'">
+      $(PreReleaseVersionLabel).$(PreReleaseVersionIteration)</VersionSuffix>
   </PropertyGroup>
 
   <ItemGroup>

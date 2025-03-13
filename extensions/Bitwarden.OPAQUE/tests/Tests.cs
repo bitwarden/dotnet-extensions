@@ -15,7 +15,24 @@ public class SampleTests
         var server = new BitwardenOpaqueServer();
         var client = new BitwardenOpaqueClient();
 
-        var config = CipherConfiguration.Default;
+        // Lower the config values so the test runs fast
+        var config = new CipherConfiguration
+        {
+            OpaqueVersion = 3,
+            OprfCS = OprfCS.Ristretto255,
+            KeGroup = KeGroup.Ristretto255,
+            KeyExchange = KeyExchange.TripleDH,
+            Ksf = new Ksf
+            {
+                Algorithm = KsfAlgorithm.Argon2id,
+                Parameters = new KsfParameters
+                {
+                    Iterations = 1,
+                    Memory = 1024,
+                    Parallelism = 1
+                }
+            }
+        };
 
         ///// Registration
 

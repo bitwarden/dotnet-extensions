@@ -48,7 +48,7 @@ public sealed partial class BitwardenOpaqueClient
     /// <returns></returns>
     public ClientRegistrationStartResult StartRegistration(CipherConfiguration config, string password)
     {
-        var (registrationRequest, state) = BitwardenLibrary.StartClientRegistration(password);
+        var (registrationRequest, state) = BitwardenLibrary.StartClientRegistration(config, password);
         return new ClientRegistrationStartResult
         {
             registrationRequest = registrationRequest,
@@ -66,7 +66,7 @@ public sealed partial class BitwardenOpaqueClient
     /// <returns></returns>
     public ClientRegistrationFinishResult FinishRegistration(CipherConfiguration config, byte[] state, byte[] registrationResponse, string password)
     {
-        var (registrationUpload, exportKey, serverSPKey) = BitwardenLibrary.FinishClientRegistration(state, registrationResponse, password);
+        var (registrationUpload, exportKey, serverSPKey) = BitwardenLibrary.FinishClientRegistration(config, state, registrationResponse, password);
         return new ClientRegistrationFinishResult
         {
             registrationUpload = registrationUpload,
@@ -78,7 +78,7 @@ public sealed partial class BitwardenOpaqueClient
 
     public ClientLoginStartResult StartLogin(CipherConfiguration config, string password)
     {
-        var (credentialRequest, state) = BitwardenLibrary.StartClientLogin(password);
+        var (credentialRequest, state) = BitwardenLibrary.StartClientLogin(config, password);
         return new ClientLoginStartResult
         {
             credentialRequest = credentialRequest,
@@ -89,7 +89,7 @@ public sealed partial class BitwardenOpaqueClient
 
     public ClientLoginFinishResult FinishLogin(CipherConfiguration config, byte[] state, byte[] credentialResponse, string password)
     {
-        var (credentialFinalization, sessionKey, exportKey, serverSPKey) = BitwardenLibrary.FinishClientLogin(state, credentialResponse, password);
+        var (credentialFinalization, sessionKey, exportKey, serverSPKey) = BitwardenLibrary.FinishClientLogin(config, state, credentialResponse, password);
         return new ClientLoginFinishResult
         {
             credentialFinalization = credentialFinalization,

@@ -1,5 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Bitwarden.OPAQUE;
 
@@ -39,29 +41,29 @@ internal static partial class BitwardenLibrary
     private static partial void free_buffer(Buffer buf);
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
-    private static partial Response start_client_registration(string password);
+    private static partial Response start_client_registration(string config, string password);
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
-    private static partial Response start_server_registration(Buffer server_setup, Buffer registration_request, string username);
+    private static partial Response start_server_registration(string config, Buffer server_setup, Buffer registration_request, string username);
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
-    private static partial Response finish_client_registration(Buffer state, Buffer registration_response, string password);
+    private static partial Response finish_client_registration(string config, Buffer state, Buffer registration_response, string password);
 
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
-    private static partial Response finish_server_registration(Buffer registration_upload);
+    private static partial Response finish_server_registration(string config, Buffer registration_upload);
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
-    private static partial Response start_client_login(string password);
+    private static partial Response start_client_login(string config, string password);
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
-    private static partial Response start_server_login(Buffer server_setup, Buffer server_registration, Buffer credential_request, string username);
+    private static partial Response start_server_login(string config, Buffer server_setup, Buffer server_registration, Buffer credential_request, string username);
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
-    private static partial Response finish_client_login(Buffer state, Buffer credential_response, string password);
+    private static partial Response finish_client_login(string config, Buffer state, Buffer credential_response, string password);
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
-    private static partial Response finish_server_login(Buffer state, Buffer credential_finalization);
+    private static partial Response finish_server_login(string config, Buffer state, Buffer credential_finalization);
 
     private static Buffer BuildBuffer(byte[]? data, out GCHandle handle)
     {
@@ -113,20 +115,29 @@ internal static partial class BitwardenLibrary
         return arrays;
     }
 
-    internal static (byte[], byte[]) StartClientRegistration(string password)
+    private static readonly JsonSerializerOptions SerializerOptions = new JsonSerializerOptions
     {
-        var response = start_client_registration(password);
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }, // Converts enums to strings
+        IncludeFields = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
+    internal static (byte[], byte[]) StartClientRegistration(CipherConfiguration config, string password)
+    {
+        var configStr = JsonSerializer.Serialize(config, SerializerOptions);
+        var response = start_client_registration(configStr, password);
         var ret = HandleResponse(response, 2);
         return (ret[0], ret[1]);
     }
 
-    internal static (byte[], byte[]) StartServerRegistration(byte[]? serverSetup, byte[] registrationRequest, string username)
+    internal static (byte[], byte[]) StartServerRegistration(CipherConfiguration config, byte[]? serverSetup, byte[] registrationRequest, string username)
     {
+        var configStr = JsonSerializer.Serialize(config, SerializerOptions);
         var serverSetupBuf = BuildBuffer(serverSetup, out var serverSetupHandle);
         var registrationRequestBuf = BuildBuffer(registrationRequest, out var registrationRequestHandle);
         try
         {
-            var response = start_server_registration(serverSetupBuf, registrationRequestBuf, username);
+            var response = start_server_registration(configStr, serverSetupBuf, registrationRequestBuf, username);
             var ret = HandleResponse(response, 2);
             return (ret[0], ret[1]);
         }
@@ -135,17 +146,17 @@ internal static partial class BitwardenLibrary
             serverSetupHandle.Free();
             registrationRequestHandle.Free();
         }
-
     }
 
-    internal static (byte[], byte[], byte[]) FinishClientRegistration(byte[] state, byte[] registrationResponse, string password)
+    internal static (byte[], byte[], byte[]) FinishClientRegistration(CipherConfiguration config, byte[] state, byte[] registrationResponse, string password)
     {
+        var configStr = JsonSerializer.Serialize(config, SerializerOptions);
         var stateBuf = BuildBuffer(state, out var stateHandle);
         var registrationResponseBuf = BuildBuffer(registrationResponse, out var registrationResponseHandle);
 
         try
         {
-            var response = finish_client_registration(stateBuf, registrationResponseBuf, password);
+            var response = finish_client_registration(configStr, stateBuf, registrationResponseBuf, password);
             var ret = HandleResponse(response, 3);
             return (ret[0], ret[1], ret[2]);
         }
@@ -156,36 +167,38 @@ internal static partial class BitwardenLibrary
         }
     }
 
-    internal static byte[] FinishServerRegistration(byte[] registrationUpload)
+    internal static byte[] FinishServerRegistration(CipherConfiguration config, byte[] registrationUpload)
     {
+        var configStr = JsonSerializer.Serialize(config, SerializerOptions);
         var registrationUploadBuf = BuildBuffer(registrationUpload, out var handle);
         try
         {
-            var response = finish_server_registration(registrationUploadBuf);
+            var response = finish_server_registration(configStr, registrationUploadBuf);
             return HandleResponse(response, 1)[0];
         }
         finally
         {
             handle.Free();
         }
-
     }
 
-    internal static (byte[], byte[]) StartClientLogin(string password)
+    internal static (byte[], byte[]) StartClientLogin(CipherConfiguration config, string password)
     {
-        var response = start_client_login(password);
+        var configStr = JsonSerializer.Serialize(config, SerializerOptions);
+        var response = start_client_login(configStr, password);
         var ret = HandleResponse(response, 2);
         return (ret[0], ret[1]);
     }
 
-    internal static (byte[], byte[]) StartServerLogin(byte[] serverSetup, byte[] serverRegistration, byte[] credentialRequest, string username)
+    internal static (byte[], byte[]) StartServerLogin(CipherConfiguration config, byte[] serverSetup, byte[] serverRegistration, byte[] credentialRequest, string username)
     {
+        var configStr = JsonSerializer.Serialize(config, SerializerOptions);
         var serverSetupBuf = BuildBuffer(serverSetup, out var serverSetupHandle);
         var serverRegistrationBuf = BuildBuffer(serverRegistration, out var serverRegistrationHandle);
         var credentialRequestBuf = BuildBuffer(credentialRequest, out var credentialRequestHandle);
         try
         {
-            var response = start_server_login(serverSetupBuf, serverRegistrationBuf, credentialRequestBuf, username);
+            var response = start_server_login(configStr, serverSetupBuf, serverRegistrationBuf, credentialRequestBuf, username);
             var ret = HandleResponse(response, 2);
             return (ret[0], ret[1]);
         }
@@ -198,14 +211,15 @@ internal static partial class BitwardenLibrary
 
     }
 
-    internal static (byte[], byte[], byte[], byte[]) FinishClientLogin(byte[] state, byte[] credentialResponse, string password)
+    internal static (byte[], byte[], byte[], byte[]) FinishClientLogin(CipherConfiguration config, byte[] state, byte[] credentialResponse, string password)
     {
+        var configStr = JsonSerializer.Serialize(config, SerializerOptions);
         var stateBuf = BuildBuffer(state, out var stateHandle);
         var credentialResponseBuf = BuildBuffer(credentialResponse, out var credentialResponseHandle);
 
         try
         {
-            var response = finish_client_login(stateBuf, credentialResponseBuf, password);
+            var response = finish_client_login(configStr, stateBuf, credentialResponseBuf, password);
             var ret = HandleResponse(response, 4);
             return (ret[0], ret[1], ret[2], ret[3]);
         }
@@ -216,13 +230,14 @@ internal static partial class BitwardenLibrary
         }
     }
 
-    internal static byte[] FinishServerLogin(byte[] state, byte[] credentialFinalization)
+    internal static byte[] FinishServerLogin(CipherConfiguration config, byte[] state, byte[] credentialFinalization)
     {
+        var configStr = JsonSerializer.Serialize(config, SerializerOptions);
         var stateBuf = BuildBuffer(state, out var stateHandle);
         var credentialFinalizationBuf = BuildBuffer(credentialFinalization, out var credentialFinalizationHandle);
         try
         {
-            var response = finish_server_login(stateBuf, credentialFinalizationBuf);
+            var response = finish_server_login(configStr, stateBuf, credentialFinalizationBuf);
             return HandleResponse(response, 1)[0];
         }
         finally
