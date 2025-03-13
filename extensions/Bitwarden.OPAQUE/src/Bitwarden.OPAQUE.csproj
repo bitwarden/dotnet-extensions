@@ -43,8 +43,8 @@
 
   <PropertyGroup>
     <RustDebug>../rust/target/debug/</RustDebug>
+    <CurrentRID>$(NETCoreSdkRuntimeIdentifier)</CurrentRID>
   </PropertyGroup>
-
   <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
     <RustLibraryFile>opaque_ke_binding.dll</RustLibraryFile>
   </PropertyGroup>
@@ -66,6 +66,7 @@
       <Content Include="$(RustDebug)/$(RustLibraryFile)">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         <PackageCopyToOutput>true</PackageCopyToOutput>
+        <PackagePath>runtimes/$(CurrentRID)/native</PackagePath>
       </Content>
     </ItemGroup>
   </Target>
