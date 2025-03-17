@@ -31,7 +31,7 @@
     <PackageIcon>bitwarden.png</PackageIcon>
     <PackageTags>Bitwarden;Opaque;PAKE;.NET</PackageTags>
 
-    <VersionPrefix>0.0.1</VersionPrefix>
+    <VersionPrefix>0.1.0</VersionPrefix>
     <PreReleaseVersionLabel>beta</PreReleaseVersionLabel>
     <PreReleaseVersionIteration>1</PreReleaseVersionIteration>
     <VersionSuffix Condition="'$(VersionSuffix)' == '' AND '$(IsPreRelease)' == 'true'">
@@ -60,13 +60,11 @@
     <RustLibraryFile>libopaque_ke_binding.dylib</RustLibraryFile>
   </PropertyGroup>
 
-  <Target Name="CargoBuildDebug" BeforeTargets="CopyLibDebug"
-    Condition="'$(Configuration)' == 'Debug'">
+  <Target Name="CargoBuildDebug" BeforeTargets="CopyLibDebug" Condition="'$(Configuration)' == 'Debug'">
     <Exec WorkingDirectory="$(ProjectDir)/../rust" Command="cargo build" />
   </Target>
 
-  <Target Name="CopyLibDebug" BeforeTargets="PreBuildEvent"
-    Condition="'$(Configuration)' == 'Debug'">
+  <Target Name="CopyLibDebug" BeforeTargets="PreBuildEvent" Condition="'$(Configuration)' == 'Debug'">
     <ItemGroup>
       <Content Include="$(RustDebug)/$(RustLibraryFile)">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
