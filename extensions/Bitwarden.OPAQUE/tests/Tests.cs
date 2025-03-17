@@ -66,5 +66,7 @@ public class SampleTests
 
         Assert.NotNull(serverLoginFinishResult.sessionKey);
 
+        Assert.Equal(serverLoginFinishResult.sessionKey, clientLoginFinishResult.sessionKey);
+
     }
 }
