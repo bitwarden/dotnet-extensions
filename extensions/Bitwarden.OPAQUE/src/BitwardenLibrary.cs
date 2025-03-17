@@ -115,16 +115,15 @@ internal static partial class BitwardenLibrary
         return arrays;
     }
 
-    private static readonly JsonSerializerOptions SerializerOptions = new JsonSerializerOptions
+    private static readonly JsonSerializerOptions _serializerOptions = new()
     {
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }, // Converts enums to strings
-        IncludeFields = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
     internal static (byte[], byte[]) StartClientRegistration(CipherConfiguration config, string password)
     {
-        var configStr = JsonSerializer.Serialize(config, SerializerOptions);
+        var configStr = JsonSerializer.Serialize(config, _serializerOptions);
         var response = start_client_registration(configStr, password);
         var ret = HandleResponse(response, 2);
         return (ret[0], ret[1]);
@@ -132,7 +131,7 @@ internal static partial class BitwardenLibrary
 
     internal static (byte[], byte[]) StartServerRegistration(CipherConfiguration config, byte[]? serverSetup, byte[] registrationRequest, string username)
     {
-        var configStr = JsonSerializer.Serialize(config, SerializerOptions);
+        var configStr = JsonSerializer.Serialize(config, _serializerOptions);
         var serverSetupBuf = BuildBuffer(serverSetup, out var serverSetupHandle);
         var registrationRequestBuf = BuildBuffer(registrationRequest, out var registrationRequestHandle);
         try
@@ -150,7 +149,7 @@ internal static partial class BitwardenLibrary
 
     internal static (byte[], byte[], byte[]) FinishClientRegistration(CipherConfiguration config, byte[] state, byte[] registrationResponse, string password)
     {
-        var configStr = JsonSerializer.Serialize(config, SerializerOptions);
+        var configStr = JsonSerializer.Serialize(config, _serializerOptions);
         var stateBuf = BuildBuffer(state, out var stateHandle);
         var registrationResponseBuf = BuildBuffer(registrationResponse, out var registrationResponseHandle);
 
@@ -169,7 +168,7 @@ internal static partial class BitwardenLibrary
 
     internal static byte[] FinishServerRegistration(CipherConfiguration config, byte[] registrationUpload)
     {
-        var configStr = JsonSerializer.Serialize(config, SerializerOptions);
+        var configStr = JsonSerializer.Serialize(config, _serializerOptions);
         var registrationUploadBuf = BuildBuffer(registrationUpload, out var handle);
         try
         {
@@ -184,7 +183,7 @@ internal static partial class BitwardenLibrary
 
     internal static (byte[], byte[]) StartClientLogin(CipherConfiguration config, string password)
     {
-        var configStr = JsonSerializer.Serialize(config, SerializerOptions);
+        var configStr = JsonSerializer.Serialize(config, _serializerOptions);
         var response = start_client_login(configStr, password);
         var ret = HandleResponse(response, 2);
         return (ret[0], ret[1]);
@@ -192,7 +191,7 @@ internal static partial class BitwardenLibrary
 
     internal static (byte[], byte[]) StartServerLogin(CipherConfiguration config, byte[] serverSetup, byte[] serverRegistration, byte[] credentialRequest, string username)
     {
-        var configStr = JsonSerializer.Serialize(config, SerializerOptions);
+        var configStr = JsonSerializer.Serialize(config, _serializerOptions);
         var serverSetupBuf = BuildBuffer(serverSetup, out var serverSetupHandle);
         var serverRegistrationBuf = BuildBuffer(serverRegistration, out var serverRegistrationHandle);
         var credentialRequestBuf = BuildBuffer(credentialRequest, out var credentialRequestHandle);
@@ -213,7 +212,7 @@ internal static partial class BitwardenLibrary
 
     internal static (byte[], byte[], byte[], byte[]) FinishClientLogin(CipherConfiguration config, byte[] state, byte[] credentialResponse, string password)
     {
-        var configStr = JsonSerializer.Serialize(config, SerializerOptions);
+        var configStr = JsonSerializer.Serialize(config, _serializerOptions);
         var stateBuf = BuildBuffer(state, out var stateHandle);
         var credentialResponseBuf = BuildBuffer(credentialResponse, out var credentialResponseHandle);
 
@@ -232,7 +231,7 @@ internal static partial class BitwardenLibrary
 
     internal static byte[] FinishServerLogin(CipherConfiguration config, byte[] state, byte[] credentialFinalization)
     {
-        var configStr = JsonSerializer.Serialize(config, SerializerOptions);
+        var configStr = JsonSerializer.Serialize(config, _serializerOptions);
         var stateBuf = BuildBuffer(state, out var stateHandle);
         var credentialFinalizationBuf = BuildBuffer(credentialFinalization, out var credentialFinalizationHandle);
         try
