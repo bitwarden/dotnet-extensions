@@ -45,11 +45,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{4949B721
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Server.Sdk.Features.Tests", "extensions\Bitwarden.Server.Sdk.Features\tests\Bitwarden.Server.Sdk.Features.Tests\Bitwarden.Server.Sdk.Features.Tests.csproj", "{1789F567-87B3-4313-80CF-E3CCFA1B6D5E}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Bitwarden.OPAQUE", "Bitwarden.OPAQUE", "{023418F1-43B7-4D56-AFA1-67D8FE9B7EC1}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Bitwarden.Opaque", "Bitwarden.Opaque", "{023418F1-43B7-4D56-AFA1-67D8FE9B7EC1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.OPAQUE", "extensions\Bitwarden.OPAQUE\src\Bitwarden.OPAQUE.csproj", "{B49E33DF-A672-4361-BECA-C3DA423BD7A9}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Opaque", "extensions\Bitwarden.Opaque\src\Bitwarden.Opaque.csproj", "{B49E33DF-A672-4361-BECA-C3DA423BD7A9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.OPAQUE.Tests", "extensions\Bitwarden.OPAQUE\tests\Bitwarden.OPAQUE.Tests.csproj", "{DC9DAB81-5ED7-4756-BF20-D594D87D2865}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Opaque.Tests", "extensions\Bitwarden.Opaque\tests\Bitwarden.Opaque.Tests.csproj", "{DC9DAB81-5ED7-4756-BF20-D594D87D2865}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

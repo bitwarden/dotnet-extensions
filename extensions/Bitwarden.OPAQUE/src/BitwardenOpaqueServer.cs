@@ -1,17 +1,17 @@
-﻿namespace Bitwarden.OPAQUE;
+﻿namespace Bitwarden.Opaque;
 #pragma warning disable CA1822 // Mark members as static
 
 
-/// The result of <see cref="Bitwarden.OPAQUE.BitwardenOpaqueServer.StartRegistration"/>
+/// The result of <see cref="Bitwarden.Opaque.BitwardenOpaqueServer.StartRegistration"/>
 public struct ServerRegistrationStartResult
 {
-    /// The registration response which is then passed to <see cref="Bitwarden.OPAQUE.BitwardenOpaqueClient.FinishRegistration"/>.
+    /// The registration response which is then passed to <see cref="Bitwarden.Opaque.BitwardenOpaqueClient.FinishRegistration"/>.
     public byte[] registrationResponse;
     /// The server setup, which needs to be persisted on the server for future logins.
     public byte[] serverSetup;
 }
 
-/// The result of <see cref="Bitwarden.OPAQUE.BitwardenOpaqueServer.FinishRegistration"/>
+/// The result of <see cref="Bitwarden.Opaque.BitwardenOpaqueServer.FinishRegistration"/>
 public struct ServerRegistrationFinishResult
 
 {
@@ -35,11 +35,11 @@ public struct ServerLoginFinishResult
 public sealed partial class BitwardenOpaqueServer
 {
     /// <summary>
-    /// Start the server registration process. This must happen after <see cref="Bitwarden.OPAQUE.BitwardenOpaqueClient.StartRegistration"/> 
+    /// Start the server registration process. This must happen after <see cref="Bitwarden.Opaque.BitwardenOpaqueClient.StartRegistration"/> 
     /// </summary>
     /// <param name="config">The Cipher configuration, must be the same for all the operation</param>
     /// <param name="serverSetup">The server setup. Use null to let the library create a new random one</param>
-    /// <param name="registrationRequest">The client registration request, <see cref="Bitwarden.OPAQUE.ClientRegistrationStartResult.registrationRequest"/> </param>
+    /// <param name="registrationRequest">The client registration request, <see cref="Bitwarden.Opaque.ClientRegistrationStartResult.registrationRequest"/> </param>
     /// <param name="username">The username to register</param>
     /// <returns></returns>
     public ServerRegistrationStartResult StartRegistration(CipherConfiguration config, byte[]? serverSetup, byte[] registrationRequest, string username)
@@ -53,10 +53,10 @@ public sealed partial class BitwardenOpaqueServer
     }
 
     /// <summary>
-    /// Finish the server registration process. This must happen after <see cref="Bitwarden.OPAQUE.BitwardenOpaqueClient.FinishRegistration"/> 
+    /// Finish the server registration process. This must happen after <see cref="Bitwarden.Opaque.BitwardenOpaqueClient.FinishRegistration"/> 
     /// </summary>
     /// <param name="config">The Cipher configuration, must be the same for all the operation</param>
-    /// <param name="registrationUpload">The client registration upload, <see cref="Bitwarden.OPAQUE.ClientRegistrationFinishResult.registrationUpload"/> </param>
+    /// <param name="registrationUpload">The client registration upload, <see cref="Bitwarden.Opaque.ClientRegistrationFinishResult.registrationUpload"/> </param>
     /// <returns></returns>
     public ServerRegistrationFinishResult FinishRegistration(CipherConfiguration config, byte[] registrationUpload)
     {

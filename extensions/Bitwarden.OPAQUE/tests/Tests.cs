@@ -1,4 +1,4 @@
-namespace Bitwarden.OPAQUE.Tests;
+namespace Bitwarden.Opaque.Tests;
 
 using Xunit;
 

@@ -65,7 +65,7 @@ jobs:
           RUSTFLAGS: "-D warnings"
           MACOSX_DEPLOYMENT_TARGET: "10.14" # allows using new macos runner versions while still supporting older systems
         run: cargo build --target ${{ matrix.settings.target }} --release
-        working-directory: extensions/Bitwarden.OPAQUE/rust
+        working-directory: extensions/Bitwarden.Opaque/rust
 
       # Build Rust using cross
       - name: Build Rust cross for - ${{ matrix.settings.target }}
@@ -73,7 +73,7 @@ jobs:
         env:
           RUSTFLAGS: "-D warnings"
         run: cross build --target ${{ matrix.settings.target }} --release
-        working-directory: extensions/Bitwarden.OPAQUE/rust
+        working-directory: extensions/Bitwarden.Opaque/rust
 
       - name: Upload Artifact
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
@@ -83,9 +83,9 @@ jobs:
           retention-days: 1
           if-no-files-found: error
           path: |
-            extensions/Bitwarden.OPAQUE/rust/target/${{ matrix.settings.target }}/release/opaque_ke_binding.dll
-            extensions/Bitwarden.OPAQUE/rust/target/${{ matrix.settings.target }}/release/libopaque_ke_binding.so
-            extensions/Bitwarden.OPAQUE/rust/target/${{ matrix.settings.target }}/release/libopaque_ke_binding.dylib
+            extensions/Bitwarden.Opaque/rust/target/${{ matrix.settings.target }}/release/opaque_ke_binding.dll
+            extensions/Bitwarden.Opaque/rust/target/${{ matrix.settings.target }}/release/libopaque_ke_binding.so
+            extensions/Bitwarden.Opaque/rust/target/${{ matrix.settings.target }}/release/libopaque_ke_binding.dylib
 
   collect_artifacts:
     name: Collect and Upload All Artifacts

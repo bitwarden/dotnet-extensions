@@ -1,7 +1,7 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Bitwarden.OPAQUE;
+namespace Bitwarden.Opaque;
 
 class KeyExchangeConverter : JsonConverter<KeyExchange>
 {

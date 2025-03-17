@@ -1,4 +1,4 @@
-﻿namespace Bitwarden.OPAQUE;
+﻿namespace Bitwarden.Opaque;
 
 public class BitwardenException(int errorCode, string message) : Exception($"Error {getCodeName(errorCode)} - {message}")
 {

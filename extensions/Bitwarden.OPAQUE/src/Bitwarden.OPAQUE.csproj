@@ -22,16 +22,16 @@
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
 
-    <RootNamespace>Bitwarden.OPAQUE</RootNamespace>
+    <RootNamespace>Bitwarden.Opaque</RootNamespace>
     <Title>Bitwarden OPAQUE-KE library</Title>
     <Copyright>Bitwarden Inc.</Copyright>
-    <Product>OPAQUE</Product>
+    <Product>Opaque</Product>
 
-    <PackageId>Bitwarden.OPAQUE</PackageId>
+    <PackageId>Bitwarden.Opaque</PackageId>
     <PackageIcon>bitwarden.png</PackageIcon>
-    <PackageTags>Bitwarden;OPAQUE;PAKE;.NET</PackageTags>
+    <PackageTags>Bitwarden;Opaque;PAKE;.NET</PackageTags>
 
-    <VersionPrefix>0.5.0</VersionPrefix>
+    <VersionPrefix>0.0.1</VersionPrefix>
     <PreReleaseVersionLabel>beta</PreReleaseVersionLabel>
     <PreReleaseVersionIteration>1</PreReleaseVersionIteration>
     <VersionSuffix Condition="'$(VersionSuffix)' == '' AND '$(IsPreRelease)' == 'true'">

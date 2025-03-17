@@ -1,20 +1,20 @@
-﻿namespace Bitwarden.OPAQUE;
+﻿namespace Bitwarden.Opaque;
 #pragma warning disable CA1822 // Mark members as static
 
-/// The result of <see cref="Bitwarden.OPAQUE.BitwardenOpaqueClient.StartRegistration"/>
+/// The result of <see cref="Bitwarden.Opaque.BitwardenOpaqueClient.StartRegistration"/>
 public struct ClientRegistrationStartResult
 {
-    /// The registration response which is then passed to <see cref="Bitwarden.OPAQUE.BitwardenOpaqueServer.StartRegistration"/>.
+    /// The registration response which is then passed to <see cref="Bitwarden.Opaque.BitwardenOpaqueServer.StartRegistration"/>.
     public byte[] registrationRequest;
 
-    /// The client state, which must be kept on the client for <see cref="Bitwarden.OPAQUE.BitwardenOpaqueClient.FinishRegistration"/>.
+    /// The client state, which must be kept on the client for <see cref="Bitwarden.Opaque.BitwardenOpaqueClient.FinishRegistration"/>.
     public byte[] state;
 }
 
-/// The result of <see cref="Bitwarden.OPAQUE.BitwardenOpaqueClient.FinishRegistration"/>
+/// The result of <see cref="Bitwarden.Opaque.BitwardenOpaqueClient.FinishRegistration"/>
 public struct ClientRegistrationFinishResult
 {
-    /// The registration upload which is then passed to <see cref="Bitwarden.OPAQUE.BitwardenOpaqueServer.FinishRegistration"/>.
+    /// The registration upload which is then passed to <see cref="Bitwarden.Opaque.BitwardenOpaqueServer.FinishRegistration"/>.
     public byte[] registrationUpload;
     /// The export key output by client registration
     public byte[] exportKey;
@@ -57,11 +57,11 @@ public sealed partial class BitwardenOpaqueClient
     }
 
     /// <summary>
-    /// Finish the server registration process. This must happen after <see cref="Bitwarden.OPAQUE.BitwardenOpaqueServer.StartRegistration"/> 
+    /// Finish the server registration process. This must happen after <see cref="Bitwarden.Opaque.BitwardenOpaqueServer.StartRegistration"/> 
     /// </summary>
     /// <param name="config">The Cipher configuration, must be the same for all the operation</param>
-    /// <param name="state">The state obtained from the client start operation, <see cref="Bitwarden.OPAQUE.ClientRegistrationStartResult.state"/> </param>
-    /// <param name="registrationResponse">The server registration response, <see cref="Bitwarden.OPAQUE.ServerRegistrationStartResult.registrationResponse"/> </param>
+    /// <param name="state">The state obtained from the client start operation, <see cref="Bitwarden.Opaque.ClientRegistrationStartResult.state"/> </param>
+    /// <param name="registrationResponse">The server registration response, <see cref="Bitwarden.Opaque.ServerRegistrationStartResult.registrationResponse"/> </param>
     /// <param name="password">The password to register</param>
     /// <returns></returns>
     public ClientRegistrationFinishResult FinishRegistration(CipherConfiguration config, byte[] state, byte[] registrationResponse, string password)

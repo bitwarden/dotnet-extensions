@@ -23,7 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\src\Bitwarden.OPAQUE.csproj" />
+    <ProjectReference Include="..\src\Bitwarden.Opaque.csproj" />
   </ItemGroup>
 
 </Project>
