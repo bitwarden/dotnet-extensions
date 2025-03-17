@@ -33,7 +33,7 @@
 
     <VersionPrefix>0.0.1</VersionPrefix>
     <PreReleaseVersionLabel>beta</PreReleaseVersionLabel>
-    <PreReleaseVersionIteration>1</PreReleaseVersionIteration>
+    <PreReleaseVersionIteration>2</PreReleaseVersionIteration>
     <VersionSuffix Condition="'$(VersionSuffix)' == '' AND '$(IsPreRelease)' == 'true'">$(PreReleaseVersionLabel).$(PreReleaseVersionIteration)</VersionSuffix>
   </PropertyGroup>
 
@@ -59,13 +59,11 @@
     <RustLibraryFile>libopaque_ke_binding.dylib</RustLibraryFile>
   </PropertyGroup>
 
-  <Target Name="CargoBuildDebug" BeforeTargets="CopyLibDebug"
-    Condition="'$(Configuration)' == 'Debug'">
+  <Target Name="CargoBuildDebug" BeforeTargets="CopyLibDebug" Condition="'$(Configuration)' == 'Debug'">
     <Exec WorkingDirectory="$(ProjectDir)/../rust" Command="cargo build" />
   </Target>
 
-  <Target Name="CopyLibDebug" BeforeTargets="PreBuildEvent"
-    Condition="'$(Configuration)' == 'Debug'">
+  <Target Name="CopyLibDebug" BeforeTargets="PreBuildEvent" Condition="'$(Configuration)' == 'Debug'">
     <ItemGroup>
       <Content Include="$(RustDebug)/$(RustLibraryFile)">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
