@@ -11,7 +11,7 @@ crate-type = ["cdylib"]
 argon2 = "0.5.3"
 digest = "0.10.7"
 generic-array = "0.14.7"
-opaque-ke = { version = "3.0.0", features = ["std", "argon2", "curve25519"] }
+opaque-ke = { version = "3.0.0", features = ["std", "argon2"] }
 rand = "0.8.5"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
@@ -20,5 +20,5 @@ zeroizing-alloc = "0.1.0"
 
 # Turn on LTO on release mode
 [profile.release]
-lto = "thin"
+lto = true
 codegen-units = 1
