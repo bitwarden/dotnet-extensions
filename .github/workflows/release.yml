@@ -6,7 +6,7 @@ on:
 jobs:
   release:
     name: Do release
-    uses: bitwarden/dotnet-extensions/.github/workflows/pack-and-release.yml@main
+    uses: bitwarden/dotnet-extensions/.github/workflows/pack-and-release.yml
     with:
       prerelease: false
     secrets:
