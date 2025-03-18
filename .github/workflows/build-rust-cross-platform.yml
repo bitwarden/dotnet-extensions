@@ -68,7 +68,7 @@ jobs:
 
       # Build Rust natively
       - name: Build Rust native for - ${{ matrix.settings.target }}
-        if: ${{ matrix.settings.use_cross !== true }}
+        if: ${{ matrix.settings.use_cross != true }}
         env:
           RUSTFLAGS: "-D warnings"
           MACOSX_DEPLOYMENT_TARGET: "10.14" # allows using new macos runner versions while still supporting older systems
@@ -77,7 +77,7 @@ jobs:
 
       # Build Rust using cross
       - name: Build Rust cross for - ${{ matrix.settings.target }}
-        if: ${{ matrix.settings.use_cross === true }}
+        if: ${{ matrix.settings.use_cross == true }}
         env:
           RUSTFLAGS: "-D warnings"
         run: cross build --target ${{ matrix.settings.target }} --release
