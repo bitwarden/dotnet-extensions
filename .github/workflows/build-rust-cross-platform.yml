@@ -18,12 +18,14 @@ jobs:
             target: aarch64-apple-darwin
             dotnet_rid: osx-arm64
           - os: windows-2022
+            target: i686-pc-windows-msvc
+            dotnet_rid: win-x86
+          - os: windows-2022
             target: x86_64-pc-windows-msvc
             dotnet_rid: win-x64
-          - os: ubuntu-22.04
+          - os: windows-2022
             target: aarch64-pc-windows-msvc
             dotnet_rid: win-arm64
-            use_cross: true
           # caution: updating the linux runner OS version for GNU
           #   targets will likely break the library for older OS versions.
           #   prefer using oldest supported runner for for these targets
