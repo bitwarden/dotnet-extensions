@@ -57,9 +57,9 @@ pub trait OpaqueImpl {
 
 // This trait exists to extract the differences between all the OpaqueImpl implementations.
 // This would allow replacing those impls by a macro in the future.
-pub trait OpaqueUtil: Sized {
+pub trait OpaqueUtil<'a>: Sized {
     type Output;
-    fn as_variant(config: &CipherConfiguration) -> Option<Self>;
+    fn as_variant(config: &'a mut CipherConfiguration) -> Option<Self>;
     fn get_ksf(&self) -> Result<Self::Output, Error>;
     fn get_rng(&mut self) -> &mut ChaCha20Rng;
 }
@@ -163,8 +163,8 @@ impl OpaqueImpl for CipherConfiguration {
 }
 
 // Define the cipher suite and implement the required traits on it (opaque_ke::CipherSuite+OpaqueUtil+OpaqueImpl)
-struct RistrettoTripleDhArgonSuite(ChaCha20Rng);
-impl opaque_ke::CipherSuite for RistrettoTripleDhArgonSuite {
+struct RistrettoTripleDhArgonSuite<'a>(&'a mut ChaCha20Rng);
+impl opaque_ke::CipherSuite for RistrettoTripleDhArgonSuite<'_> {
     type OprfCs = opaque_ke::Ristretto255;
     type KeGroup = opaque_ke::Ristretto255;
     type KeyExchange = opaque_ke::key_exchange::tripledh::TripleDh;
@@ -172,10 +172,10 @@ impl opaque_ke::CipherSuite for RistrettoTripleDhArgonSuite {
     // from this binding.
     type Ksf = opaque_ke::ksf::Identity;
 }
-impl OpaqueUtil for RistrettoTripleDhArgonSuite {
+impl<'a> OpaqueUtil<'a> for RistrettoTripleDhArgonSuite<'a> {
     type Output = opaque_ke::ksf::Identity;
 
-    fn as_variant(config: &CipherConfiguration) -> Option<Self> {
+    fn as_variant(config: &'a mut CipherConfiguration) -> Option<Self> {
         match config {
             CipherConfiguration {
                 opaque_version: 3,
@@ -184,7 +184,7 @@ impl OpaqueUtil for RistrettoTripleDhArgonSuite {
                 key_exchange: KeyExchange::TripleDh,
                 ksf: _,
                 rng,
-            } => Some(Self(rng.clone())),
+            } => Some(Self(rng)),
             _ => None,
         }
     }
@@ -193,13 +193,13 @@ impl OpaqueUtil for RistrettoTripleDhArgonSuite {
     }
 
     fn get_rng(&mut self) -> &mut ChaCha20Rng {
-        &mut self.0
+        self.0
     }
 }
 
 // This implementation will be identical between any cipher suite, but we can't simply reuse it because of all the generic bounds on the CipherSuite trait.
 // If we need to add more cipher suites, we will need to copy this implementation over, or ideally use a macro to generate it.
-impl OpaqueImpl for RistrettoTripleDhArgonSuite {
+impl OpaqueImpl for RistrettoTripleDhArgonSuite<'_> {
     fn start_client_registration(
         &mut self,
         password: &str,
