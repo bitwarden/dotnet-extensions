@@ -30,7 +30,7 @@ mod tests {
         let password = "password";
         let username = "username";
 
-        let config = CipherConfiguration::default();
+        let mut config = CipherConfiguration::default();
 
         // Registration
 
@@ -93,7 +93,7 @@ mod tests {
 
         let password = "password";
         let username = "username";
-        let config = CipherConfiguration::default();
+        let mut config = CipherConfiguration::default();
         let res = config.start_client_login(password).unwrap();
         let server_res = config
             .start_server_login(

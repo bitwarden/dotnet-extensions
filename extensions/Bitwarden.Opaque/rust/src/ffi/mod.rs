@@ -40,7 +40,7 @@ pub unsafe extern "C" fn start_client_registration(
     let config: &str = try_ffi!(unsafe { parse_str(config, "config") });
     let password: &str = try_ffi!(unsafe { parse_str(password, "password") });
 
-    let config = try_ffi!(CipherConfiguration::from_str(config));
+    let mut config = try_ffi!(CipherConfiguration::from_str(config));
 
     let result = try_ffi!(config.start_client_registration(password));
 
@@ -63,7 +63,7 @@ pub unsafe extern "C" fn start_server_registration(
     let registration_request = try_ffi!(unsafe { registration_request.as_slice() });
     let username = try_ffi!(unsafe { parse_str(username, "username") });
 
-    let config = try_ffi!(CipherConfiguration::from_str(config));
+    let mut config = try_ffi!(CipherConfiguration::from_str(config));
 
     let response =
         try_ffi!(config.start_server_registration(server_setup, registration_request, username));
@@ -87,7 +87,7 @@ pub unsafe extern "C" fn finish_client_registration(
     let state = try_ffi!(unsafe { state.as_slice() });
     let password = try_ffi!(unsafe { parse_str(password, "password") });
 
-    let config = try_ffi!(CipherConfiguration::from_str(config));
+    let mut config = try_ffi!(CipherConfiguration::from_str(config));
 
     let response =
         try_ffi!(config.finish_client_registration(state, registration_response, password));
@@ -111,7 +111,7 @@ pub unsafe extern "C" fn finish_server_registration(
     let config: &str = try_ffi!(unsafe { parse_str(config, "config") });
     let registration_upload = try_ffi!(unsafe { registration_upload.as_slice() });
 
-    let config = try_ffi!(CipherConfiguration::from_str(config));
+    let mut config = try_ffi!(CipherConfiguration::from_str(config));
 
     let response = try_ffi!(config.finish_server_registration(registration_upload));
     Response::ok1(response.server_registration)
@@ -129,7 +129,7 @@ pub unsafe extern "C" fn start_client_login(
     let config: &str = try_ffi!(unsafe { parse_str(config, "config") });
     let password = try_ffi!(unsafe { parse_str(password, "password") });
 
-    let config = try_ffi!(CipherConfiguration::from_str(config));
+    let mut config = try_ffi!(CipherConfiguration::from_str(config));
 
     let response = try_ffi!(config.start_client_login(password));
     Response::ok2(response.credential_request, response.state)
@@ -153,7 +153,7 @@ pub unsafe extern "C" fn start_server_login(
     let credential_request = try_ffi!(unsafe { credential_request.as_slice() });
     let username = try_ffi!(unsafe { parse_str(username, "username") });
 
-    let config = try_ffi!(CipherConfiguration::from_str(config));
+    let mut config = try_ffi!(CipherConfiguration::from_str(config));
 
     let response = try_ffi!(config.start_server_login(
         server_setup,
@@ -180,7 +180,7 @@ pub unsafe extern "C" fn finish_client_login(
     let credential_response = try_ffi!(unsafe { credential_response.as_slice() });
     let password = try_ffi!(unsafe { parse_str(password, "password") });
 
-    let config = try_ffi!(CipherConfiguration::from_str(config));
+    let mut config = try_ffi!(CipherConfiguration::from_str(config));
 
     let response = try_ffi!(config.finish_client_login(state, credential_response, password));
     Response::ok4(
@@ -205,7 +205,7 @@ pub unsafe extern "C" fn finish_server_login(
     let state = try_ffi!(unsafe { state.as_slice() });
     let credential_finalization = try_ffi!(unsafe { credential_finalization.as_slice() });
 
-    let config = try_ffi!(CipherConfiguration::from_str(config));
+    let mut config = try_ffi!(CipherConfiguration::from_str(config));
 
     let response = try_ffi!(config.finish_server_login(state, credential_finalization));
 

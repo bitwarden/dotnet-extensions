@@ -1,5 +1,3 @@
-use std::cell::{RefCell, RefMut};
-
 use opaque_ke::*;
 use rand_chacha::ChaCha20Rng;
 
@@ -13,42 +11,45 @@ pub(crate) use types::*;
 // This trait implements dynamic dispatch to allow using opaque-ke without generics.
 pub trait OpaqueImpl {
     fn start_client_registration(
-        &self,
+        &mut self,
         password: &str,
     ) -> Result<types::ClientRegistrationStartResult, Error>;
     fn start_server_registration(
-        &self,
+        &mut self,
         server_setup: Option<&[u8]>,
         registration_request: &[u8],
         username: &str,
     ) -> Result<types::ServerRegistrationStartResult, Error>;
     fn finish_client_registration(
-        &self,
+        &mut self,
         state: &[u8],
         registration_response: &[u8],
         password: &str,
     ) -> Result<types::ClientRegistrationFinishResult, Error>;
     fn finish_server_registration(
-        &self,
+        &mut self,
         registration_upload: &[u8],
     ) -> Result<types::ServerRegistrationFinishResult, Error>;
 
-    fn start_client_login(&self, password: &str) -> Result<types::ClientLoginStartResult, Error>;
+    fn start_client_login(
+        &mut self,
+        password: &str,
+    ) -> Result<types::ClientLoginStartResult, Error>;
     fn start_server_login(
-        &self,
+        &mut self,
         server_setup: &[u8],
         server_registration: &[u8],
         credential_request: &[u8],
         username: &str,
     ) -> Result<types::ServerLoginStartResult, Error>;
     fn finish_client_login(
-        &self,
+        &mut self,
         state: &[u8],
         credential_response: &[u8],
         password: &str,
     ) -> Result<types::ClientLoginFinishResult, Error>;
     fn finish_server_login(
-        &self,
+        &mut self,
         state: &[u8],
         credential_finalization: &[u8],
     ) -> Result<types::ServerLoginFinishResult, Error>;
@@ -60,7 +61,7 @@ pub trait OpaqueUtil: Sized {
     type Output;
     fn as_variant(config: &CipherConfiguration) -> Option<Self>;
     fn get_ksf(&self) -> Result<Self::Output, Error>;
-    fn get_rng(&self) -> Result<RefMut<ChaCha20Rng>, Error>;
+    fn get_rng(&mut self) -> &mut ChaCha20Rng;
 }
 
 fn invalid_config(config: &CipherConfiguration) -> Error {
@@ -70,10 +71,10 @@ fn invalid_config(config: &CipherConfiguration) -> Error {
 // Implement the OpaqueImpl trait for the CipherConfiguration enum, which allows us to dynamically dispatch to the correct cipher suite.
 impl OpaqueImpl for CipherConfiguration {
     fn start_client_registration(
-        &self,
+        &mut self,
         password: &str,
     ) -> Result<types::ClientRegistrationStartResult, Error> {
-        if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
+        if let Some(mut suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
             return suite.start_client_registration(password);
         };
         Err(Error::InvalidConfig(
@@ -81,51 +82,54 @@ impl OpaqueImpl for CipherConfiguration {
         ))
     }
     fn start_server_registration(
-        &self,
+        &mut self,
         server_setup: Option<&[u8]>,
         registration_request: &[u8],
         username: &str,
     ) -> Result<types::ServerRegistrationStartResult, Error> {
-        if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
+        if let Some(mut suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
             return suite.start_server_registration(server_setup, registration_request, username);
         };
         Err(invalid_config(self))
     }
     fn finish_client_registration(
-        &self,
+        &mut self,
         state: &[u8],
         registration_response: &[u8],
         password: &str,
     ) -> Result<types::ClientRegistrationFinishResult, Error> {
-        if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
+        if let Some(mut suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
             return suite.finish_client_registration(state, registration_response, password);
         };
         Err(invalid_config(self))
     }
     fn finish_server_registration(
-        &self,
+        &mut self,
         registration_upload: &[u8],
     ) -> Result<types::ServerRegistrationFinishResult, Error> {
-        if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
+        if let Some(mut suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
             return suite.finish_server_registration(registration_upload);
         };
         Err(invalid_config(self))
     }
 
-    fn start_client_login(&self, password: &str) -> Result<types::ClientLoginStartResult, Error> {
-        if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
+    fn start_client_login(
+        &mut self,
+        password: &str,
+    ) -> Result<types::ClientLoginStartResult, Error> {
+        if let Some(mut suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
             return suite.start_client_login(password);
         };
         Err(invalid_config(self))
     }
     fn start_server_login(
-        &self,
+        &mut self,
         server_setup: &[u8],
         server_registration: &[u8],
         credential_request: &[u8],
         username: &str,
     ) -> Result<types::ServerLoginStartResult, Error> {
-        if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
+        if let Some(mut suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
             return suite.start_server_login(
                 server_setup,
                 server_registration,
@@ -136,22 +140,22 @@ impl OpaqueImpl for CipherConfiguration {
         Err(invalid_config(self))
     }
     fn finish_client_login(
-        &self,
+        &mut self,
         state: &[u8],
         credential_response: &[u8],
         password: &str,
     ) -> Result<types::ClientLoginFinishResult, Error> {
-        if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
+        if let Some(mut suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
             return suite.finish_client_login(state, credential_response, password);
         };
         Err(invalid_config(self))
     }
     fn finish_server_login(
-        &self,
+        &mut self,
         state: &[u8],
         credential_finalization: &[u8],
     ) -> Result<types::ServerLoginFinishResult, Error> {
-        if let Some(suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
+        if let Some(mut suite) = RistrettoTripleDhArgonSuite::as_variant(self) {
             return suite.finish_server_login(state, credential_finalization);
         };
         Err(invalid_config(self))
@@ -159,7 +163,7 @@ impl OpaqueImpl for CipherConfiguration {
 }
 
 // Define the cipher suite and implement the required traits on it (opaque_ke::CipherSuite+OpaqueUtil+OpaqueImpl)
-struct RistrettoTripleDhArgonSuite(RefCell<ChaCha20Rng>);
+struct RistrettoTripleDhArgonSuite(ChaCha20Rng);
 impl opaque_ke::CipherSuite for RistrettoTripleDhArgonSuite {
     type OprfCs = opaque_ke::Ristretto255;
     type KeGroup = opaque_ke::Ristretto255;
@@ -188,10 +192,8 @@ impl OpaqueUtil for RistrettoTripleDhArgonSuite {
         Ok(IdentityKsf {})
     }
 
-    fn get_rng(&self) -> Result<RefMut<ChaCha20Rng>, Error> {
-        self.0
-            .try_borrow_mut()
-            .map_err(|e| Error::InvalidConfig(e.to_string()))
+    fn get_rng(&mut self) -> &mut ChaCha20Rng {
+        &mut self.0
     }
 }
 
@@ -199,24 +201,24 @@ impl OpaqueUtil for RistrettoTripleDhArgonSuite {
 // If we need to add more cipher suites, we will need to copy this implementation over, or ideally use a macro to generate it.
 impl OpaqueImpl for RistrettoTripleDhArgonSuite {
     fn start_client_registration(
-        &self,
+        &mut self,
         password: &str,
     ) -> Result<types::ClientRegistrationStartResult, Error> {
-        let result = ClientRegistration::<Self>::start(&mut *self.get_rng()?, password.as_bytes())?;
+        let result = ClientRegistration::<Self>::start(self.get_rng(), password.as_bytes())?;
         Ok(types::ClientRegistrationStartResult {
             registration_request: result.message.serialize().to_vec(),
             state: result.state.serialize().to_vec(),
         })
     }
     fn start_server_registration(
-        &self,
+        &mut self,
         server_setup: Option<&[u8]>,
         registration_request: &[u8],
         username: &str,
     ) -> Result<types::ServerRegistrationStartResult, Error> {
         let server_setup = match server_setup {
             Some(server_setup) => ServerSetup::<Self>::deserialize(server_setup)?,
-            None => ServerSetup::<Self>::new(&mut *self.get_rng()?),
+            None => ServerSetup::<Self>::new(self.get_rng()),
         };
         let result = ServerRegistration::start(
             &server_setup,
@@ -229,7 +231,7 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
         })
     }
     fn finish_client_registration(
-        &self,
+        &mut self,
         state: &[u8],
         registration_response: &[u8],
         password: &str,
@@ -237,7 +239,7 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
         let state = ClientRegistration::<Self>::deserialize(state)?;
         let ksf = self.get_ksf()?;
         let result = state.finish(
-            &mut *self.get_rng()?,
+            self.get_rng(),
             password.as_bytes(),
             RegistrationResponse::deserialize(registration_response)?,
             ClientRegistrationFinishParameters::new(Identifiers::default(), Some(&ksf)),
@@ -249,7 +251,7 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
         })
     }
     fn finish_server_registration(
-        &self,
+        &mut self,
         registration_upload: &[u8],
     ) -> Result<types::ServerRegistrationFinishResult, Error> {
         let registration = ServerRegistration::finish(RegistrationUpload::<Self>::deserialize(
@@ -260,22 +262,25 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
         })
     }
 
-    fn start_client_login(&self, password: &str) -> Result<types::ClientLoginStartResult, Error> {
-        let result = ClientLogin::<Self>::start(&mut *self.get_rng()?, password.as_bytes())?;
+    fn start_client_login(
+        &mut self,
+        password: &str,
+    ) -> Result<types::ClientLoginStartResult, Error> {
+        let result = ClientLogin::<Self>::start(self.get_rng(), password.as_bytes())?;
         Ok(types::ClientLoginStartResult {
             credential_request: result.message.serialize().to_vec(),
             state: result.state.serialize().to_vec(),
         })
     }
     fn start_server_login(
-        &self,
+        &mut self,
         server_setup: &[u8],
         server_registration: &[u8],
         credential_request: &[u8],
         username: &str,
     ) -> Result<types::ServerLoginStartResult, Error> {
         let result = ServerLogin::start(
-            &mut *self.get_rng()?,
+            self.get_rng(),
             &ServerSetup::<Self>::deserialize(server_setup)?,
             Some(ServerRegistration::<Self>::deserialize(
                 server_registration,
@@ -290,7 +295,7 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
         })
     }
     fn finish_client_login(
-        &self,
+        &mut self,
         state: &[u8],
         credential_response: &[u8],
         password: &str,
@@ -309,7 +314,7 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
         })
     }
     fn finish_server_login(
-        &self,
+        &mut self,
         state: &[u8],
         credential_finalization: &[u8],
     ) -> Result<types::ServerLoginFinishResult, Error> {
@@ -326,15 +331,12 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
 pub fn register_seeded_fake_config(seed: [u8; 32]) -> Result<(Vec<u8>, Vec<u8>), Error> {
     use rand::RngCore as _;
 
-    let config = CipherConfiguration::fake_from_seed(seed);
+    let mut config = CipherConfiguration::fake_from_seed(seed);
 
     let mut password: [u8; 32] = [0; 32];
     let mut username: [u8; 32] = [0; 32];
-    {
-        let mut rng = config.rng.borrow_mut();
-        rng.fill_bytes(&mut password);
-        rng.fill_bytes(&mut username);
-    }
+    config.rng.fill_bytes(&mut password);
+    config.rng.fill_bytes(&mut username);
     let password = hex::encode(password);
     let username = hex::encode(username);
 

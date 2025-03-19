@@ -1,4 +1,4 @@
-use std::{cell::RefCell, str::FromStr};
+use std::str::FromStr;
 
 use generic_array::{ArrayLength, GenericArray};
 use opaque_ke::errors::InternalError;
@@ -53,17 +53,17 @@ pub struct CipherConfiguration {
     pub ksf: Ksf,
 
     #[serde(skip, default = "default_rng")]
-    pub(crate) rng: RefCell<ChaCha20Rng>,
+    pub(crate) rng: ChaCha20Rng,
 }
 
-fn default_rng() -> RefCell<ChaCha20Rng> {
-    RefCell::from(ChaCha20Rng::from_entropy())
+fn default_rng() -> ChaCha20Rng {
+    ChaCha20Rng::from_entropy()
 }
 
 impl CipherConfiguration {
     pub(crate) fn fake_from_seed(seed: [u8; 32]) -> Self {
         Self {
-            rng: RefCell::from(ChaCha20Rng::from_seed(seed)),
+            rng: ChaCha20Rng::from_seed(seed),
             ..Default::default()
         }
     }
