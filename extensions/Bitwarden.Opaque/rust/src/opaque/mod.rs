@@ -170,10 +170,10 @@ impl opaque_ke::CipherSuite for RistrettoTripleDhArgonSuite {
     type KeyExchange = opaque_ke::key_exchange::tripledh::TripleDh;
     // this is run on only the client side anyways. Using an identity here means the test vectors do not match when using client functions
     // from this binding.
-    type Ksf = IdentityKsf;
+    type Ksf = opaque_ke::ksf::Identity;
 }
 impl OpaqueUtil for RistrettoTripleDhArgonSuite {
-    type Output = IdentityKsf;
+    type Output = opaque_ke::ksf::Identity;
 
     fn as_variant(config: &CipherConfiguration) -> Option<Self> {
         match config {
@@ -189,7 +189,7 @@ impl OpaqueUtil for RistrettoTripleDhArgonSuite {
         }
     }
     fn get_ksf(&self) -> Result<Self::Output, Error> {
-        Ok(IdentityKsf {})
+        Ok(opaque_ke::ksf::Identity)
     }
 
     fn get_rng(&mut self) -> &mut ChaCha20Rng {

@@ -1,7 +1,5 @@
 use std::str::FromStr;
 
-use generic_array::{ArrayLength, GenericArray};
-use opaque_ke::errors::InternalError;
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use serde::{Deserialize, Serialize};
@@ -138,16 +136,4 @@ pub(crate) struct ClientLoginFinishResult {
 
 pub(crate) struct ServerLoginFinishResult {
     pub(crate) session_key: Vec<u8>,
-}
-
-#[derive(Debug, Default)]
-pub(crate) struct IdentityKsf {}
-
-impl opaque_ke::ksf::Ksf for IdentityKsf {
-    fn hash<L: ArrayLength<u8>>(
-        &self,
-        input: GenericArray<u8, L>,
-    ) -> Result<GenericArray<u8, L>, InternalError> {
-        Ok(input)
-    }
 }
