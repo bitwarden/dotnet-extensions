@@ -37,9 +37,9 @@ internal static partial class BitwardenLibrary
         public Buffer data4;
 
         // Utility function to get all buffers as a list
-        public List<Buffer> GetAllBuffers()
+        public readonly List<Buffer> GetAllBuffers()
         {
-            return new List<Buffer> { data1, data2, data3, data4 };
+            return [data1, data2, data3, data4];
         }
     }
 
@@ -76,18 +76,24 @@ internal static partial class BitwardenLibrary
 
     internal class FFIHandler
     {
+        private FFIHandler() { }
+
         private static readonly JsonSerializerOptions _serializerOptions = new()
         {
             Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }, // Converts enums to strings
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
-        private List<GCHandle> _handles = new List<GCHandle>();
+        private readonly List<GCHandle> _handles = [];
 
-        internal void FreeHandles()
+        private void FreeHandles()
         {
             foreach (var handle in _handles) handle.Free();
             _handles.Clear();
         }
+        /// Create an FFI buffer from the provided byte array.
+        /// The buffer will be freed when the FFIHandler calls FreeHandles.
+        /// Important: You should never use free_buffer on the buffer returned by this function,
+        /// as it is only to be used with Rust allocated buffers. Doing otherwise is undefined behavior.
         public Buffer Buf(byte[]? data)
         {
             var handle = GCHandle.Alloc(data, GCHandleType.Pinned);
@@ -98,60 +104,67 @@ internal static partial class BitwardenLibrary
                 size = data?.Length ?? 0
             };
         }
+        /// Serialize the provided configuration to a FFI string.
         public string Cfg(CipherConfiguration config)
         {
             return JsonSerializer.Serialize(config, _serializerOptions);
         }
-    }
 
-    private static byte[]? CopyAndFreeBuffer(Buffer buffer)
-    {
-        if (buffer.data == IntPtr.Zero) return null;
-        if (buffer.size == 0) return [];
 
-        var data = new byte[buffer.size];
-        Marshal.Copy(buffer.data, data, 0, (int)buffer.size);
-        free_buffer(buffer);
-        return data;
-    }
-
-    internal static List<byte[]> ExecuteFFIFunction(Func<FFIHandler, Response> function, int expectedValues)
-    {
-        var ffi = new FFIHandler();
-        try
+        internal static List<byte[]> ExecuteFFIFunction(Func<FFIHandler, Response> function, int expectedValues)
         {
-            // Execute the function and get the response
-            var response = function(ffi);
 
-            // If we receive an error, parse the message and throw an exception
-            if (response.error != 0)
+            static byte[]? CopyAndFreeBuffer(Buffer buffer)
             {
-                var message = CopyAndFreeBuffer(response.error_message);
-                string messageStr;
-                try { messageStr = Encoding.UTF8.GetString(message!); } catch { messageStr = "<Can't decode>"; }
-                throw new BitwardenException((int)response.error, messageStr);
+                if (buffer.data == IntPtr.Zero) return null;
+                if (buffer.size == 0) return [];
+
+                var data = new byte[buffer.size];
+                Marshal.Copy(buffer.data, data, 0, (int)buffer.size);
+                free_buffer(buffer);
+                return data;
             }
 
-            // If we don't receive an error, parse all the return types
-            var arrays = new List<byte[]> { };
-            foreach (var buffer in response.GetAllBuffers())
-            {
-                var data = CopyAndFreeBuffer(buffer);
-                if (data == null) break;
-                arrays.Add(data);
-            }
 
-            // If we receive a different number of return values than expected, something must have gone wrong, throw an exception
-            if (arrays.Count != expectedValues)
+            var ffi = new FFIHandler();
+            try
             {
-                throw new BitwardenException(100, $"Invalid number of return values. Expected {expectedValues}, got {arrays.Count}");
-            }
+                // Execute the function and get the response
+                var response = function(ffi);
 
-            return arrays;
-        }
-        finally
-        {
-            ffi.FreeHandles();
+                // If we receive an error, parse the message and throw an exception
+                if (response.error != 0)
+                {
+                    var message = CopyAndFreeBuffer(response.error_message);
+                    string messageStr;
+                    try { messageStr = Encoding.UTF8.GetString(message!); } catch { messageStr = "<Can't decode>"; }
+                    throw new BitwardenException((int)response.error, messageStr);
+                }
+
+                // If we don't receive an error, parse all the return types
+                var arrays = new List<byte[]> { };
+                foreach (var buffer in response.GetAllBuffers())
+                {
+                    var data = CopyAndFreeBuffer(buffer);
+                    if (data == null) break;
+                    arrays.Add(data);
+                }
+
+                // If we receive a different number of return values than expected, something must have gone wrong, throw an exception
+                if (arrays.Count != expectedValues)
+                {
+                    throw new BitwardenException(100, $"Invalid number of return values. Expected {expectedValues}, got {arrays.Count}");
+                }
+
+                return arrays;
+            }
+            finally
+            {
+                ffi.FreeHandles();
+            }
         }
     }
+
+    // Just a wrapper to simplify calling
+    internal static List<byte[]> ExecuteFFIFunction(Func<FFIHandler, Response> function, int expectedValues) => FFIHandler.ExecuteFFIFunction(function, expectedValues);
 }

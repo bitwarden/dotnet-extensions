@@ -116,7 +116,6 @@ fn with_variants<T>(
     if let Some(mut suite) = RistrettoTripleDhArgonSuite::as_variant(config) {
         return func(&mut suite);
     };
-
     if let Some(mut suite) = RistrettoTripleDhIdentitySuite::as_variant(config) {
         return func(&mut suite);
     };

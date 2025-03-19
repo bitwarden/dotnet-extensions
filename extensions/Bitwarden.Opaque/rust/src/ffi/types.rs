@@ -3,10 +3,15 @@ use crate::Error;
 /// Free the buffer memory.
 ///
 /// # Safety
-/// The parameter should contain a Buffer pointing to valid initialized memory, or null.
+/// This function should ONLY be used with [Buffer]s initialized from the Rust side.
+/// Calling it with a [Buffer] initialized from the C# side is undefined behavior.
+/// The caller is responsible for ensuring that the memory is not used after this call.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_buffer(buf: Buffer) {
-    unsafe { buf.free() };
+    std::panic::catch_unwind(|| {
+        unsafe { buf.free() };
+    })
+    .ok();
 }
 
 #[repr(C)]
@@ -36,13 +41,41 @@ impl Buffer {
         Buffer { data, len }
     }
 
-    pub unsafe fn as_slice(&self) -> Result<&[u8], Error> {
+    /// # Safety
+    /// All the limitations of [std::slice::from_raw_parts] apply, mainly:
+    /// - The pointer must be either null or valid for reads up to [Buffer::len] bytes.
+    /// - The memory must be valid for the duration of the call and not modified by other threads.
+    pub unsafe fn as_slice_optional(&self) -> Result<Option<&[u8]>, Error> {
         if self.data.is_null() {
-            return Err(Error::InvalidInput("Buffer data is null".into()));
+            return Ok(None);
         }
-        Ok(unsafe { std::slice::from_raw_parts(self.data, self.len) })
+        if self.len >= isize::MAX as usize {
+            return Err(Error::InvalidInput("Buffer length is too large".into()));
+        }
+        if (self.data.addr())
+            .overflowing_add_signed(self.len as isize)
+            .1
+        {
+            return Err(Error::InvalidInput("Buffer data overflows".into()));
+        }
+        Ok(Some(unsafe {
+            std::slice::from_raw_parts(self.data, self.len)
+        }))
     }
 
+    /// # Safety
+    /// All the limitations of [std::slice::from_raw_parts] apply, mainly:
+    /// - The pointer must be either null or valid for reads up to [Buffer::len] bytes.
+    /// - The memory must be valid for the duration of the call and not modified by other threads.
+    pub unsafe fn as_slice(&self) -> Result<&[u8], Error> {
+        unsafe { self.as_slice_optional() }?
+            .ok_or_else(|| Error::InvalidInput("Buffer data is null".into()))
+    }
+
+    /// # Safety
+    /// This function should ONLY be used with [Buffer]s initialized from the Rust side.
+    /// Calling it with a [Buffer] initialized from the C# side is undefined behavior.
+    /// The caller is responsible for ensuring that the memory is not used after this call.
     pub unsafe fn free(self) {
         if !self.data.is_null() {
             let _ = unsafe { Vec::from_raw_parts(self.data, self.len, self.len) };
