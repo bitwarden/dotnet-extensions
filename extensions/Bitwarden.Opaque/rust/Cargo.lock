@@ -325,15 +325,12 @@ name = "opaque-ke-binding"
 version = "0.0.0"
 dependencies = [
  "argon2",
- "digest",
- "generic-array",
  "hex",
  "opaque-ke",
  "rand",
  "rand_chacha",
  "serde",
  "serde_json",
- "voprf",
  "zeroizing-alloc",
 ]
 

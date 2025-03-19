@@ -9,18 +9,22 @@ crate-type = ["cdylib"]
 
 [dependencies]
 argon2 = "0.5.3"
-digest = "0.10.7"
-generic-array = "0.14.7"
 hex = "0.4.3"
 opaque-ke = { version = "3.0.0", features = ["std", "argon2"] }
 rand = "0.8.5"
 rand_chacha = "0.3.1"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
-voprf = "0.5.0"
 zeroizing-alloc = "0.1.0"
 
-# Turn on LTO on release mode
+# We want panic unwinding to be enabled, which would ensure the process it's not aborted
+# when a panic occurs. This the default value, but we want to be explicit about it.
+
+[profile.dev]
+panic = "unwind"
+
 [profile.release]
+panic = "unwind"
+# Turn on LTO on release mode
 lto = true
 codegen-units = 1
