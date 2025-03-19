@@ -81,6 +81,14 @@ impl Buffer {
             let _ = unsafe { Vec::from_raw_parts(self.data, self.len, self.len) };
         }
     }
+
+    #[cfg(test)]
+    pub fn duplicate(&self) -> Buffer {
+        Buffer {
+            data: self.data,
+            len: self.len,
+        }
+    }
 }
 
 #[macro_export]

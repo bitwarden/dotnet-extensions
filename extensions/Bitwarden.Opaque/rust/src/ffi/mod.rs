@@ -240,3 +240,83 @@ pub unsafe extern "C" fn finish_server_login(
         Response::ok1(response.session_key)
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::{CString, c_char};
+
+    use crate::opaque::*;
+
+    use super::{types::Buffer, *};
+
+    // Test for possible panics and/or undefined behavior.
+    // Ideally run using:
+    //
+    // cargo +nightly miri test
+    // RUSTFLAGS="-Z sanitizer=address" cargo +nightly test --target aarch64-apple-darwin --release
+    // RUSTFLAGS="-Z sanitizer=thread"  cargo +nightly test --target aarch64-apple-darwin --release
+    #[test]
+    fn test_ffi_no_panic() {
+        let user = "username";
+        let user = CString::new(user).unwrap();
+        let pass = "password";
+        let pass = CString::new(pass).unwrap();
+        let cfg = serde_json::to_string(&CipherConfiguration::default()).unwrap();
+        let cfg = CString::new(cfg.as_str()).unwrap();
+
+        let _buf = Buffer::from_vec(vec![0; 32]);
+        let buf = || _buf.duplicate();
+
+        let _null_buf = Buffer::null();
+        let null_buf = || _null_buf.duplicate();
+
+        let null_str_ptr: *const c_char = std::ptr::null();
+
+        unsafe {
+            start_client_registration(cfg.as_ptr(), pass.as_ptr());
+            start_client_registration(null_str_ptr, pass.as_ptr());
+            start_client_registration(null_str_ptr, null_str_ptr);
+
+            start_server_registration(cfg.as_ptr(), buf(), buf(), user.as_ptr());
+            start_server_registration(null_str_ptr, buf(), buf(), user.as_ptr());
+            start_server_registration(cfg.as_ptr(), buf(), buf(), user.as_ptr());
+            start_server_registration(cfg.as_ptr(), null_buf(), buf(), user.as_ptr());
+            start_server_registration(cfg.as_ptr(), buf(), null_buf(), null_str_ptr);
+
+            finish_client_registration(cfg.as_ptr(), buf(), buf(), pass.as_ptr());
+            finish_client_registration(null_str_ptr, buf(), buf(), pass.as_ptr());
+            finish_client_registration(cfg.as_ptr(), null_buf(), buf(), pass.as_ptr());
+            finish_client_registration(cfg.as_ptr(), buf(), null_buf(), pass.as_ptr());
+            finish_client_registration(cfg.as_ptr(), buf(), buf(), null_str_ptr);
+
+            finish_server_registration(cfg.as_ptr(), buf());
+            finish_server_registration(null_str_ptr, buf());
+            finish_server_registration(cfg.as_ptr(), null_buf());
+
+            start_client_login(cfg.as_ptr(), pass.as_ptr());
+            start_client_login(null_str_ptr, pass.as_ptr());
+            start_client_login(cfg.as_ptr(), null_str_ptr);
+
+            start_server_login(cfg.as_ptr(), buf(), buf(), buf(), user.as_ptr());
+            start_server_login(null_str_ptr, buf(), buf(), buf(), user.as_ptr());
+            start_server_login(cfg.as_ptr(), null_buf(), buf(), buf(), user.as_ptr());
+            start_server_login(cfg.as_ptr(), buf(), null_buf(), buf(), user.as_ptr());
+            start_server_login(cfg.as_ptr(), buf(), buf(), null_buf(), user.as_ptr());
+            start_server_login(cfg.as_ptr(), buf(), buf(), buf(), null_str_ptr);
+
+            finish_client_login(cfg.as_ptr(), buf(), buf(), pass.as_ptr());
+            finish_client_login(null_str_ptr, buf(), buf(), pass.as_ptr());
+            finish_client_login(cfg.as_ptr(), null_buf(), buf(), pass.as_ptr());
+            finish_client_login(cfg.as_ptr(), buf(), null_buf(), pass.as_ptr());
+            finish_client_login(cfg.as_ptr(), buf(), buf(), null_str_ptr);
+
+            finish_server_login(cfg.as_ptr(), buf(), buf());
+            finish_server_login(null_str_ptr, buf(), buf());
+            finish_server_login(cfg.as_ptr(), null_buf(), buf());
+            finish_server_login(cfg.as_ptr(), buf(), null_buf());
+
+            buf().free();
+            null_buf().free();
+        }
+    }
+}
