@@ -118,7 +118,10 @@ public sealed partial class BitwardenOpaqueServer
             sessionKey = result[0]
         };
     }
-
+    /// <summary>
+    /// Generate a seeded fake registration. This can be returned for unenrolled users to avoid account enumeration issues.
+    /// </summary>
+    /// <param name="seed">The seed to use for the fake registration. This should be consistent between multiple calls to the same user</param>
     public (byte[] serverSetup, byte[] serverRegistration) SeededFakeRegistration(byte[] seed)
     {
         var result = BitwardenLibrary.ExecuteFFIFunction((ffi) =>
