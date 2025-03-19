@@ -124,7 +124,7 @@ public sealed partial class BitwardenOpaqueServer
         var result = BitwardenLibrary.ExecuteFFIFunction((ffi) =>
         {
             return BitwardenLibrary.register_seeded_fake_config(ffi.Buf(seed));
-        }, 1);
+        }, 2);
         return (result[0], result[1]);
     }
 

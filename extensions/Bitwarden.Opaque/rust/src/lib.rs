@@ -23,7 +23,7 @@ impl From<opaque_ke::errors::ProtocolError> for Error {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ffi::{self, register_seeded_fake_config}, opaque::*};
+    use crate::opaque::*;
 
     #[test]
     fn test() {
@@ -86,10 +86,8 @@ mod tests {
     #[test]
     fn test_seeded() {
         let seed = [0u8; 32];
-        let buffer = ffi::Buffer::from_vec(seed.to_vec());
-        let res = unsafe { register_seeded_fake_config(buffer) };
-        assert!(res.error == 0);
-        let (server_setup, password_file) = unsafe { (res.data1.as_slice().unwrap(), res.data2.as_slice().unwrap()) };
+        let (server_setup, password_file) =
+            super::opaque::register_seeded_fake_config(seed).unwrap();
         assert_eq!(server_setup.len(), 128);
         assert_eq!(password_file.len(), 192);
 
@@ -99,8 +97,8 @@ mod tests {
         let res = config.start_client_login(password).unwrap();
         let server_res = config
             .start_server_login(
-                server_setup,
-                password_file,
+                &server_setup,
+                &password_file,
                 &res.credential_request,
                 username,
             )

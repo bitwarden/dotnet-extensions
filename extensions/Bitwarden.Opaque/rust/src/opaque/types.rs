@@ -52,14 +52,18 @@ pub struct CipherConfiguration {
     pub key_exchange: KeyExchange,
     pub ksf: Ksf,
 
-    #[serde(skip)]
-    pub(crate) rng: Option<RefCell<ChaCha20Rng>>,
+    #[serde(skip, default = "default_rng")]
+    pub(crate) rng: RefCell<ChaCha20Rng>,
+}
+
+fn default_rng() -> RefCell<ChaCha20Rng> {
+    RefCell::from(ChaCha20Rng::from_entropy())
 }
 
 impl CipherConfiguration {
     pub(crate) fn fake_from_seed(seed: [u8; 32]) -> Self {
         Self {
-            rng: Some(RefCell::from(ChaCha20Rng::from_seed(seed))),
+            rng: RefCell::from(ChaCha20Rng::from_seed(seed)),
             ..Default::default()
         }
     }
@@ -77,7 +81,7 @@ impl Default for CipherConfiguration {
                 iterations: 4,
                 parallelism: 4,
             }),
-            rng: Some(RefCell::from(ChaCha20Rng::from_entropy())),
+            rng: default_rng(),
         }
     }
 }
@@ -137,8 +141,7 @@ pub(crate) struct ServerLoginFinishResult {
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct IdentityKsf {
-}
+pub(crate) struct IdentityKsf {}
 
 impl opaque_ke::ksf::Ksf for IdentityKsf {
     fn hash<L: ArrayLength<u8>>(
@@ -146,5 +149,5 @@ impl opaque_ke::ksf::Ksf for IdentityKsf {
         input: GenericArray<u8, L>,
     ) -> Result<GenericArray<u8, L>, InternalError> {
         Ok(input)
-    } 
+    }
 }

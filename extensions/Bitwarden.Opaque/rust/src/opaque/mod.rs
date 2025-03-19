@@ -1,7 +1,7 @@
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
 
 use opaque_ke::*;
-use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
+use rand_chacha::ChaCha20Rng;
 
 use crate::Error;
 
@@ -60,7 +60,7 @@ pub trait OpaqueUtil: Sized {
     type Output;
     fn as_variant(config: &CipherConfiguration) -> Option<Self>;
     fn get_ksf(&self) -> Result<Self::Output, Error>;
-    fn get_rng(&self) -> RefCell<ChaCha20Rng>;
+    fn get_rng(&self) -> Result<RefMut<ChaCha20Rng>, Error>;
 }
 
 fn invalid_config(config: &CipherConfiguration) -> Error {
@@ -180,16 +180,18 @@ impl OpaqueUtil for RistrettoTripleDhArgonSuite {
                 key_exchange: KeyExchange::TripleDh,
                 ksf: _,
                 rng,
-            } => Some(Self(rng.as_ref().unwrap_or(&RefCell::from(ChaCha20Rng::from_entropy())).clone())),
+            } => Some(Self(rng.clone())),
             _ => None,
         }
     }
     fn get_ksf(&self) -> Result<Self::Output, Error> {
-        Ok(IdentityKsf {  })
+        Ok(IdentityKsf {})
     }
 
-    fn get_rng(&self) -> RefCell<ChaCha20Rng> {
-        self.0.clone()
+    fn get_rng(&self) -> Result<RefMut<ChaCha20Rng>, Error> {
+        self.0
+            .try_borrow_mut()
+            .map_err(|e| Error::InvalidConfig(e.to_string()))
     }
 }
 
@@ -200,7 +202,7 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
         &self,
         password: &str,
     ) -> Result<types::ClientRegistrationStartResult, Error> {
-        let result = ClientRegistration::<Self>::start(self.get_rng().get_mut(), password.as_bytes())?;
+        let result = ClientRegistration::<Self>::start(&mut *self.get_rng()?, password.as_bytes())?;
         Ok(types::ClientRegistrationStartResult {
             registration_request: result.message.serialize().to_vec(),
             state: result.state.serialize().to_vec(),
@@ -214,7 +216,7 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
     ) -> Result<types::ServerRegistrationStartResult, Error> {
         let server_setup = match server_setup {
             Some(server_setup) => ServerSetup::<Self>::deserialize(server_setup)?,
-            None => ServerSetup::<Self>::new(self.get_rng().get_mut()),
+            None => ServerSetup::<Self>::new(&mut *self.get_rng()?),
         };
         let result = ServerRegistration::start(
             &server_setup,
@@ -235,7 +237,7 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
         let state = ClientRegistration::<Self>::deserialize(state)?;
         let ksf = self.get_ksf()?;
         let result = state.finish(
-        self.get_rng().get_mut(),
+            &mut *self.get_rng()?,
             password.as_bytes(),
             RegistrationResponse::deserialize(registration_response)?,
             ClientRegistrationFinishParameters::new(Identifiers::default(), Some(&ksf)),
@@ -259,7 +261,7 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
     }
 
     fn start_client_login(&self, password: &str) -> Result<types::ClientLoginStartResult, Error> {
-        let result = ClientLogin::<Self>::start(self.get_rng().get_mut(), password.as_bytes())?;
+        let result = ClientLogin::<Self>::start(&mut *self.get_rng()?, password.as_bytes())?;
         Ok(types::ClientLoginStartResult {
             credential_request: result.message.serialize().to_vec(),
             state: result.state.serialize().to_vec(),
@@ -273,7 +275,7 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
         username: &str,
     ) -> Result<types::ServerLoginStartResult, Error> {
         let result = ServerLogin::start(
-            self.get_rng().get_mut(),
+            &mut *self.get_rng()?,
             &ServerSetup::<Self>::deserialize(server_setup)?,
             Some(ServerRegistration::<Self>::deserialize(
                 server_registration,
@@ -319,6 +321,33 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
             session_key: result.session_key.to_vec(),
         })
     }
+}
+
+pub fn register_seeded_fake_config(seed: [u8; 32]) -> Result<(Vec<u8>, Vec<u8>), Error> {
+    use rand::RngCore as _;
+
+    let config = CipherConfiguration::fake_from_seed(seed);
+
+    let mut password: [u8; 32] = [0; 32];
+    let mut username: [u8; 32] = [0; 32];
+    {
+        let mut rng = config.rng.borrow_mut();
+        rng.fill_bytes(&mut password);
+        rng.fill_bytes(&mut username);
+    }
+    let password = hex::encode(password);
+    let username = hex::encode(username);
+
+    let start = config.start_client_registration(password.as_str())?;
+    let server_start =
+        config.start_server_registration(None, &start.registration_request, &username)?;
+    let client_finish = config.finish_client_registration(
+        &start.state,
+        &server_start.registration_response,
+        &password,
+    )?;
+    let server_finish = config.finish_server_registration(&client_finish.registration_upload)?;
+    Ok((server_start.server_setup, server_finish.server_registration))
 }
 
 /*

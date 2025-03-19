@@ -8,38 +8,24 @@ use crate::{
 
 mod types;
 
-use rand::RngCore;
 use types::*;
 
-#[cfg(test)]
-pub use types::Buffer;
-
 unsafe fn parse_str<'a>(input: *const c_char, name: &'static str) -> Result<&'a str, Error> {
-    unsafe { std::ffi::CStr::from_ptr(input).to_str() }.map_err(|_| Error::InvalidInput(name.into()))
+    unsafe { std::ffi::CStr::from_ptr(input).to_str() }
+        .map_err(|_| Error::InvalidInput(name.into()))
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn register_seeded_fake_config(seed: Buffer) -> Response {
     let seed = try_ffi!(unsafe { seed.as_slice() });
-    if seed.len() != 32 {
-       try_ffi!(Err(Error::InvalidInput("Seed must be 32 bytes".into()))); 
-    }
-    let seed = try_ffi!(<[u8; 32]>::try_from(seed).map_err(|_| Error::InvalidInput("Seed must be 32 bytes".into())));
-    let config = CipherConfiguration::fake_from_seed(seed);
+    let seed = try_ffi!(
+        <[u8; 32]>::try_from(seed).map_err(|_| Error::InvalidInput("Seed must be 32 bytes".into()))
+    );
 
-    let rng = try_ffi!(config.rng.as_ref().ok_or(Error::InvalidInput("No rng found".into())));
-    let mut password: [u8; 32] = [0; 32];
-    rng.borrow_mut().fill_bytes(&mut password);
-    let password = hex::encode(password);
-    let mut username: [u8; 32] = [0; 32];
-    rng.borrow_mut().fill_bytes(&mut username);
-    let username = hex::encode(username);
+    let (server_setup, server_registration) =
+        try_ffi!(crate::opaque::register_seeded_fake_config(seed));
 
-    let start = try_ffi!(config.start_client_registration(&password.as_str()));
-    let server_start = try_ffi!(config.start_server_registration(None, &start.registration_request, &username));
-    let client_finish = try_ffi!(config.finish_client_registration(&start.state, &server_start.registration_response, &password));
-    let server_finish = try_ffi!(config.finish_server_registration(&client_finish.registration_upload));
-    Response::ok2(server_start.server_setup, server_finish.server_registration)
+    Response::ok2(server_setup, server_registration)
 }
 
 ///
