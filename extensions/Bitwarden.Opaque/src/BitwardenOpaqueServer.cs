@@ -86,4 +86,9 @@ public sealed partial class BitwardenOpaqueServer
         };
     }
 
+    public (byte[] serverSetup, byte[] serverRegistration) SeededFakeRegistration(byte[] seed)
+    {
+        return BitwardenLibrary.RegisterSeededFakeConfig(seed);
+    }
+
 }

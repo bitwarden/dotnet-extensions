@@ -1,5 +1,9 @@
-use std::str::FromStr;
+use std::{cell::RefCell, str::FromStr};
 
+use generic_array::{ArrayLength, GenericArray};
+use opaque_ke::errors::InternalError;
+use rand::SeedableRng;
+use rand_chacha::ChaCha20Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::Error;
@@ -38,7 +42,7 @@ pub struct Argon2id {
     pub parallelism: u32,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CipherConfiguration {
     pub opaque_version: u32,
@@ -47,6 +51,18 @@ pub struct CipherConfiguration {
     pub ke_group: KeGroup,
     pub key_exchange: KeyExchange,
     pub ksf: Ksf,
+
+    #[serde(skip)]
+    pub(crate) rng: Option<RefCell<ChaCha20Rng>>,
+}
+
+impl CipherConfiguration {
+    pub(crate) fn fake_from_seed(seed: [u8; 32]) -> Self {
+        Self {
+            rng: Some(RefCell::from(ChaCha20Rng::from_seed(seed))),
+            ..Default::default()
+        }
+    }
 }
 
 impl Default for CipherConfiguration {
@@ -61,6 +77,7 @@ impl Default for CipherConfiguration {
                 iterations: 4,
                 parallelism: 4,
             }),
+            rng: Some(RefCell::from(ChaCha20Rng::from_entropy())),
         }
     }
 }
@@ -117,4 +134,17 @@ pub(crate) struct ClientLoginFinishResult {
 
 pub(crate) struct ServerLoginFinishResult {
     pub(crate) session_key: Vec<u8>,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct IdentityKsf {
+}
+
+impl opaque_ke::ksf::Ksf for IdentityKsf {
+    fn hash<L: ArrayLength<u8>>(
+        &self,
+        input: GenericArray<u8, L>,
+    ) -> Result<GenericArray<u8, L>, InternalError> {
+        Ok(input)
+    } 
 }

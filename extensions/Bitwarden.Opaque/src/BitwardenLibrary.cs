@@ -41,6 +41,9 @@ internal static partial class BitwardenLibrary
     private static partial void free_buffer(Buffer buf);
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
+    private static partial Response register_seeded_fake_config(Buffer seed);
+
+    [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
     private static partial Response start_client_registration(string config, string password);
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
@@ -120,6 +123,15 @@ internal static partial class BitwardenLibrary
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }, // Converts enums to strings
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
+
+    internal static (byte[], byte[]) RegisterSeededFakeConfig(byte[] seed)
+    {
+        var response = register_seeded_fake_config(BuildBuffer(seed, out var handle));
+        try {
+            var responseValues = HandleResponse(response, 2);
+            return (responseValues[0], responseValues[1]); 
+        } finally { handle.Free(); }
+    }
 
     internal static (byte[], byte[]) StartClientRegistration(CipherConfiguration config, string password)
     {

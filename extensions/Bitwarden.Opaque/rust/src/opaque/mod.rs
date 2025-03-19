@@ -1,6 +1,8 @@
-use argon2::Argon2;
+use std::cell::RefCell;
+
 use opaque_ke::*;
 use rand::rngs::OsRng;
+use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 
 use crate::Error;
 
@@ -59,6 +61,7 @@ pub trait OpaqueUtil: Sized {
     type Output;
     fn as_variant(config: &CipherConfiguration) -> Option<Self>;
     fn get_ksf(&self) -> Result<Self::Output, Error>;
+    fn get_rng(&self) -> RefCell<ChaCha20Rng>;
 }
 
 fn invalid_config(config: &CipherConfiguration) -> Error {
@@ -157,15 +160,17 @@ impl OpaqueImpl for CipherConfiguration {
 }
 
 // Define the cipher suite and implement the required traits on it (opaque_ke::CipherSuite+OpaqueUtil+OpaqueImpl)
-struct RistrettoTripleDhArgonSuite(Argon2id);
+struct RistrettoTripleDhArgonSuite(RefCell<ChaCha20Rng>);
 impl opaque_ke::CipherSuite for RistrettoTripleDhArgonSuite {
     type OprfCs = opaque_ke::Ristretto255;
     type KeGroup = opaque_ke::Ristretto255;
     type KeyExchange = opaque_ke::key_exchange::tripledh::TripleDh;
-    type Ksf = argon2::Argon2<'static>;
+    // this is run on only the client side anyways. Using an identity here means the test vectors do not match when using client functions
+    // from this binding.
+    type Ksf = IdentityKsf;
 }
 impl OpaqueUtil for RistrettoTripleDhArgonSuite {
-    type Output = argon2::Argon2<'static>;
+    type Output = IdentityKsf;
 
     fn as_variant(config: &CipherConfiguration) -> Option<Self> {
         match config {
@@ -174,18 +179,18 @@ impl OpaqueUtil for RistrettoTripleDhArgonSuite {
                 oprf_cs: OprfCs::Ristretto255,
                 ke_group: KeGroup::Ristretto255,
                 key_exchange: KeyExchange::TripleDh,
-                ksf: Ksf::Argon2id(argon),
-            } => Some(Self(*argon)),
+                ksf: _,
+                rng,
+            } => Some(Self(rng.as_ref().unwrap_or(&RefCell::from(ChaCha20Rng::from_entropy())).clone())),
             _ => None,
         }
     }
     fn get_ksf(&self) -> Result<Self::Output, Error> {
-        Ok(Argon2::new(
-            argon2::Algorithm::Argon2id,
-            argon2::Version::V0x13,
-            argon2::Params::new(self.0.memory, self.0.iterations, self.0.parallelism, None)
-                .map_err(|_| Error::InvalidConfig("Invalid Argon2 parameters".into()))?,
-        ))
+        Ok(IdentityKsf {  })
+    }
+
+    fn get_rng(&self) -> RefCell<ChaCha20Rng> {
+        self.0.clone()
     }
 }
 
@@ -210,7 +215,7 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
     ) -> Result<types::ServerRegistrationStartResult, Error> {
         let server_setup = match server_setup {
             Some(server_setup) => ServerSetup::<Self>::deserialize(server_setup)?,
-            None => ServerSetup::<Self>::new(&mut OsRng),
+            None => ServerSetup::<Self>::new(self.get_rng().get_mut()),
         };
         let result = ServerRegistration::start(
             &server_setup,
@@ -229,11 +234,12 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
         password: &str,
     ) -> Result<types::ClientRegistrationFinishResult, Error> {
         let state = ClientRegistration::<Self>::deserialize(state)?;
+        let ksf = self.get_ksf()?;
         let result = state.finish(
-            &mut OsRng,
+        self.get_rng().get_mut(),
             password.as_bytes(),
             RegistrationResponse::deserialize(registration_response)?,
-            ClientRegistrationFinishParameters::new(Identifiers::default(), Some(&self.get_ksf()?)),
+            ClientRegistrationFinishParameters::new(Identifiers::default(), Some(&ksf)),
         )?;
         Ok(types::ClientRegistrationFinishResult {
             registration_upload: result.message.serialize().to_vec(),
