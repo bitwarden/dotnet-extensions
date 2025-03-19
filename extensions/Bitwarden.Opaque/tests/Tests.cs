@@ -5,6 +5,25 @@ using Xunit;
 public class SampleTests
 {
     [Fact]
+    public void TestSeededRegistration()
+    {
+        var server = new BitwardenOpaqueServer();
+
+        var seed = new byte[32];
+        var (serverSetup1, serverRegistration1) = server.SeededFakeRegistration(seed);
+
+        Assert.NotNull(serverSetup1);
+        Assert.NotNull(serverRegistration1);
+
+        var (serverSetup2, serverRegistration2) = server.SeededFakeRegistration(seed);
+        Assert.NotNull(serverSetup2);
+        Assert.NotNull(serverRegistration2);
+
+        Assert.Equal(serverSetup1, serverSetup2);
+        Assert.Equal(serverRegistration1, serverRegistration2);
+    }
+
+    [Fact]
     public void TestRegistration()
     {
         // Get environment variables

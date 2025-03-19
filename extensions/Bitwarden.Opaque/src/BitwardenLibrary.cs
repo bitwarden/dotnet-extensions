@@ -47,6 +47,9 @@ internal static partial class BitwardenLibrary
     internal static partial void free_buffer(Buffer buf);
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial Response register_seeded_fake_config(Buffer seed);
+
+    [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
     internal static partial Response start_client_registration(string config, string password);
 
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]

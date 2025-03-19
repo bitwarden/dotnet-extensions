@@ -30,7 +30,7 @@ mod tests {
         let password = "password";
         let username = "username";
 
-        let config = CipherConfiguration::default();
+        let mut config = CipherConfiguration::default();
 
         // Registration
 
@@ -81,5 +81,29 @@ mod tests {
             .unwrap();
 
         let _ = server_login_finish_result.session_key;
+    }
+
+    #[test]
+    fn test_seeded() {
+        let seed = [0u8; 32];
+        let (server_setup, password_file) =
+            super::opaque::register_seeded_fake_config(seed).unwrap();
+        assert_eq!(server_setup.len(), 128);
+        assert_eq!(password_file.len(), 192);
+
+        let password = "password";
+        let username = "username";
+        let mut config = CipherConfiguration::default();
+        let res = config.start_client_login(password).unwrap();
+        let server_res = config
+            .start_server_login(
+                &server_setup,
+                &password_file,
+                &res.credential_request,
+                username,
+            )
+            .unwrap();
+        let res = config.finish_client_login(&res.state, &server_res.credential_response, password);
+        assert!(res.is_err());
     }
 }
