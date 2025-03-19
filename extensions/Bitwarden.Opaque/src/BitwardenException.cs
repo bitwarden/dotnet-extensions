@@ -1,5 +1,10 @@
 ﻿namespace Bitwarden.Opaque;
 
+/// <summary>
+///  A class to represent an exception thrown by the Bitwarden OPAQUE library.
+/// </summary>
+/// <param name="errorCode">A numeric error code, to separate different error types</param>
+/// <param name="message">The error message</param>
 public class BitwardenException(int errorCode, string message) : Exception($"Error {getCodeName(errorCode)} - {message}")
 {
     private static string getCodeName(int code)
