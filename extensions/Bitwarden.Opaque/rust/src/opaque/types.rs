@@ -29,6 +29,8 @@ pub enum KeyExchange {
 #[serde(rename_all = "camelCase", tag = "algorithm", content = "parameters")]
 pub enum Ksf {
     Argon2id(Argon2id),
+    #[serde(skip)]
+    Identity,
     __NonExhaustive(()),
 }
 
@@ -61,6 +63,7 @@ fn default_rng() -> ChaCha20Rng {
 impl CipherConfiguration {
     pub(crate) fn fake_from_seed(seed: [u8; 32]) -> Self {
         Self {
+            ksf: Ksf::Identity,
             rng: ChaCha20Rng::from_seed(seed),
             ..Default::default()
         }
