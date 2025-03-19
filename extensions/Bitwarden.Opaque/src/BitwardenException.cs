@@ -16,6 +16,7 @@ public class BitwardenException(int errorCode, string message) : Exception($"Err
             1 => "INVALID_INPUT",
             2 => "INVALID_CONFIG",
             3 => "PROTOCOL_ERROR",
+            4 => "INTERNAL_ERRROR",
 
             // This is a special case and it's only used in the C# code.
             100 => "UNEXPECTED_RETURN",

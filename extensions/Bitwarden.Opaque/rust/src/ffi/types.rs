@@ -131,6 +131,7 @@ impl Response {
             Error::InvalidInput(name) => (1, name),
             Error::InvalidConfig(error) => (2, error),
             Error::Protocol(e) => (3, format!("{:?}", e)),
+            Error::InternalError(error) => (4, error),
         };
 
         Response {

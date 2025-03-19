@@ -13,6 +13,7 @@ pub enum Error {
     InvalidInput(String),
     InvalidConfig(String),
     Protocol(opaque_ke::errors::ProtocolError),
+    InternalError(String),
 }
 
 impl From<opaque_ke::errors::ProtocolError> for Error {
