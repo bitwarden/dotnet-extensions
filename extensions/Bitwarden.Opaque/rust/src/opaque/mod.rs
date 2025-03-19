@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 
 use opaque_ke::*;
-use rand::rngs::OsRng;
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 
 use crate::Error;
@@ -201,7 +200,7 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
         &self,
         password: &str,
     ) -> Result<types::ClientRegistrationStartResult, Error> {
-        let result = ClientRegistration::<Self>::start(&mut OsRng, password.as_bytes())?;
+        let result = ClientRegistration::<Self>::start(self.get_rng().get_mut(), password.as_bytes())?;
         Ok(types::ClientRegistrationStartResult {
             registration_request: result.message.serialize().to_vec(),
             state: result.state.serialize().to_vec(),
@@ -260,7 +259,7 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
     }
 
     fn start_client_login(&self, password: &str) -> Result<types::ClientLoginStartResult, Error> {
-        let result = ClientLogin::<Self>::start(&mut OsRng, password.as_bytes())?;
+        let result = ClientLogin::<Self>::start(self.get_rng().get_mut(), password.as_bytes())?;
         Ok(types::ClientLoginStartResult {
             credential_request: result.message.serialize().to_vec(),
             state: result.state.serialize().to_vec(),
@@ -274,7 +273,7 @@ impl OpaqueImpl for RistrettoTripleDhArgonSuite {
         username: &str,
     ) -> Result<types::ServerLoginStartResult, Error> {
         let result = ServerLogin::start(
-            &mut OsRng,
+            self.get_rng().get_mut(),
             &ServerSetup::<Self>::deserialize(server_setup)?,
             Some(ServerRegistration::<Self>::deserialize(
                 server_registration,
