@@ -109,60 +109,36 @@ pub struct Response {
     pub error: usize,
     pub error_message: Buffer,
 
-    // TODO: This is a way of returning multiple values without having different return FFI types.
-    // Ideally we'd have a separate type per return type? Or maybe a better way to represent this.
-    pub data1: Buffer,
-    pub data2: Buffer,
-    pub data3: Buffer,
-    pub data4: Buffer,
+    // This is a way of returning multiple values without having different return FFI types.
+    // Currently the API only returns byte arrays so this is a good fit for now.
+    // Important: The length of this array must match exactly with the length of
+    // the C# BitwardenLibrary.Response struct. It also must be greater than or
+    // equal than the implementations of the AllowedSize trait below.
+    pub data: [Buffer; 4],
 }
 
+pub(crate) trait AllowedSize {}
+impl<T> AllowedSize for [T; 1] {}
+impl<T> AllowedSize for [T; 2] {}
+impl<T> AllowedSize for [T; 3] {}
+impl<T> AllowedSize for [T; 4] {}
+
 impl Response {
-    pub fn ok1(data1: Vec<u8>) -> Self {
+    pub(crate) fn ok<const N: usize>(data: [Vec<u8>; N]) -> Self
+    where
+        [Vec<u8>; N]: AllowedSize,
+    {
+        let mut iter = data.into_iter().fuse();
+        let data = std::array::from_fn(|_| match iter.next() {
+            Some(vec) => Buffer::from_vec(vec),
+            None => Buffer::null(),
+        });
+
+        debug_assert!(iter.next().is_none());
         Response {
             error: 0,
             error_message: Buffer::null(),
-
-            data1: Buffer::from_vec(data1),
-            data2: Buffer::null(),
-            data3: Buffer::null(),
-            data4: Buffer::null(),
-        }
-    }
-
-    pub fn ok2(data1: Vec<u8>, data2: Vec<u8>) -> Self {
-        Response {
-            error: 0,
-            error_message: Buffer::null(),
-
-            data1: Buffer::from_vec(data1),
-            data2: Buffer::from_vec(data2),
-            data3: Buffer::null(),
-            data4: Buffer::null(),
-        }
-    }
-
-    pub fn ok3(data1: Vec<u8>, data2: Vec<u8>, data3: Vec<u8>) -> Self {
-        Response {
-            error: 0,
-            error_message: Buffer::null(),
-
-            data1: Buffer::from_vec(data1),
-            data2: Buffer::from_vec(data2),
-            data3: Buffer::from_vec(data3),
-            data4: Buffer::null(),
-        }
-    }
-
-    pub fn ok4(data1: Vec<u8>, data2: Vec<u8>, data3: Vec<u8>, data4: Vec<u8>) -> Self {
-        Response {
-            error: 0,
-            error_message: Buffer::null(),
-
-            data1: Buffer::from_vec(data1),
-            data2: Buffer::from_vec(data2),
-            data3: Buffer::from_vec(data3),
-            data4: Buffer::from_vec(data4),
+            data,
         }
     }
 
@@ -178,11 +154,7 @@ impl Response {
         Response {
             error,
             error_message: Buffer::from_vec(message.into_bytes()),
-
-            data1: Buffer::null(),
-            data2: Buffer::null(),
-            data3: Buffer::null(),
-            data4: Buffer::null(),
+            data: std::array::from_fn(|_| Buffer::null()),
         }
     }
 }
