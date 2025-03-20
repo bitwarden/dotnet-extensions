@@ -84,6 +84,20 @@ impl<'a> OpaqueUtil<'a> for RistrettoTripleDhIdentitySuite<'a> {
     }
 }
 
+// This generic utility function is used to dynamically dispatch to the correct cipher suite
+fn with_variants<T>(
+    config: &mut CipherConfiguration,
+    func: impl FnOnce(&mut dyn OpaqueImpl) -> Result<T, Error>,
+) -> Result<T, Error> {
+    if let Some(mut suite) = RistrettoTripleDhArgonSuite::as_variant(config) {
+        return func(&mut suite);
+    };
+    if let Some(mut suite) = RistrettoTripleDhIdentitySuite::as_variant(config) {
+        return func(&mut suite);
+    };
+    Err(invalid_config(config))
+}
+
 pub fn register_seeded_fake_config(seed: [u8; 32]) -> Result<(Vec<u8>, Vec<u8>), Error> {
     use rand::RngCore as _;
 
@@ -106,20 +120,6 @@ pub fn register_seeded_fake_config(seed: [u8; 32]) -> Result<(Vec<u8>, Vec<u8>),
     )?;
     let server_finish = config.finish_server_registration(&client_finish.registration_upload)?;
     Ok((server_start.server_setup, server_finish.server_registration))
-}
-
-// This generic utility function is used to dynamically dispatch to the correct cipher suite
-fn with_variants<T>(
-    config: &mut CipherConfiguration,
-    func: impl FnOnce(&mut dyn OpaqueImpl) -> Result<T, Error>,
-) -> Result<T, Error> {
-    if let Some(mut suite) = RistrettoTripleDhArgonSuite::as_variant(config) {
-        return func(&mut suite);
-    };
-    if let Some(mut suite) = RistrettoTripleDhIdentitySuite::as_variant(config) {
-        return func(&mut suite);
-    };
-    Err(invalid_config(config))
 }
 
 // The opaque-ke crate uses a lot of generic traits, which are difficult to handle in FFI.
@@ -250,21 +250,17 @@ impl OpaqueImpl for CipherConfiguration {
     }
 }
 
-macro_rules! implement_cipher_suites {
-    ( $( $name:ident ),+ $(,)? ) => {
-        // Check that any type implements the required trait
-        const fn _assert_impl_traits<'a, T: OpaqueUtil<'a>>() {}
-        const _: () = { $( _assert_impl_traits::<$name>(); )+ };
-
-        // Implement OpaqueImpl for each cipher suite.
-        // This is just copying the implementation on RistrettoTripleDhArgonSuite and wrapping it in $()+
-        $(impl OpaqueImpl for $name<'_> {
+// Implement OpaqueImpl for each cipher suite. The code is entirely the same except for the impl OpaqueImpl for <type>
+macro_rules! implement_cipher_suite {
+    ( $type:ty ) => {
+        impl crate::opaque::OpaqueImpl for $type {
             fn start_client_registration(
                 &mut self,
                 password: &str,
-            ) -> Result<types::ClientRegistrationStartResult, Error> {
-                let result = ClientRegistration::<Self>::start(self.get_rng(), password.as_bytes())?;
-                Ok(types::ClientRegistrationStartResult {
+            ) -> Result<crate::opaque::types::ClientRegistrationStartResult, Error> {
+                let result =
+                    ClientRegistration::<Self>::start(self.get_rng(), password.as_bytes())?;
+                Ok(crate::opaque::types::ClientRegistrationStartResult {
                     registration_request: result.message.serialize().to_vec(),
                     state: result.state.serialize().to_vec(),
                 })
@@ -274,13 +270,17 @@ macro_rules! implement_cipher_suites {
                 server_setup: Option<&[u8]>,
                 registration_request: &[u8],
                 username: &str,
-            ) -> Result<types::ServerRegistrationStartResult, Error> {
+            ) -> Result<crate::opaque::types::ServerRegistrationStartResult, Error> {
                 let server_setup = match server_setup {
                     Some(server_setup) => ServerSetup::<Self>::deserialize(server_setup)?,
                     None => ServerSetup::<Self>::new(self.get_rng()),
                 };
-                let result = ServerRegistration::start(&server_setup, RegistrationRequest::deserialize(registration_request)?, username.as_bytes())?;
-                Ok(types::ServerRegistrationStartResult {
+                let result = ServerRegistration::start(
+                    &server_setup,
+                    RegistrationRequest::deserialize(registration_request)?,
+                    username.as_bytes(),
+                )?;
+                Ok(crate::opaque::types::ServerRegistrationStartResult {
                     registration_response: result.message.serialize().to_vec(),
                     server_setup: server_setup.serialize().to_vec(),
                 })
@@ -290,13 +290,14 @@ macro_rules! implement_cipher_suites {
                 state: &[u8],
                 registration_response: &[u8],
                 password: &str,
-            ) -> Result<types::ClientRegistrationFinishResult, Error> {
+            ) -> Result<crate::opaque::types::ClientRegistrationFinishResult, Error> {
                 let state = ClientRegistration::<Self>::deserialize(state)?;
                 let ksf = self.get_ksf()?;
                 let response = RegistrationResponse::deserialize(registration_response)?;
-                let params = ClientRegistrationFinishParameters::new(Identifiers::default(), Some(&ksf));
+                let params =
+                    ClientRegistrationFinishParameters::new(Identifiers::default(), Some(&ksf));
                 let result = state.finish(self.get_rng(), password.as_bytes(), response, params)?;
-                Ok(types::ClientRegistrationFinishResult {
+                Ok(crate::opaque::types::ClientRegistrationFinishResult {
                     registration_upload: result.message.serialize().to_vec(),
                     export_key: result.export_key.to_vec(),
                     server_s_pk: result.server_s_pk.serialize().to_vec(),
@@ -305,10 +306,10 @@ macro_rules! implement_cipher_suites {
             fn finish_server_registration(
                 &mut self,
                 registration_upload: &[u8],
-            ) -> Result<types::ServerRegistrationFinishResult, Error> {
+            ) -> Result<crate::opaque::types::ServerRegistrationFinishResult, Error> {
                 let upload = RegistrationUpload::<Self>::deserialize(registration_upload)?;
                 let registration = ServerRegistration::finish(upload);
-                Ok(types::ServerRegistrationFinishResult {
+                Ok(crate::opaque::types::ServerRegistrationFinishResult {
                     server_registration: registration.serialize().to_vec(),
                 })
             }
@@ -316,9 +317,9 @@ macro_rules! implement_cipher_suites {
             fn start_client_login(
                 &mut self,
                 password: &str,
-            ) -> Result<types::ClientLoginStartResult, Error> {
+            ) -> Result<crate::opaque::types::ClientLoginStartResult, Error> {
                 let result = ClientLogin::<Self>::start(self.get_rng(), password.as_bytes())?;
-                Ok(types::ClientLoginStartResult {
+                Ok(crate::opaque::types::ClientLoginStartResult {
                     credential_request: result.message.serialize().to_vec(),
                     state: result.state.serialize().to_vec(),
                 })
@@ -329,10 +330,10 @@ macro_rules! implement_cipher_suites {
                 server_registration: &[u8],
                 credential_request: &[u8],
                 username: &str,
-            ) -> Result<types::ServerLoginStartResult, Error> {
-
+            ) -> Result<crate::opaque::types::ServerLoginStartResult, Error> {
                 let server_setup = ServerSetup::<Self>::deserialize(server_setup)?;
-                let server_registration = ServerRegistration::<Self>::deserialize(server_registration)?;
+                let server_registration =
+                    ServerRegistration::<Self>::deserialize(server_registration)?;
                 let credential_request = CredentialRequest::deserialize(credential_request)?;
 
                 let result = ServerLogin::start(
@@ -343,7 +344,7 @@ macro_rules! implement_cipher_suites {
                     username.as_bytes(),
                     ServerLoginStartParameters::default(),
                 )?;
-                Ok(types::ServerLoginStartResult {
+                Ok(crate::opaque::types::ServerLoginStartResult {
                     credential_response: result.message.serialize().to_vec(),
                     state: result.state.serialize().to_vec(),
                 })
@@ -353,12 +354,17 @@ macro_rules! implement_cipher_suites {
                 state: &[u8],
                 credential_response: &[u8],
                 password: &str,
-            ) -> Result<types::ClientLoginFinishResult, Error> {
+            ) -> Result<crate::opaque::types::ClientLoginFinishResult, Error> {
                 let client_login = ClientLogin::<Self>::deserialize(state)?;
                 let ksf = self.get_ksf()?;
-                let params = ClientLoginFinishParameters::new(None, Identifiers::default(), Some(&ksf));
-                let result = client_login.finish(password.as_bytes(), CredentialResponse::deserialize(credential_response)?, params)?;
-                Ok(types::ClientLoginFinishResult {
+                let params =
+                    ClientLoginFinishParameters::new(None, Identifiers::default(), Some(&ksf));
+                let result = client_login.finish(
+                    password.as_bytes(),
+                    CredentialResponse::deserialize(credential_response)?,
+                    params,
+                )?;
+                Ok(crate::opaque::types::ClientLoginFinishResult {
                     credential_finalization: result.message.serialize().to_vec(),
                     session_key: result.session_key.to_vec(),
                     export_key: result.export_key.to_vec(),
@@ -369,15 +375,18 @@ macro_rules! implement_cipher_suites {
                 &mut self,
                 state: &[u8],
                 credential_finalization: &[u8],
-            ) -> Result<types::ServerLoginFinishResult, Error> {
+            ) -> Result<crate::opaque::types::ServerLoginFinishResult, Error> {
                 let server_login = ServerLogin::<Self>::deserialize(state)?;
-                let result = server_login.finish(CredentialFinalization::deserialize(credential_finalization)?)?;
-                Ok(types::ServerLoginFinishResult {
+                let result = server_login.finish(CredentialFinalization::deserialize(
+                    credential_finalization,
+                )?)?;
+                Ok(crate::opaque::types::ServerLoginFinishResult {
                     session_key: result.session_key.to_vec(),
                 })
             }
-        })+
+        }
     };
 }
 
-implement_cipher_suites!(RistrettoTripleDhArgonSuite, RistrettoTripleDhIdentitySuite);
+implement_cipher_suite!(RistrettoTripleDhArgonSuite<'_>);
+implement_cipher_suite!(RistrettoTripleDhIdentitySuite<'_>);

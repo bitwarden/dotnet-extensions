@@ -22,7 +22,7 @@ pub struct Buffer {
 
 ///  A struct to represent a buffer of data.
 ///  Important: The structure of this type must match the structure
-///   of the Buffer type in the C# BitwardenLibrary, both in field type and order.
+///   of the Buffer type in the C# `BitwardenLibrary`, both in field type and order.
 impl Buffer {
     pub fn null() -> Self {
         Buffer {
@@ -42,8 +42,8 @@ impl Buffer {
     }
 
     /// # Safety
-    /// All the limitations of [std::slice::from_raw_parts] apply, mainly:
-    /// - The pointer must be either null or valid for reads up to [Buffer::len] bytes.
+    /// All the limitations of [`std::slice::from_raw_parts`] apply, mainly:
+    /// - The pointer must be either null or valid for reads up to [`Buffer::len`] bytes.
     /// - The memory must be valid for the duration of the call and not modified by other threads.
     pub unsafe fn as_slice_optional(&self) -> Result<Option<&[u8]>, Error> {
         if self.data.is_null() {
@@ -64,8 +64,8 @@ impl Buffer {
     }
 
     /// # Safety
-    /// All the limitations of [std::slice::from_raw_parts] apply, mainly:
-    /// - The pointer must be either null or valid for reads up to [Buffer::len] bytes.
+    /// All the limitations of [`std::slice::from_raw_parts`] apply, mainly:
+    /// - The pointer must be either null or valid for reads up to [`Buffer::len`] bytes.
     /// - The memory must be valid for the duration of the call and not modified by other threads.
     pub unsafe fn as_slice(&self) -> Result<&[u8], Error> {
         unsafe { self.as_slice_optional() }?
@@ -103,7 +103,7 @@ macro_rules! try_ffi {
 
 /// A struct to represent a response from the rust library.
 /// Important: The structure of this type must match the structure of the
-/// Response type in the C# BitwardenLibrary, both in field type and order.
+/// Response type in the C# `BitwardenLibrary`, both in field type and order.
 #[repr(C)]
 pub struct Response {
     pub error: usize,
@@ -112,7 +112,7 @@ pub struct Response {
     // This is a way of returning multiple values without having different return FFI types.
     // Currently the API only returns byte arrays so this is a good fit for now.
     // Important: The length of this array must match exactly with the length of
-    // the C# BitwardenLibrary.Response struct. It also must be greater than or
+    // the C# `BitwardenLibrary.Response` struct. It also must be greater than or
     // equal than the implementations of the AllowedSize trait below.
     pub data: [Buffer; 4],
 }
@@ -147,7 +147,7 @@ impl Response {
         let (error, message) = match error {
             Error::InvalidInput(name) => (1, name),
             Error::InvalidConfig(error) => (2, error),
-            Error::Protocol(e) => (3, format!("{:?}", e)),
+            Error::Protocol(e) => (3, format!("{e:?}")),
             Error::InternalError(error) => (4, error),
         };
 

@@ -11,7 +11,7 @@ mod types;
 use types::*;
 
 /// # Safety
-/// All the limitations of [std::ffi::CStr::from_ptr] apply, mainly:
+/// All the limitations of [`std::ffi::CStr::from_ptr`] apply, mainly:
 /// - The pointer must be valid and point to a null-terminated byte string.
 /// - The  memory must be valid for the duration of the call and not modified by other threads.
 unsafe fn parse_str<'a>(input: *const c_char, name: &'static str) -> Result<&'a str, Error> {
@@ -46,7 +46,7 @@ pub unsafe extern "C" fn register_seeded_fake_config(seed: Buffer) -> Response {
 }
 
 /// # Safety
-/// This function must follow the same safety rules as [parse_str] and [Buffer::as_slice].
+/// This function must follow the same safety rules as [`parse_str`] and [`Buffer::as_slice`].
 /// The caller must ensure that the [Response] is correctly freed after use.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn start_client_registration(
@@ -65,7 +65,7 @@ pub unsafe extern "C" fn start_client_registration(
 }
 
 /// # Safety
-/// This function must follow the same safety rules as [parse_str] and [Buffer::as_slice].
+/// This function must follow the same safety rules as [`parse_str`] and [`Buffer::as_slice`].
 /// The caller must ensure that the [Response] is correctly freed after use.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn start_server_registration(
@@ -92,7 +92,7 @@ pub unsafe extern "C" fn start_server_registration(
 }
 
 /// # Safety
-/// This function must follow the same safety rules as [parse_str] and [Buffer::as_slice].
+/// This function must follow the same safety rules as [`parse_str`] and [`Buffer::as_slice`].
 /// The caller must ensure that the [Response] is correctly freed after use.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn finish_client_registration(
@@ -120,7 +120,7 @@ pub unsafe extern "C" fn finish_client_registration(
 }
 
 /// # Safety
-/// This function must follow the same safety rules as [parse_str] and [Buffer::as_slice].
+/// This function must follow the same safety rules as [`parse_str`] and [`Buffer::as_slice`].
 /// The caller must ensure that the [Response] is correctly freed after use.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn finish_server_registration(
@@ -139,7 +139,7 @@ pub unsafe extern "C" fn finish_server_registration(
 }
 
 /// # Safety
-/// This function must follow the same safety rules as [parse_str] and [Buffer::as_slice].
+/// This function must follow the same safety rules as [`parse_str`] and [`Buffer::as_slice`].
 /// The caller must ensure that the [Response] is correctly freed after use.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn start_client_login(
@@ -158,7 +158,7 @@ pub unsafe extern "C" fn start_client_login(
 }
 
 /// # Safety
-/// This function must follow the same safety rules as [parse_str] and [Buffer::as_slice].
+/// This function must follow the same safety rules as [`parse_str`] and [`Buffer::as_slice`].
 /// The caller must ensure that the [Response] is correctly freed after use.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn start_server_login(
@@ -188,7 +188,7 @@ pub unsafe extern "C" fn start_server_login(
 }
 
 /// # Safety
-/// This function must follow the same safety rules as [parse_str] and [Buffer::as_slice].
+/// This function must follow the same safety rules as [`parse_str`] and [`Buffer::as_slice`].
 /// The caller must ensure that the [Response] is correctly freed after use.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn finish_client_login(
@@ -216,7 +216,7 @@ pub unsafe extern "C" fn finish_client_login(
 }
 
 /// # Safety
-/// This function must follow the same safety rules as [parse_str] and [Buffer::as_slice].
+/// This function must follow the same safety rules as [`parse_str`] and [`Buffer::as_slice`].
 /// The caller must ensure that the [Response] is correctly freed after use.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn finish_server_login(
