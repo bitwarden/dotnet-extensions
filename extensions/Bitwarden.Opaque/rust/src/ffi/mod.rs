@@ -41,8 +41,7 @@ pub unsafe extern "C" fn register_seeded_fake_config(seed: Buffer) -> Response {
 
         let (server_setup, server_registration) =
             try_ffi!(crate::opaque::register_seeded_fake_config(seed));
-
-        Response::ok2(server_setup, server_registration)
+        Response::ok([server_setup, server_registration])
     })
 }
 
@@ -61,8 +60,7 @@ pub unsafe extern "C" fn start_client_registration(
         let mut config = try_ffi!(CipherConfiguration::from_str(config));
 
         let result = try_ffi!(config.start_client_registration(password));
-
-        Response::ok2(result.registration_request, result.state)
+        Response::ok([result.registration_request, result.state])
     })
 }
 
@@ -89,8 +87,7 @@ pub unsafe extern "C" fn start_server_registration(
             registration_request,
             username
         ));
-
-        Response::ok2(response.registration_response, response.server_setup)
+        Response::ok([response.registration_response, response.server_setup])
     })
 }
 
@@ -114,12 +111,11 @@ pub unsafe extern "C" fn finish_client_registration(
 
         let response =
             try_ffi!(config.finish_client_registration(state, registration_response, password));
-
-        Response::ok3(
+        Response::ok([
             response.registration_upload,
             response.export_key,
             response.server_s_pk,
-        )
+        ])
     })
 }
 
@@ -138,7 +134,7 @@ pub unsafe extern "C" fn finish_server_registration(
         let mut config = try_ffi!(CipherConfiguration::from_str(config));
 
         let response = try_ffi!(config.finish_server_registration(registration_upload));
-        Response::ok1(response.server_registration)
+        Response::ok([response.server_registration])
     })
 }
 
@@ -157,7 +153,7 @@ pub unsafe extern "C" fn start_client_login(
         let mut config = try_ffi!(CipherConfiguration::from_str(config));
 
         let response = try_ffi!(config.start_client_login(password));
-        Response::ok2(response.credential_request, response.state)
+        Response::ok([response.credential_request, response.state])
     })
 }
 
@@ -187,7 +183,7 @@ pub unsafe extern "C" fn start_server_login(
             credential_request,
             username,
         ));
-        Response::ok2(response.credential_response, response.state)
+        Response::ok([response.credential_response, response.state])
     })
 }
 
@@ -210,12 +206,12 @@ pub unsafe extern "C" fn finish_client_login(
         let mut config = try_ffi!(CipherConfiguration::from_str(config));
 
         let response = try_ffi!(config.finish_client_login(state, credential_response, password));
-        Response::ok4(
+        Response::ok([
             response.credential_finalization,
             response.session_key,
             response.export_key,
             response.server_s_pk,
-        )
+        ])
     })
 }
 
@@ -236,8 +232,7 @@ pub unsafe extern "C" fn finish_server_login(
         let mut config = try_ffi!(CipherConfiguration::from_str(config));
 
         let response = try_ffi!(config.finish_server_login(state, credential_finalization));
-
-        Response::ok1(response.session_key)
+        Response::ok([response.session_key])
     })
 }
 
