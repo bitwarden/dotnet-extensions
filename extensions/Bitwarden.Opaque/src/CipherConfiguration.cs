@@ -1,29 +1,6 @@
-﻿using System.Text.Json;
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace Bitwarden.Opaque;
-
-class KeyExchangeConverter : JsonConverter<KeyExchange>
-{
-    public override KeyExchange Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-    {
-        var value = reader.GetString() ?? throw new JsonException("Invalid value");
-        return value.ToLower() switch
-        {
-            "triple-dh" => KeyExchange.TripleDH,
-            "tripledh" => KeyExchange.TripleDH, // Handles both formats
-            _ => throw new JsonException($"Unknown value: {value}")
-        };
-    }
-
-    public override void Write(Utf8JsonWriter writer, KeyExchange value, JsonSerializerOptions options)
-    {
-        writer.WriteStringValue(value switch
-        {
-            KeyExchange.TripleDH => "triple-dh",
-        });
-    }
-}
 
 ///  A VOPRF ciphersuite
 [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -42,7 +19,7 @@ public enum KeGroup
 }
 
 /// The key exchange protocol to use in the login step
-[JsonConverter(typeof(KeyExchangeConverter))]
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum KeyExchange
 {
     /// The Triple Diffie-Hellman key exchange implementation

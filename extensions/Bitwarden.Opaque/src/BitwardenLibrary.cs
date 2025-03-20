@@ -43,6 +43,9 @@ internal static partial class BitwardenLibrary
         }
     }
 
+    // These are all the functions defined in the rust library.
+    // Important: The function signatures must always match the signatures in the rust library.
+
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
     internal static partial void free_buffer(Buffer buf);
 
@@ -74,6 +77,8 @@ internal static partial class BitwardenLibrary
     [LibraryImport("opaque_ke_binding", StringMarshalling = StringMarshalling.Utf8)]
     internal static partial Response finish_server_login(string config, Buffer state, Buffer credential_finalization);
 
+    // This is an internal class to improve the FFI handling. It should not be created directly,
+    // and should be used only from inside the ExecuteFFIFunction callback.
     internal class FFIHandler
     {
         private FFIHandler() { }
