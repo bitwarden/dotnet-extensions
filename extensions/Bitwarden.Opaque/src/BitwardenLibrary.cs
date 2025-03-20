@@ -16,8 +16,8 @@ internal static partial class BitwardenLibrary
     [StructLayout(LayoutKind.Sequential)]
     internal struct Buffer
     {
-        public IntPtr data;
-        public nint size;
+        internal IntPtr data;
+        internal nint size;
     }
 
     /// <summary>
@@ -28,16 +28,16 @@ internal static partial class BitwardenLibrary
     [StructLayout(LayoutKind.Sequential)]
     internal struct Response
     {
-        public nint error;
-        public Buffer error_message;
+        internal nint error;
+        internal Buffer error_message;
 
-        public Buffer data1;
-        public Buffer data2;
-        public Buffer data3;
-        public Buffer data4;
+        internal Buffer data1;
+        internal Buffer data2;
+        internal Buffer data3;
+        internal Buffer data4;
 
         // Utility function to get all buffers as a list
-        public readonly List<Buffer> GetAllBuffers()
+        internal readonly List<Buffer> GetAllBuffers()
         {
             return [data1, data2, data3, data4];
         }
