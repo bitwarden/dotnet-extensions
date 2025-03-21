@@ -11,8 +11,14 @@ on:
         description: Token used to publish packages
 
 jobs:
+  build_rust:
+    name: Build Rust Cross Platform
+    uses: ./.github/workflows/build-rust-cross-platform.yml
+
   release:
     name: Release
+    needs:
+      - build_rust
     runs-on: ubuntu-22.04
     outputs:
       package: ${{ steps.parse-package.outputs.result }}
@@ -46,6 +52,12 @@ jobs:
             }
 
             return refParts[3];
+
+      - name: Download cross compiled library files
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: libopaque_ke_binding_all_files
+          path: extensions/Bitwarden.Opaque/rust/dist/
 
       - name: Pack
         run: dotnet pack -c Release -p:IsPreRelease=$IS_PRERELEASE
