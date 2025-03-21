@@ -43,10 +43,13 @@
     <None Include="../../../LICENSE.txt" Pack="true" PackagePath="\" />
   </ItemGroup>
 
-  <!-- Build and copy native libraries in debug mode -->
-
   <PropertyGroup>
-    <RustDebug>../rust/target/debug/</RustDebug>
+    <!-- By default, build the native libs in Debug mode but not Release mode -->
+    <!-- Additionally, you can use `-p BuildOpaqueLib=<bool>` to override that -->
+    <BuildOpaqueLib Condition="'$(BuildOpaqueLib)' == '' And '$(Configuration)' == 'Debug'">true</BuildOpaqueLib>
+    <BuildOpaqueLib Condition="'$(BuildOpaqueLib)' == '' And '$(Configuration)' != 'Debug'">false</BuildOpaqueLib>
+    <BuildOpaqueLib Condition="'$(BuildOpaqueLib)' != ''">$(BuildOpaqueLib)</BuildOpaqueLib>
+
     <CurrentRID>$(NETCoreSdkRuntimeIdentifier)</CurrentRID>
   </PropertyGroup>
   <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
@@ -59,27 +62,27 @@
     <RustLibraryFile>libopaque_ke_binding.dylib</RustLibraryFile>
   </PropertyGroup>
 
-  <Target Name="CargoBuildDebug" BeforeTargets="CopyLibDebug" Condition="'$(Configuration)' == 'Debug'">
-    <Exec WorkingDirectory="$(ProjectDir)/../rust" Command="cargo build" />
+  <Target Name="BuildOpaqueLibMessage" BeforeTargets="PreBuildEvent" >
+      <Message Text="[Bitwarden.Opaque] Building native library: $(BuildOpaqueLib)" Importance="High"/>
   </Target>
 
-  <Target Name="CopyLibDebug" BeforeTargets="PreBuildEvent" Condition="'$(Configuration)' == 'Debug'">
+  <!-- Build native libraries in Debug mode by default -->
+  <Target Name="CargoBuild" BeforeTargets="CopyLib" Condition="'$(BuildOpaqueLib)' == 'true'">
+    <Exec WorkingDirectory="$(ProjectDir)/../rust" Command="cargo build --release" />
+    <!-- Move the library to the dist folder, so we only need one copy step -->
+    <Exec WorkingDirectory="$(ProjectDir)/../rust" Command="mkdir -p ./dist/$(CurrentRID)/native" />
+    <Exec WorkingDirectory="$(ProjectDir)/../rust" Command="cp target/release/$(RustLibraryFile) ./dist/$(CurrentRID)/native" />
+  </Target>
+
+  <!-- Copy native libraries -->
+  <Target Name="CopyLib" BeforeTargets="PreBuildEvent">
     <ItemGroup>
-      <Content Include="$(RustDebug)/$(RustLibraryFile)">
+      <Content Include="$(ProjectDir)/../rust/dist/**/*">
+        <Link>$(RustLibraryFile)</Link>
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         <PackageCopyToOutput>true</PackageCopyToOutput>
-        <PackagePath>runtimes/$(CurrentRID)/native</PackagePath>
+        <PackagePath>runtimes/</PackagePath>
       </Content>
     </ItemGroup>
   </Target>
-
-
-  <!-- Copy native libraries in release mode -->
-  <ItemGroup Condition="'$(Configuration)'=='Release'">
-    <Content Include="../rust/dist/**/*">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      <PackageCopyToOutput>true</PackageCopyToOutput>
-      <PackagePath>runtimes/</PackagePath>
-    </Content>
-  </ItemGroup>
 </Project>
