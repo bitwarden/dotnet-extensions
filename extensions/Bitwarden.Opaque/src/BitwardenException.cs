@@ -1,4 +1,4 @@
-﻿namespace Bitwarden.Opaque;
+namespace Bitwarden.Opaque;
 
 /// <summary>
 ///  A class to represent an exception thrown by the Bitwarden OPAQUE library.

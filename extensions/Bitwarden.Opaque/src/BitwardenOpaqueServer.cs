@@ -1,4 +1,4 @@
-﻿namespace Bitwarden.Opaque;
+namespace Bitwarden.Opaque;
 #pragma warning disable CA1822 // Mark members as static
 
 
@@ -13,7 +13,6 @@ public struct ServerRegistrationStartResult
 
 /// The result of <see cref="BitwardenOpaqueServer.FinishRegistration"/>
 public struct ServerRegistrationFinishResult
-
 {
     /// The server registration, which needs to be persisted on the server for future logins.
     public byte[] serverRegistration;

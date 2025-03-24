@@ -1,4 +1,4 @@
-﻿namespace Bitwarden.Opaque;
+namespace Bitwarden.Opaque;
 #pragma warning disable CA1822 // Mark members as static
 
 /// The result of <see cref="BitwardenOpaqueClient.StartRegistration"/>
