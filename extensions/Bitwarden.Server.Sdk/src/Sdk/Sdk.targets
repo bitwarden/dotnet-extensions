@@ -35,19 +35,19 @@
 
   <!-- TODO: Allow for overriding specific package versions? -->
   <ItemGroup Condition="'$(BitIncludeLogging)' == 'true'">
-    <PackageReference Include="Serilog.Extensions.Hosting" Version="8.0.0" />
-    <PackageReference Include="Serilog.Formatting.Compact" Version="3.0.0" />
-    <PackageReference Include="Serilog.Settings.Configuration" Version="8.0.4" />
-    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
-    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+    <PackageReference Include="Serilog.Extensions.Hosting" Version="[8.0.0]" />
+    <PackageReference Include="Serilog.Formatting.Compact" Version="[3.0.0]" />
+    <PackageReference Include="Serilog.Settings.Configuration" Version="[8.0.4]" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="[6.0.0]" />
+    <PackageReference Include="Serilog.Sinks.File" Version="[6.0.0]" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(BitIncludeTelemetry)' == 'true'">
-    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.9.0" />
-    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.9.0" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="[1.9.0]" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="[1.9.0]" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(BitIncludeFeatures)' == 'true'">
-    <PackageReference Include="Bitwarden.Server.Sdk.Features" Version="0.0.3-beta.1" />
+    <PackageReference Include="Bitwarden.Server.Sdk.Features" Version="[0.0.3-beta.1]" />
   </ItemGroup>
 </Project>
