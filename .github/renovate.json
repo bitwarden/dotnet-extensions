@@ -1,11 +1,11 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["github>bitwarden/renovate-config/non-pinned.json"],
+  "extends": ["github>bitwarden/renovate-config"],
   "enabledManagers": ["github-actions", "nuget"],
   "packageRules": [
     {
-      "matchManagers": ["github-actions"],
-      "rangeStrategy": "pin"
+      "matchManagers": ["nuget"],
+      "rangeStrategy": "auto"
     },
     {
       "groupName": "gh minor",
