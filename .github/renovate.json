@@ -4,6 +4,10 @@
   "enabledManagers": ["github-actions", "nuget"],
   "packageRules": [
     {
+      "matchManagers": ["nuget"],
+      "rangeStrategy": "auto"
+    },
+    {
       "groupName": "gh minor",
       "matchManagers": ["github-actions"],
       "matchUpdateTypes": ["minor", "patch"]
