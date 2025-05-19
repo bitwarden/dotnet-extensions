@@ -1,0 +1,127 @@
+name: Build Rust Cross Platform
+
+on:
+  workflow_call:
+
+jobs:
+  build_rust:
+    name: Build for ${{ matrix.settings.os }} ${{ matrix.settings.target }}
+    runs-on: ${{ matrix.settings.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - os: macos-13
+            target: x86_64-apple-darwin
+            dotnet_rid: osx-x64
+          - os: macos-13
+            target: aarch64-apple-darwin
+            dotnet_rid: osx-arm64
+          - os: windows-2022
+            target: i686-pc-windows-msvc
+            dotnet_rid: win-x86
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+            dotnet_rid: win-x64
+          - os: windows-2022
+            target: aarch64-pc-windows-msvc
+            dotnet_rid: win-arm64
+          # caution: updating the linux runner OS version for GNU
+          #   targets will likely break the library for older OS versions.
+          #   prefer using oldest supported runner for for these targets
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            dotnet_rid: linux-x64
+          - os: ubuntu-22.04
+            target: aarch64-unknown-linux-gnu
+            dotnet_rid: linux-arm64
+            use_cross: true
+          - os: ubuntu-22.04
+            target: armv7-unknown-linux-gnueabihf
+            dotnet_rid: linux-arm
+            use_cross: true
+          - os: ubuntu-22.04
+            target: arm-unknown-linux-gnueabihf
+            dotnet_rid: linux-armv6
+            use_cross: true
+          - os: ubuntu-22.04
+            target: armv5te-unknown-linux-gnueabi
+            dotnet_rid: linux-armel
+            use_cross: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install rust
+        uses: dtolnay/rust-toolchain@c5a29ddb4d9d194e7c84ec8c3fba61b1c31fee8c # stable
+        with:
+          toolchain: stable
+
+      - name: Cache cargo registry
+        uses: Swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaab # v2.7.5
+
+      - name: Install cross
+        if: ${{ startsWith(matrix.settings.os, 'ubuntu') && !startsWith(matrix.settings.target, 'x86_64') }}
+        run: cargo install cross --git https://github.com/cross-rs/cross --rev 36c0d7810ddde073f603c82d896c2a6c886ff7a4
+
+      - name: Add build architecture
+        run: rustup target add ${{ matrix.settings.target }}
+
+      # Build Rust natively
+      - name: Build Rust native for - ${{ matrix.settings.target }}
+        if: ${{ matrix.settings.use_cross != true }}
+        env:
+          RUSTFLAGS: "-D warnings"
+          MACOSX_DEPLOYMENT_TARGET: "10.14" # allows using new macos runner versions while still supporting older systems
+        run: cargo build --target ${{ matrix.settings.target }} --release
+        working-directory: extensions/Bitwarden.Opaque/rust
+
+      # Build Rust using cross
+      - name: Build Rust cross for - ${{ matrix.settings.target }}
+        if: ${{ matrix.settings.use_cross == true }}
+        env:
+          RUSTFLAGS: "-D warnings"
+        run: cross build --target ${{ matrix.settings.target }} --release
+        working-directory: extensions/Bitwarden.Opaque/rust
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: libopaque_ke_binding_files-${{ matrix.settings.dotnet_rid }}
+          # We only need these until the next step, so delete them as soon as possible
+          retention-days: 1
+          if-no-files-found: error
+          path: |
+            extensions/Bitwarden.Opaque/rust/target/${{ matrix.settings.target }}/release/opaque_ke_binding.dll
+            extensions/Bitwarden.Opaque/rust/target/${{ matrix.settings.target }}/release/libopaque_ke_binding.so
+            extensions/Bitwarden.Opaque/rust/target/${{ matrix.settings.target }}/release/libopaque_ke_binding.dylib
+
+  collect_artifacts:
+    name: Collect and Upload All Artifacts
+    runs-on: ubuntu-22.04
+    needs: build_rust
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          pattern: libopaque_ke_binding_files-*
+          path: downloaded_runtimes/
+
+      - name: Move files to the correct directory
+        run: |
+          for file in downloaded_runtimes/libopaque_ke_binding_files-*; do
+            echo "Processing $file"
+            platform="${file#downloaded_runtimes/libopaque_ke_binding_files-}"
+            echo "Platform: $platform"
+            mkdir -p runtimes/${platform}/native
+            mv $file/* runtimes/${platform}/native
+          done
+
+      - name: Upload Combined Artifact
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: libopaque_ke_binding_all_files
+          if-no-files-found: error
+          path: |
+            runtimes/**/*
