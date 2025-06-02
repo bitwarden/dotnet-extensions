@@ -3,14 +3,9 @@ using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 #if BIT_INCLUDE_TELEMETRY
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
-#endif
-#if BIT_INCLUDE_LOGGING
-using Serilog;
-using Serilog.Formatting.Compact;
 #endif
 
 namespace Microsoft.Extensions.Hosting;
@@ -143,23 +138,16 @@ public static class HostBuilderExtensions
 
     private static void AddLogging(IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
     {
-#if BIT_INCLUDE_LOGGING
-        services.AddSerilog((sp, serilog) =>
-        {
-            var builder = serilog.ReadFrom.Configuration(configuration)
-                .ReadFrom.Services(sp)
-                .Enrich.WithProperty("Project", environment.ApplicationName)
-                .Enrich.FromLogContext();
 
-            if (environment.IsProduction())
+#if BIT_INCLUDE_FILE_LOGGING
+        var pathFormat = configuration["Logging:PathFormat"];
+        if (!string.IsNullOrEmpty(pathFormat))
+        {
+            services.AddLogging(builder =>
             {
-                builder.WriteTo.Console(new RenderedCompactJsonFormatter());
-            }
-            else
-            {
-                builder.WriteTo.Console();
-            }
-        });
+                builder.AddFile(configuration.GetSection("Logging"));
+            });
+        }
 #endif
     }
 

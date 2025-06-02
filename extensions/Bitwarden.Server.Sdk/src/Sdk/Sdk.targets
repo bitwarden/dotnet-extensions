@@ -22,9 +22,9 @@
 
   <!-- TODO Use the constants in places to avoid any configuration that doesn't compile -->
   <PropertyGroup>
-    <!-- Logging defaults to on -->
-    <BitIncludeLogging Condition="'$(BitIncludeLogging)' == ''">true</BitIncludeLogging>
-    <DefineConstants Condition="'$(BitIncludeLogging)' == 'true'">$(DefineConstants);BIT_INCLUDE_LOGGING</DefineConstants>
+    <!-- File logging defaults to off -->
+    <BitIncludeFileLogging Condition="'$(BitIncludeFileLogging)' == ''">false</BitIncludeFileLogging>
+    <DefineConstants Condition="'$(BitIncludeFileLogging)' == 'true'">$(DefineConstants);BIT_INCLUDE_FILE_LOGGING</DefineConstants>
     <!-- Telemetry defaults to on -->
     <BitIncludeTelemetry Condition="'$(BitIncludeTelemetry)' == ''">true</BitIncludeTelemetry>
     <DefineConstants Condition="'$(BitIncludeTelemetry)' == 'true'">$(DefineConstants);BIT_INCLUDE_TELEMETRY</DefineConstants>
@@ -34,12 +34,8 @@
   </PropertyGroup>
 
   <!-- TODO: Allow for overriding specific package versions? -->
-  <ItemGroup Condition="'$(BitIncludeLogging)' == 'true'">
-    <PackageReference Include="Serilog.Extensions.Hosting" Version="[8.0.0]" />
-    <PackageReference Include="Serilog.Formatting.Compact" Version="[3.0.0]" />
-    <PackageReference Include="Serilog.Settings.Configuration" Version="[8.0.4]" />
-    <PackageReference Include="Serilog.Sinks.Console" Version="[6.0.0]" />
-    <PackageReference Include="Serilog.Sinks.File" Version="[6.0.0]" />
+  <ItemGroup Condition="'$(BitIncludeFileLogging)' == 'true'">
+    <PackageReference Include="Serilog.Extensions.Logging.File" Version="[3.0.0]" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(BitIncludeTelemetry)' == 'true'">

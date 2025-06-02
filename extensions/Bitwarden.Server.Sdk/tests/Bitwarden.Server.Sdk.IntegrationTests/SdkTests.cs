@@ -1,5 +1,3 @@
-using System.Collections.ObjectModel;
-using Microsoft.Build.Evaluation;
 using Microsoft.Build.Utilities.ProjectCreation;
 
 namespace Bitwarden.Server.Sdk.IntegrationTests;
@@ -10,13 +8,13 @@ public class SdkTests : MSBuildTestBase
     public void NoOverridingProperties_CanCompile()
     {
         ProjectCreator.Templates.SdkProject(out var result, out var buildOutput)
-            .TryGetConstant("BIT_INCLUDE_LOGGING", out var hasLoggingConstant)
+            .TryGetConstant("BIT_INCLUDE_FILE_LOGGING", out var hasFileLoggingConstant)
             .TryGetConstant("BIT_INCLUDE_TELEMETRY", out var hasTelementryConstant)
             .TryGetConstant("BIT_INCLUDE_FEATURES", out var hasFeaturesConstant);
 
         Assert.True(result, buildOutput.GetConsoleLog());
 
-        Assert.True(hasLoggingConstant);
+        Assert.False(hasFileLoggingConstant);
         Assert.True(hasTelementryConstant);
         Assert.True(hasFeaturesConstant);
     }
@@ -40,14 +38,14 @@ public class SdkTests : MSBuildTestBase
     }
 
     [Fact]
-    public void LoggingTurnedOff_CanCompile()
+    public void LoggingTurnedOn_CanCompile()
     {
         ProjectCreator.Templates.SdkProject(
             out var result,
             out var buildOutput,
             customAction: (project) =>
             {
-                project.Property("BitIncludeLogging", bool.FalseString);
+                project.Property("BitIncludeFileLogging", bool.TrueString);
             }
         );
 
@@ -148,7 +146,7 @@ public class SdkTests : MSBuildTestBase
             out var buildOutput,
             customAction: (project) =>
             {
-                project.Property("BitIncludeLogging", includeLogging.ToString());
+                project.Property("BitIncludeFileLogging", includeLogging.ToString());
                 project.Property("BitIncludeTelemetry", includeTelemetry.ToString());
                 project.Property("BitIncludeFeatures", includeFeatures.ToString());
             }
