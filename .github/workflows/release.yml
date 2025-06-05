@@ -7,7 +7,10 @@ jobs:
   release:
     name: Do release
     uses: bitwarden/dotnet-extensions/.github/workflows/pack-and-release.yml@main
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
     with:
       prerelease: false
-    secrets:
-      publish-token: ${{ secrets.PUBLISH_GITHUB_TOKEN }}
+    secrets: inherit # Needed for Azure login IDs
