@@ -3,6 +3,9 @@ name: Perform release
 on:
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 jobs:
   token:
     name: Get publish token
