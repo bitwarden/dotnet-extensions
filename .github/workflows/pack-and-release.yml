@@ -11,7 +11,7 @@ jobs:
     name: Release
     runs-on: ubuntu-22.04
     permissions:
-      contents: read
+      contents: write
       id-token: write  # Required for Azure login
     outputs:
       package: ${{ steps.parse-package.outputs.result }}
@@ -143,7 +143,7 @@ jobs:
           name: packages
           path: "**/*.nupkg"
 
-      - name: Log in to Azure
+      - name: Azure Login
         id: azure-login
         uses: bitwarden/gh-actions/azure-login@main
         with:
@@ -151,19 +151,26 @@ jobs:
           tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           client_id: ${{ secrets.AZURE_CLIENT_ID }}
 
-      - name: Get Azure Key Vault secrets
+      - name: Get KV secrets
         id: get-kv-secrets
         uses: bitwarden/gh-actions/get-keyvault-secrets@main
         with:
-          keyvault: gh-dotnet-extensions
-          secrets: "publish-token"
+          keyvault: gh-org-bitwarden
+          secrets: "BW-GHAPP-ID,BW-GHAPP-KEY"
 
-      - name: Log out from Azure
+      - name: Azure Logout
         uses: bitwarden/gh-actions/azure-logout@main
+
+      - name: Generate GH App token
+        uses: actions/create-github-app-token@c1a285145b9d317df6ced56c09f525b5c2b6f755 # v1.11.1
+        id: app-token
+        with:
+          app-id: ${{ steps.get-kv-secrets.outputs.BW-GHAPP-ID }}
+          private-key: ${{ steps.get-kv-secrets.outputs.BW-GHAPP-KEY }}
 
       - name: Dispatch publishing
         env:
-          GITHUB_TOKEN: ${{ steps.get-kv-secrets.outputs.publish-token }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: >
           gh workflow run publish-nuget.yml
           --repo bitwarden/devops
