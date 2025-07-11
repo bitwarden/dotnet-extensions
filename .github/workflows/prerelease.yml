@@ -1,9 +1,7 @@
 name: Perform prerelease
 
 on:
-  push:
-    branches:
-      - "release/**"
+  workflow_dispatch: {}
 
 jobs:
   prerelease:
