@@ -10,13 +10,11 @@ public class SdkTests : MSBuildTestBase
     public void NoOverridingProperties_CanCompile()
     {
         ProjectCreator.Templates.SdkProject(out var result, out var buildOutput)
-            .TryGetConstant("BIT_INCLUDE_LOGGING", out var hasLoggingConstant)
             .TryGetConstant("BIT_INCLUDE_TELEMETRY", out var hasTelementryConstant)
             .TryGetConstant("BIT_INCLUDE_FEATURES", out var hasFeaturesConstant);
 
         Assert.True(result, buildOutput.GetConsoleLog());
 
-        Assert.True(hasLoggingConstant);
         Assert.True(hasTelementryConstant);
         Assert.True(hasFeaturesConstant);
     }
@@ -37,21 +35,6 @@ public class SdkTests : MSBuildTestBase
         Assert.True(result, buildOutput.GetConsoleLog());
 
         Assert.Empty(buildOutput.WarningEvents);
-    }
-
-    [Fact]
-    public void LoggingTurnedOff_CanCompile()
-    {
-        ProjectCreator.Templates.SdkProject(
-            out var result,
-            out var buildOutput,
-            customAction: (project) =>
-            {
-                project.Property("BitIncludeLogging", bool.FalseString);
-            }
-        );
-
-        Assert.True(result, buildOutput.GetConsoleLog());
     }
 
     [Fact]
@@ -123,21 +106,20 @@ public class SdkTests : MSBuildTestBase
         Assert.True(result, buildOutput.GetConsoleLog());
     }
 
-    public static TheoryData<bool, bool, bool> MatrixData
-        => new MatrixTheoryData<bool, bool, bool>([true, false], [true, false], [true, false]);
+    public static TheoryData<bool, bool> MatrixData
+        => new MatrixTheoryData<bool, bool>([true, false], [true, false]);
 
     // There will be some variants that disallow the use of feature Y if feature X is not also enabled.
     // Use this set to exclude those known variants from being tested.
-    public static HashSet<(bool, bool, bool)> ExcludedVariants => [];
+    public static HashSet<(bool, bool)> ExcludedVariants => [];
 
     [Theory, MemberData(nameof(MatrixData))]
-    public void AllVariants_Work(bool includeLogging, bool includeTelemetry, bool includeFeatures)
+    public void AllVariants_Work(bool includeTelemetry, bool includeFeatures)
     {
-        if (ExcludedVariants.Contains((includeLogging, includeTelemetry, includeFeatures)))
+        if (ExcludedVariants.Contains((includeTelemetry, includeFeatures)))
         {
             Assert.Skip($"""
                 Excluded Variant Skipped:
-                    IncludeLogging = {includeLogging}
                     IncludeTelemetry = {includeTelemetry}
                     IncludeFeatures = {includeFeatures}
                 """);
@@ -148,7 +130,6 @@ public class SdkTests : MSBuildTestBase
             out var buildOutput,
             customAction: (project) =>
             {
-                project.Property("BitIncludeLogging", includeLogging.ToString());
                 project.Property("BitIncludeTelemetry", includeTelemetry.ToString());
                 project.Property("BitIncludeFeatures", includeFeatures.ToString());
             }

@@ -8,10 +8,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 #endif
-#if BIT_INCLUDE_LOGGING
-using Serilog;
-using Serilog.Formatting.Compact;
-#endif
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -38,7 +34,6 @@ public static class HostBuilderExtensions
             AddSelfHostedConfig(builder.Configuration, builder.Environment);
         }
 
-        AddLogging(builder.Services, builder.Configuration, builder.Environment);
         AddMetrics(builder.Services);
 #if BIT_INCLUDE_FEATURES
         builder.Services.AddFeatureFlagServices(builder.Configuration);
@@ -61,11 +56,6 @@ public static class HostBuilderExtensions
             {
                 AddSelfHostedConfig(builder, context.HostingEnvironment);
             }
-        });
-
-        hostBuilder.ConfigureServices((context, services) =>
-        {
-            AddLogging(services, context.Configuration, context.HostingEnvironment);
         });
 
         hostBuilder.ConfigureServices((_, services) =>
@@ -140,28 +130,6 @@ public static class HostBuilderExtensions
         configurationBuilder.AddEnvironmentVariables();
     }
 
-
-    private static void AddLogging(IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
-    {
-#if BIT_INCLUDE_LOGGING
-        services.AddSerilog((sp, serilog) =>
-        {
-            var builder = serilog.ReadFrom.Configuration(configuration)
-                .ReadFrom.Services(sp)
-                .Enrich.WithProperty("Project", environment.ApplicationName)
-                .Enrich.FromLogContext();
-
-            if (environment.IsProduction())
-            {
-                builder.WriteTo.Console(new RenderedCompactJsonFormatter());
-            }
-            else
-            {
-                builder.WriteTo.Console();
-            }
-        });
-#endif
-    }
 
     private static void AddMetrics(IServiceCollection services)
     {
