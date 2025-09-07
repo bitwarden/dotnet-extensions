@@ -135,10 +135,22 @@ public static class HostBuilderExtensions
     {
 #if BIT_INCLUDE_TELEMETRY
         services.AddOpenTelemetry()
-            .WithMetrics(options =>
-                options.AddOtlpExporter())
-            .WithTracing(options =>
-                options.AddOtlpExporter());
+            .WithMetrics(metrics =>
+            {
+                metrics.AddOtlpExporter();
+
+                metrics.AddAspNetCoreInstrumentation();
+                metrics.AddHttpClientInstrumentation();
+                metrics.AddRuntimeInstrumentation();
+            })
+            .WithTracing(tracing =>
+            {
+                tracing.AddOtlpExporter();
+
+                tracing.AddAspNetCoreInstrumentation();
+                tracing.AddHttpClientInstrumentation();
+                tracing.AddEntityFrameworkCoreInstrumentation();
+            });
 #endif
     }
 }
