@@ -134,6 +134,8 @@ public static class HostBuilderExtensions
     private static void AddMetrics(IServiceCollection services, IConfiguration configuration)
     {
 #if BIT_INCLUDE_TELEMETRY
+        const string OtelDebuggingConfigKey = "OTEL_DEBUGGING";
+
         services.AddOpenTelemetry()
             .WithMetrics(metrics =>
             {
@@ -152,7 +154,7 @@ public static class HostBuilderExtensions
                 tracing.AddEntityFrameworkCoreInstrumentation();
             });
 
-        if (configuration.GetValue("OTEL_DEBUGGING", false))
+        if (configuration.GetValue(OtelDebuggingConfigKey, false))
         {
             if (!services.Any((sd) => sd.ServiceType == typeof(IHostedService) && sd.ImplementationType == typeof(OtelDebuggingHostedService)))
             {
