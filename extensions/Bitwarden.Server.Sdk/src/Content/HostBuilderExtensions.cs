@@ -3,8 +3,8 @@ using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 #if BIT_INCLUDE_TELEMETRY
+using Bitwarden.Server.Sdk.Internal;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 #endif
@@ -34,7 +34,7 @@ public static class HostBuilderExtensions
             AddSelfHostedConfig(builder.Configuration, builder.Environment);
         }
 
-        AddMetrics(builder.Services);
+        AddMetrics(builder.Services, builder.Configuration);
 #if BIT_INCLUDE_FEATURES
         builder.Services.AddFeatureFlagServices(builder.Configuration);
 #endif
@@ -58,9 +58,9 @@ public static class HostBuilderExtensions
             }
         });
 
-        hostBuilder.ConfigureServices((_, services) =>
+        hostBuilder.ConfigureServices((context, services) =>
         {
-            AddMetrics(services);
+            AddMetrics(services, context.Configuration);
         });
 
 #if BIT_INCLUDE_FEATURES
@@ -131,14 +131,36 @@ public static class HostBuilderExtensions
     }
 
 
-    private static void AddMetrics(IServiceCollection services)
+    private static void AddMetrics(IServiceCollection services, IConfiguration configuration)
     {
 #if BIT_INCLUDE_TELEMETRY
+        const string OtelDebuggingConfigKey = "OTEL_DEBUGGING";
+
         services.AddOpenTelemetry()
-            .WithMetrics(options =>
-                options.AddOtlpExporter())
-            .WithTracing(options =>
-                options.AddOtlpExporter());
+            .WithMetrics(metrics =>
+            {
+                metrics.AddOtlpExporter();
+
+                metrics.AddAspNetCoreInstrumentation();
+                metrics.AddHttpClientInstrumentation();
+                metrics.AddRuntimeInstrumentation();
+            })
+            .WithTracing(tracing =>
+            {
+                tracing.AddOtlpExporter();
+
+                tracing.AddAspNetCoreInstrumentation();
+                tracing.AddHttpClientInstrumentation();
+                tracing.AddEntityFrameworkCoreInstrumentation();
+            });
+
+        if (configuration.GetValue(OtelDebuggingConfigKey, false))
+        {
+            if (!services.Any((sd) => sd.ServiceType == typeof(IHostedService) && sd.ImplementationType == typeof(OtelDebuggingHostedService)))
+            {
+                services.Insert(0, ServiceDescriptor.Singleton<IHostedService, OtelDebuggingHostedService>());
+            }
+        }
 #endif
     }
 }
