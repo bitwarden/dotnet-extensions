@@ -285,8 +285,6 @@ internal class XUnitLoggerProvider : ILoggerProvider
     {
         return new XUnitLogger(categoryName);
     }
-    public void Dispose()
-    {
 
-    }
+    public void Dispose() { }
 }
