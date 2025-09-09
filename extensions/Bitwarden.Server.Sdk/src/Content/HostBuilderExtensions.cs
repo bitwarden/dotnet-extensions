@@ -3,8 +3,8 @@ using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 #if BIT_INCLUDE_TELEMETRY
+using Bitwarden.Server.Sdk.Internal;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 #endif
@@ -34,7 +34,7 @@ public static class HostBuilderExtensions
             AddSelfHostedConfig(builder.Configuration, builder.Environment);
         }
 
-        AddMetrics(builder.Services);
+        AddMetrics(builder.Services, builder.Configuration);
 #if BIT_INCLUDE_FEATURES
         builder.Services.AddFeatureFlagServices(builder.Configuration);
 #endif
@@ -58,9 +58,9 @@ public static class HostBuilderExtensions
             }
         });
 
-        hostBuilder.ConfigureServices((_, services) =>
+        hostBuilder.ConfigureServices((context, services) =>
         {
-            AddMetrics(services);
+            AddMetrics(services, context.Configuration);
         });
 
 #if BIT_INCLUDE_FEATURES
@@ -131,7 +131,7 @@ public static class HostBuilderExtensions
     }
 
 
-    private static void AddMetrics(IServiceCollection services)
+    private static void AddMetrics(IServiceCollection services, IConfiguration configuration)
     {
 #if BIT_INCLUDE_TELEMETRY
         services.AddOpenTelemetry()
@@ -151,6 +151,14 @@ public static class HostBuilderExtensions
                 tracing.AddHttpClientInstrumentation();
                 tracing.AddEntityFrameworkCoreInstrumentation();
             });
+
+        if (configuration.GetValue("OTEL_DEBUGGING", false))
+        {
+            if (!services.Any((sd) => sd.ServiceType == typeof(IHostedService) && sd.ImplementationType == typeof(OtelDebuggingHostedService)))
+            {
+                services.Insert(0, ServiceDescriptor.Singleton<IHostedService, OtelDebuggingHostedService>());
+            }
+        }
 #endif
     }
 }

@@ -14,35 +14,47 @@ public static class CustomProjectCreatorTemplates
         string? additional = null,
         Action<ProjectCreator>? customAction = null)
     {
-        var dir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        Directory.CreateDirectory(dir);
-        // TODO: Create a package repo that contains Bitwarden.Server.Sdk.Features as well as nuget
-        using (CreateDefaultPackageRepository(dir))
+        var project = templates.SdkProject(customAction);
+
+        project.AdditionalFile("Program.cs", $"""
+            var builder = WebApplication.CreateBuilder(args);
+            builder.UseBitwardenSdk();
+
+            var app = builder.Build();
+
+            {additional}
+
+            app.Run();
+            """
+        );
+
+        using (project.CreateDefaultPackageRepository())
         {
-            File.WriteAllText(Path.Combine(dir, "Program.cs"), $"""
-                var builder = WebApplication.CreateBuilder(args);
-                builder.UseBitwardenSdk();
-
-                var app = builder.Build();
-
-                {additional}
-
-                app.Run();
-                """
-            );
-
-            return ProjectCreator.Templates.SdkCsproj(
-                    path: Path.Combine(dir, "Test.csproj"),
-                    sdk: "Microsoft.NET.Sdk.Web",
-                    targetFramework: TargetFramework)
-                .Import(Path.Combine(ThisAssemblyDirectory, "Sdk", "Sdk.props"))
-                .CustomAction(customAction)
-                .Import(Path.Combine(ThisAssemblyDirectory, "Sdk", "Sdk.targets"))
-                .TryBuild(restore: true, out result, out buildOutput);
+            return project.TryBuild(restore: true, out result, out buildOutput);
         }
     }
 
-    public static PackageRepository CreateDefaultPackageRepository(string dir)
+    public static ProjectCreator SdkProject(this ProjectCreatorTemplates templates, Action<ProjectCreator>? customAction = null)
+    {
+        var dir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(dir);
+
+        return ProjectCreator.Templates.SdkCsproj(
+                path: Path.Combine(dir, "Test.csproj"),
+                sdk: "Microsoft.NET.Sdk.Web",
+                targetFramework: TargetFramework)
+            .Import(Path.Combine(ThisAssemblyDirectory, "Sdk", "Sdk.props"))
+            .CustomAction(customAction)
+            .Import(Path.Combine(ThisAssemblyDirectory, "Sdk", "Sdk.targets"));
+    }
+
+    public static void AdditionalFile(this ProjectCreator project, string fileName, string fileContents)
+    {
+        var parentDir = project.GetProjectDirectory();
+        File.WriteAllText(Path.Combine(parentDir, fileName), fileContents);
+    }
+
+    public static PackageRepository CreateDefaultPackageRepository(this ProjectCreator project)
     {
         // Use this as a list of marker types for assemblies that should be added as available in a
         // pseudo nuget feed.
@@ -62,7 +74,14 @@ public static class CustomProjectCreatorTemplates
             feeds.Add(pr);
         }
 
-        return PackageRepository.Create(dir, [new Uri("https://api.nuget.org/v3/index.json"), ..feeds]);
+        return PackageRepository.Create(project.GetProjectDirectory(), [new Uri("https://api.nuget.org/v3/index.json"), .. feeds]);
+    }
+
+    public static string GetProjectDirectory(this ProjectCreator project)
+    {
+        var parentDir = Directory.GetParent(project.FullPath);
+        Assert.NotNull(parentDir);
+        return parentDir.FullName;
     }
 
     public static ProjectCreator TryGetConstant(this ProjectCreator project, string constant, out bool result)
