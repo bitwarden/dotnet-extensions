@@ -1,5 +1,4 @@
 using Bitwarden.Server.Sdk.Features;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using LaunchDarkly.Sdk.Server.Interfaces;
 
@@ -8,7 +7,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extensions for features on <see cref="IServiceCollection"/>.
 /// </summary>
-public static class ServiceCollectionExtensions
+public static class FeatureServiceCollectionExtensions
 {
     /// <summary>
     /// Adds Feature flag related services to <see cref="IServiceCollection"/>. This makes <see cref="IFeatureService"/>
@@ -16,16 +15,17 @@ public static class ServiceCollectionExtensions
     /// MSBuild property <c>BitIncludeFeatures</c> is set to <c>true</c> which is the default value.
     /// </summary>
     /// <param name="services">The service collection to add services to.</param>
-    /// <param name="configuration">The configuration to be used to customize features.</param>
     /// <returns>The <see cref="IServiceCollection"/> to chain additional calls.</returns>
-    public static IServiceCollection AddFeatureFlagServices(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddFeatureFlagServices(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddProblemDetails();
-        services.AddHttpContextAccessor();
 
-        services.Configure<FeatureFlagOptions>(configuration.GetSection("Features"));
+        services.AddOptions<FeatureFlagOptions>()
+            .BindConfiguration("Features");
+
+        services.TryAddSingleton<IContextBuilder, AnonymousContextBuilder>();
 
         services.TryAddSingleton<LaunchDarklyClientProvider>();
 
@@ -79,6 +79,22 @@ public static class ServiceCollectionExtensions
                 options.FlagValues[flag.Key] = flag.Value;
             }
         });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds a <see cref="IContextBuilder"/> to the service collection.
+    /// </summary>
+    /// <typeparam name="T">You custom implementation of <see cref="IContextBuilder"/>.</typeparam>
+    /// <param name="services">The service collection to add the services to.</param>
+    /// <returns>The <see cref="IServiceCollection" /> for additional chaining.</returns>
+    public static IServiceCollection AddContextBuilder<T>(this IServiceCollection services)
+        where T : class, IContextBuilder
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddSingleton<IContextBuilder, T>();
 
         return services;
     }
