@@ -2,7 +2,6 @@ using Bitwarden.Server.Sdk.Features;
 using LaunchDarkly.Sdk;
 using LaunchDarkly.Sdk.Server;
 using LaunchDarkly.Sdk.Server.Interfaces;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -12,7 +11,7 @@ namespace Bitwarden.Server.Sdk.UnitTests.Features;
 public class LaunchDarklyFeatureServiceTests
 {
     private readonly ILdClient _ldClient;
-    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IContextBuilder _contextBuilder;
     private readonly IOptionsMonitor<FeatureFlagOptions> _featureFlagOptions;
 
     private readonly LaunchDarklyFeatureService _sut;
@@ -20,12 +19,12 @@ public class LaunchDarklyFeatureServiceTests
     public LaunchDarklyFeatureServiceTests()
     {
         _ldClient = Substitute.For<ILdClient>();
-        _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        _contextBuilder = Substitute.For<IContextBuilder>();
         _featureFlagOptions = Substitute.For<IOptionsMonitor<FeatureFlagOptions>>();
 
         _sut = new LaunchDarklyFeatureService(
             _ldClient,
-            _httpContextAccessor,
+            _contextBuilder,
             _featureFlagOptions,
             NullLogger<LaunchDarklyFeatureService>.Instance
         );
@@ -104,9 +103,7 @@ public class LaunchDarklyFeatureServiceTests
         _ = _sut.IsEnabled("feature-one");
 
         // Use the access of the HttpContext as the indicator that it was only built from once
-        _httpContextAccessor
-            .HttpContext
-            .Received(1);
+        _contextBuilder.Received(1).Build();
     }
 
     [Theory]

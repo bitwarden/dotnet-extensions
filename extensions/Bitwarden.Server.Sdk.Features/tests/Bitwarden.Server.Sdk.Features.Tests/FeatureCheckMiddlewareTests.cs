@@ -166,8 +166,7 @@ public class FeatureCheckMiddlewareTests
                     {
                         services.AddRouting();
 
-                        // We will manually add configuration later so this being empty is fine
-                        services.AddFeatureFlagServices(context.Configuration);
+                        services.AddFeatureFlagServices();
 
                         configureServices?.Invoke(services);
                     })
