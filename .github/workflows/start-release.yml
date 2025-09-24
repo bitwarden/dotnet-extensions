@@ -11,6 +11,7 @@ on:
         options:
         - Bitwarden.Server.Sdk
         - Bitwarden.Server.Sdk.Features
+        - Bitwarden.Server.Sdk.Authentication
 
 permissions:
   pull-requests: write
