@@ -144,6 +144,9 @@ public static class HostBuilderExtensions
                 metrics.AddAspNetCoreInstrumentation();
                 metrics.AddHttpClientInstrumentation();
                 metrics.AddRuntimeInstrumentation();
+
+                metrics.AddMeter("Bitwarden.*");
+                metrics.AddMeter("Bit.*");
             })
             .WithTracing(tracing =>
             {
