@@ -1,6 +1,4 @@
-using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
-using System.Security.Claims;
 using System.Text.Json.Nodes;
 using Bitwarden.Server.Sdk.Utilities;
 using LaunchDarkly.Logging;
@@ -8,7 +6,6 @@ using LaunchDarkly.Sdk;
 using LaunchDarkly.Sdk.Server;
 using LaunchDarkly.Sdk.Server.Integrations;
 using LaunchDarkly.Sdk.Server.Interfaces;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -17,31 +14,26 @@ namespace Bitwarden.Server.Sdk.Features;
 
 internal sealed class LaunchDarklyFeatureService : IFeatureService
 {
-    const string AnonymousUser = "25a15cac-58cf-4ac0-ad0f-b17c4bd92294";
-
     private readonly ILdClient _ldClient;
-    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IContextBuilder _contextBuilder;
     private readonly IOptionsMonitor<FeatureFlagOptions> _featureFlagOptions;
-    private readonly ILogger<LaunchDarklyFeatureService> _logger;
 
     // Should not change during the course of a request, so cache this
     private Context? _context;
 
     public LaunchDarklyFeatureService(
         ILdClient ldClient,
-        IHttpContextAccessor httpContextAccessor,
+        IContextBuilder contextEnricher,
         IOptionsMonitor<FeatureFlagOptions> featureFlagOptions,
         ILogger<LaunchDarklyFeatureService> logger)
     {
         ArgumentNullException.ThrowIfNull(ldClient);
-        ArgumentNullException.ThrowIfNull(httpContextAccessor);
         ArgumentNullException.ThrowIfNull(featureFlagOptions);
         ArgumentNullException.ThrowIfNull(logger);
 
         _ldClient = ldClient;
-        _httpContextAccessor = httpContextAccessor;
+        _contextBuilder = contextEnricher;
         _featureFlagOptions = featureFlagOptions;
-        _logger = logger;
     }
 
     public bool IsEnabled(string key, bool defaultValue = false)
@@ -93,58 +85,7 @@ internal sealed class LaunchDarklyFeatureService : IFeatureService
 
     private Context GetContext()
     {
-        return _context ??= BuildContext();
-    }
-
-    private Context BuildContext()
-    {
-        static void AddCommon(ContextBuilder contextBuilder, HttpContext httpContext)
-        {
-            if (httpContext.Request.Headers.TryGetValue("bitwarden-client-version", out var clientVersion))
-            {
-                contextBuilder.Set("client-version", clientVersion);
-            }
-
-            if (httpContext.Request.Headers.TryGetValue("device-type", out var deviceType))
-            {
-                contextBuilder.Set("device-type", deviceType);
-            }
-        }
-
-        var httpContext = _httpContextAccessor.HttpContext;
-        if (httpContext == null)
-        {
-            _logger.LogMissingHttpContext();
-            return Context.Builder(AnonymousUser)
-                .Kind(ContextKind.Default)
-                .Anonymous(true)
-                .Build();
-        }
-
-        // TODO: We need to start enforcing this
-        var subject = httpContext.User.FindFirstValue("sub");
-
-        if (string.IsNullOrEmpty(subject))
-        {
-            // Anonymous but with common headers
-            var anon = Context.Builder(AnonymousUser)
-                .Kind(ContextKind.Default)
-                .Anonymous(true);
-
-            AddCommon(anon, httpContext);
-            return anon.Build();
-        }
-
-        // TODO: Need to start enforcing this
-        var organizations = httpContext.User.FindAll("organization");
-
-        var contextBuilder = Context.Builder(subject)
-            .Kind(ContextKind.Default) // TODO: This is not right
-            .Set("organizations", LdValue.ArrayFrom(organizations.Select(c => LdValue.Of(c.Value))));
-
-        AddCommon(contextBuilder, httpContext);
-
-        return contextBuilder.Build();
+        return _context ??= _contextBuilder.Build();
     }
 }
 
@@ -197,7 +138,7 @@ internal sealed class LaunchDarklyClientProvider
         _client = new LdClient(builder.Build());
     }
 
-    private TestData BuildDataSource(Dictionary<string, string> data)
+    private static TestData BuildDataSource(Dictionary<string, string> data)
     {
         // TODO: We could support updating just the test data source with
         // changes from the OnChange of options, we currently support it through creating

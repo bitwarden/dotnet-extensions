@@ -1,4 +1,7 @@
 {
+  "msbuild-sdks": {
+    "Microsoft.Build.NoTargets": "3.7.134"
+  },
   "sdk": {
     "version": "8.0.100",
     "rollForward": "latestFeature"

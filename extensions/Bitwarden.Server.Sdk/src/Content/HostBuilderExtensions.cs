@@ -36,7 +36,7 @@ public static class HostBuilderExtensions
 
         AddMetrics(builder.Services, builder.Configuration);
 #if BIT_INCLUDE_FEATURES
-        builder.Services.AddFeatureFlagServices(builder.Configuration);
+        builder.Services.AddFeatureFlagServices();
 #endif
 
         return builder;
@@ -64,9 +64,9 @@ public static class HostBuilderExtensions
         });
 
 #if BIT_INCLUDE_FEATURES
-        hostBuilder.ConfigureServices((context, services) =>
+        hostBuilder.ConfigureServices((_, services) =>
         {
-            services.AddFeatureFlagServices(context.Configuration);
+            services.AddFeatureFlagServices();
         });
 #endif
 
@@ -144,6 +144,9 @@ public static class HostBuilderExtensions
                 metrics.AddAspNetCoreInstrumentation();
                 metrics.AddHttpClientInstrumentation();
                 metrics.AddRuntimeInstrumentation();
+
+                metrics.AddMeter("Bitwarden.*");
+                metrics.AddMeter("Bit.*");
             })
             .WithTracing(tracing =>
             {
