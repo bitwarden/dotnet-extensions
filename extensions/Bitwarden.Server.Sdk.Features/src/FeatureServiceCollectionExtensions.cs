@@ -1,6 +1,7 @@
 using Bitwarden.Server.Sdk.Features;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using LaunchDarkly.Sdk.Server.Interfaces;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -89,7 +90,7 @@ public static class FeatureServiceCollectionExtensions
     /// <typeparam name="T">You custom implementation of <see cref="IContextBuilder"/>.</typeparam>
     /// <param name="services">The service collection to add the services to.</param>
     /// <returns>The <see cref="IServiceCollection" /> for additional chaining.</returns>
-    public static IServiceCollection AddContextBuilder<T>(this IServiceCollection services)
+    public static IServiceCollection AddContextBuilder<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(this IServiceCollection services)
         where T : class, IContextBuilder
     {
         ArgumentNullException.ThrowIfNull(services);
