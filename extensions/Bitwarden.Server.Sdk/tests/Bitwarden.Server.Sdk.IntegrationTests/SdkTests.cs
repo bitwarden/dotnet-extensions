@@ -1,5 +1,3 @@
-using System.Diagnostics;
-using System.Net.Http.Json;
 using System.Text.Json;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
@@ -142,8 +140,162 @@ public class SdkTests : MSBuildTestBase
         Assert.True(result, buildOutput.GetConsoleLog());
     }
 
-    [Fact(Skip = "For local development only.")]
-    public async Task RunWithTraces()
+    [Fact(Timeout = 2 * 60 * 1000)]
+    public async Task CustomMetricsAndTracesWork()
+    {
+        using var result = await RunTelemetryAsync([]);
+
+        var resourceMetric = Assert.Single(result.Metrics!.RootElement.GetProperty("resourceMetrics").EnumerateArray());
+        // Make sure that the service name is set
+        Assert.Single(
+            resourceMetric.GetProperty("resource").GetProperty("attributes").EnumerateArray(),
+            a => a.GetProperty("key").GetString() == "service.name" && a.GetProperty("value").GetProperty("stringValue").GetString() == "Test"
+        );
+
+        // Our custom scope should exist
+        var customScopeMetric = Assert.Single(
+            resourceMetric.GetProperty("scopeMetrics").EnumerateArray(),
+            sm => sm.GetProperty("scope").GetProperty("name").GetString() == "Bitwarden.Custom"
+        );
+
+        // Our custom metric should exist in that scope
+        var customMetric = Assert.Single(
+            customScopeMetric.GetProperty("metrics").EnumerateArray(),
+            m => m.GetProperty("name").GetString() == "custom_counter"
+        );
+
+        var resourceSpan = Assert.Single(result.Traces!.RootElement.GetProperty("resourceSpans").EnumerateArray());
+
+        // Make sure that the service name is set
+        Assert.Single(
+            resourceSpan.GetProperty("resource").GetProperty("attributes").EnumerateArray(),
+            a => a.GetProperty("key").GetString() == "service.name" && a.GetProperty("value").GetProperty("stringValue").GetString() == "Test"
+        );
+
+        var aspNetScope = Assert.Single(
+            resourceSpan.GetProperty("scopeSpans").EnumerateArray(),
+            s => s.GetProperty("scope").GetProperty("name").GetString() == "Microsoft.AspNetCore"
+        );
+
+        // We expect a span for our simple endpoint
+        var requestSpan = Assert.Single(
+            aspNetScope.GetProperty("spans").EnumerateArray(),
+            s => s.GetProperty("name").GetString() == "GET /"
+        );
+
+        // Make sure our custom tag is represented as an attribute
+        Assert.Single(
+            requestSpan.GetProperty("attributes").EnumerateArray(),
+            a => a.GetProperty("key").GetString() == "custom_tag" && a.GetProperty("value").GetProperty("stringValue").GetString() == "my_value"
+        );
+    }
+
+    [Fact(Timeout = 2 * 60 * 1000)]
+    public async Task OtelEnvironmentVariableWins()
+    {
+        using var result = await RunTelemetryAsync(new Dictionary<string, string?>
+        {
+            { "OTEL_SERVICE_NAME", "SOME_NAME" },
+        });
+
+        Assert.Equal("SOME_NAME", result.GetTracesServiceName());
+        Assert.Equal("SOME_NAME", result.GetMetricsServiceName());
+    }
+
+    [Fact(Timeout = 2 * 60 * 1000)]
+    public async Task TelemetryCanBeDisabled()
+    {
+        using var result = await RunTelemetryAsync(new Dictionary<string, string?>
+        {
+            { "OpenTelemetry__Enabled", "false" },
+        });
+
+        Assert.Null(result.Metrics);
+        Assert.Null(result.Traces);
+    }
+
+    [Fact(Timeout = 2 * 60 * 1000)]
+    public async Task OnlyTracesCanBeDisabled()
+    {
+        using var result = await RunTelemetryAsync(new Dictionary<string, string?>
+        {
+            { "OpenTelemetry__Tracing__Enabled", "false" },
+        });
+
+        Assert.NotNull(result.Metrics);
+        Assert.Null(result.Traces);
+    }
+
+    [Fact(Timeout = 2 * 60 * 1000)]
+    public async Task OnlyMetricsCanBeDisabled()
+    {
+        using var result = await RunTelemetryAsync(new Dictionary<string, string?>
+        {
+            { "OpenTelemetry__Metrics__Enabled", "false" },
+        });
+
+        Assert.Null(result.Metrics);
+        Assert.NotNull(result.Traces);
+    }
+
+    [Fact(Timeout = 2 * 60 * 1000)]
+    public async Task SelfHostDoesNotDoTelemetryByDefault()
+    {
+        using var result = await RunTelemetryAsync(new Dictionary<string, string?>
+        {
+            { "GlobalSettings__SelfHosted", "true" },
+        });
+
+        Assert.Null(result.Metrics);
+        Assert.Null(result.Traces);
+    }
+
+    [Fact(Timeout = 2 * 60 * 1000)]
+    public async Task SelfHostCanDoTelemetryIfEnabled()
+    {
+        using var result = await RunTelemetryAsync(new Dictionary<string, string?>
+        {
+            { "GlobalSettings__SelfHosted", "true" },
+            { "OpenTelemetry__Enabled", "true" },
+        });
+
+        Assert.NotNull(result.Metrics);
+        Assert.NotNull(result.Traces);
+    }
+
+    internal sealed class TelemetryResult : IDisposable
+    {
+        public required JsonDocument? Metrics { get; init; }
+        public required JsonDocument? Traces { get; init; }
+
+        public string? GetTracesServiceName()
+        {
+            Assert.NotNull(Traces);
+            return GetServiceName(Traces.RootElement.GetProperty("resourceSpans").EnumerateArray().First());
+        }
+
+        public string? GetMetricsServiceName()
+        {
+            Assert.NotNull(Metrics);
+            return GetServiceName(Metrics.RootElement.GetProperty("resourceMetrics").EnumerateArray().First());
+        }
+
+        private static string? GetServiceName(JsonElement json)
+        {
+            var serviceNameAttribute = json.GetProperty("resource").GetProperty("attributes").EnumerateArray()
+                .First(a => a.GetProperty("key").GetString() == "service.name");
+
+            return serviceNameAttribute.GetProperty("value").GetProperty("stringValue").GetString();
+        }
+
+        public void Dispose()
+        {
+            Metrics?.Dispose();
+            Traces?.Dispose();
+        }
+    }
+
+    private static async Task<TelemetryResult> RunTelemetryAsync(Dictionary<string, string?> environmentVariables)
     {
         using var loggerFactory = LoggerFactory.Create(builder =>
         {
@@ -156,38 +308,95 @@ public class SdkTests : MSBuildTestBase
 
         await network.CreateAsync(TestContext.Current.CancellationToken);
 
-        await using var jaegerContainer = new ContainerBuilder()
-            .WithImage("jaegertracing/jaeger:2.10.0")
+        var tempDir = Directory.CreateTempSubdirectory();
+
+        await using var otelContainer = new ContainerBuilder()
+            .WithImage("otel/opentelemetry-collector-contrib")
             .WithNetwork(network)
-            .WithNetworkAliases("jaeger")
+            .WithResourceMapping("""
+            receivers:
+              otlp:
+                protocols:
+                  grpc:
+                    endpoint: 0.0.0.0:4317
+
+            service:
+              pipelines:
+                traces:
+                  receivers: [otlp]
+                  exporters: [file/traces]
+                metrics:
+                  receivers: [otlp]
+                  exporters: [file/metrics]
+
+            exporters:
+              file/traces:
+                path: /data/traces.json
+              file/metrics:
+                path: /data/metrics.json
+            """u8.ToArray(), "/etc/otelcol-contrib/config.yaml")
+            .WithNetworkAliases("otelcol")
+            .WithBindMount(tempDir.FullName, "/data")
             .WithPortBinding(16686, true)
-            .WithLogger(loggerFactory.CreateLogger("Jaeger"))
+            .WithLogger(loggerFactory.CreateLogger("OtelCol"))
             .Build();
 
-        await jaegerContainer.StartAsync(TestContext.Current.CancellationToken);
+        await otelContainer.StartAsync(TestContext.Current.CancellationToken);
 
         var project = ProjectCreator.Templates.SdkProject();
+        // Include a label that will make this image get auto cleaned up by test containers
+        project.ItemInclude("ContainerLabel", ResourceReaper.ResourceReaperSessionLabel, metadata: new Dictionary<string, string?>
+        {
+            { "Value", ResourceReaper.DefaultSessionId.ToString("D") },
+        });
         project.AdditionalFile("Program.cs", $$"""
             using System.Diagnostics.Tracing;
+            using System.Diagnostics.Metrics;
+            using Microsoft.AspNetCore.Http.Features;
 
             var builder = WebApplication.CreateBuilder();
             builder.UseBitwardenSdk();
 
+            builder.Services.AddSingleton<CustomMetrics>();
+
 
             var app = builder.Build();
 
-            app.MapGet("/", () =>
+            app.MapGet("/", (HttpContext context, CustomMetrics metrics) =>
             {
+                context.Features.Get<IHttpActivityFeature>()?.Activity.SetTag("custom_tag", "my_value");
+                metrics.Test();
                 return Results.Ok();
             });
 
             app.Run();
+
+            internal sealed class CustomMetrics : IDisposable
+            {
+                private readonly Meter _meter;
+                private readonly Counter<int> _counter;
+
+                public CustomMetrics(IMeterFactory meterFactory)
+                {
+                    _meter = meterFactory.Create("Bitwarden.Custom");
+                    _counter = _meter.CreateCounter<int>("custom_counter");
+                }
+
+                public void Test()
+                {
+                    _counter.Add(1);
+                }
+
+                public void Dispose()
+                {
+                    _meter.Dispose();
+                }
+            }
             """
         );
         using var packageRepo = project.CreateDefaultPackageRepository();
         project.Save();
 
-        // TODO: This leaves an image on the host machine
         project.TryBuild(
             restore: true,
             targets: ["Publish", "PublishContainer"],
@@ -195,6 +404,7 @@ public class SdkTests : MSBuildTestBase
             {
                 { "ContainerRepository", "test-telemetry" },
                 { "ContainerFamily", "alpine" },
+                { "BitIncludeFeatures", "false" },
             },
             out var result, out var buildOutput, out var targetOutputs
         );
@@ -204,10 +414,9 @@ public class SdkTests : MSBuildTestBase
         await using var testContainer = new ContainerBuilder()
             .WithImage("test-telemetry")
             .WithNetwork(network)
-            .DependsOn(jaegerContainer)
-            .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", $"http://jaeger:4317")
-            .WithEnvironment("OTEL_SERVICE_NAME", "test")
-            .WithEnvironment("OTEL_DEBUGGING", "true")
+            .DependsOn(otelContainer)
+            .WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", $"http://otelcol:4317")
+            .WithEnvironment(environmentVariables)
             .WithPortBinding(8080, true)
             // This wait strategy both ensures our container full starts up and causes a trace to get created.
             .WithWaitStrategy(Wait.ForUnixContainer().UntilHttpRequestIsSucceeded(r => r.ForPort(8080)))
@@ -216,43 +425,28 @@ public class SdkTests : MSBuildTestBase
 
         await testContainer.StartAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(TestcontainersStates.Running, testContainer.State);
-
-        var uri = new UriBuilder(
-            Uri.UriSchemeHttp,
-            jaegerContainer.Hostname,
-            jaegerContainer.GetMappedPublicPort(16686),
-            "api/v3").Uri;
-
-        using var httpClient = new HttpClient
-        {
-            BaseAddress = uri,
-        };
-
         await testContainer.StopAsync(TestContext.Current.CancellationToken);
+        await otelContainer.StopAsync(TestContext.Current.CancellationToken);
 
-        await Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        async Task<JsonDocument?> ReadDoc(string type)
+        {
+            var filePath = Path.Join(tempDir.FullName, $"{type}.json");
+            using var fs = File.OpenRead(filePath);
 
-        var traces = await httpClient.GetFromJsonAsync<JsonElement>("traces?service=test", cancellationToken: TestContext.Current.CancellationToken);
+            if (fs.Length == 0)
+            {
+                return null;
+            }
 
-        Debug.WriteLine(traces.ToString());
+            return await JsonSerializer.DeserializeAsync<JsonDocument>(fs, cancellationToken: TestContext.Current.CancellationToken)
+                    ?? throw new Exception("Should never be null");
+        }
 
-        var (stdout, stderr) = await testContainer.GetLogsAsync(ct: TestContext.Current.CancellationToken);
-        Assert.Fail(stdout);
-
-        // Assert that we recieved one trace
-        Assert.True(traces.TryGetProperty("data", out var dataProp));
-        Assert.Equal(JsonValueKind.Array, dataProp.ValueKind);
-        var trace = Assert.Single(dataProp.EnumerateArray());
-        Assert.True(trace.TryGetProperty("spans", out var spansProp));
-        Assert.Equal(JsonValueKind.Array, spansProp.ValueKind);
-        var span = Assert.Single(spansProp.EnumerateArray());
-        Assert.True(span.TryGetProperty("operationName", out var operationNameProp));
-        Assert.Equal("GET /", operationNameProp.GetString());
-
-        // Uncomment the below lines to view logs from the test container
-        // var (stdout, stderr) = await testContainer.GetLogsAsync(ct: TestContext.Current.CancellationToken);
-        // Assert.Fail(stdout);
+        return new TelemetryResult
+        {
+            Metrics = await ReadDoc("metrics"),
+            Traces = await ReadDoc("traces"),
+        };
     }
 }
 
