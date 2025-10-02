@@ -141,8 +141,6 @@ public static class HostBuilderExtensions
             !configuration.GetValue(SelfHostedConfigKey, false)
         );
 
-        Console.WriteLine($"OpenTelemetry Enabled: {openTelemetryEnabled}");
-
         services.AddOpenTelemetry()
             .ConfigureResource(r =>
             {
