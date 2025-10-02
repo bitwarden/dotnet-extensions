@@ -431,8 +431,9 @@ public class SdkTests : MSBuildTestBase
         var (testOutput, _) = await testContainer.GetLogsAsync(ct: TestContext.Current.CancellationToken);
         loggerFactory.CreateLogger("TestOutput").LogInformation("{Stdout}", testOutput);
 
-        var (otelOutput, _) = await otelContainer.GetLogsAsync(ct: TestContext.Current.CancellationToken);
+        var (otelOutput, otelError) = await otelContainer.GetLogsAsync(ct: TestContext.Current.CancellationToken);
         loggerFactory.CreateLogger("OtelOutput").LogInformation("{Stdout}", otelOutput);
+        loggerFactory.CreateLogger("OtelOutput").LogError("{Stderr}", otelError);
 
         async Task<JsonDocument?> ReadDoc(string type)
         {
