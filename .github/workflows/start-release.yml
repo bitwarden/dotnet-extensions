@@ -36,7 +36,7 @@ jobs:
       # get current version
       - name: Get current version
         id: current-version
-        run: echo "VERSION=$(dotnet msbuild --getProperty:Version)" >> $GITHUB_OUTPUT
+        run: echo "VERSION=$(dotnet msbuild --getProperty:Version)" >> "$GITHUB_OUTPUT"
         working-directory: '${{ env.PACKAGE_DIRECTORY }}/src'
 
       - name: Create release candidate branch

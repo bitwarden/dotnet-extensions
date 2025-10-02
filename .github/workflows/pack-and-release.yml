@@ -51,14 +51,14 @@ jobs:
             return refParts[3];
 
       - name: Pack
-        run: dotnet pack -c Release -p:IsPreRelease=$IS_PRERELEASE
+        run: dotnet pack -c Release -p:"IsPreRelease=$IS_PRERELEASE"
         working-directory: "./extensions/${{ steps.parse-package.outputs.result }}/src"
         env:
           IS_PRERELEASE: ${{ inputs.prerelease }}
 
       - name: Get current version
         id: current-version
-        run: echo "VERSION=$(dotnet msbuild -p:IsPreRelease=$IS_PRERELEASE --getProperty:Version)" >> $GITHUB_OUTPUT
+        run: echo "VERSION=$(dotnet msbuild -p:"IsPreRelease=$IS_PRERELEASE" --getProperty:Version)" >> "$GITHUB_OUTPUT"
         working-directory: "./extensions/${{ steps.parse-package.outputs.result }}/src"
         env:
           IS_PRERELEASE: ${{ inputs.prerelease }}
@@ -187,11 +187,11 @@ jobs:
         run: >
           gh workflow run publish-nuget.yml
           --repo bitwarden/devops
-          --field repository=${_REPOSITORY_NAME}
-          --field run-id=${{ github.run_id }}
-          --field artifact=packages
-          --field environment=nuget
-          --field version=${_VERSION}
+          --field repository="${_REPOSITORY_NAME}"
+          --field run-id="${{ github.run_id }}"
+          --field artifact="packages"
+          --field environment="nuget"
+          --field version="${_VERSION}"
 
   bump-version:
     name: Bump version
