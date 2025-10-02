@@ -428,6 +428,12 @@ public class SdkTests : MSBuildTestBase
         await testContainer.StopAsync(TestContext.Current.CancellationToken);
         await otelContainer.StopAsync(TestContext.Current.CancellationToken);
 
+        var (testOutput, _) = await testContainer.GetLogsAsync(ct: TestContext.Current.CancellationToken);
+        loggerFactory.CreateLogger("TestOutput").LogInformation("{Stdout}", testOutput);
+
+        var (otelOutput, _) = await testContainer.GetLogsAsync(ct: TestContext.Current.CancellationToken);
+        loggerFactory.CreateLogger("OtelOutput").LogInformation("{Stdout}", otelOutput);
+
         async Task<JsonDocument?> ReadDoc(string type)
         {
             var filePath = Path.Join(tempDir.FullName, $"{type}.json");
