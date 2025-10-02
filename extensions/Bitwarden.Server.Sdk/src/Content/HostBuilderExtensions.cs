@@ -114,22 +114,13 @@ public static class HostBuilderExtensions
             && environmentJsonSource.Path == $"appsettings.{environment.EnvironmentName}.json");
 
         // If both of those are true, I feel good about inserting our own self-hosted config after
-        configurationBuilder.Sources.Insert(4, new JsonConfigurationSource
+        configurationBuilder.Sources.Insert(i + 1, new JsonConfigurationSource
         {
             Path = "appsettings.SelfHosted.json",
             Optional = true,
             ReloadOnChange = true
         });
-
-        if (environment.IsDevelopment())
-        {
-            var appAssembly = Assembly.Load(new AssemblyName(environment.ApplicationName));
-            configurationBuilder.AddUserSecrets(appAssembly, optional: true);
-        }
-
-        configurationBuilder.AddEnvironmentVariables();
     }
-
 
     private static void AddMetrics(IServiceCollection services, IConfiguration configuration)
     {
