@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
@@ -308,7 +309,17 @@ public class SdkTests : MSBuildTestBase
 
         await network.CreateAsync(TestContext.Current.CancellationToken);
 
-        var tempDir = Directory.CreateTempSubdirectory();
+        // If the operating system is windows
+        DirectoryInfo tempDir;
+        if (!OperatingSystem.IsWindows())
+        {
+            tempDir = Directory.CreateDirectory(Path.GetTempPath(), UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.OtherWrite);
+        }
+        else
+        {
+            tempDir = Directory.CreateTempSubdirectory();
+        }
+
 
         await using var otelContainer = new ContainerBuilder()
             .WithImage("otel/opentelemetry-collector-contrib")
