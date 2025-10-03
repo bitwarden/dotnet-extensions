@@ -141,6 +141,214 @@ public class SdkTests : MSBuildTestBase
         Assert.True(result, buildOutput.GetConsoleLog());
     }
 
+    public static IEnumerable<TheoryDataRow<string, string, string, bool>> ConfigTestData()
+    {
+        // Release cloud install should not get self hosted install
+        yield return new TheoryDataRow<string, string, string, bool>(
+            // Setup code
+            """
+            var builder = WebApplication.CreateBuilder();
+            builder.UseBitwardenSdk();
+            var sources = builder.Configuration.Sources;
+            """,
+            // Environment variables
+            "",
+            // Expected config
+            """
+            Memory
+            Environment: ASPNETCORE_
+            Memory
+            Environment: DOTNET_
+            Json: appsettings.json
+            Json: appsettings.Production.json
+            Environment: *
+            Chained
+                MemoryConfigurationProvider
+            """,
+            true
+        );
+
+        // Debug builds running in development should use user secrets
+        yield return new TheoryDataRow<string, string, string, bool>(
+            // Setup code
+            """
+            var builder = WebApplication.CreateBuilder();
+            builder.UseBitwardenSdk();
+            var sources = builder.Configuration.Sources;
+            """,
+            // Environment variables
+            "ASPNETCORE_ENVIRONMENT:Development",
+            // Expected config
+            """
+            Memory
+            Environment: ASPNETCORE_
+            Memory
+            Environment: DOTNET_
+            Json: appsettings.json
+            Json: appsettings.Development.json
+            Json: secrets.json
+            Environment: *
+            Chained
+                MemoryConfigurationProvider
+            """,
+            false
+        );
+
+        // Self hosted installs should get self hosted json inserted
+        yield return new TheoryDataRow<string, string, string, bool>(
+            // Setup code
+            """
+            var builder = WebApplication.CreateBuilder();
+            builder.UseBitwardenSdk();
+            var sources = builder.Configuration.Sources;
+            """,
+            // Environment variables
+            "GlobalSettings__SelfHosted:true",
+            // Expected config
+            """
+            Memory
+            Environment: ASPNETCORE_
+            Memory
+            Environment: DOTNET_
+            Json: appsettings.json
+            Json: appsettings.Production.json
+            Json: appsettings.SelfHosted.json
+            Environment: *
+            Chained
+                MemoryConfigurationProvider
+            """,
+            true
+        );
+
+        // Debug self hosted installs should get self hosted json inserted
+        yield return new TheoryDataRow<string, string, string, bool>(
+            // Setup code
+            """
+            var builder = WebApplication.CreateBuilder();
+            builder.UseBitwardenSdk();
+            var sources = builder.Configuration.Sources;
+            """,
+            // Environment variables
+            """
+            GlobalSettings__SelfHosted:true
+            ASPNETCORE_ENVIRONMENT:Development
+            """,
+            // Expected config
+            """
+            Memory
+            Environment: ASPNETCORE_
+            Memory
+            Environment: DOTNET_
+            Json: appsettings.json
+            Json: appsettings.Development.json
+            Json: appsettings.SelfHosted.json
+            Json: secrets.json
+            Environment: *
+            Chained
+                MemoryConfigurationProvider
+            """,
+            false
+        );
+    }
+
+    [Theory]
+    [MemberData(nameof(ConfigTestData))]
+    public async Task SelfHostedConfigWorks(string setupCode, string environmentVariableString, string expectedConfig, bool useRelease)
+    {
+        using var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.AddProvider(new XUnitLoggerProvider());
+        });
+
+        var project = ProjectCreator.Templates.SdkProject();
+        // Include a label that will make this image get auto cleaned up by test containers
+        project.ItemInclude("ContainerLabel", ResourceReaper.ResourceReaperSessionLabel, metadata: new Dictionary<string, string?>
+        {
+            { "Value", ResourceReaper.DefaultSessionId.ToString("D") },
+        });
+        project.AdditionalFile("Program.cs", $$"""
+            using Microsoft.Extensions.Configuration.EnvironmentVariables;
+            using Microsoft.Extensions.Configuration.Memory;
+            using Microsoft.Extensions.Configuration.Json;
+
+            {{setupCode}}
+
+            static void PrintPrettyString(IConfigurationSource source)
+            {
+                if (source is EnvironmentVariablesConfigurationSource env)
+                {
+                    Console.WriteLine($"Environment: {(env.Prefix == null ? "*" : env.Prefix)}");
+                }
+                else if (source is MemoryConfigurationSource)
+                {
+                    Console.WriteLine("Memory");
+                }
+                else if (source is JsonConfigurationSource json)
+                {
+                    Console.WriteLine($"Json: {json.Path}");
+                }
+                else if (source is ChainedConfigurationSource chained)
+                {
+                    Console.WriteLine("Chained");
+                    if (chained.Configuration is IConfigurationRoot root)
+                    {
+                        foreach (var provider in root.Providers)
+                        {
+                            Console.WriteLine($"    {provider.GetType().Name}");
+                        }
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"Other: {source.GetType().Name}");
+                }
+            }
+
+            foreach (var source in sources)
+            {
+                PrintPrettyString(source);
+            }
+
+            Console.WriteLine("Done");
+            """
+        );
+        using var packageRepo = project.CreateDefaultPackageRepository();
+        project.Save();
+
+        project.TryBuild(
+            restore: true,
+            targets: ["Publish", "PublishContainer"],
+            globalProperties: new Dictionary<string, string>
+            {
+                { "ContainerRepository", "test-container" },
+                { "ContainerFamily", "alpine" },
+                { "BitIncludeFeatures", "false" },
+                { "Configuration", useRelease ? "Release" : "Debug" },
+                { "UserSecretsId", "test-secrets" },
+            },
+            out var result, out var buildOutput, out var targetOutputs
+        );
+
+        Assert.True(result, buildOutput.GetConsoleLog());
+
+        var environmentVariables = environmentVariableString.Split('\n')
+            .Select(line => line.Split(':'))
+            .Where(v => v.Length == 2)
+            .ToDictionary(v => v[0], v => v[1]);
+
+        await using var testContainer = new ContainerBuilder()
+            .WithImage("test-container")
+            .WithLogger(loggerFactory.CreateLogger("Example"))
+            .WithEnvironment(environmentVariables)
+            .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Done"))
+            .Build();
+
+        await testContainer.StartAsync(TestContext.Current.CancellationToken);
+
+        var (stdout, _) = await testContainer.GetLogsAsync(timestampsEnabled: false, ct: TestContext.Current.CancellationToken);
+        Assert.Equal($"{expectedConfig}\nDone", stdout.TrimEnd());
+    }
+
     [Fact(Timeout = 2 * 60 * 1000)]
     public async Task CustomMetricsAndTracesWork()
     {
