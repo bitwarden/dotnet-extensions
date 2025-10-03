@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
@@ -149,7 +148,7 @@ public class SdkTests : MSBuildTestBase
             """
             var builder = WebApplication.CreateBuilder();
             builder.UseBitwardenSdk();
-            var sources = builder.Configuration.Sources;
+            Print(builder.Configuration);
             """,
             // Environment variables
             "",
@@ -174,7 +173,7 @@ public class SdkTests : MSBuildTestBase
             """
             var builder = WebApplication.CreateBuilder();
             builder.UseBitwardenSdk();
-            var sources = builder.Configuration.Sources;
+            Print(builder.Configuration);
             """,
             // Environment variables
             "ASPNETCORE_ENVIRONMENT:Development",
@@ -200,7 +199,7 @@ public class SdkTests : MSBuildTestBase
             """
             var builder = WebApplication.CreateBuilder();
             builder.UseBitwardenSdk();
-            var sources = builder.Configuration.Sources;
+            Print(builder.Configuration);
             """,
             // Environment variables
             "GlobalSettings__SelfHosted:true",
@@ -226,7 +225,7 @@ public class SdkTests : MSBuildTestBase
             """
             var builder = WebApplication.CreateBuilder();
             builder.UseBitwardenSdk();
-            var sources = builder.Configuration.Sources;
+            Print(builder.Configuration);
             """,
             // Environment variables
             """
@@ -248,6 +247,104 @@ public class SdkTests : MSBuildTestBase
                 MemoryConfigurationProvider
             """,
             false
+        );
+
+        // Old entrypoint style self-host debug
+        yield return new TheoryDataRow<string, string, string, bool>(
+            // Setup code
+            """
+            var _ = Host
+                .CreateDefaultBuilder()
+                .ConfigureWebHostDefaults(_ => {})
+                .UseBitwardenSdk()
+                .ConfigureAppConfiguration((_, config) =>
+                {
+                    Print(config);
+                })
+                .Build();
+            """,
+            // Environment variables
+            """
+            globalSettings__selfHosted:true
+            ASPNETCORE_ENVIRONMENT:Development
+            """,
+            // Expected config
+            """
+            Chained
+                MemoryConfigurationProvider
+                MemoryConfigurationProvider
+                EnvironmentVariablesConfigurationProvider
+                ChainedConfigurationProvider
+            Json: appsettings.json
+            Json: appsettings.Development.json
+            Json: appsettings.SelfHosted.json
+            Json: secrets.json
+            Environment: *
+            """,
+            false
+        );
+
+        // Old entrypoint style cloud debug
+        yield return new TheoryDataRow<string, string, string, bool>(
+            // Setup code
+            """
+            var _ = Host
+                .CreateDefaultBuilder()
+                .ConfigureWebHostDefaults(_ => {})
+                .UseBitwardenSdk()
+                .ConfigureAppConfiguration((_, config) =>
+                {
+                    Print(config);
+                })
+                .Build();
+            """,
+            // Environment variables
+            """
+            ASPNETCORE_ENVIRONMENT:Development
+            """,
+            // Expected config
+            """
+            Chained
+                MemoryConfigurationProvider
+                MemoryConfigurationProvider
+                EnvironmentVariablesConfigurationProvider
+                ChainedConfigurationProvider
+            Json: appsettings.json
+            Json: appsettings.Development.json
+            Json: secrets.json
+            Environment: *
+            """,
+            false
+        );
+
+        // Old entrypoint style cloud release
+        yield return new TheoryDataRow<string, string, string, bool>(
+            // Setup code
+            """
+            var _ = Host
+                .CreateDefaultBuilder()
+                .ConfigureWebHostDefaults(_ => {})
+                .UseBitwardenSdk()
+                .ConfigureAppConfiguration((_, config) =>
+                {
+                    Print(config);
+                })
+                .Build();
+            """,
+            // Environment variables
+            "",
+            // Expected config
+            """
+            Chained
+                MemoryConfigurationProvider
+                MemoryConfigurationProvider
+                EnvironmentVariablesConfigurationProvider
+                ChainedConfigurationProvider
+            Json: appsettings.json
+            Json: appsettings.Production.json
+            Environment: *
+            """,
+            true
         );
     }
 
@@ -273,7 +370,15 @@ public class SdkTests : MSBuildTestBase
 
             {{setupCode}}
 
-            static void PrintPrettyString(IConfigurationSource source)
+            static void Print(IConfigurationBuilder builder)
+            {
+                foreach (var source in builder.Sources)
+                {
+                    PrintSource(source);
+                }
+            }
+
+            static void PrintSource(IConfigurationSource source)
             {
                 if (source is EnvironmentVariablesConfigurationSource env)
                 {
@@ -302,11 +407,6 @@ public class SdkTests : MSBuildTestBase
                 {
                     Console.WriteLine($"Other: {source.GetType().Name}");
                 }
-            }
-
-            foreach (var source in sources)
-            {
-                PrintPrettyString(source);
             }
 
             Console.WriteLine("Done");

@@ -53,7 +53,9 @@ public static class HostBuilderExtensions
     {
         hostBuilder.ConfigureAppConfiguration((context, builder) =>
         {
-            if (context.Configuration.GetValue(SelfHostedConfigKey, false))
+            // Legacy entrypoint does not yet have access to configuration with all environment variables
+            // so we need to search the environment ourselves.
+            if (string.Equals(Environment.GetEnvironmentVariable("globalSettings__selfHosted"), "true", StringComparison.OrdinalIgnoreCase))
             {
                 AddSelfHostedConfig(builder, context.HostingEnvironment);
             }
