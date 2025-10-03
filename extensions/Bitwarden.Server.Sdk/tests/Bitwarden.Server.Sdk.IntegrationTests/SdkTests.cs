@@ -309,7 +309,8 @@ public class SdkTests : MSBuildTestBase
 
         await network.CreateAsync(TestContext.Current.CancellationToken);
 
-        // If the operating system is windows
+        // If the operating system is windows it's not running in CI most likely and
+        // likely not to have permissions issues.
         DirectoryInfo tempDir;
         if (!OperatingSystem.IsWindows())
         {
