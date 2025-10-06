@@ -6,12 +6,12 @@ using Bitwarden.Server.Sdk.Features;
 
 namespace Bitwarden.Server.Sdk.Analyzers.Tests;
 
-public class RemoveFeatureTests : CSharpAnalyzerTest<FeatureFlagAnalyzer, DefaultVerifier>
+public class FeatureFlagAnalyzerTests : CSharpAnalyzerTest<FeatureFlagAnalyzer, DefaultVerifier>
 {
     [Fact]
     public async Task ShouldWarnIfConstNotUsed()
     {
-        await RunAnalayzerAsync(
+        await RunAnalyzerAsync(
             """
             using Bitwarden.Server.Sdk.Features;
 
@@ -29,7 +29,7 @@ public class RemoveFeatureTests : CSharpAnalyzerTest<FeatureFlagAnalyzer, Defaul
     [Fact]
     public async Task ShouldSuggestRemovingFeature()
     {
-        await RunAnalayzerAsync(
+        await RunAnalyzerAsync(
             """
             using Bitwarden.Server.Sdk.Features;
 
@@ -46,7 +46,7 @@ public class RemoveFeatureTests : CSharpAnalyzerTest<FeatureFlagAnalyzer, Defaul
         );
     }
 
-    private async Task RunAnalayzerAsync([StringSyntax("C#-test")] string source)
+    private async Task RunAnalyzerAsync([StringSyntax("C#-test")] string source)
     {
         TestCode = source;
         TestState.ReferenceAssemblies = ReferenceAssemblies.Net.Net80;
