@@ -10,21 +10,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 
 namespace Bitwarden.Server.Sdk.UnitTests.Features;
 
 public class FeatureCheckMiddlewareTests
 {
-    private readonly IProblemDetailsService _fakeProblemDetailsService;
-    private readonly IHostEnvironment _fakeHostEnvironment;
-
-    public FeatureCheckMiddlewareTests()
-    {
-        _fakeProblemDetailsService = Substitute.For<IProblemDetailsService>();
-        _fakeHostEnvironment = Substitute.For<IHostEnvironment>();
-    }
-
     [Fact]
     public async Task NoEndpointInvokesPipeline()
     {
@@ -33,7 +25,7 @@ public class FeatureCheckMiddlewareTests
         {
             pipelineInvoked = true;
             return Task.CompletedTask;
-        }, _fakeHostEnvironment, _fakeProblemDetailsService, NullLogger<FeatureCheckMiddleware>.Instance);
+        },NullLogger<FeatureCheckMiddleware>.Instance, Options.Create(new FeatureCheckOptions()));
 
         var httpContext = new DefaultHttpContext();
         httpContext.SetEndpoint(null);
@@ -69,7 +61,7 @@ public class FeatureCheckMiddlewareTests
         {
             hc.Response.StatusCode = StatusCodes.Status200OK;
             return Task.CompletedTask;
-        }, _fakeHostEnvironment, _fakeProblemDetailsService, NullLogger<FeatureCheckMiddleware>.Instance);
+        }, NullLogger<FeatureCheckMiddleware>.Instance, Options.Create(new FeatureCheckOptions()));
 
         var context = GetContext(metadata);
 
@@ -100,6 +92,29 @@ public class FeatureCheckMiddlewareTests
         var problemDetails = await response.Content.ReadFromJsonAsync<ProblemDetails>();
         Assert.NotNull(problemDetails);
         Assert.Equal("Resource not found.", problemDetails.Title);
+    }
+
+    [Fact]
+    public async Task FailedCheck_CustomHandler()
+    {
+        using var host = CreateHost(services =>
+        {
+            services.Configure<FeatureCheckOptions>(options =>
+            {
+                options.OnFeatureCheckFailed = async (context) =>
+                {
+                    context.HttpContext.Response.StatusCode = StatusCodes.Status418ImATeapot;
+                    await context.HttpContext.Response.WriteAsync("Custom!");
+                };
+            });
+        });
+
+        await host.StartAsync();
+
+        var client = host.GetTestClient();
+        var response = await client.GetAsync("/require-feature");
+        Assert.Equal(418, (int)response.StatusCode);
+        Assert.Equal("Custom!", await response.Content.ReadAsStringAsync());
     }
 
     [Fact]
@@ -148,6 +163,13 @@ public class FeatureCheckMiddlewareTests
     private static DefaultHttpContext GetContext(params object[] metadata)
     {
         var httpContext = new DefaultHttpContext();
+
+        var services = new ServiceCollection();
+        services.AddSingleton(Substitute.For<IHostEnvironment>());
+        services.AddSingleton(Substitute.For<IProblemDetailsService>());
+        services.AddLogging();
+
+        httpContext.RequestServices = services.BuildServiceProvider();
         httpContext.SetEndpoint(new Endpoint(null, new EndpointMetadataCollection(metadata), "TestEndpoint"));
         return httpContext;
     }
