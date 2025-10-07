@@ -164,21 +164,7 @@ dotnet test extensions/Bitwarden.Server.Sdk/tests/Bitwarden.Server.Sdk.Integrati
 
 # Pack a package
 dotnet pack extensions/Bitwarden.Server.Sdk/src/Bitwarden.Server.Sdk.csproj
-
-# Restore dependencies
-# Build specific project
-dotnet build extensions/Bitwarden.Server.Sdk/src/Bitwarden.Server.Sdk.csproj
-
-# Run all tests
-dotnet test bitwarden-dotnet.sln
-
-# Run tests for specific project
-dotnet test extensions/Bitwarden.Server.Sdk/tests/Bitwarden.Server.Sdk.IntegrationTests.csproj
-
-# Pack a package
-dotnet pack extensions/Bitwarden.Server.Sdk/src/Bitwarden.Server.Sdk.csproj
-5. Add to solution: `dotnet sln add extensions/[PackageName]/src/[PackageName].csproj`
-6. Add tests: `extensions/[PackageName]/tests/[PackageName].Tests.csproj`
+```
 
 ### Update Package Version
 
@@ -223,4 +209,7 @@ Workflow automation exists to update package versions.
 -   `.editorconfig` file present for consistent formatting
 -   IDE: JetBrains Rider compatible (`.idea` folder present)
 -   Visual Studio 2022 compatible (solution format v17)
+
+```
+
 ```
