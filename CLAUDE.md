@@ -209,7 +209,3 @@ Workflow automation exists to update package versions.
 -   `.editorconfig` file present for consistent formatting
 -   IDE: JetBrains Rider compatible (`.idea` folder present)
 -   Visual Studio 2022 compatible (solution format v17)
-
-```
-
-```
