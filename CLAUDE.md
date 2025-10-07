@@ -17,7 +17,6 @@ Each package follows a consistent folder structure:
 
 See the [README.md](README.md) for detailed information about each package. Main packages include:
 
--   **Bitwarden.Core** - Core authentication and JWT handling
 -   **Bitwarden.Extensions.Configuration** - Configuration integration
 -   **Bitwarden.Server.Sdk** - Main SDK for building Bitwarden services
 
@@ -89,12 +88,6 @@ See the [README.md](README.md) for detailed information about each package. Main
 -   **Nullable reference types enabled** - All projects use `<Nullable>enable</Nullable>`
 -   File-scoped namespaces preferred (modern C# style)
 
-### Dependency Version Pinning
-
--   Use **exact version matching** with brackets: `Version="[X.Y.Z]"`
--   This ensures consistent builds and no unexpected version changes
--   Example: `<PackageReference Include="xunit" Version="[2.9.3]" />`
-
 ### Project References
 
 -   Use relative paths for project references within the solution
@@ -142,12 +135,6 @@ See the [README.md](README.md) for detailed information about each package. Main
 2. **Write tests**: Unit tests required, integration tests for complex features
 3. **Update README**: Each package has its own README.md
 
-### When Modifying Authentication
-
--   Changes likely affect `Bitwarden.Core` or `Bitwarden.Server.Sdk.Authentication`
--   JWT handling uses `System.IdentityModel.Tokens.Jwt`
--   Authentication payloads and tokens defined in `Bitwarden.Core`
-
 ### When Working with Configuration
 
 -   Secrets integration in `Bitwarden.Extensions.Configuration`
@@ -167,37 +154,35 @@ See the [README.md](README.md) for detailed information about each package. Main
 dotnet build bitwarden-dotnet.sln
 
 # Build specific project
-dotnet build extensions/Bitwarden.Core/src/Bitwarden.Core.csproj
+dotnet build extensions/Bitwarden.Server.Sdk/src/Bitwarden.Server.Sdk.csproj
 
 # Run all tests
 dotnet test bitwarden-dotnet.sln
 
 # Run tests for specific project
-dotnet test extensions/Bitwarden.Core/tests/Bitwarden.Core.Tests.csproj
+dotnet test extensions/Bitwarden.Server.Sdk/tests/Bitwarden.Server.Sdk.IntegrationTests.csproj
 
 # Pack a package
-dotnet pack extensions/Bitwarden.Core/src/Bitwarden.Core.csproj
+dotnet pack extensions/Bitwarden.Server.Sdk/src/Bitwarden.Server.Sdk.csproj
 
 # Restore dependencies
-dotnet restore
-```
+# Build specific project
+dotnet build extensions/Bitwarden.Server.Sdk/src/Bitwarden.Server.Sdk.csproj
 
-## Common Tasks
+# Run all tests
+dotnet test bitwarden-dotnet.sln
 
-### Add a New Extension Package
+# Run tests for specific project
+dotnet test extensions/Bitwarden.Server.Sdk/tests/Bitwarden.Server.Sdk.IntegrationTests.csproj
 
-1. Create directory structure: `extensions/[PackageName]/src/`
-2. Create `.csproj` with standard properties (see template above)
-3. Add versioning properties
-4. Create README.md
+# Pack a package
+dotnet pack extensions/Bitwarden.Server.Sdk/src/Bitwarden.Server.Sdk.csproj
 5. Add to solution: `dotnet sln add extensions/[PackageName]/src/[PackageName].csproj`
 6. Add tests: `extensions/[PackageName]/tests/[PackageName].Tests.csproj`
 
 ### Update Package Version
 
--   For prerelease iteration: Modify `<PreReleaseVersionIteration>`
--   For prerelease label: Modify `<PreReleaseVersionLabel>` (alpha/beta/rc)
--   For major/minor/patch: Modify `<VersionPrefix>`
+Workflow automation exists to update package versions.
 
 ## Important Notes
 
@@ -238,3 +223,4 @@ dotnet restore
 -   `.editorconfig` file present for consistent formatting
 -   IDE: JetBrains Rider compatible (`.idea` folder present)
 -   Visual Studio 2022 compatible (solution format v17)
+```
