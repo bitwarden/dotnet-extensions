@@ -1,8 +1,35 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["github>bitwarden/renovate-config"],
+  "extends": ["github>bitwarden/renovate-config:non-pinned"],
   "enabledManagers": ["github-actions", "nuget"],
   "packageRules": [
+    {
+      "groupName": "msbuild-packages",
+      "description": "MSBuild dependencies",
+      "commitMessagePrefix": "[deps] MSBuild:",
+      "matchPackageNames": [
+        "/^Microsoft.Build/"
+      ],
+      "matchUpdateTypes": ["patch"]
+    },
+    {
+      "groupName": "test-packages",
+      "description": "Dependencies used in test projects",
+      "commitMessagePrefix": "[deps] Test:",
+      "matchPackageNames": [
+        "coverlet.collector",
+        "Microsoft.AspNetCore.TestHost",
+        "Microsoft.NET.Test.Sdk",
+        "NSubstitute",
+        "xunit",
+        "xunit.v3",
+        "xunit.runner.visualstudio",
+        "Testcontainers",
+        "MSBuild.ProjectCreation",
+        "Microsoft.Extensions.Diagnostics.Testing"
+      ],
+      "matchUpdateTypes": ["patch", "minor"]
+    },
     {
       "matchManagers": ["nuget"],
       "rangeStrategy": "auto"
@@ -10,13 +37,6 @@
     {
       "groupName": "gh minor",
       "matchManagers": ["github-actions"],
-      "matchUpdateTypes": ["minor", "patch"]
-    },
-    {
-      "additionalBranchPrefix": "{{parentDir}}-",
-      "commitMessagePrefix": "[deps] {{parentDir}}:",
-      "groupName": "nuget minor",
-      "matchManagers": ["nuget"],
       "matchUpdateTypes": ["minor", "patch"]
     }
   ],
