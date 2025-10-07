@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="LaunchDarkly.ServerSdk" Version="[8.6.0]" />
+    <PackageReference Include="LaunchDarkly.ServerSdk" Version="[8.10.3]" />
   </ItemGroup>
 
   <ItemGroup>
