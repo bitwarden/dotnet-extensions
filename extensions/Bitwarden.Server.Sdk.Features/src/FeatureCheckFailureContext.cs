@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Http;
 namespace Bitwarden.Server.Sdk.Features;
 
 /// <summary>
-/// A context class for when a feature check was failed.
+/// A context class for when a feature check has failed.
 /// </summary>
 public class FeatureCheckFailedContext
 {
