@@ -27,6 +27,8 @@ jobs:
     steps:
       - name: Check out repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
 
       - name: Set up .NET
         uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
@@ -34,15 +36,18 @@ jobs:
       # get current version
       - name: Get current version
         id: current-version
-        run: echo "VERSION=$(dotnet msbuild --getProperty:Version)" >> $GITHUB_OUTPUT
+        run: echo "VERSION=$(dotnet msbuild --getProperty:Version)" >> "$GITHUB_OUTPUT"
         working-directory: '${{ env.PACKAGE_DIRECTORY }}/src'
 
       - name: Create release candidate branch
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          _PACKAGE: ${{ inputs.package }}
+          _CURRENT_VERSION: ${{ steps.current-version.outputs.VERSION }}
         with:
           script: |
-            const packageName = '${{ inputs.package }}';
-            const currentVersion = '${{ steps.current-version.outputs.VERSION }}';
+            const packageName = process.env._PACKAGE;
+            const currentVersion = process.env._CURRENT_VERSION;
 
             // Configure Git
             await exec.exec(`git config user.name "github-actions"`);
