@@ -38,7 +38,6 @@ See the [README.md](README.md) for detailed information about each package. Main
 
 -   Test projects are in `tests/` subfolder of each extension
 -   Test projects use exact version pinning: `Version="[X.Y.Z]"`
--   `<IsPackable>false</IsPackable>` and `<IsTestProject>true</IsTestProject>` properties
 -   `<Using Include="Xunit" />` for global xUnit usings
 
 ## Code Style and Conventions
