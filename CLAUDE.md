@@ -24,13 +24,11 @@ See the [README.md](README.md) for detailed information about each package. Main
 
 ### Test Framework
 
--   **xUnit**
--   `Microsoft.NET.Test.Sdk`
+-   **xUnit.v3**
 -   `coverlet.collector` for code coverage
 
 ### Additional Test Tools
 
--   `xunit.runner.visualstudio`
 -   `NSubstitute` for mocking
 -   `Microsoft.AspNetCore.TestHost` for integration tests
 -   `Testcontainers` for container-based tests
