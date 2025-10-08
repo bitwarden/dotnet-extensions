@@ -19,11 +19,8 @@
       "matchPackageNames": [
         "coverlet.collector",
         "Microsoft.AspNetCore.TestHost",
-        "Microsoft.NET.Test.Sdk",
         "NSubstitute",
-        "xunit",
         "xunit.v3",
-        "xunit.runner.visualstudio",
         "Testcontainers",
         "MSBuild.ProjectCreation",
         "Microsoft.Extensions.Diagnostics.Testing"
