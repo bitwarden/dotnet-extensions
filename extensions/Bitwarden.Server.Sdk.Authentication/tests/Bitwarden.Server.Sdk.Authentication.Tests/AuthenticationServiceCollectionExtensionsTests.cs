@@ -16,7 +16,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
-using Xunit.Abstractions;
 
 namespace Bitwarden.Server.Sdk.Authentication.Tests;
 
@@ -33,13 +32,13 @@ public class AuthenticationServiceCollectionExtensionsTests
     public async Task AddBitwardenAuthentication_NoBearerToken_Unauthorized()
     {
         using var authHost = CreateAuthHost(out _);
-        await authHost.StartAsync();
+        await authHost.StartAsync(TestContext.Current.CancellationToken);
         using var appHost = CreateAppHost(authHost);
-        await appHost.StartAsync();
+        await appHost.StartAsync(TestContext.Current.CancellationToken);
 
         var client = appHost.GetTestClient();
 
-        var response = await client.GetAsync("/authed-user");
+        var response = await client.GetAsync("/authed-user", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -48,17 +47,17 @@ public class AuthenticationServiceCollectionExtensionsTests
     public async Task AddBitwardenAuthentication_QueryString_DoesNotWork()
     {
         using var authHost = CreateAuthHost(out var certificate);
-        await authHost.StartAsync();
+        await authHost.StartAsync(TestContext.Current.CancellationToken);
         using var appHost = CreateAppHost(authHost);
 
-        await appHost.StartAsync();
+        await appHost.StartAsync(TestContext.Current.CancellationToken);
 
         var client = appHost.GetTestClient();
 
         var accessToken = CreateAccessToken(certificate,
             new JwtPayload(issuer: "http://localhost", audience: null, claims: null, notBefore: DateTime.UtcNow, expires: DateTime.UtcNow.AddDays(1)));
 
-        var response = await client.GetAsync($"/authed-user?access_token={accessToken}");
+        var response = await client.GetAsync($"/authed-user?access_token={accessToken}", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -67,10 +66,10 @@ public class AuthenticationServiceCollectionExtensionsTests
     public async Task AddBitwardenAuthentication_Header_Works()
     {
         using var authHost = CreateAuthHost(out var certificate);
-        await authHost.StartAsync();
+        await authHost.StartAsync(TestContext.Current.CancellationToken);
         using var appHost = CreateAppHost(authHost);
 
-        await appHost.StartAsync();
+        await appHost.StartAsync(TestContext.Current.CancellationToken);
 
         var client = appHost.GetTestClient();
 
@@ -80,7 +79,7 @@ public class AuthenticationServiceCollectionExtensionsTests
         var request = new HttpRequestMessage(HttpMethod.Get, "/authed-user");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
@@ -89,7 +88,7 @@ public class AuthenticationServiceCollectionExtensionsTests
     public async Task AddBitwardenAuthentication_DoesNotMapClaims()
     {
         using var authHost = CreateAuthHost(out var certificate);
-        await authHost.StartAsync();
+        await authHost.StartAsync(TestContext.Current.CancellationToken);
 
         using var appHost = CreateAppHost(authHost, configureServices: null,
             endpoints =>
@@ -105,7 +104,7 @@ public class AuthenticationServiceCollectionExtensionsTests
             }
         );
 
-        await appHost.StartAsync();
+        await appHost.StartAsync(TestContext.Current.CancellationToken);
 
         var client = appHost.GetTestClient();
 
@@ -116,17 +115,17 @@ public class AuthenticationServiceCollectionExtensionsTests
 
         var request = new HttpRequestMessage(HttpMethod.Get, "/test");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("test", await response.Content.ReadAsStringAsync());
+        Assert.Equal("test", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task AddBitwardenAuthentication_UsesEmailForNameClaimType()
     {
         using var authHost = CreateAuthHost(out var certificate);
-        await authHost.StartAsync();
+        await authHost.StartAsync(TestContext.Current.CancellationToken);
 
         using var appHost = CreateAppHost(authHost, configureServices: null,
             endpoints =>
@@ -139,7 +138,7 @@ public class AuthenticationServiceCollectionExtensionsTests
             }
         );
 
-        await appHost.StartAsync();
+        await appHost.StartAsync(TestContext.Current.CancellationToken);
 
         var client = appHost.GetTestClient();
 
@@ -150,17 +149,17 @@ public class AuthenticationServiceCollectionExtensionsTests
 
         var request = new HttpRequestMessage(HttpMethod.Get, "/test");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("test@example.com", await response.Content.ReadAsStringAsync());
+        Assert.Equal("test@example.com", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task AddBitwardenAuthentication_LogInEndpoint_ContainsScope()
     {
         using var authHost = CreateAuthHost(out var certificate);
-        await authHost.StartAsync();
+        await authHost.StartAsync(TestContext.Current.CancellationToken);
 
         using var appHost = CreateAppHost(authHost, configureServices: null,
             endpoints =>
@@ -172,7 +171,7 @@ public class AuthenticationServiceCollectionExtensionsTests
             }
         );
 
-        await appHost.StartAsync();
+        await appHost.StartAsync(TestContext.Current.CancellationToken);
 
         var client = appHost.GetTestClient();
 
@@ -183,7 +182,7 @@ public class AuthenticationServiceCollectionExtensionsTests
 
         var request = new HttpRequestMessage(HttpMethod.Get, "/test");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
