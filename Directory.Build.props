@@ -1,6 +1,12 @@
 <Project>
+  <PropertyGroup>
+    <IsTestProject Condition="'$(IsTestProject)' == '' and ($(MSBuildProjectName.EndsWith('.Tests')) or $(MSBuildProjectName.EndsWith('.IntegrationTests')))">true</IsTestProject>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
-    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
-    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <OutputType Condition="'$(OutputType)' == ''">Exe</OutputType>
+    <IsPackable Condition="'$(IsPackable)' == ''">false</IsPackable>
+    <TestingPlatformDotnetTestSupport Condition="'$(TestingPlatformDotnetTestSupport)' == ''">true</TestingPlatformDotnetTestSupport>
+    <UseMicrosoftTestingPlatformRunner Condition="'$(UseMicrosoftTestingPlatformRunner)' == ''">true</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
 </Project>

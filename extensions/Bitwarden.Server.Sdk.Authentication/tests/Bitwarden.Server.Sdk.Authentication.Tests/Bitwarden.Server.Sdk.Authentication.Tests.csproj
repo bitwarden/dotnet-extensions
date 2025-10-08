@@ -3,7 +3,6 @@
   <PropertyGroup>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <OutputType>Exe</OutputType>
     <RootNamespace>Bitwarden.Server.Sdk.Authentication.Tests</RootNamespace>
     <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
