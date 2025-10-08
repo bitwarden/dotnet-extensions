@@ -20,43 +20,6 @@ See the [README.md](README.md) for detailed information about each package. Main
 -   **Bitwarden.Extensions.Configuration** - Configuration integration
 -   **Bitwarden.Server.Sdk** - Main SDK for building Bitwarden services
 
-## .NET and Build Configuration
-
-### Target Framework
-
--   **NET 8.0** (`net8.0`) for all projects
--   SDK Version: 8.0.100 with `latestFeature` roll-forward policy
-
-### Common Project Properties
-
-```xml
-<ImplicitUsings>enable</ImplicitUsings>
-<Nullable>enable</Nullable>
-<GenerateDocumentationFile>true</GenerateDocumentationFile>
-<PublishRepositoryUrl>true</PublishRepositoryUrl>
-<EmbedUntrackedSources>true</EmbedUntrackedSources>
-<DebugType>embedded</DebugType>
-```
-
-### Package Metadata (for packable projects)
-
-```xml
-<Authors>Bitwarden</Authors>
-<PackageProjectUrl>https://github.com/bitwarden/dotnet-extensions</PackageProjectUrl>
-<PackageReleaseNotes>https://github.com/bitwarden/dotnet-extensions/releases</PackageReleaseNotes>
-<PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
-<PackageReadmeFile>README.md</PackageReadmeFile>
-```
-
-### Versioning Convention
-
-```xml
-<VersionPrefix>X.Y.Z</VersionPrefix>
-<PreReleaseVersionLabel>beta</PreReleaseVersionLabel>
-<PreReleaseVersionIteration>N</PreReleaseVersionIteration>
-<VersionSuffix Condition="'$(VersionSuffix)' == '' AND '$(IsPreRelease)' == 'true'">$(PreReleaseVersionLabel).$(PreReleaseVersionIteration)</VersionSuffix>
-```
-
 ## Testing Standards
 
 ### Test Framework
@@ -146,29 +109,6 @@ See the [README.md](README.md) for detailed information about each package. Main
 -   Pin exact versions using bracket notation: `[X.Y.Z]`
 -   Prefer framework references over package references when possible
 -   Check if dependency should be transitive or direct
-
-## Build and Test Commands
-
-```bash
-# Build entire solution
-dotnet build bitwarden-dotnet.sln
-
-# Build specific project
-dotnet build extensions/Bitwarden.Server.Sdk/src/Bitwarden.Server.Sdk.csproj
-
-# Run all tests
-dotnet test bitwarden-dotnet.sln
-
-# Run tests for specific project
-dotnet test extensions/Bitwarden.Server.Sdk/tests/Bitwarden.Server.Sdk.IntegrationTests.csproj
-
-# Pack a package
-dotnet pack extensions/Bitwarden.Server.Sdk/src/Bitwarden.Server.Sdk.csproj
-```
-
-### Update Package Version
-
-Workflow automation exists to update package versions.
 
 ## Important Notes
 
