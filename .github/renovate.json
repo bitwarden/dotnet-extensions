@@ -17,7 +17,7 @@
       "description": "Dependencies used in test projects",
       "commitMessagePrefix": "[deps] Test:",
       "matchPackageNames": [
-        "coverlet.collector",
+        "Microsoft.Testing.Extensions.CodeCoverage",
         "Microsoft.AspNetCore.TestHost",
         "NSubstitute",
         "xunit.v3",

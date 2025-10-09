@@ -25,7 +25,6 @@ See the [README.md](README.md) for detailed information about each package. Main
 ### Test Framework
 
 -   **xUnit.v3**
--   `coverlet.collector` for code coverage
 
 ### Additional Test Tools
 
