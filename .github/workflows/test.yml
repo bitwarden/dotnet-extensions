@@ -27,7 +27,7 @@ jobs:
         uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
 
       - name: Test solution
-        run: dotnet test --configuration Debug /p:CoverletOutputFormatter="cobertura" --collect:"XPlat Code Coverage" -- --report-trx --report-trx-file="test-results.trx"
+        run: dotnet test --configuration Debug -- --coverage --coverage-output-format=cobertura --report-trx --report-trx-file="test-results.trx"
 
       - name: Report test results
         uses: dorny/test-reporter@dc3a92680fcc15842eef52e8c4606ea7ce6bd3f3 # v2.1.1
