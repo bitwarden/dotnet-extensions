@@ -5,6 +5,31 @@ namespace Bitwarden.Server.Sdk.IntegrationTests;
 
 public static class CustomProjectCreatorTemplates
 {
+    static CustomProjectCreatorTemplates()
+    {
+        // Use this as a list of marker types for assemblies that should be added as available in a
+        // pseudo nuget feed.
+        List<Type> packages = [typeof(IFeatureService)];
+
+        var feeds = new List<Uri>(packages.Count);
+
+        foreach (var package in packages)
+        {
+            var assembly = package.Assembly;
+            var assemblyName = assembly.GetName()!;
+            var pr = PackageFeed.Create(new FileInfo(assembly.Location).Directory!)
+                .Package(assemblyName.Name!, assemblyName.Version!.ToString(3))
+                .FileCustom(Path.Combine("lib", TargetFramework, assemblyName.Name + ".dll"), new FileInfo(assembly.Location))
+                .Save();
+
+            feeds.Add(pr);
+        }
+
+        Feeds = feeds;
+    }
+
+    public static List<Uri> Feeds { get; }
+
     private const string TargetFramework = "net8.0";
     private static readonly string ThisAssemblyDirectory = Path.GetDirectoryName(typeof(CustomProjectCreatorTemplates).Assembly.Location)!;
 
@@ -56,25 +81,7 @@ public static class CustomProjectCreatorTemplates
 
     public static PackageRepository CreateDefaultPackageRepository(this ProjectCreator project)
     {
-        // Use this as a list of marker types for assemblies that should be added as available in a
-        // pseudo nuget feed.
-        List<Type> packages = [typeof(IFeatureService)];
-
-        var feeds = new List<Uri>();
-
-        foreach (var package in packages)
-        {
-            var assembly = package.Assembly;
-            var assemblyName = assembly.GetName()!;
-            var pr = PackageFeed.Create(new FileInfo(assembly.Location).Directory!)
-                .Package(assemblyName.Name!, assemblyName.Version!.ToString(3))
-                .FileCustom(Path.Combine("lib", TargetFramework, assemblyName.Name + ".dll"), new FileInfo(assembly.Location))
-                .Save();
-
-            feeds.Add(pr);
-        }
-
-        return PackageRepository.Create(project.GetProjectDirectory(), [new Uri("https://api.nuget.org/v3/index.json"), .. feeds]);
+        return PackageRepository.Create(project.GetProjectDirectory(), [new Uri("https://api.nuget.org/v3/index.json"), .. Feeds]);
     }
 
     public static string GetProjectDirectory(this ProjectCreator project)
