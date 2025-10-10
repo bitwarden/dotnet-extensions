@@ -162,6 +162,7 @@ public static class HostBuilderExtensions
                 metrics.AddAspNetCoreInstrumentation();
                 metrics.AddHttpClientInstrumentation();
                 metrics.AddRuntimeInstrumentation();
+                metrics.AddSqlClientInstrumentation();
 
                 metrics.AddMeter("Bitwarden.*");
                 metrics.AddMeter("Bit.*");
@@ -176,6 +177,7 @@ public static class HostBuilderExtensions
                 tracing.AddAspNetCoreInstrumentation();
                 tracing.AddHttpClientInstrumentation();
                 tracing.AddEntityFrameworkCoreInstrumentation();
+                tracing.AddSqlClientInstrumentation();
             });
 
         if (configuration.GetValue(OtelDebuggingConfigKey, false))
