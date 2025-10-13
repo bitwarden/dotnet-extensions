@@ -84,7 +84,7 @@ jobs:
 
             // List existing tags so that we could use them to link to the best full changelog
             // Debug purposes only right now until there is enough data for me to make this command bullet proof
-            await exec.exec(`git fetch --tags");
+            await exec.exec("git fetch --tags");
             await exec.exec(`git --no-pager tag --list "${package}_v*" --no-contains "${currentRef}"`, [], {
               listeners: {
                 stdout: function stdout(data) {
