@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
@@ -61,26 +62,48 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        var flagArg = invocationSyntax.ArgumentList.Arguments[0].Expression;
+        // TODO: Can we validate that this isnt a static method here?
 
-        if (flagArg is not IdentifierNameSyntax identifier)
+        var featureFlagService = context.Compilation.GetTypeByMetadataName("Bitwarden.Server.Sdk.Features.IFeatureService");
+
+        var invocationOperation = (IInvocationOperation)context.SemanticModel.GetOperation(context.Node, context.CancellationToken);
+
+        if (invocationOperation.Instance is null)
         {
-            context.ReportDiagnostic(Diagnostic.Create(_flagShouldBeConstRule, flagArg.GetLocation()));
+            // Static method, not us
             return;
         }
 
-        var identifierOperation = context.SemanticModel.GetOperation(identifier, context.CancellationToken);
-        if (identifierOperation is not IFieldReferenceOperation fieldRef || !fieldRef.Field.HasConstantValue)
+        if (!SymbolEqualityComparer.Default.Equals(featureFlagService, invocationOperation.Instance.Type))
         {
-            context.ReportDiagnostic(Diagnostic.Create(_flagShouldBeConstRule, flagArg.GetLocation()));
+            // Method doesn't belong to us
             return;
         }
 
-        var flagName = (string)fieldRef.Field.ConstantValue;
+        // We previously validated there is 1 or 2 arguments so this array access should be safe
+        if (!TryAnalyzeFlagKeyArgument(context, invocationOperation.Arguments[0].Value, out var flagKey))
+        {
+            return;
+        }
 
         // Add flag name to diagnostic so we can use it in the code fixer
-        var properties = ImmutableDictionary.CreateRange([new KeyValuePair<string, string?>("flagName", flagName)]);
+        var properties = ImmutableDictionary.CreateRange([new KeyValuePair<string, string?>("flagName", flagKey)]);
 
         context.ReportDiagnostic(Diagnostic.Create(_removeFeatureFlagRule, invocationSyntax.GetLocation(), properties));
+    }
+
+    private static bool TryAnalyzeFlagKeyArgument(SyntaxNodeAnalysisContext context, IOperation flagKeyOperation, [MaybeNullWhen(false)] out string flagKey)
+    {
+        if (flagKeyOperation is not IFieldReferenceOperation fieldRef
+            || !fieldRef.Field.HasConstantValue)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(_flagShouldBeConstRule, flagKeyOperation.Syntax.GetLocation()));
+            flagKey = null;
+            return false;
+        }
+
+        // TODO: Warn on null flag key
+        flagKey = (string)fieldRef.Field.ConstantValue!;
+        return true;
     }
 }

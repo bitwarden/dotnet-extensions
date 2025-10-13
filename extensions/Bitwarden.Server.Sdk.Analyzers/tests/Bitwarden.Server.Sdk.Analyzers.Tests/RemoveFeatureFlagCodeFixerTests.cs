@@ -41,6 +41,52 @@ public class RemoveFeatureFlagCodeFixerTests : CSharpCodeFixTest<FeatureFlagAnal
         );
     }
 
+    [Fact]
+    public async Task ShouldSimplifyBinaryExpression()
+    {
+        await RunCodeFixAsync(
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            public class Something
+            {
+                private const string Flag = "my-flag";
+
+                public Something(IFeatureService featureService)
+                {
+                    if (Get() && {|BW0002:featureService.IsEnabled(Flag)|})
+                    {
+                        Do();
+                    }
+                }
+
+                private bool Get() => true;
+                private void Do() { }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            public class Something
+            {
+                private const string Flag = "my-flag";
+
+                public Something(IFeatureService featureService)
+                {
+                    if (Get())
+                    {
+                        Do();
+                    }
+                }
+
+                private bool Get() => true;
+                private void Do() { }
+            }
+            """
+        );
+    }
+
+
     private async Task RunCodeFixAsync([StringSyntax("C#-test")] string inputSource, [StringSyntax("C#-test")] string expectedFixedSource)
     {
         TestCode = inputSource;
