@@ -1,12 +1,13 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
+using System.Linq.Expressions;
+using System.Linq;
+using Microsoft.CodeAnalysis.Text;
 
 namespace Bitwarden.Server.Sdk.Analyzers;
 
@@ -39,10 +40,11 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
     {
         context.EnableConcurrentExecution();
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
-        context.RegisterSyntaxNodeAction(AnalyzeNode, SyntaxKind.InvocationExpression);
+        context.RegisterSyntaxNodeAction(AnalyzeInvocation, SyntaxKind.InvocationExpression);
+        context.RegisterSyntaxNodeAction(AnalyzeAttribute, SyntaxKind.Attribute);
     }
 
-    private static void AnalyzeNode(SyntaxNodeAnalysisContext context)
+    private static void AnalyzeInvocation(SyntaxNodeAnalysisContext context)
     {
         var invocationSyntax = (InvocationExpressionSyntax)context.Node;
         if (invocationSyntax.Expression is not MemberAccessExpressionSyntax ma)
@@ -50,14 +52,25 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
             return;
         }
 
+        var methodName = ma.Name.Identifier.Text;
+
         // TODO: Other entrypoints
-        if (ma.Name.Identifier.Text != "IsEnabled")
+        if (methodName == "IsEnabled")
         {
+            AnalyzeIsEnabledInvocation(context, invocationSyntax, ma);
             return;
         }
+        else if (methodName == "RequireFeature")
+        {
+            AnalyzeRequireFeatureMethodCall(context, invocationSyntax, ma);
+            return;
+        }
+    }
 
+    private static void AnalyzeIsEnabledInvocation(SyntaxNodeAnalysisContext context, InvocationExpressionSyntax invocationExpression, MemberAccessExpressionSyntax memberAccessExpression)
+    {
         // The feature flag name plus optional default
-        if (invocationSyntax.ArgumentList.Arguments.Count is not 1 or 2)
+        if (invocationExpression.ArgumentList.Arguments.Count is not 1 or 2)
         {
             return;
         }
@@ -66,7 +79,10 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
 
         var featureFlagService = context.Compilation.GetTypeByMetadataName("Bitwarden.Server.Sdk.Features.IFeatureService");
 
-        var invocationOperation = (IInvocationOperation)context.SemanticModel.GetOperation(context.Node, context.CancellationToken);
+        if (context.SemanticModel.GetOperation(context.Node, context.CancellationToken) is not IInvocationOperation invocationOperation)
+        {
+            return;
+        }
 
         if (invocationOperation.Instance is null)
         {
@@ -86,10 +102,98 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        // Add flag name to diagnostic so we can use it in the code fixer
-        var properties = ImmutableDictionary.CreateRange([new KeyValuePair<string, string?>("flagName", flagKey)]);
+        ReportFeatureFlagRemoval(context, invocationExpression.GetLocation(), flagKey, "isEnabledCheck");
+    }
 
-        context.ReportDiagnostic(Diagnostic.Create(_removeFeatureFlagRule, invocationSyntax.GetLocation(), properties));
+    private static void AnalyzeRequireFeatureMethodCall(SyntaxNodeAnalysisContext context, InvocationExpressionSyntax invocationExpression, MemberAccessExpressionSyntax memberAccessExpression)
+    {
+        if (invocationExpression.ArgumentList.Arguments.Count != 1)
+        {
+            return;
+        }
+
+        if (context.SemanticModel.GetOperation(invocationExpression, context.CancellationToken) is not IInvocationOperation invocationOperation)
+        {
+            return;
+        }
+
+        // Once we've moved from syntax -> operations we expect the number of arguments to become 2 since this
+        // is an extension method.
+        if (invocationOperation.Arguments.Length != 2)
+        {
+            return;
+        }
+
+        var endpointConventionsBuilderType = context.Compilation.GetTypesByMetadataName("Microsoft.AspNetCore.Builder.FeatureEndpointConventionBuilderExtensions")
+            .FirstOrDefault(nt => nt.ContainingAssembly.Name == "Bitwarden.Server.Sdk.Features");
+
+        if (!SymbolEqualityComparer.Default.Equals(endpointConventionsBuilderType, invocationOperation.TargetMethod.ContainingType))
+        {
+            return;
+        }
+
+        var stringType = context.Compilation.GetSpecialType(SpecialType.System_String);
+
+        var firstArg = invocationOperation.Arguments[1].Value;
+
+        // There are two versions of the RequireFeature method, one that takes a string and one that takes a function
+        // we want to only put the diagnostic on the string variant
+        if (!SymbolEqualityComparer.Default.Equals(firstArg.Type, stringType))
+        {
+            return;
+        }
+
+        if (!TryAnalyzeFlagKeyArgument(context, firstArg, out var flagKey))
+        {
+            return;
+        }
+
+        var span = TextSpan.FromBounds(
+            memberAccessExpression.OperatorToken.SpanStart,
+            invocationExpression.ArgumentList.Span.End
+        );
+
+        var location = Location.Create(context.Node.SyntaxTree, span);
+
+        ReportFeatureFlagRemoval(context, location, flagKey, "requireFeatureMethod");
+    }
+
+    private static void AnalyzeAttribute(SyntaxNodeAnalysisContext context)
+    {
+        if (context.SemanticModel.GetOperation(context.Node, context.CancellationToken) is not IAttributeOperation attributeOperation)
+        {
+            return;
+        }
+
+        var requireFeatureAttributeType = context.Compilation.GetTypeByMetadataName("Bitwarden.Server.Sdk.Features.RequireFeatureAttribute");
+
+        if (requireFeatureAttributeType == null)
+        {
+            return;
+        }
+
+        if (attributeOperation.Operation is not IObjectCreationOperation attributeCreation)
+        {
+            return;
+        }
+
+        if (!SymbolEqualityComparer.Default.Equals(requireFeatureAttributeType, attributeCreation.Type))
+        {
+            // Different attribute
+            return;
+        }
+
+        if (attributeCreation.Arguments.Length != 1)
+        {
+            return;
+        }
+
+        if (!TryAnalyzeFlagKeyArgument(context, attributeCreation.Arguments[0].Value, out var flagKey))
+        {
+            return;
+        }
+
+        ReportFeatureFlagRemoval(context, context.Node.GetLocation(), flagKey, "requireFeatureAttribute");
     }
 
     private static bool TryAnalyzeFlagKeyArgument(SyntaxNodeAnalysisContext context, IOperation flagKeyOperation, [MaybeNullWhen(false)] out string flagKey)
@@ -105,5 +209,17 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
         // TODO: Warn on null flag key
         flagKey = (string)fieldRef.Field.ConstantValue!;
         return true;
+    }
+
+    private static void ReportFeatureFlagRemoval(SyntaxNodeAnalysisContext context, Location location, string flagKey, string removalHint)
+    {
+        var properties = ImmutableDictionary.CreateBuilder<string, string?>();
+        properties.Add("flagKey", flagKey);
+        properties.Add("removalHint", removalHint);
+        context.ReportDiagnostic(Diagnostic.Create(
+            _removeFeatureFlagRule,
+            location,
+            properties.ToImmutableDictionary()
+        ));
     }
 }
