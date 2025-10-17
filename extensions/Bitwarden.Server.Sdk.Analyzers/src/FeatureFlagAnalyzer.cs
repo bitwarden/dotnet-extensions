@@ -149,7 +149,7 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
         }
 
         var span = TextSpan.FromBounds(
-            memberAccessExpression.OperatorToken.SpanStart,
+            memberAccessExpression.Name.SpanStart,
             invocationExpression.ArgumentList.Span.End
         );
 

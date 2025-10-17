@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Runtime.Versioning;
 using Bitwarden.Server.Sdk.Features;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
@@ -366,7 +365,7 @@ public class RemoveFeatureFlagCodeFixerTests : CSharpCodeFixTest<FeatureFlagAnal
             var app = builder.Build();
 
             app.MapGet("/", () => "Hello world!")
-                {|BW0002:.RequireFeature(Flags.Flag)|};
+                .{|BW0002:RequireFeature(Flags.Flag)|};
 
             public static class Flags
             {

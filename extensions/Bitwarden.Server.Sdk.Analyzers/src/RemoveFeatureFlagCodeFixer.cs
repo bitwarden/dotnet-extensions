@@ -46,7 +46,8 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
             context.RegisterCodeFix(CodeAction.Create(
                 "Remove feature flag",
                 createChangedDocument: (t) => RemoveFlagAsync(context.Document, diagnostic.Location, removalHint!, t),
-                equivalenceKey: $"BW0002-{flagKey}"
+                equivalenceKey: $"BW0002-{flagKey}",
+                CodeActionPriority.Default
             ), diagnostic);
         }
 
@@ -137,17 +138,23 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
 
     private static Document RemoveRequireFeatureMethod(Document document, SyntaxNode root, SyntaxNode node)
     {
+        if (node.Parent is ExpressionStatementSyntax expressionStatement)
+        {
+            // Our call is chained with another call i.e: app.MapGet(...).RequireFeature(Flag);
+            return document;
+        }
 
-        return document.WithSyntaxRoot(root.ReplaceNode(node.Parent!, node.Parent.RemoveNode(node, SyntaxRemoveOptions.KeepNoTrivia)!));
+        // TODO: Something else
+        return document;
     }
 
     private static SyntaxNode SimplifyBinary(BinaryExpressionSyntax binaryExpression, SyntaxNode targetNode)
     {
         if (binaryExpression.Left == targetNode)
         {
-            return binaryExpression.Right.WithoutTrivia();
+            return binaryExpression.Right.WithTriviaFrom(binaryExpression.Left);
         }
 
-        return binaryExpression.Left.WithoutTrivia();
+        return binaryExpression.Left.WithTriviaFrom(binaryExpression.Right);
     }
 }
