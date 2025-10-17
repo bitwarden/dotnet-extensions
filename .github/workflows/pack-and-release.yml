@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Check out repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: true
 
       - name: Set up .NET
         uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
@@ -25,10 +27,12 @@ jobs:
       - name: Parse package
         id: parse-package
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          _REF: ${{ github.ref }}
         with:
           result-encoding: string
           script: |
-            const ref = '${{ github.ref }}';
+            const ref = process.env._REF;
 
             if (!ref.startsWith('refs/heads/')) {
               core.setFailed(`Unexpected ref: ${ref}`);
@@ -47,26 +51,32 @@ jobs:
             return refParts[3];
 
       - name: Pack
-        run: dotnet pack -c Release -p:IsPreRelease=$IS_PRERELEASE
+        run: dotnet pack -c Release -p:"IsPreRelease=$IS_PRERELEASE"
         working-directory: "./extensions/${{ steps.parse-package.outputs.result }}/src"
         env:
           IS_PRERELEASE: ${{ inputs.prerelease }}
 
       - name: Get current version
         id: current-version
-        run: echo "VERSION=$(dotnet msbuild -p:IsPreRelease=$IS_PRERELEASE --getProperty:Version)" >> $GITHUB_OUTPUT
+        run: echo "VERSION=$(dotnet msbuild -p:"IsPreRelease=$IS_PRERELEASE" --getProperty:Version)" >> "$GITHUB_OUTPUT"
         working-directory: "./extensions/${{ steps.parse-package.outputs.result }}/src"
         env:
           IS_PRERELEASE: ${{ inputs.prerelease }}
 
       - name: Create GitHub Release
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          _PACKAGE: ${{ steps.parse-package.outputs.result }}
+          _CURRENT_VERSION: ${{ steps.current-version.outputs.VERSION }}
+          _EVENT_REF: ${{ github.event.ref }}
+          _INPUT_PRERELEASE: ${{ inputs.prerelease }}
         with:
           script: |
-            const package = '${{ steps.parse-package.outputs.result }}';
-            const currentVersion = '${{ steps.current-version.outputs.VERSION }}';
-
-            const currentRef = '${{ github.sha }}';
+            const package = process.env._PACKAGE;
+            const currentVersion = process.env._CURRENT_VERSION;
+            const eventRef = process.env._EVENT_REF;
+            const preRelease = process.env._INPUT_PRERELEASE === "true";
+            const currentRef = process.env.GITHUB_SHA;
 
             // Configure Git
             await exec.exec(`git config user.name "github-actions"`);
@@ -74,6 +84,7 @@ jobs:
 
             // List existing tags so that we could use them to link to the best full changelog
             // Debug purposes only right now until there is enough data for me to make this command bullet proof
+            await exec.exec("git fetch --tags");
             await exec.exec(`git --no-pager tag --list "${package}_v*" --no-contains "${currentRef}"`, [], {
               listeners: {
                 stdout: function stdout(data) {
@@ -96,10 +107,10 @@ jobs:
               owner: "bitwarden",
               repo: "dotnet-extensions",
               tag_name: tag,
-              target_commitish: "${{ github.event.ref }}",
+              target_commitish: eventRef,
               name: tag,
               body: "",
-              prerelease: ${{ inputs.prerelease }},
+              prerelease: preRelease,
               generate_release_notes: false, // This creates a link between this and the last tag but that might not be our version
             });
 
@@ -172,14 +183,16 @@ jobs:
       - name: Dispatch publishing
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          _REPOSITORY_NAME: ${{ github.event.repository.name }}
+          _VERSION: ${{ steps.current-version.outputs.VERSION }}
         run: >
           gh workflow run publish-nuget.yml
           --repo bitwarden/devops
-          --field repository=${{ github.event.repository.name }}
-          --field run-id=${{ github.run_id }}
-          --field artifact=packages
-          --field environment=nuget
-          --field version=${{ steps.current-version.outputs.VERSION }}
+          --field repository="${_REPOSITORY_NAME}"
+          --field run-id="${{ github.run_id }}"
+          --field artifact="packages"
+          --field environment="nuget"
+          --field version="${_VERSION}"
 
   bump-version:
     name: Bump version

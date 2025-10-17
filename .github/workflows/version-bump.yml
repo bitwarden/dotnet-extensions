@@ -21,8 +21,35 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Log in to Azure
+        uses: bitwarden/gh-actions/azure-login@main
+        with:
+          subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          client_id: ${{ secrets.AZURE_CLIENT_ID }}
+
+      - name: Get Azure Key Vault secrets
+        id: get-kv-secrets
+        uses: bitwarden/gh-actions/get-keyvault-secrets@main
+        with:
+          keyvault: gh-org-bitwarden
+          secrets: "BW-GHAPP,BW-GHAPP-KEY"
+
+      - name: Log out from Azure
+        uses: bitwarden/gh-actions/azure-logout@main
+
+      - name: Generate GH App token
+        uses: actions/create-github-app-token@a8d616148505b5069dccd32f177bb87d7f39123b # v2.1.1
+        id: app-token
+        with:
+          app-id: ${{ steps.get-kv-secrets.outputs.BW-GHAPP-ID }}
+          private-key: ${{ steps.get-kv-secrets.outputs.BW-GHAPP-KEY }}
+
       - name: Check out repo
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: true
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Set up .NET
         uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
@@ -37,14 +64,15 @@ jobs:
           $NEW_VERSION=$(./scripts/UpdatePackageVersion.ps1 -PackageName $env:PACKAGE_NAME -BumpType $env:BUMP_TYPE)
           Write-Output "NEW_VERSION=$NEW_VERSION" >> $Env:GITHUB_OUTPUT
 
-      - name: Create PR
+      - name: Create version bump commit
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          _INPUT_PACKAGE: ${{ inputs.package }}
+          _NEW_VERSION: ${{ steps.version-bumper.outputs.NEW_VERSION }}
         with:
           script: |
-            const baseBranch = '${{ github.event.ref }}';
-            const packageName = '${{ inputs.package }}';
-            const bumpType = '${{ inputs.type }}';
-            const newVersion = '${{ steps.version-bumper.outputs.NEW_VERSION }}';
+            const packageName = process.env._INPUT_PACKAGE;
+            const newVersion = process.env._NEW_VERSION;
 
             if (newVersion === '') {
               core.setFailed('New version was not set.');
@@ -54,17 +82,6 @@ jobs:
             // Configure Git
             await exec.exec(`git config user.name "github-actions"`);
             await exec.exec(`git config user.email "github-actions@github.com"`);
-
-            const versionBumpBranch = `version-bump/${packageName}-to-${newVersion}`;
-            await exec.exec(`git checkout -b ${versionBumpBranch}`);
-
-            // Skip opening PR if branch already exists on the origin remote since that means it was
-            // opened earlier and force pushing to the branch updates the existing PR
-            let shouldOpenPullRequest = true;
-            try {
-              await exec.exec(`git ls-remote --exit-code --heads origin ${versionBumpBranch}`);
-              shouldOpenPullRequest = false;
-            } catch { }
 
             // Add and commit changes
             const commitMessage = `Bump ${packageName} version to ${newVersion}`;
@@ -89,21 +106,6 @@ jobs:
               throw new Error("git commit command failed.");
             }
 
-            await exec.exec(`git push --force --set-upstream origin HEAD:${versionBumpBranch}`);
+            await exec.exec(`git push`);
 
-            const pullRequestBody = `
-            Version Bump for ${packageName} to ${newVersion}
-
-            /cc @${{ github.event.sender.login }}
-            `;
-
-            await github.rest.pulls.create({
-              owner: "bitwarden",
-              repo: "dotnet-extensions",
-              title: commitMessage,
-              body: pullRequestBody,
-              head: versionBumpBranch,
-              base: baseBranch,
-            });
-
-            console.log("Successfully opened GitHub PR.");
+            console.log("Successfully pushed version bump commit.");

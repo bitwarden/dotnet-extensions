@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Bitwarden.Server.Sdk.Internal;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using OpenTelemetry.Resources;
 #endif
 
 namespace Microsoft.Extensions.Hosting;
@@ -34,7 +35,7 @@ public static class HostBuilderExtensions
             AddSelfHostedConfig(builder.Configuration, builder.Environment);
         }
 
-        AddMetrics(builder.Services, builder.Configuration);
+        AddMetrics(builder.Services, builder.Configuration, builder.Environment);
 #if BIT_INCLUDE_FEATURES
         builder.Services.AddFeatureFlagServices();
 #endif
@@ -52,7 +53,9 @@ public static class HostBuilderExtensions
     {
         hostBuilder.ConfigureAppConfiguration((context, builder) =>
         {
-            if (context.Configuration.GetValue(SelfHostedConfigKey, false))
+            // Legacy entrypoint does not yet have access to configuration with all environment variables
+            // so we need to search the environment ourselves.
+            if (string.Equals(Environment.GetEnvironmentVariable("globalSettings__selfHosted"), "true", StringComparison.OrdinalIgnoreCase))
             {
                 AddSelfHostedConfig(builder, context.HostingEnvironment);
             }
@@ -60,7 +63,7 @@ public static class HostBuilderExtensions
 
         hostBuilder.ConfigureServices((context, services) =>
         {
-            AddMetrics(services, context.Configuration);
+            AddMetrics(services, context.Configuration, context.HostingEnvironment);
         });
 
 #if BIT_INCLUDE_FEATURES
@@ -106,55 +109,75 @@ public static class HostBuilderExtensions
 
         var sources = configurationBuilder.Sources;
 
-        // I expect the 3rd source to be the main appsettings.json file
-        Debug.Assert(sources[2] is FileConfigurationSource mainJsonSource
-            && mainJsonSource.Path == "appsettings.json");
-        // I expect the 4th source to be the environment specific json file
-        Debug.Assert(sources[3] is FileConfigurationSource environmentJsonSource
-            && environmentJsonSource.Path == $"appsettings.{environment.EnvironmentName}.json");
+        var i = 0;
+        for (; i < sources.Count; i++)
+        {
+            if (sources[i] is FileConfigurationSource jsonSource && jsonSource.Path == $"appsettings.{environment.EnvironmentName}.json")
+            {
+                break;
+            }
+        }
 
         // If both of those are true, I feel good about inserting our own self-hosted config after
-        configurationBuilder.Sources.Insert(4, new JsonConfigurationSource
+        configurationBuilder.Sources.Insert(i + 1, new JsonConfigurationSource
         {
             Path = "appsettings.SelfHosted.json",
             Optional = true,
             ReloadOnChange = true
         });
-
-        if (environment.IsDevelopment())
-        {
-            var appAssembly = Assembly.Load(new AssemblyName(environment.ApplicationName));
-            configurationBuilder.AddUserSecrets(appAssembly, optional: true);
-        }
-
-        configurationBuilder.AddEnvironmentVariables();
     }
 
-
-    private static void AddMetrics(IServiceCollection services, IConfiguration configuration)
+    private static void AddMetrics(
+        IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment hostEnvironment)
     {
 #if BIT_INCLUDE_TELEMETRY
         const string OtelDebuggingConfigKey = "OTEL_DEBUGGING";
 
+        // Allow the exporting of telemetry to be disabled through a configuration key
+        // but if the setting isn't present default to enabled for cloud uses
+        // and disabled for self hosted installations.
+        var openTelemetryEnabled = configuration.GetValue<bool>(
+            "OpenTelemetry:Enabled",
+            !configuration.GetValue(SelfHostedConfigKey, false)
+        );
+
         services.AddOpenTelemetry()
+            .ConfigureResource(r =>
+            {
+                r.AddService(
+                    serviceName: hostEnvironment.ApplicationName
+                );
+                r.AddTelemetrySdk();
+                r.AddEnvironmentVariableDetector();
+            })
             .WithMetrics(metrics =>
             {
-                metrics.AddOtlpExporter();
+                if (configuration.GetValue<bool>("OpenTelemetry:Metrics:Enabled", openTelemetryEnabled))
+                {
+                    metrics.AddOtlpExporter();
+                }
 
                 metrics.AddAspNetCoreInstrumentation();
                 metrics.AddHttpClientInstrumentation();
                 metrics.AddRuntimeInstrumentation();
+                metrics.AddSqlClientInstrumentation();
 
                 metrics.AddMeter("Bitwarden.*");
                 metrics.AddMeter("Bit.*");
             })
             .WithTracing(tracing =>
             {
-                tracing.AddOtlpExporter();
+                if (configuration.GetValue<bool>("OpenTelemetry:Tracing:Enabled", openTelemetryEnabled))
+                {
+                    tracing.AddOtlpExporter();
+                }
 
                 tracing.AddAspNetCoreInstrumentation();
                 tracing.AddHttpClientInstrumentation();
                 tracing.AddEntityFrameworkCoreInstrumentation();
+                tracing.AddSqlClientInstrumentation();
             });
 
         if (configuration.GetValue(OtelDebuggingConfigKey, false))
