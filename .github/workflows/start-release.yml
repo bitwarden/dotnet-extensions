@@ -69,6 +69,8 @@ jobs:
   bump-version:
     name: Bump version
     uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
+    permissions:
+      id-token: write
     with:
       type: ga
       package: ${{ inputs.package }}
