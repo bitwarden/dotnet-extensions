@@ -114,23 +114,22 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
 
     private static Document RemoveRequireFeatureAttribute(Document document, SyntaxNode root, SyntaxNode node)
     {
-        SyntaxNode newSyntax;
-        if (node.Parent is AttributeListSyntax attributeList)
+        if (node.Parent is not AttributeListSyntax attributeList)
         {
-            if (attributeList.Attributes.Count == 1)
-            {
-                // Remove the whole attribute list if this was the only attribute in it
-                newSyntax = root.RemoveNode(node.Parent, SyntaxRemoveOptions.KeepNoTrivia)!;
-            }
-            else
-            {
-                // If there are multiple attribute in the list, just remove ours
-                newSyntax = root.RemoveNode(node, SyntaxRemoveOptions.KeepNoTrivia)!;
-            }
+            // When would this happen?
+            return document;
+        }
+
+        SyntaxNode newSyntax;
+        if (attributeList.Attributes.Count == 1)
+        {
+            // Remove the whole attribute list if this was the only attribute in it
+            newSyntax = root.RemoveNode(node.Parent, SyntaxRemoveOptions.KeepNoTrivia)!;
         }
         else
         {
-            throw new InvalidOperationException($"Unhandled parent kind to attribute {node.Parent?.RawKind.ToString() ?? "null"}");
+            // If there are multiple attribute in the list, just remove ours
+            newSyntax = root.RemoveNode(node, SyntaxRemoveOptions.KeepNoTrivia)!;
         }
 
         return document.WithSyntaxRoot(newSyntax);
@@ -138,14 +137,19 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
 
     private static Document RemoveRequireFeatureMethod(Document document, SyntaxNode root, SyntaxNode node)
     {
+        var invocationExpression = (InvocationExpressionSyntax)node;
+        var memberAccessExpression = (MemberAccessExpressionSyntax)invocationExpression.Expression;
         if (node.Parent is ExpressionStatementSyntax expressionStatement)
         {
             // Our call is chained with another call i.e: app.MapGet(...).RequireFeature(Flag);
-            return document;
+            return document.WithSyntaxRoot(root.ReplaceNode(
+                invocationExpression,
+                memberAccessExpression.Expression.WithTriviaFrom(invocationExpression)
+            ));
         }
 
         // TODO: Something else
-        return document;
+        return document.WithSyntaxRoot(root);
     }
 
     private static SyntaxNode SimplifyBinary(BinaryExpressionSyntax binaryExpression, SyntaxNode targetNode)

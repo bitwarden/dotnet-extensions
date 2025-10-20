@@ -271,7 +271,6 @@ public class RemoveFeatureFlagCodeFixerTests : CSharpCodeFixTest<FeatureFlagAnal
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IActionResult).Assembly.Location));
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(ControllerBase).Assembly.Location));
 
-        // TODO: Add assemblies
         await RunCodeFixAsync(
             """
             using Microsoft.AspNetCore.Mvc;
@@ -355,7 +354,6 @@ public class RemoveFeatureFlagCodeFixerTests : CSharpCodeFixTest<FeatureFlagAnal
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IApplicationBuilder).Assembly.Location));
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IHost).Assembly.Location));
 
-        // TODO: Add assemblies
         await RunCodeFixAsync(
             """
             using Microsoft.AspNetCore.Builder;
@@ -366,6 +364,48 @@ public class RemoveFeatureFlagCodeFixerTests : CSharpCodeFixTest<FeatureFlagAnal
 
             app.MapGet("/", () => "Hello world!")
                 .{|BW0002:RequireFeature(Flags.Flag)|};
+
+            public static class Flags
+            {
+                public const string Flag = "my-flag";
+            }
+            """,
+            """
+            using Microsoft.AspNetCore.Builder;
+            using Microsoft.AspNetCore.Http;
+
+            var builder = WebApplication.CreateBuilder(args);
+            var app = builder.Build();
+
+            app.MapGet("/", () => "Hello world!");
+
+            public static class Flags
+            {
+                public const string Flag = "my-flag";
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task MinimalApiEndpointMetadata_NotChained()
+    {
+        TestState.OutputKind = OutputKind.ConsoleApplication;
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(WebApplication).Assembly.Location));
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(EndpointRouteBuilderExtensions).Assembly.Location));
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IApplicationBuilder).Assembly.Location));
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IHost).Assembly.Location));
+
+        await RunCodeFixAsync(
+            """
+            using Microsoft.AspNetCore.Builder;
+            using Microsoft.AspNetCore.Http;
+
+            var builder = WebApplication.CreateBuilder(args);
+            var app = builder.Build();
+
+            var endpoint = app.MapGet("/", () => "Hello world!");
+            endpoint.{|BW0002:RequireFeature(Flags.Flag)|};
 
             public static class Flags
             {
