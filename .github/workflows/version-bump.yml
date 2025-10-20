@@ -17,8 +17,7 @@ jobs:
     name: Bump version
     runs-on: ubuntu-22.04
     permissions:
-      contents: write
-      pull-requests: write
+      id-token: write # Required for Azure login
 
     steps:
       - name: Log in to Azure
