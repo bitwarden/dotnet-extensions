@@ -40,6 +40,10 @@ public static class HostBuilderExtensions
         builder.Services.AddFeatureFlagServices();
 #endif
 
+#if BIT_INCLUDE_AUTHENTICATION
+        builder.Services.AddBitwardenAuthentication();
+#endif
+
         return builder;
     }
 
@@ -70,6 +74,13 @@ public static class HostBuilderExtensions
         hostBuilder.ConfigureServices((_, services) =>
         {
             services.AddFeatureFlagServices();
+        });
+#endif
+
+#if BIT_INCLUDE_AUTHENTICATION
+        hostBuilder.ConfigureServices((_, services) =>
+        {
+            services.AddBitwardenAuthentication();
         });
 #endif
 
