@@ -1,33 +1,27 @@
-using System.ComponentModel;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Bitwarden.Server.Sdk.Features;
 
 internal sealed class FeatureCheckMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly IHostEnvironment _hostEnvironment;
-    private readonly IProblemDetailsService _problemDetailsService;
     private readonly ILogger<FeatureCheckMiddleware> _logger;
+    private readonly FeatureCheckOptions _featureCheckOptions;
 
     public FeatureCheckMiddleware(
         RequestDelegate next,
-        IHostEnvironment hostEnvironment,
-        IProblemDetailsService problemDetailsService,
-        ILogger<FeatureCheckMiddleware> logger)
+        ILogger<FeatureCheckMiddleware> logger,
+        IOptions<FeatureCheckOptions> featureCheckOptions)
     {
         ArgumentNullException.ThrowIfNull(next);
-        ArgumentNullException.ThrowIfNull(hostEnvironment);
-        ArgumentNullException.ThrowIfNull(problemDetailsService);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(featureCheckOptions);
 
         _next = next;
-        _hostEnvironment = hostEnvironment;
-        _problemDetailsService = problemDetailsService;
         _logger = logger;
+        _featureCheckOptions = featureCheckOptions.Value;
     }
 
     public Task Invoke(HttpContext context, IFeatureService featureService)
@@ -45,50 +39,21 @@ internal sealed class FeatureCheckMiddleware
 
         foreach (var featureMetadata in featureMetadatas)
         {
-            if (!featureMetadata.FeatureCheck(featureService))
+            if (featureMetadata.FeatureCheck(featureService))
             {
-                // Do not execute more of the pipeline, return early.
-                return HandleFailedFeatureCheck(context, featureMetadata);
+                continue;
             }
 
-            // Continue checking
+            var failedContext = new FeatureCheckFailedContext
+            {
+                FailedMetadata = featureMetadata,
+                HttpContext = context,
+            };
+            // Do not execute more of the pipeline, return early.
+            return _featureCheckOptions.OnFeatureCheckFailed(failedContext);
         }
 
         // Either there were no feature checks, or none were failed. Continue on in the pipeline.
         return _next(context);
     }
-
-    private async Task HandleFailedFeatureCheck(HttpContext context, IFeatureMetadata failedFeature)
-    {
-        if (_logger.IsEnabled(LogLevel.Debug))
-        {
-            _logger.LogFailedFeatureCheck(failedFeature.ToString()!);
-        }
-
-        context.Response.StatusCode = StatusCodes.Status404NotFound;
-
-        var problemDetails = new ProblemDetails();
-        problemDetails.Title = "Resource not found.";
-        problemDetails.Status = StatusCodes.Status404NotFound;
-
-        // Message added for legacy reasons. We should start preferring title/detail
-        problemDetails.Extensions["Message"] = "Resource not found.";
-
-        // Follow ProblemDetails output type? Would need clients update
-        if (_hostEnvironment.IsDevelopment())
-        {
-            // Add extra information
-            problemDetails.Detail = $"Feature check failed: {failedFeature}";
-        }
-
-        // We don't really care if this fails, we will return the 404 no matter what.
-        await _problemDetailsService.TryWriteAsync(new ProblemDetailsContext
-        {
-            HttpContext = context,
-            ProblemDetails = problemDetails,
-            // TODO: Add metadata?
-        });
-    }
-
-
 }
