@@ -31,7 +31,11 @@
 
   <!-- All local features -->
   <ItemGroup>
-    <ProjectReference Include="..\..\..\Bitwarden.Server.Sdk.Features\src\Bitwarden.Server.Sdk.Features.csproj" />
+    <SdkPackage Include="Features" />
+    <SdkPackage Include="Authentication" />
+
+    <!-- Create a project reference for each Sdk package -->
+    <ProjectReference Include="@(SdkPackage->'..\..\..\Bitwarden.Server.Sdk.%(Identity)\src\Bitwarden.Server.Sdk.%(Identity).csproj')" />
   </ItemGroup>
 
 </Project>

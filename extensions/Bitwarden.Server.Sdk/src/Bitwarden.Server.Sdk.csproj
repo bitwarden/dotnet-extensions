@@ -8,7 +8,7 @@
 
     <IncludeBuildOutput>false</IncludeBuildOutput>
 
-    <PackageReadmeFile>./README.md</PackageReadmeFile>
+    <PackageReadmeFile>./PACKAGE.md</PackageReadmeFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 
     <VersionPrefix>0.8.0</VersionPrefix>
@@ -25,10 +25,6 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Bitwarden.Server.Sdk.UnitTests" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <PropertyGroup>

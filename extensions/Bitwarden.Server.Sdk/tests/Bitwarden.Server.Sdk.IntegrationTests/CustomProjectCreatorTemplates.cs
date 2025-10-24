@@ -1,5 +1,6 @@
 ﻿using Microsoft.Build.Utilities.ProjectCreation;
 using Bitwarden.Server.Sdk.Features;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Bitwarden.Server.Sdk.IntegrationTests;
 
@@ -34,14 +35,14 @@ public static class CustomProjectCreatorTemplates
         }
     }
 
-    public static ProjectCreator SdkProject(this ProjectCreatorTemplates templates, Action<ProjectCreator>? customAction = null)
+    public static ProjectCreator SdkProject(this ProjectCreatorTemplates templates, Action<ProjectCreator>? customAction = null, string sdk = "Microsoft.NET.Sdk.Web")
     {
         var dir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(dir);
 
         return ProjectCreator.Templates.SdkCsproj(
                 path: Path.Combine(dir, "Test.csproj"),
-                sdk: "Microsoft.NET.Sdk.Web",
+                sdk: sdk,
                 targetFramework: TargetFramework)
             .Import(Path.Combine(ThisAssemblyDirectory, "Sdk", "Sdk.props"))
             .CustomAction(customAction)
@@ -58,7 +59,7 @@ public static class CustomProjectCreatorTemplates
     {
         // Use this as a list of marker types for assemblies that should be added as available in a
         // pseudo nuget feed.
-        List<Type> packages = [typeof(IFeatureService)];
+        List<Type> packages = [typeof(IFeatureService), typeof(BitwardenAuthenticationServiceCollectionExtensions)];
 
         var feeds = new List<Uri>();
 

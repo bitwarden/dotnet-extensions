@@ -108,22 +108,23 @@ public class SdkTests : MSBuildTestBase
         Assert.True(result, buildOutput.GetConsoleLog());
     }
 
-    public static TheoryData<bool, bool> MatrixData
-        => new MatrixTheoryData<bool, bool>([true, false], [true, false]);
+    public static TheoryData<bool, bool, bool> MatrixData
+        => new MatrixTheoryData<bool, bool, bool>([true, false], [true, false], [true, false]);
 
     // There will be some variants that disallow the use of feature Y if feature X is not also enabled.
     // Use this set to exclude those known variants from being tested.
-    public static HashSet<(bool, bool)> ExcludedVariants => [];
+    public static HashSet<(bool, bool, bool)> ExcludedVariants => [];
 
     [Theory, MemberData(nameof(MatrixData))]
-    public void AllVariants_Work(bool includeTelemetry, bool includeFeatures)
+    public void AllVariants_Work(bool includeTelemetry, bool includeFeatures, bool includeAuthentication)
     {
-        if (ExcludedVariants.Contains((includeTelemetry, includeFeatures)))
+        if (ExcludedVariants.Contains((includeTelemetry, includeFeatures, includeAuthentication)))
         {
             Assert.Skip($"""
                 Excluded Variant Skipped:
                     IncludeTelemetry = {includeTelemetry}
                     IncludeFeatures = {includeFeatures}
+                    IncludeAuthentication = {includeAuthentication}
                 """);
         }
 
@@ -134,6 +135,7 @@ public class SdkTests : MSBuildTestBase
             {
                 project.Property("BitIncludeTelemetry", includeTelemetry.ToString());
                 project.Property("BitIncludeFeatures", includeFeatures.ToString());
+                project.Property("BitIncludeAuthentication", includeAuthentication.ToString());
             }
         );
 
