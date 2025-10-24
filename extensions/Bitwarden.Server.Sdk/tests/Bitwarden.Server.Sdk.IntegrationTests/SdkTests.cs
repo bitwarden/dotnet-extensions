@@ -10,12 +10,14 @@ public class SdkTests : MSBuildTestBase
     {
         ProjectCreator.Templates.SdkProject(out var result, out var buildOutput)
             .TryGetConstant("BIT_INCLUDE_TELEMETRY", out var hasTelementryConstant)
-            .TryGetConstant("BIT_INCLUDE_FEATURES", out var hasFeaturesConstant);
+            .TryGetConstant("BIT_INCLUDE_FEATURES", out var hasFeaturesConstant)
+            .TryGetConstant("BIT_INCLUDE_AUTHENTICATION", out var hasAuthenticationConstant);
 
         Assert.True(result, buildOutput.GetConsoleLog());
 
         Assert.True(hasTelementryConstant);
         Assert.True(hasFeaturesConstant);
+        Assert.True(hasAuthenticationConstant);
     }
 
     [Fact]
@@ -100,6 +102,21 @@ public class SdkTests : MSBuildTestBase
             additional: """
                 app.MapGet("/test", (Bitwarden.Server.Sdk.Features.IFeatureService featureService) => featureService.GetAll());
                 """
+        );
+
+        Assert.True(result, buildOutput.GetConsoleLog());
+    }
+
+    [Fact]
+    public void AuthenticationTurnedOff_CanCompile()
+    {
+        ProjectCreator.Templates.SdkProject(
+            out var result,
+            out var buildOutput,
+            customAction: (project) =>
+            {
+                project.Property("BitIncludeAuthentication", bool.FalseString);
+            }
         );
 
         Assert.True(result, buildOutput.GetConsoleLog());
