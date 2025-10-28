@@ -10,24 +10,28 @@ public static class CustomProjectCreatorTemplates
     {
         // Use this as a list of marker types for assemblies that should be added as available in a
         // pseudo nuget feed.
-        var packageMap = new Dictionary<Type, string>
+        var packages = new (Type MarkerType, string Version, (string Dependency, string Version)[])[]
         {
-            { typeof(IFeatureService), "0.1.0" },
-            { typeof(BitwardenAuthenticationServiceCollectionExtensions), "0.1.0" },
+            ( typeof(IFeatureService), "0.1.0", [("LaunchDarkly.ServerSdk", "8.10.3")] ),
+            ( typeof(BitwardenAuthenticationServiceCollectionExtensions), "0.1.0", [("Microsoft.AspNetCore.Authentication.JwtBearer", "8.0.20")] ),
         };
 
-        var feeds = new List<Uri>(packageMap.Count);
+        var feeds = new List<Uri>(packages.Length);
 
-        foreach (var (package, version) in packageMap)
+        foreach (var (package, version, dependencies) in packages)
         {
             var assembly = package.Assembly;
             var assemblyName = assembly.GetName()!;
             var pr = PackageFeed.Create(new FileInfo(assembly.Location).Directory!)
                 .Package(assemblyName.Name!, version)
-                .FileCustom(Path.Combine("lib", TargetFramework, assemblyName.Name + ".dll"), new FileInfo(assembly.Location))
-                .Save();
+                .FileCustom(Path.Combine("lib", TargetFramework, assemblyName.Name + ".dll"), new FileInfo(assembly.Location));
 
-            feeds.Add(pr);
+            foreach (var (dependencyId, dependencyVersion) in dependencies)
+            {
+                pr.Dependency(TargetFramework, dependencyId, dependencyVersion);
+            }
+
+            feeds.Add(pr.Save());
         }
 
         Feeds = feeds;

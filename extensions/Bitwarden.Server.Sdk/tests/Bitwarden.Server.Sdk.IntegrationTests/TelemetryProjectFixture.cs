@@ -72,7 +72,6 @@ public sealed class TelemetryProjectFixture : MSBuildTestBase
             {
                 { "ContainerRepository", ImageName },
                 { "ContainerFamily", "alpine" },
-                { "BitIncludeFeatures", "false" },
             },
             out var result, out var buildOutput, out var targetOutputs
         );
