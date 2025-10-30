@@ -18,7 +18,7 @@
       We need to pin this transitive dependency MSBuild wants > 8.0.2 but since our code coverage tool brings 6.0.2 the
       assembly resolver takes the local one instead of the one installed with MSBuild and our tests fail
     -->
-    <PackageReference Include="Microsoft.Extensions.DependencyModel" Version="8.0.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyModel" Version="9.0.10" />
   </ItemGroup>
 
   <ItemGroup>
