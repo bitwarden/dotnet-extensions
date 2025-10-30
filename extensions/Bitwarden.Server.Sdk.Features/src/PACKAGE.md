@@ -55,7 +55,7 @@ authentication middleware.
 Out of the box, this package binds our options object `FeatureFlagOptions` to the `Features` section
 of configuration. This means to enable the use of Launch Darkly you need to have
 `Features:LaunchDarkly:SdkKey` set. If no key is set then local flag values can be use through
-`Feature:FlagValues:<Key>=<Value>`. This can be helpful for local development.
+`Features:FlagValues:<Key>=<Value>`. This can be helpful for local development.
 
 `Features:KnownFlags` must be populated with all flag keys that you wish to be returned from
 `IFeatureService.GetAll()`. If you have no need to use that method you do not need to add values to
@@ -67,7 +67,7 @@ just fine without it.
 ### Context Builder
 
 By default the feature flag context will be for an anonymous user. This doesn't allow granular
-targetting of feature flag values. To enable this you can implement your own `IContextBuilder` and
+targeting of feature flag values. To enable this you can implement your own `IContextBuilder` and
 register it using `services.AddContextBuilder<MyContextBuilder>()`. Learn more about context
 configuration by reading the code docs on [`IContextBuilder`](./IContextBuilder.cs) and reading
 Launch Darklys docs on [context configuration][launch-darkly-context-configuration].

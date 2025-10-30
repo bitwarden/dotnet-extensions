@@ -6,9 +6,9 @@ on your web application and configuring MSBuild properties to configure the feat
 want.
 
 The Bitwarden.Server.Sdk is consumed as a [MSBuild project SDK][msbuild-project-sdk] but it is not
-intended to be consumed soley by itself and instead expected to be used alongside the
+intended to be consumed solely by itself and instead expected to be used alongside the
 `Microsoft.NET.Sdk.Web` SDK. The most common way will be to import `<Sdk Name="Bitwarden.Server.Sdk" />`
-right underneath the top level
+right underneath the top level `<Project>` element in your `.csproj` file.
 
 ## Telemetry
 

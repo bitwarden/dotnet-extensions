@@ -30,4 +30,8 @@
     <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Features.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="PACKAGE.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
 </Project>

@@ -18,7 +18,7 @@ builder.Services.AddAuthorization(options =>
     );
 });
 
-var app = app.Build();
+var app = builder.Build();
 
 app.UseRouting();
 
