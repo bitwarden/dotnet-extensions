@@ -3,7 +3,8 @@
 ## About
 
 This package enables the use of feature flags to allow remotely toggling features. You can read more about
-feature management at Bitwarden by reading [this ADR][feature-management].
+feature management at Bitwarden by reading
+[this ADR](https://contributing.bitwarden.com/architecture/adr/feature-management).
 
 ## How to use
 
@@ -69,14 +70,11 @@ just fine without it.
 By default the feature flag context will be for an anonymous user. This doesn't allow granular
 targeting of feature flag values. To enable this you can implement your own `IContextBuilder` and
 register it using `services.AddContextBuilder<MyContextBuilder>()`. Learn more about context
-configuration by reading the code docs on [`IContextBuilder`](./IContextBuilder.cs) and reading
-Launch Darklys docs on [context configuration][launch-darkly-context-configuration].
+configuration by reading the code docs on `IContextBuilder` and reading Launch Darklys docs on
+[context configuration](https://launchdarkly.com/docs/sdk/features/context-config#expand-net-server-side-code-sample).
 
 ### OnFeatureCheckFailed
 
 The response that is sent back to the client on failed feature checks will return a problem details
 formatted error with a 404 status code by default but this can be customized through the
 `OnFeatureCheckFailed` property on `FeatureCheckOptions`.
-
-[feature-management]:[https://contributing.bitwarden.com/architecture/adr/feature-management]
-[launch-darkly-context-configuration]: https://launchdarkly.com/docs/sdk/features/context-config#expand-net-server-side-code-sample
