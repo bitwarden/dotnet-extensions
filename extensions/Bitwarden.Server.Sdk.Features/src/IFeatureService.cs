@@ -32,7 +32,7 @@ public interface IFeatureService
     string? GetStringVariation(string key, string? defaultValue = null);
 
     /// <summary>
-    /// Gets all feature values.
+    /// Gets feature flag keys and their associated value if the feature flag name exists in <see cref="FeatureFlagOptions.KnownFlags"/>.
     /// </summary>
     /// <returns>A dictionary of feature keys and their values.</returns>
     IReadOnlyDictionary<string, JsonValue> GetAll();

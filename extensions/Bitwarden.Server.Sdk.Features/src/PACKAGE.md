@@ -57,6 +57,11 @@ of configuration. This means to enable the use of Launch Darkly you need to have
 `Features:LaunchDarkly:SdkKey` set. If no key is set then local flag values can be use through
 `Feature:FlagValues:<Key>=<Value>`. This can be helpful for local development.
 
+`Features:KnownFlags` must be populated with all flag keys that you wish to be returned from
+`IFeatureService.GetAll()`. If you have no need to use that method you do not need to add values to
+that option. `IFeatureService.IsEnabled` and other single feature checks should continue to work
+just fine without it.
+
 ## Customization
 
 ### Context Builder
