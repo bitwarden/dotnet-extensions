@@ -7,6 +7,7 @@
     <IsAotCompatible>true</IsAotCompatible>
     <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
     <InterceptorsPreviewNamespaces>$(InterceptorsPreviewNamespaces);Microsoft.Extensions.Configuration.Binder.SourceGeneration</InterceptorsPreviewNamespaces>
+    <PackageReadmeFile>./PACKAGE.md</PackageReadmeFile>
   </PropertyGroup>
 
   <PropertyGroup>

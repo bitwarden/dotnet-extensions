@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsAotCompatible>true</IsAotCompatible>
+    <PackageReadmeFile>./PACKAGE.md</PackageReadmeFile>
   </PropertyGroup>
 
   <PropertyGroup>

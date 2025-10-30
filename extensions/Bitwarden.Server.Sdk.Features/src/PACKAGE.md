@@ -1,0 +1,77 @@
+# Bitwarden.Server.Sdk.Features
+
+## About
+
+This package enables the use of feature flags to allow remotely toggling features. You can read more about
+feature management at Bitwarden by reading [this ADR][feature-management].
+
+## How to use
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddFeatureFlagServices();
+
+var app = builder.Build();
+
+app.UseRouting();
+
+app.UseFeatureFlagChecks();
+
+app.MapGet("/", () =>
+{
+    return Results.Ok("my-feature enabled!");
+})
+    .RequireFeature("my-feature");
+
+app.Run();
+```
+
+```csharp
+class MyService(IFeatureService featureService)
+{
+    public void Run()
+    {
+        if (featureService.IsEnabled("my-feature"))
+        {
+            RunNew();
+        }
+        else
+        {
+            RunOld();
+        }
+    }
+}
+```
+
+The `[RequireFeature]` attribute can also be placed on a controller class or individual controller
+actions.
+
+Both the `RequireFeature` method on minimal API endpoints and the `[RequireFeature]` attribute
+require the `UseFeatureFlagChecks()` middleware to be registered. It needs to be after `UseRouting`
+and before `UseEndpoints`/`Map*`. If you rely on authentication information in your custom
+[context builder](#context-builder) then the middleware should also be registered after your
+authentication middleware.
+
+Out of the box, this package binds our options object `FeatureFlagOptions` to the `Features` section
+of configuration. This means to enable the use of Launch Darkly you need to have
+`Features:LaunchDarkly:SdkKey` set. If no key is set then local flag values can be use through
+`Feature:FlagValues:<Key>=<Value>`. This can be helpful for local development.
+
+## Customization
+
+### Context Builder
+
+By default the feature flag context will be for an anonymous user. This doesn't allow granular
+targetting of feature flag values. To enable this you can implement your own `IContextBuilder` and
+register it using `services.AddContextBuilder<MyContextBuilder>()`. Learn more about context
+configuration by reading the code docs on [`IContextBuilder`](./IContextBuilder.cs) and reading
+Launch Darklys docs on [context configuration][launch-darkly-context-configuration].
+
+### OnFeatureCheckFailed
+
+The response that is sent back to the client on failed feature checks will return a problem details
+formatted error with a 404 status code by default but this can be customized through the
+`OnFeatureCheckFailed` property on `FeatureCheckOptions`.
+
+[feature-management]:[https://contributing.bitwarden.com/architecture/adr/feature-management]
+[launch-darkly-context-configuration]: https://launchdarkly.com/docs/sdk/features/context-config#expand-net-server-side-code-sample
