@@ -25,6 +25,7 @@ See the [README.md](README.md) for detailed information about each package. Main
 ### Test Framework
 
 -   **xUnit.v3**
+-   **Microsoft.Testing.Extensions.CodeCoverage** for code coverage
 
 ### Additional Test Tools
 
