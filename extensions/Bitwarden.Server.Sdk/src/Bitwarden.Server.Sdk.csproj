@@ -8,7 +8,7 @@
 
     <IncludeBuildOutput>false</IncludeBuildOutput>
 
-    <PackageReadmeFile>./README.md</PackageReadmeFile>
+    <PackageReadmeFile>./PACKAGE.md</PackageReadmeFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 
     <VersionPrefix>1.1.0</VersionPrefix>
@@ -27,10 +27,6 @@
     <InternalsVisibleTo Include="Bitwarden.Server.Sdk.UnitTests" />
   </ItemGroup>
 
-  <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
-  </ItemGroup>
-
   <PropertyGroup>
     <Authors>Bitwarden Inc.</Authors>
     <Description>Bitwarden Server SDK.</Description>
@@ -43,7 +39,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="PACKAGE.md" Pack="true" PackagePath="/" />
     <None Include="Sdk/**" Pack="true" PackagePath="Sdk/" />
   </ItemGroup>
 

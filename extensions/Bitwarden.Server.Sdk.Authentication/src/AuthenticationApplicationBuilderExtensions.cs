@@ -1,6 +1,6 @@
-using Microsoft.AspNetCore.Builder;
+using Bitwarden.Server.Sdk.Authentication;
 
-namespace Bitwarden.Server.Sdk.Authentication;
+namespace Microsoft.AspNetCore.Builder;
 
 /// <summary>
 /// Extension methods to add Bitwarden-style authentication to the HTTP application pipeline.
