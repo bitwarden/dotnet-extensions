@@ -10,7 +10,7 @@ using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace Bitwarden.Server.Sdk.Analyzers;
+namespace Bitwarden.Server.Sdk.CodeFixers;
 
 [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(RemoveFeatureFlagCodeFixer))]
 public class RemoveFeatureFlagCodeFixer : CodeFixProvider
@@ -28,17 +28,12 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
                 continue;
             }
 
-            if (!diagnostic.Properties.TryGetValue("flagKey", out var flagKey))
+            if (!diagnostic.Properties.TryGetValue("flagKey", out var flagKey) || !string.IsNullOrEmpty(flagKey))
             {
                 continue;
             }
 
-            if (!diagnostic.Properties.TryGetValue("removalHint", out var removalHint) && !string.IsNullOrEmpty(removalHint))
-            {
-                continue;
-            }
-
-            if (string.IsNullOrEmpty(flagKey))
+            if (!diagnostic.Properties.TryGetValue("removalHint", out var removalHint) || !string.IsNullOrEmpty(removalHint))
             {
                 continue;
             }
@@ -70,20 +65,13 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
 
         var node = root.FindNode(location.SourceSpan);
 
-        if (removalHint == "isEnabledCheck")
+        return removalHint switch
         {
-            return RemoveIsEnabledCheck(document, root, node);
-        }
-        else if (removalHint == "requireFeatureAttribute")
-        {
-            return RemoveRequireFeatureAttribute(document, root, node);
-        }
-        else if (removalHint == "requireFeatureMethod")
-        {
-            return RemoveRequireFeatureMethod(document, root, node);
-        }
-
-        throw new InvalidOperationException($"Invalid removal hint: {removalHint}");
+            "isEnabledCheck" => RemoveIsEnabledCheck(document, root, node),
+            "requireFeatureAttribute" => RemoveRequireFeatureAttribute(document, root, node),
+            "requireFeatureMethod" => RemoveRequireFeatureMethod(document, root, node),
+            _ => throw new InvalidOperationException($"Invalid removal hint: {removalHint}"),
+        };
     }
 
     private static Document RemoveIsEnabledCheck(Document document, SyntaxNode root, SyntaxNode node)
@@ -124,7 +112,7 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
         if (attributeList.Attributes.Count == 1)
         {
             // Remove the whole attribute list if this was the only attribute in it
-            newSyntax = root.RemoveNode(node.Parent, SyntaxRemoveOptions.KeepNoTrivia)!;
+            newSyntax = root.RemoveNode(node.Parent, SyntaxRemoveOptions.KeepEndOfLine)!;
         }
         else
         {
@@ -139,17 +127,24 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
     {
         var invocationExpression = (InvocationExpressionSyntax)node;
         var memberAccessExpression = (MemberAccessExpressionSyntax)invocationExpression.Expression;
-        if (node.Parent is ExpressionStatementSyntax expressionStatement)
+
+        // Detect if the
+        if (memberAccessExpression.Expression is IdentifierNameSyntax
+            && invocationExpression.Parent != null
+            // If it has no siblings that means no one is chaining off of me
+            && !invocationExpression.Parent.ChildNodes().Skip(1).Any())
         {
-            // Our call is chained with another call i.e: app.MapGet(...).RequireFeature(Flag);
-            return document.WithSyntaxRoot(root.ReplaceNode(
-                invocationExpression,
-                memberAccessExpression.Expression.WithTriviaFrom(invocationExpression)
-            ));
+            // We are referencing a variable
+            return document.WithSyntaxRoot(root.RemoveNode(
+                invocationExpression.Parent.Parent!, SyntaxRemoveOptions.KeepNoTrivia)!
+            );
         }
 
-        // TODO: Something else
-        return document.WithSyntaxRoot(root);
+        // Our call is chained with another call i.e: app.MapGet(...).RequireFeature(Flag);
+        return document.WithSyntaxRoot(root.ReplaceNode(
+            invocationExpression,
+            memberAccessExpression.Expression.WithTriviaFrom(invocationExpression)
+        ));
     }
 
     private static SyntaxNode SimplifyBinary(BinaryExpressionSyntax binaryExpression, SyntaxNode targetNode)

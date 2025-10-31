@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Bitwarden.Server.Sdk.Analyzers;
 using Bitwarden.Server.Sdk.Features;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
@@ -7,7 +8,7 @@ using Microsoft.CodeAnalysis.CSharp.Testing;
 using Microsoft.CodeAnalysis.Testing;
 using Microsoft.Extensions.Hosting;
 
-namespace Bitwarden.Server.Sdk.Analyzers.Tests;
+namespace Bitwarden.Server.Sdk.CodeFixers.Tests;
 
 public class RemoveFeatureFlagCodeFixerTests : CSharpCodeFixTest<FeatureFlagAnalyzer, RemoveFeatureFlagCodeFixer, DefaultVerifier>
 {
@@ -310,7 +311,6 @@ public class RemoveFeatureFlagCodeFixerTests : CSharpCodeFixTest<FeatureFlagAnal
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IActionResult).Assembly.Location));
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(ControllerBase).Assembly.Location));
 
-        // TODO: Add assemblies
         await RunCodeFixAsync(
             """
             using Microsoft.AspNetCore.Mvc;
@@ -346,15 +346,9 @@ public class RemoveFeatureFlagCodeFixerTests : CSharpCodeFixTest<FeatureFlagAnal
     }
 
     [Fact]
-    public async Task MinimalApiEndpointMetadata()
+    public async Task MinimalApiEndpointMetadata_ChainedOnEndpoint()
     {
-        TestState.OutputKind = OutputKind.ConsoleApplication;
-        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(WebApplication).Assembly.Location));
-        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(EndpointRouteBuilderExtensions).Assembly.Location));
-        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IApplicationBuilder).Assembly.Location));
-        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IHost).Assembly.Location));
-
-        await RunCodeFixAsync(
+        await RunAspNetCodeFixAsync(
             """
             using Microsoft.AspNetCore.Builder;
             using Microsoft.AspNetCore.Http;
@@ -388,15 +382,47 @@ public class RemoveFeatureFlagCodeFixerTests : CSharpCodeFixTest<FeatureFlagAnal
     }
 
     [Fact]
-    public async Task MinimalApiEndpointMetadata_NotChained()
+    public async Task MinimalApiEndpointMetadata_ChainedOnEndpoint_WithAnotherChainedCall()
     {
-        TestState.OutputKind = OutputKind.ConsoleApplication;
-        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(WebApplication).Assembly.Location));
-        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(EndpointRouteBuilderExtensions).Assembly.Location));
-        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IApplicationBuilder).Assembly.Location));
-        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IHost).Assembly.Location));
+        await RunAspNetCodeFixAsync(
+            """
+            using Microsoft.AspNetCore.Builder;
+            using Microsoft.AspNetCore.Http;
 
-        await RunCodeFixAsync(
+            var builder = WebApplication.CreateBuilder(args);
+            var app = builder.Build();
+
+            app.MapGet("/", () => "Hello world!")
+                .{|BW0002:RequireFeature(Flags.Flag)|}
+                .WithName("test");
+
+            public static class Flags
+            {
+                public const string Flag = "my-flag";
+            }
+            """,
+            """
+            using Microsoft.AspNetCore.Builder;
+            using Microsoft.AspNetCore.Http;
+
+            var builder = WebApplication.CreateBuilder(args);
+            var app = builder.Build();
+
+            app.MapGet("/", () => "Hello world!")
+                .WithName("test");
+
+            public static class Flags
+            {
+                public const string Flag = "my-flag";
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task MinimalApiEndpointMetadata_NotChained_ShouldRemoveWholeCall()
+    {
+        await RunAspNetCodeFixAsync(
             """
             using Microsoft.AspNetCore.Builder;
             using Microsoft.AspNetCore.Http;
@@ -419,7 +445,7 @@ public class RemoveFeatureFlagCodeFixerTests : CSharpCodeFixTest<FeatureFlagAnal
             var builder = WebApplication.CreateBuilder(args);
             var app = builder.Build();
 
-            app.MapGet("/", () => "Hello world!");
+            var endpoint = app.MapGet("/", () => "Hello world!");
 
             public static class Flags
             {
@@ -427,6 +453,54 @@ public class RemoveFeatureFlagCodeFixerTests : CSharpCodeFixTest<FeatureFlagAnal
             }
             """
         );
+    }
+
+    [Fact]
+    public async Task MinimalApiEndpointMetadata_ChainedFromVariable_ShouldRemoveJustOurCall()
+    {
+        await RunAspNetCodeFixAsync(
+            """
+            using Microsoft.AspNetCore.Builder;
+            using Microsoft.AspNetCore.Http;
+
+            var builder = WebApplication.CreateBuilder(args);
+            var app = builder.Build();
+
+            var endpoint = app.MapGet("/", () => "Hello world!");
+            endpoint.{|BW0002:RequireFeature(Flags.Flag)|}.WithName("test");
+
+            public static class Flags
+            {
+                public const string Flag = "my-flag";
+            }
+            """,
+            """
+            using Microsoft.AspNetCore.Builder;
+            using Microsoft.AspNetCore.Http;
+
+            var builder = WebApplication.CreateBuilder(args);
+            var app = builder.Build();
+
+            var endpoint = app.MapGet("/", () => "Hello world!");
+            endpoint.WithName("test");
+
+            public static class Flags
+            {
+                public const string Flag = "my-flag";
+            }
+            """
+        );
+    }
+
+    private async Task RunAspNetCodeFixAsync([StringSyntax("C#-test")] string inputSource, [StringSyntax("C#-test")] string expectedFixedSource)
+    {
+        TestState.OutputKind = OutputKind.ConsoleApplication;
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(WebApplication).Assembly.Location));
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(EndpointRouteBuilderExtensions).Assembly.Location));
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IApplicationBuilder).Assembly.Location));
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IHost).Assembly.Location));
+
+        await RunCodeFixAsync(inputSource, expectedFixedSource);
     }
 
     private async Task RunCodeFixAsync([StringSyntax("C#-test")] string inputSource, [StringSyntax("C#-test")] string expectedFixedSource)
