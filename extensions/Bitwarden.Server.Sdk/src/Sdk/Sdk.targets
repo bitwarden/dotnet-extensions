@@ -21,18 +21,21 @@
   </PropertyGroup>
 
   <!-- TODO Use the constants in places to avoid any configuration that doesn't compile -->
-  <PropertyGroup>
+  <PropertyGroup Label="Define feature defaults and constants">
     <!-- Telemetry defaults to on -->
     <BitIncludeTelemetry Condition="'$(BitIncludeTelemetry)' == ''">true</BitIncludeTelemetry>
     <DefineConstants Condition="'$(BitIncludeTelemetry)' == 'true'">$(DefineConstants);BIT_INCLUDE_TELEMETRY</DefineConstants>
     <!-- Features defaults to on -->
     <BitIncludeFeatures Condition="'$(BitIncludeFeatures)' == ''">true</BitIncludeFeatures>
     <DefineConstants Condition="'$(BitIncludeFeatures)' == 'true'">$(DefineConstants);BIT_INCLUDE_FEATURES</DefineConstants>
+    <!-- Authentication defaults to on -->
+    <BitIncludeAuthentication Condition="'$(BitIncludeAuthentication)' == ''">true</BitIncludeAuthentication>
+    <DefineConstants Condition="'$(BitIncludeAuthentication)' == 'true'">$(DefineConstants);BIT_INCLUDE_AUTHENTICATION</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(BitIncludeTelemetry)' == 'true'">
-    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="[1.12.0]" />
-    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="[1.12.0]" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="[1.13.1]" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="[1.13.1]" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="[1.12.0]" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="[1.12.0]" />
     <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" Version="[1.12.0-beta.2]" />
@@ -44,5 +47,9 @@
 
   <ItemGroup Condition="'$(BitIncludeFeatures)' == 'true'">
     <PackageReference Include="Bitwarden.Server.Sdk.Features" Version="[0.1.0]" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(BitIncludeAuthentication)' == 'true'">
+    <PackageReference Include="Bitwarden.Server.Sdk.Authentication" Version="[0.1.0]" />
   </ItemGroup>
 </Project>

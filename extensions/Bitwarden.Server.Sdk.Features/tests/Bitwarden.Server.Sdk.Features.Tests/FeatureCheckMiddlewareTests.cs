@@ -81,15 +81,15 @@ public class FeatureCheckMiddlewareTests
     {
         using var host = CreateHost();
 
-        await host.StartAsync();
+        await host.StartAsync(TestContext.Current.CancellationToken);
 
         var server = host.GetTestServer();
         var client = server.CreateClient();
 
-        var response = await client.GetAsync("/require-feature");
+        var response = await client.GetAsync("/require-feature", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        var problemDetails = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        var problemDetails = await response.Content.ReadFromJsonAsync<ProblemDetails>(cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotNull(problemDetails);
         Assert.Equal("Resource not found.", problemDetails.Title);
     }
@@ -109,12 +109,12 @@ public class FeatureCheckMiddlewareTests
             });
         });
 
-        await host.StartAsync();
+        await host.StartAsync(TestContext.Current.CancellationToken);
 
         var client = host.GetTestClient();
-        var response = await client.GetAsync("/require-feature");
+        var response = await client.GetAsync("/require-feature", TestContext.Current.CancellationToken);
         Assert.Equal(418, (int)response.StatusCode);
-        Assert.Equal("Custom!", await response.Content.ReadAsStringAsync());
+        Assert.Equal("Custom!", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -122,15 +122,15 @@ public class FeatureCheckMiddlewareTests
     {
         using var host = CreateHost();
 
-        await host.StartAsync();
+        await host.StartAsync(TestContext.Current.CancellationToken);
 
         var server = host.GetTestServer();
         var client = server.CreateClient();
 
-        var response = await client.GetAsync("/no-feature-requirement");
+        var response = await client.GetAsync("/no-feature-requirement", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var successResponse = await response.Content.ReadFromJsonAsync<SuccessResponse>();
+        var successResponse = await response.Content.ReadFromJsonAsync<SuccessResponse>(cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotNull(successResponse);
         Assert.True(successResponse.Success);
     }
@@ -147,15 +147,15 @@ public class FeatureCheckMiddlewareTests
             );
         });
 
-        await host.StartAsync();
+        await host.StartAsync(TestContext.Current.CancellationToken);
 
         var server = host.GetTestServer();
         var client = server.CreateClient();
 
-        var response = await client.GetAsync("/require-feature");
+        var response = await client.GetAsync("/require-feature", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var successResponse = await response.Content.ReadFromJsonAsync<SuccessResponse>();
+        var successResponse = await response.Content.ReadFromJsonAsync<SuccessResponse>(cancellationToken: TestContext.Current.CancellationToken);
         Assert.NotNull(successResponse);
         Assert.True(successResponse.Success);
     }

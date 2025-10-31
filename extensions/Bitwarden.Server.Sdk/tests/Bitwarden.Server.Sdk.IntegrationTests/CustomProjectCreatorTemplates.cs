@@ -1,5 +1,6 @@
 ﻿using Microsoft.Build.Utilities.ProjectCreation;
 using Bitwarden.Server.Sdk.Features;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Bitwarden.Server.Sdk.IntegrationTests;
 
@@ -9,20 +10,28 @@ public static class CustomProjectCreatorTemplates
     {
         // Use this as a list of marker types for assemblies that should be added as available in a
         // pseudo nuget feed.
-        List<Type> packages = [typeof(IFeatureService)];
+        var packages = new (Type MarkerType, string Version, (string Dependency, string Version)[])[]
+        {
+            ( typeof(IFeatureService), "0.1.0", [("LaunchDarkly.ServerSdk", "8.10.3")] ),
+            ( typeof(BitwardenAuthenticationServiceCollectionExtensions), "0.1.0", [("Microsoft.AspNetCore.Authentication.JwtBearer", "8.0.20")] ),
+        };
 
-        var feeds = new List<Uri>(packages.Count);
+        var feeds = new List<Uri>(packages.Length);
 
-        foreach (var package in packages)
+        foreach (var (package, version, dependencies) in packages)
         {
             var assembly = package.Assembly;
             var assemblyName = assembly.GetName()!;
             var pr = PackageFeed.Create(new FileInfo(assembly.Location).Directory!)
-                .Package(assemblyName.Name!, assemblyName.Version!.ToString(3))
-                .FileCustom(Path.Combine("lib", TargetFramework, assemblyName.Name + ".dll"), new FileInfo(assembly.Location))
-                .Save();
+                .Package(assemblyName.Name!, version)
+                .FileCustom(Path.Combine("lib", TargetFramework, assemblyName.Name + ".dll"), new FileInfo(assembly.Location));
 
-            feeds.Add(pr);
+            foreach (var (dependencyId, dependencyVersion) in dependencies)
+            {
+                pr.Dependency(TargetFramework, dependencyId, dependencyVersion);
+            }
+
+            feeds.Add(pr.Save());
         }
 
         Feeds = feeds;
@@ -59,14 +68,14 @@ public static class CustomProjectCreatorTemplates
         }
     }
 
-    public static ProjectCreator SdkProject(this ProjectCreatorTemplates templates, Action<ProjectCreator>? customAction = null)
+    public static ProjectCreator SdkProject(this ProjectCreatorTemplates templates, Action<ProjectCreator>? customAction = null, string sdk = "Microsoft.NET.Sdk.Web")
     {
         var dir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(dir);
 
         return ProjectCreator.Templates.SdkCsproj(
                 path: Path.Combine(dir, "Test.csproj"),
-                sdk: "Microsoft.NET.Sdk.Web",
+                sdk: sdk,
                 targetFramework: TargetFramework)
             .Import(Path.Combine(ThisAssemblyDirectory, "Sdk", "Sdk.props"))
             .CustomAction(customAction)
@@ -81,7 +90,7 @@ public static class CustomProjectCreatorTemplates
 
     public static PackageRepository CreateDefaultPackageRepository(this ProjectCreator project)
     {
-        return PackageRepository.Create(project.GetProjectDirectory(), [new Uri("https://api.nuget.org/v3/index.json"), .. Feeds]);
+        return PackageRepository.Create(project.GetProjectDirectory(), [.. Feeds, new Uri("https://api.nuget.org/v3/index.json")]);
     }
 
     public static string GetProjectDirectory(this ProjectCreator project)

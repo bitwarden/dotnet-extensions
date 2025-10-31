@@ -103,7 +103,6 @@ public sealed class ConfigTestFixture : MSBuildTestBase
             {
                 { "ContainerRepository", name },
                 { "ContainerFamily", "alpine" },
-                { "BitIncludeFeatures", "false" },
                 { "Configuration", useRelease ? "Release" : "Debug" },
                 { "UserSecretsId", "test-secrets" },
             },

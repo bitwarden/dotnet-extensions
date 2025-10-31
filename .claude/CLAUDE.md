@@ -24,13 +24,11 @@ See the [README.md](README.md) for detailed information about each package. Main
 
 ### Test Framework
 
--   **xUnit**
--   `Microsoft.NET.Test.Sdk`
--   `coverlet.collector` for code coverage
+-   **xUnit.v3**
+-   **Microsoft.Testing.Extensions.CodeCoverage** for code coverage
 
 ### Additional Test Tools
 
--   `xunit.runner.visualstudio`
 -   `NSubstitute` for mocking
 -   `Microsoft.AspNetCore.TestHost` for integration tests
 -   `Testcontainers` for container-based tests
@@ -40,7 +38,6 @@ See the [README.md](README.md) for detailed information about each package. Main
 
 -   Test projects are in `tests/` subfolder of each extension
 -   Test projects use exact version pinning: `Version="[X.Y.Z]"`
--   `<IsPackable>false</IsPackable>` and `<IsTestProject>true</IsTestProject>` properties
 -   `<Using Include="Xunit" />` for global xUnit usings
 
 ## Code Style and Conventions
