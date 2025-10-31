@@ -28,12 +28,12 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
                 continue;
             }
 
-            if (!diagnostic.Properties.TryGetValue("flagKey", out var flagKey) || !string.IsNullOrEmpty(flagKey))
+            if (!diagnostic.Properties.TryGetValue("flagKey", out var flagKey) || string.IsNullOrEmpty(flagKey))
             {
                 continue;
             }
 
-            if (!diagnostic.Properties.TryGetValue("removalHint", out var removalHint) || !string.IsNullOrEmpty(removalHint))
+            if (!diagnostic.Properties.TryGetValue("removalHint", out var removalHint) || string.IsNullOrEmpty(removalHint))
             {
                 continue;
             }

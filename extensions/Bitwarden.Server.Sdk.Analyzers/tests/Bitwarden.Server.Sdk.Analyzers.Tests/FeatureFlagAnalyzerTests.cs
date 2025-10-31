@@ -1,13 +1,15 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Testing;
-using Microsoft.CodeAnalysis.Testing;
 using Bitwarden.Server.Sdk.Features;
 
 namespace Bitwarden.Server.Sdk.Analyzers.Tests;
 
-public class FeatureFlagAnalyzerTests : CSharpAnalyzerTest<FeatureFlagAnalyzer, DefaultVerifier>
+public class FeatureFlagAnalyzerTests : AnalyzerTests<FeatureFlagAnalyzer>
 {
+    public FeatureFlagAnalyzerTests()
+    {
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IFeatureService).Assembly.Location));
+    }
+
     [Fact]
     public async Task ShouldWarnIfConstNotUsed()
     {
@@ -44,13 +46,5 @@ public class FeatureFlagAnalyzerTests : CSharpAnalyzerTest<FeatureFlagAnalyzer, 
             }
             """
         );
-    }
-
-    private async Task RunAnalyzerAsync([StringSyntax("C#-test")] string source)
-    {
-        TestCode = source;
-        TestState.ReferenceAssemblies = ReferenceAssemblies.Net.Net80;
-        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IFeatureService).Assembly.Location));
-        await RunAsync(TestContext.Current.CancellationToken);
     }
 }
