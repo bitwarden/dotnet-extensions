@@ -7,6 +7,7 @@
     <IsAotCompatible>true</IsAotCompatible>
     <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
     <InterceptorsPreviewNamespaces>$(InterceptorsPreviewNamespaces);Microsoft.Extensions.Configuration.Binder.SourceGeneration</InterceptorsPreviewNamespaces>
+    <PackageReadmeFile>./PACKAGE.md</PackageReadmeFile>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -27,6 +28,10 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Bitwarden.Server.Sdk" />
     <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Features.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="PACKAGE.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
 </Project>

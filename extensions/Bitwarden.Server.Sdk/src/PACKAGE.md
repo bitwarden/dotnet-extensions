@@ -5,6 +5,11 @@ a Bitwarden-flavored service. The entrypoint for using it is adding `UseBitwarde
 on your web application and configuring MSBuild properties to configure the features you
 want.
 
+The Bitwarden.Server.Sdk is consumed as a [MSBuild project SDK](https://learn.microsoft.com/en-us/visualstudio/msbuild/how-to-use-project-sdk?view=vs-2022)
+but it is not intended to be consumed solely by itself and instead expected to be used alongside the
+`Microsoft.NET.Sdk.Web` SDK. The most common way will be to import `<Sdk Name="Bitwarden.Server.Sdk" />`
+right underneath the top level `<Project>` element in your `.csproj` file.
+
 ## Telemetry
 
 Enabled by default and able to be removed using `<BitIncludeTelemetry>false</BitIncludeTelemetry>`
