@@ -54,7 +54,7 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
         return WellKnownFixAllProviders.BatchFixer;
     }
 
-    private async Task<Document> RemoveFlagAsync(Document document, Location location, string removalHint, CancellationToken token)
+    private static async Task<Document> RemoveFlagAsync(Document document, Location location, string removalHint, CancellationToken token)
     {
         var root = await document.GetSyntaxRootAsync(token);
 
