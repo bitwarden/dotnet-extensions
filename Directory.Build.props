@@ -20,7 +20,7 @@
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <IsAotCompatible Condition="'$(IsAotCompatible)' == ''">true</IsAotCompatible>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
-    <EmbeddUntrackedSources>true</EmbeddUntrackedSources>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <IncludeSymbols>true</IncludeSymbols>
     <IncludeSource>true</IncludeSource>
     <!-- Add non test project item group auto adding a local ./PACKAGE.md file once https://github.com/bitwarden/dotnet-extensions/pull/196 merges -->
