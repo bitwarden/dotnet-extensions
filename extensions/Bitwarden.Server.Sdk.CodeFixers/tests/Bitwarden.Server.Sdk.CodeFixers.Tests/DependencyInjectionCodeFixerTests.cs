@@ -41,7 +41,7 @@ public class DependencyInjectionCodeFixerTests : CSharpCodeFixTest<DependencyInj
     [InlineData("KeyedSingleton", "\"test\"")]
     [InlineData("KeyedScoped", "\"test\"")]
     [InlineData("KeyedTransient", "\"test\"")]
-    public async Task Test(string lifetime, string key)
+    public async Task BothServiceAndImplementationAsGenerics(string lifetime, string key)
     {
         await RunCodeFixAsync($$"""
             using Test;
@@ -53,9 +53,72 @@ public class DependencyInjectionCodeFixerTests : CSharpCodeFixTest<DependencyInj
             $$"""
             using Test;
             using Microsoft.Extensions.DependencyInjection;
+            using Microsoft.Extensions.DependencyInjection.Extensions;
 
             var services = new ServiceCollection();
             services.TryAdd{{lifetime}}<IMyService, MyService>({{key}});
+            """
+        );
+    }
+
+    [Theory]
+    [InlineData("Singleton", "")]
+    [InlineData("Scoped", "")]
+    [InlineData("Transient", "")]
+    [InlineData("KeyedSingleton", "\"test\"")]
+    [InlineData("KeyedScoped", "\"test\"")]
+    [InlineData("KeyedTransient", "\"test\"")]
+    public async Task BothServiceAndImplementationAsTypeofArguments(string lifetime, string key)
+    {
+        var arguments = key == ""
+            ? $"typeof(MyService)"
+            : $"{key}, typeof(MyService)";
+
+        await RunCodeFixAsync($$"""
+            using Test;
+            using Microsoft.Extensions.DependencyInjection;
+
+            var services = new ServiceCollection();
+            {|BW0003:services.Add{{lifetime}}(typeof(IMyService), {{arguments}})|};
+            """,
+            $$"""
+            using Test;
+            using Microsoft.Extensions.DependencyInjection;
+            using Microsoft.Extensions.DependencyInjection.Extensions;
+
+            var services = new ServiceCollection();
+            services.TryAdd{{lifetime}}(typeof(IMyService), {{arguments}});
+            """
+        );
+    }
+
+    [Theory]
+    [InlineData("Singleton", "")]
+    [InlineData("Scoped", "")]
+    [InlineData("Transient", "")]
+    [InlineData("KeyedSingleton", "\"test\"")]
+    [InlineData("KeyedScoped", "\"test\"")]
+    [InlineData("KeyedTransient", "\"test\"")]
+    public async Task ServiceAsGenericAndImplementationFactory(string lifetime, string key)
+    {
+        var arguments = key == ""
+            ? $"(sp) => new MyService()"
+            : $"{key}, (sp, key) => new MyService()";
+
+        await RunCodeFixAsync($$"""
+            using Test;
+            using Microsoft.Extensions.DependencyInjection;
+
+            var services = new ServiceCollection();
+            {|BW0003:services.Add{{lifetime}}<IMyService>({{arguments}})|};
+            """,
+            $$"""
+            using Test;
+            using Microsoft.Extensions.DependencyInjection;
+            using Microsoft.Extensions.DependencyInjection.Extensions;
+
+            var services = new ServiceCollection();
+            services.TryAdd{{lifetime}}<IMyService>({{arguments}});
             """
         );
     }

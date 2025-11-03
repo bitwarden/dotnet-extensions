@@ -61,22 +61,35 @@ public sealed class DependencyInjectionCodeFixer : CodeFixProvider
         SyntaxNode memberName;
         if (ma.Name is GenericNameSyntax genericName)
         {
-            // TODO: Use correct method
-            memberName = generator.GenericName("TryAddSingleton", genericName.TypeArgumentList.Arguments);
+            memberName = generator.GenericName("Try" + ma.Name.Identifier.ValueText, genericName.TypeArgumentList.Arguments);
         }
         else
         {
-            // TODO: Use correct method
-            memberName = generator.IdentifierName("TryAddSingleton");
+            memberName = generator.IdentifierName("Try" + ma.Name.Identifier.ValueText);
+        }
+
+        var compilation = await document.Project.GetCompilationAsync(token);
+
+        if (compilation == null)
+        {
+            return document;
+        }
+
+        var staticExtType = compilation.GetTypeByMetadataName("Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions");
+
+        if (staticExtType == null)
+        {
+            return document;
         }
 
         var newNode = generator.InvocationExpression(
                 generator.MemberAccessExpression(
-                    generator.IdentifierName("Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions"),
+                    generator.NameExpression(staticExtType),
                     memberName
                 ),
                 [ma.Expression, .. invocationExpression.ArgumentList.Arguments]
-            );
+            )
+            .WithAdditionalAnnotations(Simplifier.Annotation, Simplifier.AddImportsAnnotation);
 
         editor.ReplaceNode(node, newNode);
 
