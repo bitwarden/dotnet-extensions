@@ -35,7 +35,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="PACKAGE.md" Pack="true" PackagePath="/" />
     <None Include="Sdk/**" Pack="true" PackagePath="Sdk/" />
   </ItemGroup>
 

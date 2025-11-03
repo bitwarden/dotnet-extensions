@@ -19,8 +19,4 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.20" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="PACKAGE.md" Pack="true" PackagePath="/" />
-  </ItemGroup>
-
 </Project>
