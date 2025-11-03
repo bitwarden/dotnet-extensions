@@ -9,14 +9,53 @@ namespace Bitwarden.Server.Sdk.CodeFixers.Tests;
 
 public class DependencyInjectionCodeFixerTests : CSharpCodeFixTest<DependencyInjectionAnalyzer, DependencyInjectionCodeFixer, DefaultVerifier>
 {
-    [Fact]
-    public async Task Test()
+    public DependencyInjectionCodeFixerTests()
     {
-        await RunCodeFixAsync("""
-
-            """,
+        TestState.OutputKind = OutputKind.ConsoleApplication;
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IServiceCollection).Assembly.Location));
+        var common = ("Service.cs",
             """
+            using System;
 
+            namespace Test;
+
+            public interface IMyService
+            {
+                void Run();
+            }
+
+            public class MyService : IMyService
+            {
+                public void Run() { }
+            }
+            """
+        );
+        TestState.Sources.Add(common);
+        FixedState.Sources.Add(common);
+    }
+
+    [Theory]
+    [InlineData("Singleton", "")]
+    [InlineData("Scoped", "")]
+    [InlineData("Transient", "")]
+    [InlineData("KeyedSingleton", "\"test\"")]
+    [InlineData("KeyedScoped", "\"test\"")]
+    [InlineData("KeyedTransient", "\"test\"")]
+    public async Task Test(string lifetime, string key)
+    {
+        await RunCodeFixAsync($$"""
+            using Test;
+            using Microsoft.Extensions.DependencyInjection;
+
+            var services = new ServiceCollection();
+            {|BW0003:services.Add{{lifetime}}<IMyService, MyService>({{key}})|};
+            """,
+            $$"""
+            using Test;
+            using Microsoft.Extensions.DependencyInjection;
+
+            var services = new ServiceCollection();
+            services.TryAdd{{lifetime}}<IMyService, MyService>({{key}});
             """
         );
     }
