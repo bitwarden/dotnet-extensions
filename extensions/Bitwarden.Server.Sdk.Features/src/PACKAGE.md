@@ -55,13 +55,30 @@ authentication middleware.
 
 Out of the box, this package binds our options object `FeatureFlagOptions` to the `Features` section
 of configuration. This means to enable the use of Launch Darkly you need to have
-`Features:LaunchDarkly:SdkKey` set. If no key is set then local flag values can be use through
+`Features:LaunchDarkly:SdkKey` set. If no key is set then local flag values can be used through
 `Features:FlagValues:<Key>=<Value>`. This can be helpful for local development.
 
 `Features:KnownFlags` must be populated with all flag keys that you wish to be returned from
 `IFeatureService.GetAll()`. If you have no need to use that method you do not need to add values to
 that option. `IFeatureService.IsEnabled` and other single feature checks should continue to work
 just fine without it.
+
+Example JSON configuration:
+
+```json
+{
+  "Features": {
+    "FlagValues": {
+      "my-flag": true,
+      "another-flag": false
+    },
+    "KnownFlags": ["my-flag"],
+    "LaunchDarkly": {
+      "SdkKey": "your-sdk-key"
+    }
+  }
+}
+```
 
 ## Customization
 
@@ -70,7 +87,7 @@ just fine without it.
 By default the feature flag context will be for an anonymous user. This doesn't allow granular
 targeting of feature flag values. To enable this you can implement your own `IContextBuilder` and
 register it using `services.AddContextBuilder<MyContextBuilder>()`. Learn more about context
-configuration by reading the code docs on `IContextBuilder` and reading Launch Darklys docs on
+configuration by reading the code docs on `IContextBuilder` and reading Launch Darkly's docs on
 [context configuration](https://launchdarkly.com/docs/sdk/features/context-config#expand-net-server-side-code-sample).
 
 ### OnFeatureCheckFailed
