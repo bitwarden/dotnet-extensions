@@ -39,6 +39,22 @@ public class SdkTests : MSBuildTestBase
     }
 
     [Fact]
+    public void ShouldBuildWithNoDocsWarnings()
+    {
+        ProjectCreator.Templates.SdkProject(
+            out var result,
+            out var buildOutput,
+            customAction: (project) =>
+            {
+                project.Property("TreatWarningsAsErrors", "true");
+                project.Property("GenerateDocumentationFile", "true");
+            }
+        );
+
+        Assert.Empty(buildOutput.Errors);
+    }
+
+    [Fact]
     public void TelemetryTurnedOff_CanCompile()
     {
         ProjectCreator.Templates.SdkProject(
