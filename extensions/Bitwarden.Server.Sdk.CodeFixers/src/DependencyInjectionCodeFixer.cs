@@ -1,15 +1,11 @@
 using System.Collections.Immutable;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Editing;
-using Microsoft.CodeAnalysis.Options;
-using Microsoft.CodeAnalysis.Rename;
 using Microsoft.CodeAnalysis.Simplification;
 
 namespace Bitwarden.Server.Sdk.CodeFixers;
@@ -89,6 +85,7 @@ public sealed class DependencyInjectionCodeFixer : CodeFixProvider
                 ),
                 [ma.Expression, .. invocationExpression.ArgumentList.Arguments]
             )
+            .WithLeadingTrivia(node.GetLeadingTrivia())
             .WithAdditionalAnnotations(Simplifier.Annotation, Simplifier.AddImportsAnnotation);
 
         editor.ReplaceNode(node, newNode);

@@ -53,6 +53,7 @@ internal sealed class LaunchDarklyFeatureService : IFeatureService
 
     public IReadOnlyDictionary<string, JsonValue> GetAll()
     {
+        var context = GetContext();
         var flagsState = _ldClient.AllFlagsState(GetContext());
 
         var flagValues = new Dictionary<string, JsonValue>();

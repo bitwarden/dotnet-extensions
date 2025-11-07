@@ -11,12 +11,12 @@ namespace Bitwarden.Server.Sdk.Analyzers;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed partial class DependencyInjectionAnalyzer : DiagnosticAnalyzer
 {
-    private static Regex _addMethodRegex = new("^Add?[Keyed][Singleton|Scoped|Transient]", RegexOptions.Compiled);
+    private static readonly Regex _addMethodRegex = new("^Add(?<Keyed>Keyed)?(?<Lifetime>Singleton|Scoped|Transient)$", RegexOptions.Compiled);
 
     private static readonly DiagnosticDescriptor _shouldUseTryAddOverload = new(
         "BW0003",
-        "Should use TryAdd overloads",
-        "Should use TryAdd overloads",
+        "Should use {0} overloads",
+        "Should use {0} overload instead",
         "Usage",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
@@ -59,9 +59,18 @@ public sealed partial class DependencyInjectionAnalyzer : DiagnosticAnalyzer
             return;
         }
 
+        var lifetime = match.Groups["Lifetime"].Value;
+        var isKeyed = match.Groups["Keyed"].Success;
+
+        var properties = ImmutableDictionary.CreateBuilder<string, string?>();
+        properties.Add("Lifetime", lifetime);
+        properties.Add("IsKeyed", isKeyed.ToString());
+
         context.ReportDiagnostic(Diagnostic.Create(
             _shouldUseTryAddOverload,
-            invocationSyntax.GetLocation()
+            invocationSyntax.GetLocation(),
+            properties.ToImmutableDictionary(),
+            $"Try{methodName}"
         ));
     }
 }

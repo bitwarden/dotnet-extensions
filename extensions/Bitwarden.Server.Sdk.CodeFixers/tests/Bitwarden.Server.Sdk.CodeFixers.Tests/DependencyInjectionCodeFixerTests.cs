@@ -123,6 +123,41 @@ public class DependencyInjectionCodeFixerTests : CSharpCodeFixTest<DependencyInj
         );
     }
 
+    [Fact]
+    public async Task UsedInMethod()
+    {
+        TestState.OutputKind = OutputKind.DynamicallyLinkedLibrary;
+
+        await RunCodeFixAsync("""
+            using Test;
+            using Microsoft.Extensions.DependencyInjection;
+
+            public static class Extensions
+            {
+                public static IServiceCollection AddServices(this IServiceCollection services)
+                {
+                    {|BW0003:services.AddTransient<IMyService, MyService>()|};
+                    return services;
+                }
+            }
+            """,
+            """
+            using Test;
+            using Microsoft.Extensions.DependencyInjection;
+            using Microsoft.Extensions.DependencyInjection.Extensions;
+
+            public static class Extensions
+            {
+                public static IServiceCollection AddServices(this IServiceCollection services)
+                {
+                    services.TryAddTransient<IMyService, MyService>();
+                    return services;
+                }
+            }
+            """
+        );
+    }
+
     private async Task RunCodeFixAsync([StringSyntax("C#-test")] string inputSource, [StringSyntax("C#-test")] string expectedFixedSource)
     {
         TestCode = inputSource;
