@@ -25,6 +25,7 @@
     <IncludeSource>true</IncludeSource>
     <PackageReadmeFile  Condition="'$(PackageReadmeFile)' == ''">./PACKAGE.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(IsTestProject)' != 'true'">

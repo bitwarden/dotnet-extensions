@@ -7,6 +7,8 @@
     <NoWarn>$(NoWarn);NU5128</NoWarn>
 
     <IncludeBuildOutput>false</IncludeBuildOutput>
+    <IncludeSource>false</IncludeSource>
+    <IncludeSymbols>false</IncludeSymbols>
 
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 
