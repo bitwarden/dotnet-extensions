@@ -1,6 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Nodes;
-using Bitwarden.Server.Sdk.Utilities;
 using LaunchDarkly.Logging;
 using LaunchDarkly.Sdk;
 using LaunchDarkly.Sdk.Server;
@@ -17,13 +16,14 @@ internal sealed class LaunchDarklyFeatureService : IFeatureService
     private readonly ILdClient _ldClient;
     private readonly IContextBuilder _contextBuilder;
     private readonly IOptionsMonitor<FeatureFlagOptions> _featureFlagOptions;
+    private readonly ILogger<LaunchDarklyFeatureService> _logger;
 
     // Should not change during the course of a request, so cache this
     private Context? _context;
 
     public LaunchDarklyFeatureService(
         ILdClient ldClient,
-        IContextBuilder contextEnricher,
+        IContextBuilder contextBuilder,
         IOptionsMonitor<FeatureFlagOptions> featureFlagOptions,
         ILogger<LaunchDarklyFeatureService> logger)
     {
@@ -32,8 +32,9 @@ internal sealed class LaunchDarklyFeatureService : IFeatureService
         ArgumentNullException.ThrowIfNull(logger);
 
         _ldClient = ldClient;
-        _contextBuilder = contextEnricher;
+        _contextBuilder = contextBuilder;
         _featureFlagOptions = featureFlagOptions;
+        _logger = logger;
     }
 
     public bool IsEnabled(string key, bool defaultValue = false)
@@ -60,6 +61,7 @@ internal sealed class LaunchDarklyFeatureService : IFeatureService
 
         if (!flagsState.Valid)
         {
+            _logger.LogInvalidFlagsState();
             return flagValues;
         }
 
@@ -95,26 +97,19 @@ internal sealed class LaunchDarklyClientProvider
 {
     private readonly ILoggerFactory _loggerFactory;
     private readonly IHostEnvironment _hostEnvironment;
-    private readonly VersionInfo _versionInfo;
+    private readonly IVersionInfoAccessor _versionInfoAccessor;
 
     private LdClient _client;
 
     public LaunchDarklyClientProvider(
         IOptionsMonitor<FeatureFlagOptions> featureFlagOptions,
         ILoggerFactory loggerFactory,
-        IHostEnvironment hostEnvironment)
+        IHostEnvironment hostEnvironment,
+        IVersionInfoAccessor versionInfoAccessor)
     {
         _loggerFactory = loggerFactory;
         _hostEnvironment = hostEnvironment;
-
-        var versionInfo = _hostEnvironment.GetVersionInfo();
-
-        if (versionInfo == null)
-        {
-            throw new InvalidOperationException("Unable to attain version information for the current application.");
-        }
-
-        _versionInfo = versionInfo;
+        _versionInfoAccessor = versionInfoAccessor;
 
         BuildClient(featureFlagOptions.CurrentValue);
         // Subscribe to options changes.
@@ -124,16 +119,27 @@ internal sealed class LaunchDarklyClientProvider
     [MemberNotNull(nameof(_client))]
     private void BuildClient(FeatureFlagOptions featureFlagOptions)
     {
+        var applicationInfo = Components.ApplicationInfo()
+            .ApplicationId(_hostEnvironment.ApplicationName)
+            .ApplicationName(_hostEnvironment.ApplicationName);
+
+        var versionInfo = _versionInfoAccessor.Get();
+
+        if (versionInfo is not null)
+        {
+            applicationInfo.ApplicationVersion(versionInfo.GitHash ?? versionInfo.Version.ToString())
+                .ApplicationVersionName(versionInfo.Version.ToString());
+        }
+
         var builder = Configuration.Builder(featureFlagOptions.LaunchDarkly.SdkKey)
             .Logging(Components.Logging().Adapter(Logs.CoreLogging(_loggerFactory)))
-            .ApplicationInfo(Components.ApplicationInfo()
-                .ApplicationId(_hostEnvironment.ApplicationName)
-                .ApplicationName(_hostEnvironment.ApplicationName)
-                .ApplicationVersion(_versionInfo.GitHash ?? _versionInfo.Version.ToString())
-                .ApplicationVersionName(_versionInfo.Version.ToString())
-            )
-            .DataSource(BuildDataSource(featureFlagOptions.FlagValues))
-            .Events(Components.NoEvents);
+            .ApplicationInfo(applicationInfo);
+
+        if (string.IsNullOrEmpty(featureFlagOptions.LaunchDarkly.SdkKey))
+        {
+            builder.DataSource(BuildDataSource(featureFlagOptions.FlagValues))
+                .Events(Components.NoEvents);
+        }
 
         _client?.Dispose();
         _client = new LdClient(builder.Build());

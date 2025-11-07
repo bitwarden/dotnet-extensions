@@ -7,16 +7,15 @@
     <NoWarn>$(NoWarn);NU5128</NoWarn>
 
     <IncludeBuildOutput>false</IncludeBuildOutput>
+    <IncludeSource>false</IncludeSource>
+    <IncludeSymbols>false</IncludeSymbols>
 
-    <PackageReadmeFile>./PACKAGE.md</PackageReadmeFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 
     <VersionPrefix>1.1.0</VersionPrefix>
     <PreReleaseVersionLabel>beta</PreReleaseVersionLabel>
     <PreReleaseVersionIteration>1</PreReleaseVersionIteration>
     <VersionSuffix Condition="'$(VersionSuffix)' == '' AND '$(IsPreRelease)' == 'true'">$(PreReleaseVersionLabel).$(PreReleaseVersionIteration)</VersionSuffix>
-    <ImplicitUsings>true</ImplicitUsings>
-    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -28,7 +27,6 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <Authors>Bitwarden Inc.</Authors>
     <Description>Bitwarden Server SDK.</Description>
   </PropertyGroup>
 
@@ -39,7 +37,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="PACKAGE.md" Pack="true" PackagePath="/" />
     <None Include="Sdk/**" Pack="true" PackagePath="Sdk/" />
   </ItemGroup>
 
