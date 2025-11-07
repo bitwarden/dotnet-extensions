@@ -132,9 +132,13 @@ internal sealed class LaunchDarklyClientProvider
 
         var builder = Configuration.Builder(featureFlagOptions.LaunchDarkly.SdkKey)
             .Logging(Components.Logging().Adapter(Logs.CoreLogging(_loggerFactory)))
-            .ApplicationInfo(applicationInfo)
-            .DataSource(BuildDataSource(featureFlagOptions.FlagValues))
-            .Events(Components.NoEvents);
+            .ApplicationInfo(applicationInfo);
+
+        if (string.IsNullOrEmpty(featureFlagOptions.LaunchDarkly.SdkKey))
+        {
+            builder.DataSource(BuildDataSource(featureFlagOptions.FlagValues))
+                .Events(Components.NoEvents);
+        }
 
         _client?.Dispose();
         _client = new LdClient(builder.Build());
