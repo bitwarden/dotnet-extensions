@@ -34,4 +34,15 @@ public class VersionInfoAccessorTests
         var versionInfo = _sut.Get();
         Assert.NotNull(versionInfo);
     }
+
+    [Fact]
+    public void Get_CalledMultipleTimes_ReturnsSameInstance()
+    {
+        _hostEnvironment.ApplicationName.Returns(typeof(VersionInfoAccessorTests).Assembly.FullName);
+
+        var first = _sut.Get();
+        var second = _sut.Get();
+
+        Assert.Same(first, second);
+    }
 }

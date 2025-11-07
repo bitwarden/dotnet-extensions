@@ -1,8 +1,9 @@
 using System.Reflection;
-using Bitwarden.Server.Sdk.Features;
 using Bitwarden.Server.Sdk.Utilities;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+
+namespace Bitwarden.Server.Sdk.Features;
 
 internal interface IVersionInfoAccessor
 {
@@ -21,22 +22,15 @@ internal class VersionInfoAccessor : IVersionInfoAccessor
 
         _hostEnvironment = hostEnvironment;
         _logger = logger;
+
+        _versionInfo = new Lazy<VersionInfo?>(() => GetCore());
     }
 
-    private bool _retrievedVersion;
-    private VersionInfo? _cachedVersion;
+    private readonly Lazy<VersionInfo?> _versionInfo;
 
     public VersionInfo? Get()
     {
-        if (_retrievedVersion)
-        {
-            return _cachedVersion;
-        }
-
-        _cachedVersion ??= GetCore();
-        _retrievedVersion = true;
-
-        return _cachedVersion;
+        return _versionInfo.Value;
     }
 
     private VersionInfo? GetCore()
