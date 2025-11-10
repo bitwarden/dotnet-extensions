@@ -46,7 +46,7 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(BitIncludeFeatures)' == 'true'">
-    <PackageReference Include="Bitwarden.Server.Sdk.Features" Version="0.1.0" />
+    <PackageReference Include="Bitwarden.Server.Sdk.Features" Version="1.0.0" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(BitIncludeAuthentication)' == 'true'">
