@@ -122,9 +122,13 @@ public class FeatureServiceCollectionExtensionsTests
     }
 
     [Fact(Explicit = true)]
-    public async Task UsingSdkKey_Works()
+    public void UsingSdkKey_Works()
     {
         const string SdkKeyEnv = "LAUNCH_DARKLY_SDK_KEY";
+
+        // Set a feature flag key that is known to be true at the current time,
+        // you can then also put a flag that is known to be false and expect that the
+        // test will fail.
         const string TrueFlag = "TRUE_FEATURE_FLAG";
 
         var sdkKey = Environment.GetEnvironmentVariable(SdkKeyEnv);
@@ -153,7 +157,7 @@ public class FeatureServiceCollectionExtensionsTests
 
         builder.Services.AddFeatureFlagServices();
 
-        var app = builder.Build();
+        using var app = builder.Build();
         var featureService = app.Services.GetRequiredService<IFeatureService>();
 
         Assert.True(featureService.IsEnabled(trueFlagKey));
