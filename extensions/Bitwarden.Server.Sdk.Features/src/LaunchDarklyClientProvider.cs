@@ -24,6 +24,7 @@ internal sealed class LaunchDarklyClientProvider : ILaunchDarklyClientProvider, 
     private readonly ILoggerFactory _loggerFactory;
     private readonly IHostEnvironment _hostEnvironment;
     private readonly IVersionInfoAccessor _versionInfoAccessor;
+    private readonly IDisposable? _changeToken;
 
     private LdClient _client;
 
@@ -39,7 +40,7 @@ internal sealed class LaunchDarklyClientProvider : ILaunchDarklyClientProvider, 
 
         BuildClient(featureFlagOptions.CurrentValue);
         // Subscribe to options changes.
-        featureFlagOptions.OnChange(BuildClient);
+        _changeToken = featureFlagOptions.OnChange(BuildClient);
     }
 
     [MemberNotNull(nameof(_client))]
@@ -67,9 +68,8 @@ internal sealed class LaunchDarklyClientProvider : ILaunchDarklyClientProvider, 
                 .Events(Components.NoEvents);
         }
 
-        var oldClient = _client;
-        _client = new LdClient(builder.Build());
-        oldClient?.Dispose();
+        var previousClient = Interlocked.Exchange(ref _client, new LdClient(builder.Build()));
+        previousClient?.Dispose();
     }
 
     private static TestData BuildDataSource(Dictionary<string, string> data)
@@ -110,6 +110,7 @@ internal sealed class LaunchDarklyClientProvider : ILaunchDarklyClientProvider, 
 
     public void Dispose()
     {
+        _changeToken?.Dispose();
         _client.Dispose();
     }
 }
