@@ -1,11 +1,6 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Nodes;
-using LaunchDarkly.Logging;
 using LaunchDarkly.Sdk;
-using LaunchDarkly.Sdk.Server;
-using LaunchDarkly.Sdk.Server.Integrations;
 using LaunchDarkly.Sdk.Server.Interfaces;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -22,16 +17,22 @@ internal sealed class LaunchDarklyFeatureService : IFeatureService
     private Context? _context;
 
     public LaunchDarklyFeatureService(
-        ILdClient ldClient,
+        ILaunchDarklyClientProvider launchDarklyClientProvider,
         IContextBuilder contextBuilder,
         IOptionsMonitor<FeatureFlagOptions> featureFlagOptions,
         ILogger<LaunchDarklyFeatureService> logger)
     {
-        ArgumentNullException.ThrowIfNull(ldClient);
+        ArgumentNullException.ThrowIfNull(launchDarklyClientProvider);
         ArgumentNullException.ThrowIfNull(featureFlagOptions);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _ldClient = ldClient;
+        // Retrieving the ILdClient once in the constructor does mean that
+        // we no longer receive possible changes to the clients during the
+        // scope of this service, that's acceptible for now since it only changes
+        // due to configuration updates which is only expected to be useful
+        // in dev scenarios and getting the feature flag change on the next
+        // request into the server is more than enough.
+        _ldClient = launchDarklyClientProvider.Get();
         _contextBuilder = contextBuilder;
         _featureFlagOptions = featureFlagOptions;
         _logger = logger;
@@ -88,95 +89,5 @@ internal sealed class LaunchDarklyFeatureService : IFeatureService
     private Context GetContext()
     {
         return _context ??= _contextBuilder.Build();
-    }
-}
-
-
-internal sealed class LaunchDarklyClientProvider
-{
-    private readonly ILoggerFactory _loggerFactory;
-    private readonly IHostEnvironment _hostEnvironment;
-    private readonly IVersionInfoAccessor _versionInfoAccessor;
-
-    private LdClient _client;
-
-    public LaunchDarklyClientProvider(
-        IOptionsMonitor<FeatureFlagOptions> featureFlagOptions,
-        ILoggerFactory loggerFactory,
-        IHostEnvironment hostEnvironment,
-        IVersionInfoAccessor versionInfoAccessor)
-    {
-        _loggerFactory = loggerFactory;
-        _hostEnvironment = hostEnvironment;
-        _versionInfoAccessor = versionInfoAccessor;
-
-        BuildClient(featureFlagOptions.CurrentValue);
-        // Subscribe to options changes.
-        featureFlagOptions.OnChange(BuildClient);
-    }
-
-    [MemberNotNull(nameof(_client))]
-    private void BuildClient(FeatureFlagOptions featureFlagOptions)
-    {
-        var applicationInfo = Components.ApplicationInfo()
-            .ApplicationId(_hostEnvironment.ApplicationName)
-            .ApplicationName(_hostEnvironment.ApplicationName);
-
-        var versionInfo = _versionInfoAccessor.Get();
-
-        if (versionInfo is not null)
-        {
-            applicationInfo.ApplicationVersion(versionInfo.GitHash ?? versionInfo.Version.ToString())
-                .ApplicationVersionName(versionInfo.Version.ToString());
-        }
-
-        var builder = Configuration.Builder(featureFlagOptions.LaunchDarkly.SdkKey)
-            .Logging(Components.Logging().Adapter(Logs.CoreLogging(_loggerFactory)))
-            .ApplicationInfo(applicationInfo);
-
-        if (string.IsNullOrEmpty(featureFlagOptions.LaunchDarkly.SdkKey))
-        {
-            builder.DataSource(BuildDataSource(featureFlagOptions.FlagValues))
-                .Events(Components.NoEvents);
-        }
-
-        _client?.Dispose();
-        _client = new LdClient(builder.Build());
-    }
-
-    private static TestData BuildDataSource(Dictionary<string, string> data)
-    {
-        // TODO: We could support updating just the test data source with
-        // changes from the OnChange of options, we currently support it through creating
-        // a whole new client but that could be pretty heavy just for flag
-        // value changes.
-        var source = TestData.DataSource();
-
-        foreach (var (key, value) in data)
-        {
-            var flag = source.Flag(key);
-            var valueSpan = value.AsSpan();
-            if (bool.TryParse(valueSpan, out var boolValue))
-            {
-                flag.ValueForAll(LdValue.Of(boolValue));
-            }
-            else if (int.TryParse(valueSpan, out var intValue))
-            {
-                flag.ValueForAll(LdValue.Of(intValue));
-            }
-            else
-            {
-                flag.ValueForAll(LdValue.Of(value));
-            }
-
-            source.Update(flag);
-        }
-
-        return source;
-    }
-
-    public LdClient Get()
-    {
-        return _client;
     }
 }

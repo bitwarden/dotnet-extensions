@@ -28,13 +28,9 @@ public static class FeatureServiceCollectionExtensions
 
         services.TryAddSingleton<IContextBuilder, AnonymousContextBuilder>();
 
-        services.TryAddSingleton<LaunchDarklyClientProvider>();
+        services.TryAddSingleton<ILaunchDarklyClientProvider, LaunchDarklyClientProvider>();
         services.TryAddSingleton<IVersionInfoAccessor, VersionInfoAccessor>();
 
-        // This needs to be scoped so a "new" ILdClient can be given per request, this makes it possible to
-        // have the ILdClient be rebuilt if configuration changes but for the most part this will return a cached
-        // client from LaunchDarklyClientProvider, effectively being a singleton.
-        services.TryAddScoped<ILdClient>(sp => sp.GetRequiredService<LaunchDarklyClientProvider>().Get());
         services.TryAddScoped<IFeatureService, LaunchDarklyFeatureService>();
 
         return services;
