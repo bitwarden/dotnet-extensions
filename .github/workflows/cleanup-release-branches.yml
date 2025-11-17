@@ -1,0 +1,49 @@
+name: Cleanup release branches
+
+on:
+  schedule:
+    # Weekly on Sunday
+    - cron: 0 0 * * 0
+
+jobs:
+  cleanup-release-branches:
+    # No need to run this on forks
+    if: github.repository == 'bitwarden/dotnet-extensions'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Log in to Azure
+        uses: bitwarden/gh-actions/azure-login@main
+        with:
+          subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          client_id: ${{ secrets.AZURE_CLIENT_ID }}
+
+      - name: Get Azure Key Vault secrets
+        id: get-kv-secrets
+        uses: bitwarden/gh-actions/get-keyvault-secrets@main
+        with:
+          keyvault: gh-org-bitwarden
+          secrets: "BW-GHAPP-ID,BW-GHAPP-KEY"
+
+      - name: Log out from Azure
+        uses: bitwarden/gh-actions/azure-logout@main
+
+      - name: Generate GH App token
+        uses: actions/create-github-app-token@a8d616148505b5069dccd32f177bb87d7f39123b # v2.1.1
+        id: app-token
+        with:
+          app-id: ${{ steps.get-kv-secrets.outputs.BW-GHAPP-ID }}
+          private-key: ${{ steps.get-kv-secrets.outputs.BW-GHAPP-KEY }}
+
+      - name: Check out repo
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: true
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
+
+      - name: Run prune script
+        shell: pwsh
+        run: ./scripts/PruneReleaseBranches.ps1
