@@ -1,4 +1,4 @@
-name: Cleanup release branches
+name: Release Branch Cleanup
 
 on:
   schedule:
@@ -7,9 +7,13 @@ on:
 
 jobs:
   cleanup-release-branches:
+    name: Release Branch Cleanup
     # No need to run this on forks
     if: github.repository == 'bitwarden/dotnet-extensions'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - name: Log in to Azure
         uses: bitwarden/gh-actions/azure-login@main
