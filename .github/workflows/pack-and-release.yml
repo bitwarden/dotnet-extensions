@@ -181,6 +181,7 @@ jobs:
           private-key: ${{ steps.get-kv-secrets.outputs.BW-GHAPP-KEY }}
           owner: bitwarden
           repositories: devops
+          permission-actions: write  # for dispatching workflows
 
       - name: Dispatch publishing
         env:
@@ -202,8 +203,6 @@ jobs:
     needs:
       - release
     uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
-    permissions:
-      id-token: write
     with:
       package: ${{ needs.release.outputs.package }}
       type: ${{ inputs.prerelease && 'prerelease' || 'hotfix' }}
