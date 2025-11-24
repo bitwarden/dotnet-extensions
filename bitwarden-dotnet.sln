@@ -47,6 +47,14 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{D623B9E7
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Server.Sdk.Authentication.Tests", "extensions\Bitwarden.Server.Sdk.Authentication\tests\Bitwarden.Server.Sdk.Authentication.Tests\Bitwarden.Server.Sdk.Authentication.Tests.csproj", "{5AA835F4-F265-403F-897C-8989E354C052}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Bitwarden.Server.Sdk.Caching", "Bitwarden.Server.Sdk.Caching", "{2CB6FE39-9791-4AF5-BDD5-CB7825D9C8DC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Server.Sdk.Caching", "extensions\Bitwarden.Server.Sdk.Caching\src\Bitwarden.Server.Sdk.Caching.csproj", "{304CE520-CA65-46DF-8028-A015A4D16A63}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{8A78FF9F-FCA5-4797-8141-998F56D0D051}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Server.Sdk.Caching.Tests", "extensions\Bitwarden.Server.Sdk.Caching\tests\Bitwarden.Server.Sdk.Caching.Tests\Bitwarden.Server.Sdk.Caching.Tests.csproj", "{3D6D6EB0-4378-4912-89D1-D41A8CCC744E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -104,6 +112,14 @@ Global
 		{5AA835F4-F265-403F-897C-8989E354C052}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5AA835F4-F265-403F-897C-8989E354C052}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5AA835F4-F265-403F-897C-8989E354C052}.Release|Any CPU.Build.0 = Release|Any CPU
+		{304CE520-CA65-46DF-8028-A015A4D16A63}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{304CE520-CA65-46DF-8028-A015A4D16A63}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{304CE520-CA65-46DF-8028-A015A4D16A63}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{304CE520-CA65-46DF-8028-A015A4D16A63}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3D6D6EB0-4378-4912-89D1-D41A8CCC744E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3D6D6EB0-4378-4912-89D1-D41A8CCC744E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3D6D6EB0-4378-4912-89D1-D41A8CCC744E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3D6D6EB0-4378-4912-89D1-D41A8CCC744E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{5EC8B943-2E9E-437D-9FFC-D18B5DB4D7D0} = {695C76EF-1102-4805-970F-7C995EE54930}
@@ -127,5 +143,9 @@ Global
 		{0E96965A-4397-46A8-8D84-330ACFF2F8CF} = {79CC5F16-EEB8-4539-AA15-FDC1E9AB03D1}
 		{D623B9E7-6555-45AB-AAEC-EA388FACCE11} = {79CC5F16-EEB8-4539-AA15-FDC1E9AB03D1}
 		{5AA835F4-F265-403F-897C-8989E354C052} = {D623B9E7-6555-45AB-AAEC-EA388FACCE11}
+		{2CB6FE39-9791-4AF5-BDD5-CB7825D9C8DC} = {695C76EF-1102-4805-970F-7C995EE54930}
+		{304CE520-CA65-46DF-8028-A015A4D16A63} = {2CB6FE39-9791-4AF5-BDD5-CB7825D9C8DC}
+		{8A78FF9F-FCA5-4797-8141-998F56D0D051} = {2CB6FE39-9791-4AF5-BDD5-CB7825D9C8DC}
+		{3D6D6EB0-4378-4912-89D1-D41A8CCC744E} = {8A78FF9F-FCA5-4797-8141-998F56D0D051}
 	EndGlobalSection
 EndGlobal

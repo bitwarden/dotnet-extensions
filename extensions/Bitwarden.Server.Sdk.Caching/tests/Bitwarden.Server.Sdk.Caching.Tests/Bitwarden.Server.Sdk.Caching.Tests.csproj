@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" Version="[3.1.0]" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="[18.0.4]" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.Caching.csproj" />
+  </ItemGroup>
+
+</Project>
