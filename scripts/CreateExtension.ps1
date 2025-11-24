@@ -1,7 +1,17 @@
 #!/usr/bin/env pwsh
 <#
+.SYNOPSIS
+Creates a new extension library with standard project structure.
+
+.DESCRIPTION
+Generates a new .NET extension library in the extensions/ directory with:
+- Main class library project
+- Test project with xUnit.v3
+- README.md and PACKAGE.md stubs
+- Automatic solution integration
 
 .PARAMETER PackageName
+The name of the package to create (e.g., Bitwarden.Server.Sdk.Caching)
 
 #>
 [CmdletBinding()]
@@ -35,3 +45,5 @@ dotnet sln add $testRoot
 
 # Add main project reference to test project
 dotnet add $testRoot reference $sourceRoot
+
+Write-Output "Package can now be added to 'start-release.yml'"
