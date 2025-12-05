@@ -10,6 +10,14 @@ namespace Bitwarden.Server.Sdk.UnitTests.Features;
 
 public class LaunchDarklyFeatureServiceTests
 {
+    private class FakeLaunchDarklyClientProvider(ILdClient client) : ILaunchDarklyClientProvider
+    {
+        public ILdClient Get()
+        {
+            return client;
+        }
+    }
+
     private readonly ILdClient _ldClient;
     private readonly IContextBuilder _contextBuilder;
     private readonly IOptionsMonitor<FeatureFlagOptions> _featureFlagOptions;
@@ -23,7 +31,7 @@ public class LaunchDarklyFeatureServiceTests
         _featureFlagOptions = Substitute.For<IOptionsMonitor<FeatureFlagOptions>>();
 
         _sut = new LaunchDarklyFeatureService(
-            _ldClient,
+            new FakeLaunchDarklyClientProvider(_ldClient),
             _contextBuilder,
             _featureFlagOptions,
             NullLogger<LaunchDarklyFeatureService>.Instance

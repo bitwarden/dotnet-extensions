@@ -12,7 +12,7 @@ public static class CustomProjectCreatorTemplates
         // pseudo nuget feed.
         var packages = new (Type MarkerType, string Version, (string Dependency, string Version)[])[]
         {
-            ( typeof(IFeatureService), "0.1.0", [("LaunchDarkly.ServerSdk", "8.10.3")] ),
+            ( typeof(IFeatureService), "1.0.0", [("LaunchDarkly.ServerSdk", "8.10.3")] ),
             ( typeof(BitwardenAuthenticationServiceCollectionExtensions), "0.1.0", [("Microsoft.AspNetCore.Authentication.JwtBearer", "8.0.20")] ),
         };
 

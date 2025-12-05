@@ -121,6 +121,48 @@ public class FeatureServiceCollectionExtensionsTests
         Assert.Equal("test-user", context.Key);
     }
 
+    [Fact(Explicit = true)]
+    public void UsingSdkKey_Works()
+    {
+        const string SdkKeyEnv = "LAUNCH_DARKLY_SDK_KEY";
+
+        // Set a feature flag key that is known to be true at the current time,
+        // you can then also put a flag that is known to be false and expect that the
+        // test will fail.
+        const string TrueFlag = "TRUE_FEATURE_FLAG";
+
+        var sdkKey = Environment.GetEnvironmentVariable(SdkKeyEnv);
+
+        if (string.IsNullOrEmpty(sdkKey))
+        {
+            Assert.Skip($"{SdkKeyEnv} not set.");
+        }
+
+        var trueFlagKey = Environment.GetEnvironmentVariable(TrueFlag);
+
+        if (string.IsNullOrEmpty(trueFlagKey))
+        {
+            Assert.Skip($"{TrueFlag} not set.");
+        }
+
+        var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings
+        {
+            ApplicationName = "Bitwarden.Server.Sdk.Features.Tests",
+        });
+
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            { "Features:LaunchDarkly:SdkKey", sdkKey },
+        });
+
+        builder.Services.AddFeatureFlagServices();
+
+        using var app = builder.Build();
+        var featureService = app.Services.GetRequiredService<IFeatureService>();
+
+        Assert.True(featureService.IsEnabled(trueFlagKey));
+    }
+
     private class TestContextBuilder : IContextBuilder
     {
         public Context Build()

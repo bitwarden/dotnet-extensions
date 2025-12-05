@@ -44,6 +44,7 @@ See the [README.md](README.md) for detailed information about each package. Main
 
 ### C# Language Features
 
+-   You must follow all code-formatting and naming conventions defined in [`.editorconfig`](/.editorconfig)
 -   **Implicit usings enabled** - Common namespaces automatically included
 -   **Nullable reference types enabled** - All projects use `<Nullable>enable</Nullable>`
 -   File-scoped namespaces preferred (modern C# style)
@@ -71,7 +72,7 @@ See the [README.md](README.md) for detailed information about each package. Main
 ### Workflow Files
 
 -   `.github/workflows/start-release.yml` - Start a new release
--   `.github/workflows/prerelease.yml` - Create prereleases (alpha, beta, rc)
+-   `.github/workflows/prerelease.yml` - Create prereleases (alpha, beta, rc) to NuGet
 -   `.github/workflows/release.yml` - Full release to NuGet
 
 ### Version Bumping
@@ -85,7 +86,8 @@ See the [README.md](README.md) for detailed information about each package. Main
 1. Create folder: `extensions/[PackageId]/src/`
 2. Add versioning properties to `.csproj`
 3. Add package ID to `start-release.yml` workflow inputs
-4. Include README.md in package
+4. Create `PACKAGE.md` file in source root for documentation for consumers of the package
+5. Create `README.md` file in source root for documentation for developers of the package
 
 ## Development Guidelines
 
@@ -93,7 +95,7 @@ See the [README.md](README.md) for detailed information about each package. Main
 
 1. **Add XML documentation**: All public APIs require XML docs (`<GenerateDocumentationFile>true</GenerateDocumentationFile>`)
 2. **Write tests**: Unit tests required, integration tests for complex features
-3. **Update README**: Each package has its own README.md
+3. **Update PACKAGE**: Each package has its own PACKAGE.md
 
 ### When Working with Configuration
 
@@ -103,9 +105,8 @@ See the [README.md](README.md) for detailed information about each package. Main
 
 ### When Adding Dependencies
 
--   Pin exact versions using bracket notation: `[X.Y.Z]`
--   Prefer framework references over package references when possible
--   Check if dependency should be transitive or direct
+-   Pin exact versions using bracket notation: `[X.Y.Z]` in test projects
+-   Do not pin exact versions in packable projects
 
 ## Important Notes
 
@@ -127,7 +128,6 @@ See the [README.md](README.md) for detailed information about each package. Main
 
 -   Ensure .NET 8.0 SDK installed (check with `dotnet --version`)
 -   Run `dotnet restore` to ensure all dependencies downloaded
--   Check that package versions are exact matches (brackets notation)
 
 ### Test Failures
 
@@ -137,7 +137,6 @@ See the [README.md](README.md) for detailed information about each package. Main
 
 ### Package Reference Issues
 
--   Use exact version pinning to avoid version conflicts
 -   Check transitive dependencies don't conflict
 -   Ensure project references use relative paths correctly
 

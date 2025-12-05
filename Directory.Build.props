@@ -26,6 +26,8 @@
     <PackageReadmeFile  Condition="'$(PackageReadmeFile)' == ''">./PACKAGE.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <MajorVersionRetentionPolicy>2</MajorVersionRetentionPolicy>
+    <MinorVersionRetentionPolicy>3</MinorVersionRetentionPolicy>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(IsTestProject)' != 'true'">
