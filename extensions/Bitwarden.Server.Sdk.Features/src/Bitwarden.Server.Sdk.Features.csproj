@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>true</IsPackable>
     <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
     <InterceptorsPreviewNamespaces>$(InterceptorsPreviewNamespaces);Microsoft.Extensions.Configuration.Binder.SourceGeneration</InterceptorsPreviewNamespaces>
   </PropertyGroup>
@@ -24,6 +25,22 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Bitwarden.Server.Sdk" />
     <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Features.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Features.Analyzers\src\Bitwarden.Server.Sdk.Features.Analyzers.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Features.CodeFixers\src\Bitwarden.Server.Sdk.Features.CodeFixers.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\Bitwarden.Server.Sdk.Features.Analyzers\src\bin\$(Configuration)\netstandard2.0\Bitwarden.Server.Sdk.Features.Analyzers.dll"
+      Pack="true"
+      PackagePath="analyzers/dotnet/cs"
+      Visible="false" />
+    <None Include="..\..\Bitwarden.Server.Sdk.Features.CodeFixers\src\bin\$(Configuration)\netstandard2.0\Bitwarden.Server.Sdk.Features.CodeFixers.dll"
+      Pack="true"
+      PackagePath="analyzers/dotnet/cs"
+      Visible="false" />
   </ItemGroup>
 
 </Project>

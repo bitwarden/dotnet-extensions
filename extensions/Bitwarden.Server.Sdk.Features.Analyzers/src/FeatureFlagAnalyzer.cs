@@ -1,18 +1,19 @@
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
-using System.Linq;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Bitwarden.Server.Sdk.Analyzers;
+namespace Bitwarden.Server.Sdk.Features.Analyzers;
 
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
 {
+    const string HelpUrlFormat = "https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#{0}";
+
     private static readonly DiagnosticDescriptor _flagShouldBeConstRule = new DiagnosticDescriptor(
         "BW0001",
         "Flag value should be a const",
@@ -20,7 +21,8 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
         "Usage",
         DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: ""
+        description: "",
+        helpLinkUri: HelpUrlFormat
     );
 
     private static readonly DiagnosticDescriptor _removeFeatureFlagRule = new DiagnosticDescriptor(
@@ -30,10 +32,22 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
         "Usage",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true,
-        description: ""
+        description: "",
+        helpLinkUri: HelpUrlFormat
     );
 
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(_flagShouldBeConstRule, _removeFeatureFlagRule);
+    private static readonly DiagnosticDescriptor _flagKeyShouldBeNonNullOrEmpty = new DiagnosticDescriptor(
+        "BW0003",
+        "Flag key value should be non-null or empty",
+        "Flag key value should be non-null or empty",
+        "Usage",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "",
+        helpLinkUri: HelpUrlFormat
+    );
+
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(_flagShouldBeConstRule, _removeFeatureFlagRule, _flagKeyShouldBeNonNullOrEmpty);
 
     public override void Initialize(AnalysisContext context)
     {
@@ -205,8 +219,14 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
             return false;
         }
 
-        // TODO: Warn on null flag key
-        flagKey = (string)fieldRef.Field.ConstantValue!;
+        if (fieldRef.Field.ConstantValue == null || (fieldRef.Field.ConstantValue is string flagString && string.IsNullOrEmpty(flagString)))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(_flagKeyShouldBeNonNullOrEmpty, fieldRef.Field.Locations.First()));
+            flagKey = null;
+            return false;
+        }
+
+        flagKey = (string)fieldRef.Field.ConstantValue;
         return true;
     }
 

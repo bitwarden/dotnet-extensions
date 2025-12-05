@@ -12,7 +12,7 @@
     <UseMicrosoftTestingPlatformRunner Condition="'$(UseMicrosoftTestingPlatformRunner)' == ''">true</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(IsTestProject)' != 'true'">
+  <PropertyGroup Condition="'$(IsPackable)' == 'true'">
     <Authors>Bitwarden Inc.</Authors>
     <PackageProjectUrl>https://github.com/bitwarden/dotnet-extensions</PackageProjectUrl>
     <PackageReleaseNotes>https://github.com/bitwarden/dotnet-extensions/releases</PackageReleaseNotes>

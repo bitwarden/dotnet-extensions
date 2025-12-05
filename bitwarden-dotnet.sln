@@ -71,6 +71,22 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{8A78FF9F
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Server.Sdk.Caching.Tests", "extensions\Bitwarden.Server.Sdk.Caching\tests\Bitwarden.Server.Sdk.Caching.Tests\Bitwarden.Server.Sdk.Caching.Tests.csproj", "{3D6D6EB0-4378-4912-89D1-D41A8CCC744E}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Bitwarden.Server.Sdk.Features.Analyzers", "Bitwarden.Server.Sdk.Features.Analyzers", "{C4F9C157-63CE-4FBE-B062-691AC9218874}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Server.Sdk.Features.Analyzers", "extensions\Bitwarden.Server.Sdk.Features.Analyzers\src\Bitwarden.Server.Sdk.Features.Analyzers.csproj", "{DBE06AE0-CFFE-4647-B1C7-187630998A0C}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{C21E8D4A-D7E4-4E6E-B08D-5513EA2D1DE2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Server.Sdk.Features.Analyzers.Tests", "extensions\Bitwarden.Server.Sdk.Features.Analyzers\tests\Bitwarden.Server.Sdk.Features.Analyzers.Tests\Bitwarden.Server.Sdk.Features.Analyzers.Tests.csproj", "{C7222CF7-A78A-4CA0-84B3-2E6B41F82291}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Bitwarden.Server.Sdk.Features.CodeFixers", "Bitwarden.Server.Sdk.Features.CodeFixers", "{7998585D-AB9C-4184-B37D-C420ED10FE70}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Server.Sdk.Features.CodeFixers", "extensions\Bitwarden.Server.Sdk.Features.CodeFixers\src\Bitwarden.Server.Sdk.Features.CodeFixers.csproj", "{44FAFF79-7306-42FF-AD3C-B97AED927CAF}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0533F144-1B8C-4235-82D4-9882BCDBACEA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Server.Sdk.Features.CodeFixers.Tests", "extensions\Bitwarden.Server.Sdk.Features.CodeFixers\tests\Bitwarden.Server.Sdk.Features.CodeFixers.Tests\Bitwarden.Server.Sdk.Features.CodeFixers.Tests.csproj", "{93108BCF-A4A4-468E-870B-87E1D85C0723}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -152,6 +168,22 @@ Global
 		{3D6D6EB0-4378-4912-89D1-D41A8CCC744E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3D6D6EB0-4378-4912-89D1-D41A8CCC744E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3D6D6EB0-4378-4912-89D1-D41A8CCC744E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DBE06AE0-CFFE-4647-B1C7-187630998A0C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DBE06AE0-CFFE-4647-B1C7-187630998A0C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DBE06AE0-CFFE-4647-B1C7-187630998A0C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DBE06AE0-CFFE-4647-B1C7-187630998A0C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C7222CF7-A78A-4CA0-84B3-2E6B41F82291}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C7222CF7-A78A-4CA0-84B3-2E6B41F82291}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C7222CF7-A78A-4CA0-84B3-2E6B41F82291}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C7222CF7-A78A-4CA0-84B3-2E6B41F82291}.Release|Any CPU.Build.0 = Release|Any CPU
+		{44FAFF79-7306-42FF-AD3C-B97AED927CAF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{44FAFF79-7306-42FF-AD3C-B97AED927CAF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{44FAFF79-7306-42FF-AD3C-B97AED927CAF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{44FAFF79-7306-42FF-AD3C-B97AED927CAF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{93108BCF-A4A4-468E-870B-87E1D85C0723}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{93108BCF-A4A4-468E-870B-87E1D85C0723}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{93108BCF-A4A4-468E-870B-87E1D85C0723}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{93108BCF-A4A4-468E-870B-87E1D85C0723}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{5EC8B943-2E9E-437D-9FFC-D18B5DB4D7D0} = {695C76EF-1102-4805-970F-7C995EE54930}
@@ -187,5 +219,13 @@ Global
 		{304CE520-CA65-46DF-8028-A015A4D16A63} = {2CB6FE39-9791-4AF5-BDD5-CB7825D9C8DC}
 		{8A78FF9F-FCA5-4797-8141-998F56D0D051} = {2CB6FE39-9791-4AF5-BDD5-CB7825D9C8DC}
 		{3D6D6EB0-4378-4912-89D1-D41A8CCC744E} = {8A78FF9F-FCA5-4797-8141-998F56D0D051}
+		{C4F9C157-63CE-4FBE-B062-691AC9218874} = {695C76EF-1102-4805-970F-7C995EE54930}
+		{DBE06AE0-CFFE-4647-B1C7-187630998A0C} = {C4F9C157-63CE-4FBE-B062-691AC9218874}
+		{C21E8D4A-D7E4-4E6E-B08D-5513EA2D1DE2} = {C4F9C157-63CE-4FBE-B062-691AC9218874}
+		{C7222CF7-A78A-4CA0-84B3-2E6B41F82291} = {C21E8D4A-D7E4-4E6E-B08D-5513EA2D1DE2}
+		{7998585D-AB9C-4184-B37D-C420ED10FE70} = {695C76EF-1102-4805-970F-7C995EE54930}
+		{44FAFF79-7306-42FF-AD3C-B97AED927CAF} = {7998585D-AB9C-4184-B37D-C420ED10FE70}
+		{0533F144-1B8C-4235-82D4-9882BCDBACEA} = {7998585D-AB9C-4184-B37D-C420ED10FE70}
+		{93108BCF-A4A4-468E-870B-87E1D85C0723} = {0533F144-1B8C-4235-82D4-9882BCDBACEA}
 	EndGlobalSection
 EndGlobal

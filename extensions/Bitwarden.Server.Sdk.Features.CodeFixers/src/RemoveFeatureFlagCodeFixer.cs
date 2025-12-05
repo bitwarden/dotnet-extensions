@@ -1,9 +1,5 @@
-using System;
 using System.Collections.Immutable;
 using System.Diagnostics;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
@@ -30,11 +26,13 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
 
             if (!diagnostic.Properties.TryGetValue("flagKey", out var flagKey) || string.IsNullOrEmpty(flagKey))
             {
+                Debug.Fail($"We failed to add a flagKey property to a BW0002 diagnostic at {diagnostic.Location}");
                 continue;
             }
 
             if (!diagnostic.Properties.TryGetValue("removalHint", out var removalHint) || string.IsNullOrEmpty(removalHint))
             {
+                Debug.Fail($"We failed to add a removalHint property to a BW0002 diagnostic at {diagnostic.Location}");
                 continue;
             }
 
@@ -105,6 +103,7 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
         if (node.Parent is not AttributeListSyntax attributeList)
         {
             // When would this happen?
+            Debug.Fail($"Attribute parent is not AttributeListSyntax it is instead of type {node.Parent?.GetType().FullName ?? "null"}");
             return document;
         }
 
@@ -128,7 +127,7 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
         var invocationExpression = (InvocationExpressionSyntax)node;
         var memberAccessExpression = (MemberAccessExpressionSyntax)invocationExpression.Expression;
 
-        // Detect if the
+        // Check if we are in the middle of a chain i.e: app.MapGet(...).RequireFeature(Flag).RequireAuthorization();
         if (memberAccessExpression.Expression is IdentifierNameSyntax
             && invocationExpression.Parent != null
             // If it has no siblings that means no one is chaining off of me

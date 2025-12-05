@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
-using Bitwarden.Server.Sdk.Analyzers;
 using Bitwarden.Server.Sdk.Features;
+using Bitwarden.Server.Sdk.Features.Analyzers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.CodeAnalysis;

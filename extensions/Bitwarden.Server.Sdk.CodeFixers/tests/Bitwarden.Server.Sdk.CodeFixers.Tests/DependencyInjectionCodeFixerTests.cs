@@ -48,7 +48,7 @@ public class DependencyInjectionCodeFixerTests : CSharpCodeFixTest<DependencyInj
             using Microsoft.Extensions.DependencyInjection;
 
             var services = new ServiceCollection();
-            {|BW0003:services.Add{{lifetime}}<IMyService, MyService>({{key}})|};
+            {|BW0004:services.Add{{lifetime}}<IMyService, MyService>({{key}})|};
             """,
             $$"""
             using Test;
@@ -79,7 +79,7 @@ public class DependencyInjectionCodeFixerTests : CSharpCodeFixTest<DependencyInj
             using Microsoft.Extensions.DependencyInjection;
 
             var services = new ServiceCollection();
-            {|BW0003:services.Add{{lifetime}}(typeof(IMyService), {{arguments}})|};
+            {|BW0004:services.Add{{lifetime}}(typeof(IMyService), {{arguments}})|};
             """,
             $$"""
             using Test;
@@ -110,7 +110,7 @@ public class DependencyInjectionCodeFixerTests : CSharpCodeFixTest<DependencyInj
             using Microsoft.Extensions.DependencyInjection;
 
             var services = new ServiceCollection();
-            {|BW0003:services.Add{{lifetime}}<IMyService>({{arguments}})|};
+            {|BW0004:services.Add{{lifetime}}<IMyService>({{arguments}})|};
             """,
             $$"""
             using Test;
@@ -136,7 +136,7 @@ public class DependencyInjectionCodeFixerTests : CSharpCodeFixTest<DependencyInj
             {
                 public static IServiceCollection AddServices(this IServiceCollection services)
                 {
-                    {|BW0003:services.AddTransient<IMyService, MyService>()|};
+                    {|BW0004:services.AddTransient<IMyService, MyService>()|};
                     return services;
                 }
             }

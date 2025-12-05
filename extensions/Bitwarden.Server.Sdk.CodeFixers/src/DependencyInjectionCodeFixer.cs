@@ -13,7 +13,7 @@ namespace Bitwarden.Server.Sdk.CodeFixers;
 [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(DependencyInjectionCodeFixer))]
 public sealed class DependencyInjectionCodeFixer : CodeFixProvider
 {
-    public override ImmutableArray<string> FixableDiagnosticIds { get; } = ImmutableArray.Create("BW0003");
+    public override ImmutableArray<string> FixableDiagnosticIds { get; } = ImmutableArray.Create("BW0004");
 
     public override Task RegisterCodeFixesAsync(CodeFixContext context)
     {
@@ -22,7 +22,7 @@ public sealed class DependencyInjectionCodeFixer : CodeFixProvider
             context.RegisterCodeFix(CodeAction.Create(
                 "Use TryAdd overload",
                 createChangedDocument: (t) => UpdateCallAsync(context.Document, diagnostic.Location, t),
-                equivalenceKey: "BW0003",
+                equivalenceKey: "BW0004",
                 CodeActionPriority.Default
             ), diagnostic);
         }
