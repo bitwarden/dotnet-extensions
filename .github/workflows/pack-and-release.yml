@@ -203,7 +203,9 @@ jobs:
     needs:
       - release
     uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
-    permissions: {}
+    permissions:
+      id-token: write
     with:
       package: ${{ needs.release.outputs.package }}
       type: ${{ inputs.prerelease && 'prerelease' || 'hotfix' }}
+    secrets: inherit
