@@ -23,8 +23,7 @@ jobs:
     name: Create release candidate
     runs-on: ubuntu-22.04
     permissions:
-      pull-requests: write
-      contents: write
+      id-token: write # Needed for Azure Login
     steps:
       - name: Log in to Azure
         uses: bitwarden/gh-actions/azure-login@main
