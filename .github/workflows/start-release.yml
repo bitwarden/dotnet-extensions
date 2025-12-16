@@ -54,7 +54,7 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           persist-credentials: true
-          token: ${{ steps.app-token.outcome.token }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Set up .NET
         uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602 # v5.0.1
@@ -71,7 +71,7 @@ jobs:
           _PACKAGE: ${{ inputs.package }}
           _CURRENT_VERSION: ${{ steps.current-version.outputs.VERSION }}
         with:
-          github-token: ${{ steps.app-token.outcome.token }}
+          github-token: ${{ steps.app-token.outputs.token }}
           script: |
             const packageName = process.env._PACKAGE;
             const currentVersion = process.env._CURRENT_VERSION;
