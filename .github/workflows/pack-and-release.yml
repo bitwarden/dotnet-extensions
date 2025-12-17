@@ -182,6 +182,7 @@ jobs:
           owner: bitwarden
           repositories: devops
           permission-actions: write  # for dispatching workflows
+          permission-metadata: read  # for getting devops repo default branch
 
       - name: Dispatch publishing
         env:
