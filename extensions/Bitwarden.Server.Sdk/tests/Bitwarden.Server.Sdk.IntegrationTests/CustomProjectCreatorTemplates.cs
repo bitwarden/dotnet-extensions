@@ -29,9 +29,16 @@ public static class CustomProjectCreatorTemplates
             var assemblyName = type.Assembly.GetName();
             var nugetPackageDirectory = new DirectoryInfo(Path.Combine(extensionsRoot.FullName, assemblyName.Name!, "src", "bin", "Debug"));
 
+            var searchFile = $"{assemblyName.Name}.{assemblyName.Version!.ToString(3)}.nupkg";
+
             var nugetPackageFile = nugetPackageDirectory
-                .EnumerateFiles($"{assemblyName.Name}.{assemblyName.Version!.ToString(3)}.nupkg")
-                .Single();
+                .EnumerateFiles(searchFile)
+                .SingleOrDefault();
+
+            if (nugetPackageFile == null)
+            {
+                throw new InvalidOperationException($"Could not find nupkg file {searchFile} in directory {nugetPackageDirectory}");
+            }
 
             nugetPackages[i] = nugetPackageFile;
         }
