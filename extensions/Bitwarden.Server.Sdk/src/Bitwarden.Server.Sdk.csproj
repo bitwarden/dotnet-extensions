@@ -10,8 +10,6 @@
     <IncludeSource>false</IncludeSource>
     <IncludeSymbols>false</IncludeSymbols>
 
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-
     <VersionPrefix>1.3.0</VersionPrefix>
     <PreReleaseVersionLabel>beta</PreReleaseVersionLabel>
     <PreReleaseVersionIteration>1</PreReleaseVersionIteration>
