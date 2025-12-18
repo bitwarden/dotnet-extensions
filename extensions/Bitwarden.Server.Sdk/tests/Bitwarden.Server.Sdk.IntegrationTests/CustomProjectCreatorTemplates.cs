@@ -1,6 +1,7 @@
 ﻿using Microsoft.Build.Utilities.ProjectCreation;
 using Bitwarden.Server.Sdk.Features;
 using Microsoft.Extensions.DependencyInjection;
+using System.Diagnostics;
 
 namespace Bitwarden.Server.Sdk.IntegrationTests;
 
@@ -8,37 +9,44 @@ public static class CustomProjectCreatorTemplates
 {
     static CustomProjectCreatorTemplates()
     {
-        // Use this as a list of marker types for assemblies that should be added as available in a
-        // pseudo nuget feed.
-        var packages = new (Type MarkerType, string Version, (string Dependency, string Version)[])[]
+        // A bit hacky but we want to traverse to the extensions root directory so that we can easily traverse into each
+        // projects directory. Since all packable projects are going to generate a nupkg on build we can
+        // use the genuine nupkg file instead of maintaining their dependency tree twice. It is important to note though
+        // that these locally built nuget packages are generally not used. The SDK will usually reference a published
+        // to nuget version and the local package will be on vNext. This local file referencing stuff is only for testing
+        // integrating new changes in one of the packages into the SDK. To test that you'd bump the version the SDK references
+        // to what the current local version of the package is and then it will take precendence and get used in the
+        // tests.
+        var extensionsRoot = new DirectoryInfo(Path.Combine(ThisAssemblyDirectory, "..", "..", "..", "..", "..", ".."));
+        Debug.WriteLine($"ExtensionsRoot: {extensionsRoot.FullName}");
+
+        Type[] markerTypes = [typeof(IFeatureService), typeof(BitwardenAuthenticationServiceCollectionExtensions)];
+        var nugetPackages = new FileInfo[markerTypes.Length];
+
+        for (var i = 0; i < nugetPackages.Length; i++)
         {
-            ( typeof(IFeatureService), "1.0.0", [("LaunchDarkly.ServerSdk", "8.10.3")] ),
-            ( typeof(BitwardenAuthenticationServiceCollectionExtensions), "0.1.0", [("Microsoft.AspNetCore.Authentication.JwtBearer", "8.0.20")] ),
-        };
+            var type = markerTypes[i];
+            var assemblyName = type.Assembly.GetName();
+            var nugetPackageDirectory = new DirectoryInfo(Path.Combine(extensionsRoot.FullName, assemblyName.Name!, "src", "bin", "Debug"));
 
-        var feeds = new List<Uri>(packages.Length);
+            var searchFile = $"{assemblyName.Name}.{assemblyName.Version!.ToString(3)}.nupkg";
 
-        foreach (var (package, version, dependencies) in packages)
-        {
-            var assembly = package.Assembly;
-            var assemblyName = assembly.GetName()!;
-            var pr = PackageFeed.Create(new FileInfo(assembly.Location).Directory!)
-                .Package(assemblyName.Name!, version)
-                .FileCustom(Path.Combine("lib", TargetFramework, assemblyName.Name + ".dll"), new FileInfo(assembly.Location));
+            var nugetPackageFile = nugetPackageDirectory
+                .EnumerateFiles(searchFile)
+                .SingleOrDefault();
 
-            foreach (var (dependencyId, dependencyVersion) in dependencies)
+            if (nugetPackageFile == null)
             {
-                pr.Dependency(TargetFramework, dependencyId, dependencyVersion);
+                throw new InvalidOperationException($"Could not find nupkg file {searchFile} in directory {nugetPackageDirectory}");
             }
 
-            feeds.Add(pr.Save());
+            nugetPackages[i] = nugetPackageFile;
         }
 
-        Feeds = feeds;
+        NugetPackages = nugetPackages;
     }
 
-    public static List<Uri> Feeds { get; }
-
+    public static IReadOnlyCollection<FileInfo> NugetPackages { get; }
     private const string TargetFramework = "net8.0";
     private static readonly string ThisAssemblyDirectory = Path.GetDirectoryName(typeof(CustomProjectCreatorTemplates).Assembly.Location)!;
 
@@ -90,7 +98,14 @@ public static class CustomProjectCreatorTemplates
 
     public static PackageRepository CreateDefaultPackageRepository(this ProjectCreator project)
     {
-        return PackageRepository.Create(project.GetProjectDirectory(), [.. Feeds, new Uri("https://api.nuget.org/v3/index.json")]);
+        var repo = PackageRepository.Create(project.GetProjectDirectory(), new Uri("https://api.nuget.org/v3/index.json"));
+
+        foreach (var packageFile in NugetPackages)
+        {
+            repo.Package(packageFile, out _);
+        }
+
+        return repo;
     }
 
     public static string GetProjectDirectory(this ProjectCreator project)

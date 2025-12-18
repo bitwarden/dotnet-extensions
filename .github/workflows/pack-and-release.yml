@@ -51,7 +51,7 @@ jobs:
             return refParts[3];
 
       - name: Pack
-        run: dotnet pack -c Release -p:"IsPreRelease=$IS_PRERELEASE"
+        run: dotnet build --configuration Release --property:"IsPreRelease=$IS_PRERELEASE"
         working-directory: "./extensions/${{ steps.parse-package.outputs.result }}/src"
         env:
           IS_PRERELEASE: ${{ inputs.prerelease }}
