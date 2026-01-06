@@ -196,7 +196,6 @@ jobs:
           --field run-id="${{ github.run_id }}"
           --field artifact="packages"
           --field environment="nuget"
-          --field use-oidc="true"
           --field version="${_VERSION}"
 
   bump-version:
