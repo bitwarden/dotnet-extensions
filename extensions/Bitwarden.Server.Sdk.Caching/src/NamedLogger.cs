@@ -1,17 +1,18 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
-using ZiggyCreatures.Caching.Fusion;
 
 namespace Bitwarden.Server.Sdk.Caching;
 
-internal class WrappingLogger : ILogger<FusionCache>
+// A class that exists to satisfy the `ILogger<T>` interface but we don't want the default name that
+// comes from T and instead want to use our own category name
+internal class NamedLogger<T> : ILogger<T>
 {
     [DebuggerBrowsable(DebuggerBrowsableState.RootHidden)]
     private readonly ILogger _logger;
 
-    public WrappingLogger(ILoggerFactory loggerFactory, string name)
+    public NamedLogger(ILoggerFactory loggerFactory, string name)
     {
-        _logger = loggerFactory.CreateLogger($"ZiggyCreatures.Caching.Fusion.FusionCache.{name}");
+        _logger = loggerFactory.CreateLogger(name);
     }
 
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull
