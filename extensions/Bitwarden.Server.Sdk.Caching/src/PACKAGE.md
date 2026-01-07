@@ -2,13 +2,12 @@
 
 ## About
 
-This package enables the use of [`IFusionCache`](https://github.com/ZiggyCreatures/FusionCache) that
-is setup for the best experience for the current execution environment. This library is designed to
-work well for Bitwarden services running on a Raspberry Pi all the way to a multi-node cloud setup
-and everything in between. This library is implements the decision outcome of
-[this Architectural Desicion Record](https://contributing.bitwarden.com/architecture/adr/adopt-fusion-cache).
+This package provides a pre-configured [`IFusionCache`](https://github.com/ZiggyCreatures/FusionCache)
+implementation for quick setup with extensive customization options. This library
+implements the decision outcome of
+[this Architectural Decision Record](https://contributing.bitwarden.com/architecture/adr/adopt-fusion-cache).
 
-## How to use
+## Usage
 
 ```c#
 public class MyService([FromKeyed("MyFeature")]IFusionCache cache, IDatabase database)
@@ -20,5 +19,38 @@ public class MyService([FromKeyed("MyFeature")]IFusionCache cache, IDatabase dat
 }
 ```
 
-With no additional setup, you can inject a named `IFusionCache` via keyed services. The
-`AddBitwardenCaching` contains the core docs for how to use this package.
+Inject a named `IFusionCache` instance using keyed services. No additional setup is required. See
+`AddBitwardenCaching` for complete customization documentation.
+
+## Customization
+
+### FusionCacheOptions
+
+The most common customization point for libraries is `FusionCacheOptions`. Customize using named
+options:
+
+```c#
+services.Configure<FusionCacheOptions>("MyFeature", options =>
+{
+    options.DefaultEntryOptions.Duration = TimeSpan.FromSeconds(10);
+});
+```
+
+### IDistributedCache
+
+Customize the backend used for `IDistributedCache`:
+
+```c#
+services.TryAddKeyedSingleton<IDistributedCache, MyCustomCache>("MyFeature");
+```
+
+By default, `IDistributedCache` uses Redis when configured, falling back to a non-keyed
+`IDistributedCache` registration. Hosts may provide alternate globally configured instances. For
+example, a host may register a keyed `IDistributedCache` with key `"persistent"` that uses CosmosDB
+instead of Redis. Use that cache for your feature:
+
+```c#
+services.TryAddKeyedSingleton("MyFeature",
+    (s, _) => s.GetRequiredKeyedService<IDistributedCache>("persistent")
+);
+```
