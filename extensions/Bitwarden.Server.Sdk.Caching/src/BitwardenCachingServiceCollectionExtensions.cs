@@ -133,8 +133,7 @@ public static class BitwardenCachingServiceCollectionExtensions
                     },
                     new NamedLogger<RedisBackplane>(
                         sp.GetRequiredService<ILoggerFactory>(),
-                        // TODO: Do we just want to do our own name?
-                        $"ZiggyCreatures.Caching.Fusion.Backplane.StackExchangeRedis.RedisBackplane.{stringKey}"
+                        $"Bitwarden.Server.Sdk.Caching.RedisBackplane.{stringKey}"
                     )
                 );
             }
@@ -163,8 +162,7 @@ public static class BitwardenCachingServiceCollectionExtensions
                 sp.GetRequiredKeyedService<IMemoryCache>(key),
                 new NamedLogger<FusionCache>(
                     sp.GetRequiredService<ILoggerFactory>(),
-                    // TODO: Do we just want to do our own name?
-                    $"ZiggyCreatures.Caching.Fusion.FusionCache.{stringKey}"
+                    $"Bitwarden.Server.Sdk.Caching.{stringKey}"
                 ),
                 // This is optional, but if a use configures one then this will make use of it
                 sp.GetKeyedService<IFusionCacheMemoryLocker>(key)

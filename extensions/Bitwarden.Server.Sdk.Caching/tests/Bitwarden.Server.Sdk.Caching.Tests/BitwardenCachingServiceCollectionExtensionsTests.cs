@@ -455,7 +455,7 @@ public class BitwardenCachingServiceCollectionExtensionsTests : IClassFixture<Re
             .GetFakeLogCollector()
             .GetSnapshot();
 
-        Assert.Contains(logs, (l) => l.Category == "ZiggyCreatures.Caching.Fusion.FusionCache.CustomName");
+        Assert.Contains(logs, (l) => l.Category == "Bitwarden.Server.Sdk.Caching.CustomName");
     }
 
     [Fact]
