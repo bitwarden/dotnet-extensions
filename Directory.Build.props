@@ -28,6 +28,7 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <MajorVersionRetentionPolicy>2</MajorVersionRetentionPolicy>
     <MinorVersionRetentionPolicy>3</MinorVersionRetentionPolicy>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(IsTestProject)' != 'true'">
