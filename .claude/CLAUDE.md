@@ -126,7 +126,7 @@ See the [README.md](README.md) for detailed information about each package. Main
 
 ### Build Errors
 
--   Ensure .NET 8.0 SDK installed (check with `dotnet --version`)
+-   Ensure .NET 10.0 SDK installed (check with `dotnet --version`)
 -   Run `dotnet restore` to ensure all dependencies downloaded
 
 ### Test Failures
