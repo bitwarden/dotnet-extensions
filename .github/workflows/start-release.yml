@@ -10,8 +10,9 @@ on:
         type: choice
         options:
           - Bitwarden.Server.Sdk
-          - Bitwarden.Server.Sdk.Features
           - Bitwarden.Server.Sdk.Authentication
+          - Bitwarden.Server.Sdk.Caching
+          - Bitwarden.Server.Sdk.Features
 
 permissions: {}
 
