@@ -25,7 +25,7 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
         helpLinkUri: HelpUrlFormat
     );
 
-    private static readonly DiagnosticDescriptor _removeFeatureFlagRule = new DiagnosticDescriptor(
+    internal static readonly DiagnosticDescriptor _removeFeatureFlagRule = new DiagnosticDescriptor(
         "BW0002",
         "Remove feature flag",
         "Remove feature flag",
@@ -110,12 +110,7 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
         }
 
         // We previously validated there is 1 or 2 arguments so this array access should be safe
-        if (!TryAnalyzeFlagKeyArgument(context, invocationOperation.Arguments[0].Value, out var flagKey))
-        {
-            return;
-        }
-
-        ReportFeatureFlagRemoval(context, invocationExpression.GetLocation(), flagKey, "isEnabledCheck");
+        _ = TryAnalyzeFlagKeyArgument(context, invocationOperation.Arguments[0].Value);
     }
 
     private static void AnalyzeRequireFeatureMethodCall(SyntaxNodeAnalysisContext context, InvocationExpressionSyntax invocationExpression, MemberAccessExpressionSyntax memberAccessExpression)
@@ -156,19 +151,7 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        if (!TryAnalyzeFlagKeyArgument(context, firstArg, out var flagKey))
-        {
-            return;
-        }
-
-        var span = TextSpan.FromBounds(
-            memberAccessExpression.Name.SpanStart,
-            invocationExpression.ArgumentList.Span.End
-        );
-
-        var location = Location.Create(context.Node.SyntaxTree, span);
-
-        ReportFeatureFlagRemoval(context, location, flagKey, "requireFeatureMethod");
+        _ = TryAnalyzeFlagKeyArgument(context, firstArg);
     }
 
     private static void AnalyzeAttribute(SyntaxNodeAnalysisContext context)
@@ -201,44 +184,28 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        if (!TryAnalyzeFlagKeyArgument(context, attributeCreation.Arguments[0].Value, out var flagKey))
-        {
-            return;
-        }
-
-        ReportFeatureFlagRemoval(context, context.Node.GetLocation(), flagKey, "requireFeatureAttribute");
+        _ = TryAnalyzeFlagKeyArgument(context, attributeCreation.Arguments[0].Value);
     }
 
-    private static bool TryAnalyzeFlagKeyArgument(SyntaxNodeAnalysisContext context, IOperation flagKeyOperation, [MaybeNullWhen(false)] out string flagKey)
+    private static bool TryAnalyzeFlagKeyArgument(SyntaxNodeAnalysisContext context, IOperation flagKeyOperation)
     {
         if (flagKeyOperation is not IFieldReferenceOperation fieldRef
             || !fieldRef.Field.HasConstantValue)
         {
             context.ReportDiagnostic(Diagnostic.Create(_flagShouldBeConstRule, flagKeyOperation.Syntax.GetLocation()));
-            flagKey = null;
             return false;
         }
 
-        if (fieldRef.Field.ConstantValue == null || (fieldRef.Field.ConstantValue is string flagString && string.IsNullOrEmpty(flagString)))
+        if (fieldRef.Field.ConstantValue == null || fieldRef.Field.ConstantValue is not string flagString || string.IsNullOrEmpty(flagString))
         {
             context.ReportDiagnostic(Diagnostic.Create(_flagKeyShouldBeNonNullOrEmpty, fieldRef.Field.Locations.First()));
-            flagKey = null;
             return false;
         }
 
-        flagKey = (string)fieldRef.Field.ConstantValue;
-        return true;
-    }
-
-    private static void ReportFeatureFlagRemoval(SyntaxNodeAnalysisContext context, Location location, string flagKey, string removalHint)
-    {
         var properties = ImmutableDictionary.CreateBuilder<string, string?>();
-        properties.Add("flagKey", flagKey);
-        properties.Add("removalHint", removalHint);
-        context.ReportDiagnostic(Diagnostic.Create(
-            _removeFeatureFlagRule,
-            location,
-            properties.ToImmutableDictionary()
-        ));
+        properties.Add("FlagKey", flagString);
+
+        context.ReportDiagnostic(Diagnostic.Create(_removeFeatureFlagRule, fieldRef.Field.Locations.First()));
+        return true;
     }
 }

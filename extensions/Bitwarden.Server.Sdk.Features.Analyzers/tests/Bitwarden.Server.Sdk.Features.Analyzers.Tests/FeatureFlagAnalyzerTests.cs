@@ -56,11 +56,11 @@ public class FeatureFlagAnalyzerTests : AnalyzerTests<FeatureFlagAnalyzer>
 
             public class Something
             {
-                public const string? Flag = null;
+                public const string? {|BW0003:Flag|} = null;
 
                 public Something(IFeatureService featureService)
                 {
-                    var isEnabled = {|BW0002:featureService.IsEnabled(Flag)|};
+                    var isEnabled = featureService.IsEnabled(Flag);
                 }
             }
             """
@@ -76,11 +76,33 @@ public class FeatureFlagAnalyzerTests : AnalyzerTests<FeatureFlagAnalyzer>
 
             public class Something
             {
-                public const string Flag = "my-flag";
+                public const string {|BW0002:Flag|} = "my-flag";
 
                 public Something(IFeatureService featureService)
                 {
-                    var isEnabled = {|BW0002:featureService.IsEnabled(Flag)|};
+                    var isEnabled = featureService.IsEnabled(Flag);
+                }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task ShouldSuggestRemovingFeature_WithMultipleReferences()
+    {
+        await RunAnalyzerAsync(
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            [FeatureFlagKeyCollection]
+            public class Something
+            {
+                public const string {|BW0002:Flag|} = "my-flag";
+
+                public Something(IFeatureService featureService)
+                {
+                    var isEnabled = featureService.IsEnabled(Flag);
+                    var isEnabled2 = featureService.IsEnabled(Flag);
                 }
             }
             """

@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Operations;
 
 namespace Bitwarden.Server.Sdk.CodeFixers;
 
@@ -17,28 +18,15 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
     {
         foreach (var diagnostic in context.Diagnostics)
         {
-            if (diagnostic.Id != "BW0002")
-            {
-                // I don't think we'll actually get other diagnostics
-                Debug.Fail($"Other diagnostic found: {diagnostic.Id}");
-                continue;
-            }
-
-            if (!diagnostic.Properties.TryGetValue("flagKey", out var flagKey) || string.IsNullOrEmpty(flagKey))
+            if (!diagnostic.Properties.TryGetValue("FlagKey", out var flagKey) || string.IsNullOrEmpty(flagKey))
             {
                 Debug.Fail($"We failed to add a flagKey property to a BW0002 diagnostic at {diagnostic.Location}");
                 continue;
             }
 
-            if (!diagnostic.Properties.TryGetValue("removalHint", out var removalHint) || string.IsNullOrEmpty(removalHint))
-            {
-                Debug.Fail($"We failed to add a removalHint property to a BW0002 diagnostic at {diagnostic.Location}");
-                continue;
-            }
-
             context.RegisterCodeFix(CodeAction.Create(
                 "Remove feature flag",
-                createChangedDocument: (t) => RemoveFlagAsync(context.Document, diagnostic.Location, removalHint!, t),
+                createChangedDocument: (t) => RemoveFlagAsync(context.Document, diagnostic.Location, "", t),
                 equivalenceKey: $"BW0002-{flagKey}",
                 CodeActionPriority.Default
             ), diagnostic);
@@ -65,14 +53,14 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
 
         return removalHint switch
         {
-            "isEnabledCheck" => RemoveIsEnabledCheck(document, root, node),
+            "isEnabledCheck" => await RemoveIsEnabledCheckAsync(document, root, node, token),
             "requireFeatureAttribute" => RemoveRequireFeatureAttribute(document, root, node),
             "requireFeatureMethod" => RemoveRequireFeatureMethod(document, root, node),
             _ => throw new InvalidOperationException($"Invalid removal hint: {removalHint}"),
         };
     }
 
-    private static Document RemoveIsEnabledCheck(Document document, SyntaxNode root, SyntaxNode node)
+    private static async Task<Document> RemoveIsEnabledCheckAsync(Document document, SyntaxNode root, SyntaxNode node, CancellationToken token)
     {
         SyntaxNode? newSyntax = null;
 
@@ -92,6 +80,66 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
         {
             // The feature check was the only thing in the if statement, replace the whole thing with it's block
             newSyntax = root.ReplaceNode(ifStatement, ifStatement.Statement.ChildNodes().Select(n => n.WithLeadingTrivia(node.Parent.GetLeadingTrivia())));
+        }
+        else if (node.Parent is MemberAccessExpressionSyntax { Name.Identifier.Text: "Returns" } memberAccess)
+        {
+            // They are chaining something after the check: IsEnabled(Flag).Returns(true); which is more than
+            // likely a call to mock the return of this method, if they are mocking the return of constant `true`
+            // the entire call should be able to disappear and the test would function
+            // if they are returning a constant of `false`. The entire test should now be defunct and can be deleted
+            // if they are not returning a constant, then plop an error in the test so that manual intervention becomes
+            // needed.
+            var semanticModel = await document.GetSemanticModelAsync(token);
+
+            if (semanticModel is null)
+            {
+                return document;
+            }
+
+            if (memberAccess.Parent is null)
+            {
+                return document;
+            }
+
+            var memberAccessOperation = semanticModel.GetOperation(memberAccess.Parent);
+
+            if (memberAccessOperation is not IInvocationOperation invocationOperation)
+            {
+                return document;
+            }
+
+            // First arg is the `this` parameter of the extension method
+            if (invocationOperation.Arguments is not [_, var secondArg, ..])
+            {
+                return document;
+            }
+
+            if (secondArg.Value.ConstantValue.HasValue && secondArg.Value.ConstantValue.Value is false)
+            {
+                // Delete the whole test
+                var testMethod = memberAccess.Ancestors()
+                    .OfType<MemberDeclarationSyntax>()
+                    .FirstOrDefault();
+
+                if (testMethod == null)
+                {
+                    return document;
+                }
+
+                newSyntax = root.RemoveNode(testMethod, SyntaxRemoveOptions.KeepNoTrivia);
+            }
+            else
+            {
+                // Delete the whole expression of the mock
+                var wholeExpression = memberAccess.Parent.FirstAncestorOrSelf<ExpressionStatementSyntax>();
+
+                if (wholeExpression is null)
+                {
+                    return document;
+                }
+
+                newSyntax = root.RemoveNode(wholeExpression, SyntaxRemoveOptions.KeepTrailingTrivia);
+            }
         }
 
         // If we don't have any other special cases, just replace the check with a `true` literal.
