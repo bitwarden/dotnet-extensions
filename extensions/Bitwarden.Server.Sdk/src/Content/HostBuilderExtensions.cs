@@ -9,6 +9,9 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Resources;
 #endif
+#if BIT_INCLUDE_CACHING
+using Bitwarden.Server.Sdk.Caching;
+#endif
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -42,6 +45,10 @@ public static class HostBuilderExtensions
 
 #if BIT_INCLUDE_AUTHENTICATION
         builder.Services.AddBitwardenAuthentication();
+#endif
+
+#if BIT_INCLUDE_CACHING
+        builder.Services.AddBitwardenCaching();
 #endif
 
         return builder;
@@ -80,6 +87,13 @@ public static class HostBuilderExtensions
         hostBuilder.ConfigureServices((_, services) =>
         {
             services.AddBitwardenAuthentication();
+        });
+#endif
+
+#if BIT_INCLUDE_CACHING
+        hostBuilder.ConfigureServices((_, services) =>
+        {
+            services.AddBitwardenCaching();
         });
 #endif
 
@@ -176,6 +190,10 @@ public static class HostBuilderExtensions
 
                 metrics.AddMeter("Bitwarden.*");
                 metrics.AddMeter("Bit.*");
+
+#if BIT_INCLUDE_CACHING
+                metrics.AddFusionCacheInstrumentation();
+#endif
             })
             .WithTracing(tracing =>
             {
@@ -188,6 +206,10 @@ public static class HostBuilderExtensions
                 tracing.AddHttpClientInstrumentation();
                 tracing.AddEntityFrameworkCoreInstrumentation();
                 tracing.AddSqlClientInstrumentation();
+
+#if BIT_INCLUDE_CACHING
+                tracing.AddFusionCacheInstrumentation();
+#endif
             });
 
         if (configuration.GetValue(OtelDebuggingConfigKey, false))

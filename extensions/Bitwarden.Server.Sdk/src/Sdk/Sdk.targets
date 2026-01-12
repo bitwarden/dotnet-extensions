@@ -31,6 +31,9 @@
     <!-- Authentication defaults to on -->
     <BitIncludeAuthentication Condition="'$(BitIncludeAuthentication)' == ''">true</BitIncludeAuthentication>
     <DefineConstants Condition="'$(BitIncludeAuthentication)' == 'true'">$(DefineConstants);BIT_INCLUDE_AUTHENTICATION</DefineConstants>
+    <!-- Caching defaults to off -->
+    <BitIncludeCaching Condition="'$(BitIncludeCaching)' == ''">false</BitIncludeCaching>
+    <DefineConstants Condition="'$(BitIncludeCaching)' == 'true'">$(DefineConstants);BIT_INCLUDE_CACHING</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(BitIncludeTelemetry)' == 'true'">
@@ -42,6 +45,9 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.14.0" />
     <PackageReference Include="OpenTelemetry.Instrumentation.SqlClient" Version="1.12.0-beta.3" />
 
+    <!-- Add the Fusion cache open telemetry library when telemetry and caching are being used. -->
+    <PackageReference Condition="'$(BitIncludeCaching)' == 'true'" Include="ZiggyCreatures.FusionCache.OpenTelemetry" Version="2.5.0" />
+
     <Compile Include="$(SdkContentRoot)/OtelDebuggingHostedService.cs" />
   </ItemGroup>
 
@@ -51,5 +57,9 @@
 
   <ItemGroup Condition="'$(BitIncludeAuthentication)' == 'true'">
     <PackageReference Include="Bitwarden.Server.Sdk.Authentication" Version="0.6.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(BitIncludeCaching)' == 'true'">
+    <PackageReference Include="Bitwarden.Server.Sdk.Caching" Version="0.1.0" />
   </ItemGroup>
 </Project>
