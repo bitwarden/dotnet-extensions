@@ -1,6 +1,7 @@
 <Project>
   <PropertyGroup>
     <IsTestProject Condition="'$(IsTestProject)' == '' and ($(MSBuildProjectName.EndsWith('.Tests')) or $(MSBuildProjectName.EndsWith('.IntegrationTests')))">true</IsTestProject>
+    <IsBenchmarkProject Condition="'$(IsBenchmarkProject)' == '' and $(MSBuildProjectName.EndsWith('.Microbenchmarks'))">true</IsBenchmarkProject>
     <Nullable Condition="'$(Nullable)' == ''">enable</Nullable>
     <ImplicitUsings Condition="'$(ImplicitUsings)' == ''">enable</ImplicitUsings>
   </PropertyGroup>
@@ -12,7 +13,7 @@
     <UseMicrosoftTestingPlatformRunner Condition="'$(UseMicrosoftTestingPlatformRunner)' == ''">true</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(IsTestProject)' != 'true'">
+  <PropertyGroup Condition="'$(IsTestProject)' != 'true' and '$(IsBenchmarkProject)' != 'true'">
     <Authors>Bitwarden Inc.</Authors>
     <PackageProjectUrl>https://github.com/bitwarden/dotnet-extensions</PackageProjectUrl>
     <PackageReleaseNotes>https://github.com/bitwarden/dotnet-extensions/releases</PackageReleaseNotes>
