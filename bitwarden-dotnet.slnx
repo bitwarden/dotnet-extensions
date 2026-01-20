@@ -1,0 +1,45 @@
+<Solution>
+  <Folder Name="/extensions/" />
+  <Folder Name="/extensions/Bitwarden.Core/">
+    <Project Path="extensions/Bitwarden.Core/src/Bitwarden.Core.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Core/perf/">
+    <Project Path="extensions/Bitwarden.Core/perf/Bitwarden.Core.Microbenchmarks.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Core/tests/">
+    <Project Path="extensions/Bitwarden.Core/tests/Bitwarden.Core.Tests.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Extensions.Configuration/">
+    <Project Path="extensions/Bitwarden.Extensions.Configuration/src/Bitwarden.Extensions.Configuration.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Extensions.Configuration/examples/">
+    <Project Path="extensions/Bitwarden.Extensions.Configuration/examples/MinimalApi/MinimalApi.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Extensions.Configuration/tests/">
+    <Project Path="extensions/Bitwarden.Extensions.Configuration/tests/Bitwarden.Extensions.Configuration.Tests.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Authentication/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Authentication/src/Bitwarden.Server.Sdk.Authentication.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Authentication/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Authentication/tests/Bitwarden.Server.Sdk.Authentication.Tests/Bitwarden.Server.Sdk.Authentication.Tests.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Caching/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Caching/src/Bitwarden.Server.Sdk.Caching.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Caching/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Caching/tests/Bitwarden.Server.Sdk.Caching.Tests/Bitwarden.Server.Sdk.Caching.Tests.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Features/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Features/src/Bitwarden.Server.Sdk.Features.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Features/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Features/tests/Bitwarden.Server.Sdk.Features.Tests/Bitwarden.Server.Sdk.Features.Tests.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk/">
+    <Project Path="extensions/Bitwarden.Server.Sdk/src/Bitwarden.Server.Sdk.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk/tests/Bitwarden.Server.Sdk.IntegrationTests/Bitwarden.Server.Sdk.IntegrationTests.csproj" />
+  </Folder>
+</Solution>
