@@ -5,6 +5,7 @@
     <Nullable Condition="'$(Nullable)' == ''">enable</Nullable>
     <ImplicitUsings Condition="'$(ImplicitUsings)' == ''">enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisMode>Recommended</AnalysisMode>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
@@ -12,6 +13,19 @@
     <IsPackable Condition="'$(IsPackable)' == ''">false</IsPackable>
     <TestingPlatformDotnetTestSupport Condition="'$(TestingPlatformDotnetTestSupport)' == ''">true</TestingPlatformDotnetTestSupport>
     <UseMicrosoftTestingPlatformRunner Condition="'$(UseMicrosoftTestingPlatformRunner)' == ''">true</UseMicrosoftTestingPlatformRunner>
+    <!--
+      CA1707: Tests are allowed to have underscores in member names
+      CA1848: We don't care about the performance of logging in tests
+      CA2201: Base `Exception` is a fine exception for tests
+    -->
+    <NoWarn>$(NoWarn);CA1707;CA1848;CA2201</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(IsBenchmarkProject)' == 'true'">
+    <!--
+      CA1822: Benchmark methods must be instance methods per BenchmarkDotNet requirements
+    -->
+    <NoWarn>$(NoWarn);CA1822</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(IsTestProject)' != 'true' and '$(IsBenchmarkProject)' != 'true'">

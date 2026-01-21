@@ -5,6 +5,8 @@
     <IsPackable>true</IsPackable>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- CA1305: Opting out - will be resolved once we incorporate the SM SDK package -->
+    <NoWarn>$(NoWarn);CA1305</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup>

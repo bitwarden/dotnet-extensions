@@ -56,9 +56,9 @@ public class FeatureEndpointConventionBuilderExtensionsTests
         Assert.IsAssignableFrom<IFeatureMetadata>(Assert.Single(endpointModel.Metadata));
     }
 
-    private class TestEndpointConventionBuilder : IEndpointConventionBuilder
+    private sealed class TestEndpointConventionBuilder : IEndpointConventionBuilder
     {
-        public IList<Action<EndpointBuilder>> Conventions { get; } = new List<Action<EndpointBuilder>>();
+        public List<Action<EndpointBuilder>> Conventions { get; } = [];
         public bool TestProperty { get; } = true;
 
         public void Add(Action<EndpointBuilder> convention)

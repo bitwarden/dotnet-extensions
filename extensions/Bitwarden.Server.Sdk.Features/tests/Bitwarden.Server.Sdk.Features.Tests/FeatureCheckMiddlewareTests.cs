@@ -174,7 +174,7 @@ public class FeatureCheckMiddlewareTests
         return httpContext;
     }
 
-    record SuccessResponse(bool Success = true);
+    sealed record SuccessResponse(bool Success = true);
 
     private static IHost CreateHost(Action<IServiceCollection>? configureServices = null)
     {

@@ -24,14 +24,14 @@ internal sealed class SecretsManagerConfigurationProvider : ConfigurationProvide
 
     public SecretsManagerConfigurationProvider(SecretsManagerConfigurationOptions options)
     {
-        if (options.ReloadInterval.HasValue && options.ReloadInterval <= TimeSpan.Zero)
+        if (options.ReloadInterval.HasValue)
         {
-            throw new ArgumentOutOfRangeException(nameof(options.ReloadInterval), options.ReloadInterval, $"{nameof(options.ReloadInterval)} must be positive.");
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(options.ReloadInterval.Value, TimeSpan.Zero);
         }
 
         if (options.AccessToken is null)
         {
-            throw new ArgumentNullException(nameof(options.AccessToken), "AccessToken must not be null.");
+            throw new ArgumentNullException(nameof(options), "AccessToken must not be null.");
         }
 
         _projectId = options.ProjectId;
@@ -112,7 +112,7 @@ internal sealed class SecretsManagerConfigurationProvider : ConfigurationProvide
 
         _loadedSecrets = newLoadedSecrets;
 
-        if (loadedSecrets.Any() || oldLoadedSecrets?.Any() is true)
+        if (loadedSecrets.Length > 0 || (oldLoadedSecrets != null && oldLoadedSecrets.Count > 0))
         {
             // Technically two secrets could have the same key, this will cause an issue,
             // we should implement something that takes the most recently updated one

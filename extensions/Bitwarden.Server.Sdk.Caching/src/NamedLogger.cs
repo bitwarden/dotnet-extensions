@@ -5,7 +5,7 @@ namespace Bitwarden.Server.Sdk.Caching;
 
 // A class that exists to satisfy the `ILogger<T>` interface but we don't want the default name that
 // comes from T and instead want to use our own category name
-internal class NamedLogger<T> : ILogger<T>
+internal sealed class NamedLogger<T> : ILogger<T>
 {
     [DebuggerBrowsable(DebuggerBrowsableState.RootHidden)]
     private readonly ILogger _logger;

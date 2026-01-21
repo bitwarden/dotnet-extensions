@@ -4,6 +4,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <IsAotCompatible>false</IsAotCompatible>
+    <!-- Not worth addressing warnings in this project for now, it will get deleted once we've moved to using the SM SDK package -->
+    <NoWarn>$(NoWarn);CA1305;CA2201</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup>

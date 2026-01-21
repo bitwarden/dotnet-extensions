@@ -37,7 +37,7 @@ public class FeatureApplicationBuilderExtensionsTests
         featureService.Received(1).IsEnabled("test-attribute");
     }
 
-    private IServiceProvider CreateServices(IFeatureService featureService)
+    private static ServiceProvider CreateServices(IFeatureService featureService)
     {
         var services = new ServiceCollection();
 

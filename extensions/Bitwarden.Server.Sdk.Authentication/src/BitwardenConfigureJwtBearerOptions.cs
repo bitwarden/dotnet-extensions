@@ -6,7 +6,7 @@ using Microsoft.IdentityModel.Logging;
 
 namespace Bitwarden.Server.Sdk.Authentication;
 
-internal class BitwardenConfigureJwtBearerOptions : IConfigureNamedOptions<JwtBearerOptions>
+internal sealed class BitwardenConfigureJwtBearerOptions : IConfigureNamedOptions<JwtBearerOptions>
 {
     private readonly IHostEnvironment _hostEnvironment;
 

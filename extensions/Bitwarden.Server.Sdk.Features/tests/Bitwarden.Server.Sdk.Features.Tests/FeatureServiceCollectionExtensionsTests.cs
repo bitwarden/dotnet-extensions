@@ -163,7 +163,7 @@ public class FeatureServiceCollectionExtensionsTests
         Assert.True(featureService.IsEnabled(trueFlagKey));
     }
 
-    private class TestContextBuilder : IContextBuilder
+    private sealed class TestContextBuilder : IContextBuilder
     {
         public Context Build()
         {

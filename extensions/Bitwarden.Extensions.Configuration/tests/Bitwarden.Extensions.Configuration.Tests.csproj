@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <!-- This project will not run any tests unless a debugger is attached, so ignore the exit code that fails if 0 tests run -->
     <TestingPlatformCommandLineArguments>$(TestingPlatformCommandLineArguments) --ignore-exit-code 8</TestingPlatformCommandLineArguments>
+    <!-- CA1305: Opting out - will be resolved once we incorporate the SM SDK package -->
+    <NoWarn>$(NoWarn);CA1305</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

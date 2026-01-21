@@ -10,7 +10,7 @@ namespace Bitwarden.Server.Sdk.UnitTests.Features;
 
 public class LaunchDarklyFeatureServiceTests
 {
-    private class FakeLaunchDarklyClientProvider(ILdClient client) : ILaunchDarklyClientProvider
+    private sealed class FakeLaunchDarklyClientProvider(ILdClient client) : ILaunchDarklyClientProvider
     {
         public ILdClient Get()
         {

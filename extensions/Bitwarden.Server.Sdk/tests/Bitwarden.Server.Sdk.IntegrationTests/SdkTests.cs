@@ -223,9 +223,9 @@ public class SdkTests : MSBuildTestBase
     }
 }
 
-internal class XUnitLoggerProvider : ILoggerProvider
+internal sealed class XUnitLoggerProvider : ILoggerProvider
 {
-    private class XUnitLogger(string category) : ILogger
+    private sealed class XUnitLogger(string category) : ILogger
     {
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull
         {

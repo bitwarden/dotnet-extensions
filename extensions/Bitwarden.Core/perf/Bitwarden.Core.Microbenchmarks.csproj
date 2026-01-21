@@ -6,6 +6,8 @@
     <IsPackable>false</IsPackable>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- CA1305: This entire package will go away once we incorporate the SM SDK -->
+    <NoWarn>$(NoWarn);CA1305</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
