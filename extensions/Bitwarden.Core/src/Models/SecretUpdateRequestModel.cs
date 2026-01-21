@@ -10,7 +10,7 @@ public sealed class SecretUpdateRequestModel
         Key = key;
         Value = value;
         Note = note;
-        ProjectIds = projectId.HasValue ? new ReadOnlyCollection<Guid>(new [] { projectId.Value }) : Array.Empty<Guid>();
+        ProjectIds = projectId.HasValue ? new ReadOnlyCollection<Guid>(new[] { projectId.Value }) : Array.Empty<Guid>();
     }
 
     public EncryptedString Key { get; }

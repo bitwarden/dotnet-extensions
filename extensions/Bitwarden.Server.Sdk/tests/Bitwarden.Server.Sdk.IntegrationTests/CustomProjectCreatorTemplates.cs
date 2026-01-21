@@ -1,7 +1,7 @@
-﻿using Microsoft.Build.Utilities.ProjectCreation;
-using Bitwarden.Server.Sdk.Features;
-using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics;
+using Bitwarden.Server.Sdk.Features;
+using Microsoft.Build.Utilities.ProjectCreation;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Bitwarden.Server.Sdk.IntegrationTests;
 

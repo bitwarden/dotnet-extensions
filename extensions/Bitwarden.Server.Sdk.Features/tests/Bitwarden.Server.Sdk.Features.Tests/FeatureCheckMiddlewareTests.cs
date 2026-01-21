@@ -25,7 +25,7 @@ public class FeatureCheckMiddlewareTests
         {
             pipelineInvoked = true;
             return Task.CompletedTask;
-        },NullLogger<FeatureCheckMiddleware>.Instance, Options.Create(new FeatureCheckOptions()));
+        }, NullLogger<FeatureCheckMiddleware>.Instance, Options.Create(new FeatureCheckOptions()));
 
         var httpContext = new DefaultHttpContext();
         httpContext.SetEndpoint(null);

@@ -1,4 +1,4 @@
-﻿using Bitwarden.Core;
+using Bitwarden.Core;
 using Bitwarden.Extensions.Configuration;
 
 namespace Microsoft.Extensions.Configuration;

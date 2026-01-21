@@ -1,7 +1,6 @@
+using System.Diagnostics.CodeAnalysis;
 using Bitwarden.Server.Sdk.Features;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using LaunchDarkly.Sdk.Server.Interfaces;
-using System.Diagnostics.CodeAnalysis;
 
 namespace Microsoft.Extensions.DependencyInjection;
 

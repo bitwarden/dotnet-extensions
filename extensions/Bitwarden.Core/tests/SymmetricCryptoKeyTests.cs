@@ -1,5 +1,4 @@
 using Bitwarden.Core;
-using Bitwarden.Extensions.Configuration;
 
 namespace Bitwarden.Extensions.Configuration.Tests;
 
