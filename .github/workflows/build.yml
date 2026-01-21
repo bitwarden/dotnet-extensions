@@ -26,3 +26,6 @@ jobs:
 
       - name: Build solution
         run: dotnet build
+
+      - name: Lint
+        run: dotnet format --verify-no-changes

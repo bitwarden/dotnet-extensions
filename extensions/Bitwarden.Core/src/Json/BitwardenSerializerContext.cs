@@ -12,5 +12,5 @@ namespace Bitwarden.Core.Json;
 [JsonSerializable(typeof(SecretUpdateRequestModel))]
 public sealed partial class BitwardenSerializerContext : JsonSerializerContext
 {
-    
+
 }

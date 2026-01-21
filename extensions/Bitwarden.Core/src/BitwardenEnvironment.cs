@@ -14,7 +14,7 @@ public sealed class BitwardenEnvironment
         apiUri: new Uri("https://api.bitwarden.com"));
 
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public static BitwardenEnvironment DevelopmentEnvironment { get; } = Custom( 
+    public static BitwardenEnvironment DevelopmentEnvironment { get; } = Custom(
         new Uri("http://localhost:33656"),
         new Uri("http://localhost:4000"));
 
