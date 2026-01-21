@@ -4,6 +4,7 @@
     <IsBenchmarkProject Condition="'$(IsBenchmarkProject)' == '' and $(MSBuildProjectName.EndsWith('.Microbenchmarks'))">true</IsBenchmarkProject>
     <Nullable Condition="'$(Nullable)' == ''">enable</Nullable>
     <ImplicitUsings Condition="'$(ImplicitUsings)' == ''">enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
