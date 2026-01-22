@@ -14,7 +14,7 @@ internal sealed class AdhocHealthCheck : IHealthCheck
 
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
-        var allData = new Dictionary<string, object>(_reporter.Events.Count);
+        var allData = new Dictionary<string, object>();
         var healthStatus = HealthStatus.Healthy;
 
         foreach (var healthEvent in _reporter.Events)

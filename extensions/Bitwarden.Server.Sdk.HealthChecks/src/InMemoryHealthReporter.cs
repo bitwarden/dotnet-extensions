@@ -1,35 +1,37 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Bitwarden.Server.Sdk.HealthChecks;
 
 internal sealed class InMemoryHealthReporter : IHealthReporter
 {
-    private readonly List<HealthEvent> _reportedIssues = [];
-    internal IReadOnlyList<HealthEvent> Events => _reportedIssues;
+    private readonly ConcurrentDictionary<Guid, HealthEvent> _reportedIssues = [];
+    internal IEnumerable<HealthEvent> Events => _reportedIssues.Values;
 
     public IDisposable ReportDegradation(string issueIdentifier, string description)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(issueIdentifier);
 
         var report = new HealthEvent(HealthStatus.Degraded, issueIdentifier, description);
-        _reportedIssues.Add(report);
-        return new Degradation(_reportedIssues, report);
+        var id = Guid.NewGuid();
+        _reportedIssues.TryAdd(id, report);
+        return new Degradation(_reportedIssues, id);
     }
 
     public void ReportUnhealthy(string issueIdentifier, string description)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(issueIdentifier);
 
-        _reportedIssues.Add(new HealthEvent(HealthStatus.Unhealthy, issueIdentifier, description));
+        _reportedIssues.TryAdd(Guid.NewGuid(), new HealthEvent(HealthStatus.Unhealthy, issueIdentifier, description));
     }
 
     internal record HealthEvent(HealthStatus Status, string IssueIdentifier, string Description);
 
-    private class Degradation(List<HealthEvent> issues, HealthEvent report) : IDisposable
+    private class Degradation(ConcurrentDictionary<Guid, HealthEvent> issues, Guid id) : IDisposable
     {
         public void Dispose()
         {
-            issues.Remove(report);
+            issues.Remove(id, out _);
         }
     }
 }
