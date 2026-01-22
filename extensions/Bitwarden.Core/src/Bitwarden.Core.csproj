@@ -4,6 +4,10 @@
     <TargetFramework>net8.0</TargetFramework>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <IsAotCompatible>false</IsAotCompatible>
+    <VersionPrefix>0.4.0</VersionPrefix>
+    <PreReleaseVersionLabel>beta</PreReleaseVersionLabel>
+    <PreReleaseVersionIteration>1</PreReleaseVersionIteration>
+    <VersionSuffix Condition="'$(VersionSuffix)' == '' AND '$(IsPreRelease)' == 'true'">$(PreReleaseVersionLabel).$(PreReleaseVersionIteration)</VersionSuffix>
   </PropertyGroup>
 
   <PropertyGroup>
