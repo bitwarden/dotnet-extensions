@@ -13,6 +13,7 @@ on:
           - Bitwarden.Server.Sdk.Authentication
           - Bitwarden.Server.Sdk.Caching
           - Bitwarden.Server.Sdk.Features
+          - Bitwarden.Server.Sdk.HealthChecks
 
 permissions: {}
 
