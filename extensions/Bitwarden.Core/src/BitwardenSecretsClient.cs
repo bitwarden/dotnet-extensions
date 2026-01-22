@@ -31,19 +31,19 @@ public sealed class BitwardenSecretsClient
 
     public async Task<ProjectResponseModel> GetProjectInfoAsync(Guid projectId)
     {
-        return (await _apiClient.GetFromJsonAsync($"/projects/{projectId}",
+        return (await _apiClient.GetFromJsonAsync($"projects/{projectId}",
             BitwardenSerializerContext.Default.ProjectResponseModel))!;
     }
 
     public async Task<SecretWithProjectsListResponseModel> GetSecretsAsync(Guid projectId)
     {
-        return (await _apiClient.GetFromJsonAsync($"/projects/{projectId}/secrets",
+        return (await _apiClient.GetFromJsonAsync($"projects/{projectId}/secrets",
             BitwardenSerializerContext.Default.SecretWithProjectsListResponseModel))!;
     }
 
     public async Task<SecretResponseModel> UpdateSecretAsync(Guid secretId, SecretUpdateRequestModel request)
     {
-        var response = await _apiClient.PutAsJsonAsync($"/secrets/{secretId}", request,
+        var response = await _apiClient.PutAsJsonAsync($"secrets/{secretId}", request,
             BitwardenSerializerContext.Default.SecretUpdateRequestModel);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync(BitwardenSerializerContext.Default.SecretResponseModel))!;
@@ -51,7 +51,7 @@ public sealed class BitwardenSecretsClient
 
     public async Task<SecretResponseModel> GetSecretAsync(Guid secretId)
     {
-        return (await _apiClient.GetFromJsonAsync($"/secrets/{secretId}",
+        return (await _apiClient.GetFromJsonAsync($"secrets/{secretId}",
             BitwardenSerializerContext.Default.SecretResponseModel))!;
     }
 }
