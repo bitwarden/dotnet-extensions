@@ -29,6 +29,10 @@ jobs:
       - name: Test solution
         run: dotnet test --configuration Debug -- --coverage --coverage-output-format cobertura --coverage-output "coverage.cobertura.xml" --report-xunit-trx --report-xunit-trx-filename "test-results.trx"
 
+      - name: Show log file
+        if: ${{ always() }}
+        run: cat ./extensions/Bitwarden.Server.Sdk.HealthChecks/tests/Bitwarden.Server.Sdk.HealthChecks.Tests/bin/Debug/net8.0/TestResults/Bitwarden.Server.Sdk.HealthChecks.Tests_net8.0_x64.log
+
       - name: Report test results
         uses: dorny/test-reporter@fe45e9537387dac839af0d33ba56eed8e24189e8 # v2.3.0
         if: ${{ github.event.pull_request.head.repo.full_name == github.repository && !cancelled() }}
