@@ -36,6 +36,12 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Features/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Features/tests/Bitwarden.Server.Sdk.Features.Tests/Bitwarden.Server.Sdk.Features.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.HealthChecks/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.HealthChecks/src/Bitwarden.Server.Sdk.HealthChecks.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.HealthChecks/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.HealthChecks/tests/Bitwarden.Server.Sdk.HealthChecks.Tests/Bitwarden.Server.Sdk.HealthChecks.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk/">
     <Project Path="extensions/Bitwarden.Server.Sdk/src/Bitwarden.Server.Sdk.csproj" />
   </Folder>

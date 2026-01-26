@@ -9,11 +9,12 @@ on:
         required: true
         type: choice
         options:
+          - Bitwarden.Extensions.Configuration
           - Bitwarden.Server.Sdk
           - Bitwarden.Server.Sdk.Authentication
           - Bitwarden.Server.Sdk.Caching
           - Bitwarden.Server.Sdk.Features
-          - Bitwarden.Extensions.Configuration
+          - Bitwarden.Server.Sdk.HealthChecks
 
 permissions: {}
 
