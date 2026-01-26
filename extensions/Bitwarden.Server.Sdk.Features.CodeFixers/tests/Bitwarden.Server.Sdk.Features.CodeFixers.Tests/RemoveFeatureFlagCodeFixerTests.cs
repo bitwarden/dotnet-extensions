@@ -262,16 +262,16 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IActionResult).Assembly.Location));
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(ControllerBase).Assembly.Location));
 
-        await RunCodeFixAsync(
+        await RunDefaultCodeFixAsync(
             """
             using Microsoft.AspNetCore.Mvc;
             using Bitwarden.Server.Sdk.Features;
 
+            namespace Test;
+
             public class MyController : ControllerBase
             {
-                private const string Flag = "my-flag";
-
-                [{|BW0002:RequireFeature(Flag)|}]
+                [RequireFeature(MyFlags.Flag)]
                 public IActionResult MyAction()
                 {
                     return NoContent();
@@ -282,10 +282,10 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
             using Microsoft.AspNetCore.Mvc;
             using Bitwarden.Server.Sdk.Features;
 
+            namespace Test;
+
             public class MyController : ControllerBase
             {
-                private const string Flag = "my-flag";
-
                 public IActionResult MyAction()
                 {
                     return NoContent();
@@ -301,16 +301,16 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IActionResult).Assembly.Location));
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(ControllerBase).Assembly.Location));
 
-        await RunCodeFixAsync(
+        await RunDefaultCodeFixAsync(
             """
             using Microsoft.AspNetCore.Mvc;
             using Bitwarden.Server.Sdk.Features;
 
+            namespace Test;
+
             public class MyController : ControllerBase
             {
-                private const string Flag = "my-flag";
-
-                [Route("/test"), {|BW0002:RequireFeature(Flag)|}]
+                [Route("/test"), RequireFeature(MyFlags.Flag)]
                 public IActionResult MyAction()
                 {
                     return NoContent();
@@ -321,10 +321,10 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
             using Microsoft.AspNetCore.Mvc;
             using Bitwarden.Server.Sdk.Features;
 
+            namespace Test;
+
             public class MyController : ControllerBase
             {
-                private const string Flag = "my-flag";
-
                 [Route("/test")]
                 public IActionResult MyAction()
                 {
@@ -338,35 +338,28 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
     [Fact]
     public async Task MinimalApiEndpointMetadata_ChainedOnEndpoint()
     {
-        await RunAspNetCodeFixAsync(
+        ConfigureForAspNet();
+        await RunDefaultCodeFixAsync(
             """
             using Microsoft.AspNetCore.Builder;
             using Microsoft.AspNetCore.Http;
+            using Test;
 
             var builder = WebApplication.CreateBuilder(args);
             var app = builder.Build();
 
             app.MapGet("/", () => "Hello world!")
-                .{|BW0002:RequireFeature(Flags.Flag)|};
-
-            public static class Flags
-            {
-                public const string Flag = "my-flag";
-            }
+                .RequireFeature(MyFlags.Flag);
             """,
             """
             using Microsoft.AspNetCore.Builder;
             using Microsoft.AspNetCore.Http;
+            using Test;
 
             var builder = WebApplication.CreateBuilder(args);
             var app = builder.Build();
 
             app.MapGet("/", () => "Hello world!");
-
-            public static class Flags
-            {
-                public const string Flag = "my-flag";
-            }
             """
         );
     }
@@ -374,37 +367,30 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
     [Fact]
     public async Task MinimalApiEndpointMetadata_ChainedOnEndpoint_WithAnotherChainedCall()
     {
-        await RunAspNetCodeFixAsync(
+        ConfigureForAspNet();
+        await RunDefaultCodeFixAsync(
             """
             using Microsoft.AspNetCore.Builder;
             using Microsoft.AspNetCore.Http;
+            using Test;
 
             var builder = WebApplication.CreateBuilder(args);
             var app = builder.Build();
 
             app.MapGet("/", () => "Hello world!")
-                .{|BW0002:RequireFeature(Flags.Flag)|}
+                .RequireFeature(MyFlags.Flag)
                 .WithName("test");
-
-            public static class Flags
-            {
-                public const string Flag = "my-flag";
-            }
             """,
             """
             using Microsoft.AspNetCore.Builder;
             using Microsoft.AspNetCore.Http;
+            using Test;
 
             var builder = WebApplication.CreateBuilder(args);
             var app = builder.Build();
 
             app.MapGet("/", () => "Hello world!")
                 .WithName("test");
-
-            public static class Flags
-            {
-                public const string Flag = "my-flag";
-            }
             """
         );
     }
@@ -412,35 +398,28 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
     [Fact]
     public async Task MinimalApiEndpointMetadata_NotChained_ShouldRemoveWholeCall()
     {
-        await RunAspNetCodeFixAsync(
+        ConfigureForAspNet();
+        await RunDefaultCodeFixAsync(
             """
             using Microsoft.AspNetCore.Builder;
             using Microsoft.AspNetCore.Http;
+            using Test;
 
             var builder = WebApplication.CreateBuilder(args);
             var app = builder.Build();
 
             var endpoint = app.MapGet("/", () => "Hello world!");
-            endpoint.{|BW0002:RequireFeature(Flags.Flag)|};
-
-            public static class Flags
-            {
-                public const string Flag = "my-flag";
-            }
+            endpoint.RequireFeature(MyFlags.Flag);
             """,
             """
             using Microsoft.AspNetCore.Builder;
             using Microsoft.AspNetCore.Http;
+            using Test;
 
             var builder = WebApplication.CreateBuilder(args);
             var app = builder.Build();
 
             var endpoint = app.MapGet("/", () => "Hello world!");
-
-            public static class Flags
-            {
-                public const string Flag = "my-flag";
-            }
             """
         );
     }
@@ -448,36 +427,29 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
     [Fact]
     public async Task MinimalApiEndpointMetadata_ChainedFromVariable_ShouldRemoveJustOurCall()
     {
-        await RunAspNetCodeFixAsync(
+        ConfigureForAspNet();
+        await RunDefaultCodeFixAsync(
             """
             using Microsoft.AspNetCore.Builder;
             using Microsoft.AspNetCore.Http;
+            using Test;
 
             var builder = WebApplication.CreateBuilder(args);
             var app = builder.Build();
 
             var endpoint = app.MapGet("/", () => "Hello world!");
-            endpoint.{|BW0002:RequireFeature(Flags.Flag)|}.WithName("test");
-
-            public static class Flags
-            {
-                public const string Flag = "my-flag";
-            }
+            endpoint.RequireFeature(MyFlags.Flag).WithName("test");
             """,
             """
             using Microsoft.AspNetCore.Builder;
             using Microsoft.AspNetCore.Http;
+            using Test;
 
             var builder = WebApplication.CreateBuilder(args);
             var app = builder.Build();
 
             var endpoint = app.MapGet("/", () => "Hello world!");
             endpoint.WithName("test");
-
-            public static class Flags
-            {
-                public const string Flag = "my-flag";
-            }
             """
         );
     }
@@ -488,15 +460,15 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(Substitute).Assembly.Location));
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(FactAttribute).Assembly.Location));
 
-        await RunCodeFixAsync("""
+        await RunDefaultCodeFixAsync("""
             using NSubstitute;
             using Xunit;
             using Bitwarden.Server.Sdk.Features;
 
+            namespace Test;
+
             public class TestClass
             {
-                const string Flag = "my-flag";
-
                 private readonly IFeatureService _featureService;
 
                 public TestClass()
@@ -507,8 +479,8 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
                 [Fact]
                 public void TestMethod()
                 {
-                    {|BW0002:_featureService
-                        .IsEnabled(Flag)|}
+                    _featureService
+                        .IsEnabled(MyFlags.Flag)
                         .Returns(true);
                 }
             }
@@ -518,10 +490,10 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
             using Xunit;
             using Bitwarden.Server.Sdk.Features;
 
+            namespace Test;
+
             public class TestClass
             {
-                const string Flag = "my-flag";
-
                 private readonly IFeatureService _featureService;
 
                 public TestClass()
@@ -545,15 +517,15 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(Substitute).Assembly.Location));
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(FactAttribute).Assembly.Location));
 
-        await RunCodeFixAsync("""
+        await RunDefaultCodeFixAsync("""
             using NSubstitute;
             using Xunit;
             using Bitwarden.Server.Sdk.Features;
 
+            namespace Test;
+
             public class TestClass
             {
-                const string Flag = "my-flag";
-
                 private readonly IFeatureService _featureService;
 
                 public TestClass()
@@ -564,8 +536,8 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
                 [Fact]
                 public void TestMethod()
                 {
-                    {|BW0002:_featureService
-                        .IsEnabled(Flag)|}
+                    _featureService
+                        .IsEnabled(MyFlags.Flag)
                         .Returns(false);
                 }
             }
@@ -575,10 +547,10 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
             using Xunit;
             using Bitwarden.Server.Sdk.Features;
 
+            namespace Test;
+
             public class TestClass
             {
-                const string Flag = "my-flag";
-
                 private readonly IFeatureService _featureService;
 
                 public TestClass()
@@ -596,15 +568,15 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(Substitute).Assembly.Location));
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(FactAttribute).Assembly.Location));
 
-        await RunCodeFixAsync("""
+        await RunDefaultCodeFixAsync("""
             using NSubstitute;
             using Xunit;
             using Bitwarden.Server.Sdk.Features;
 
+            namespace Test;
+
             public class TestClass
             {
-                const string Flag = "my-flag";
-
                 private readonly IFeatureService _featureService;
 
                 public TestClass()
@@ -617,8 +589,8 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
                 [InlineData(false)]
                 public void TestMethod(bool flagValue)
                 {
-                    {|BW0002:_featureService
-                        .IsEnabled(Flag)|}
+                    _featureService
+                        .IsEnabled(MyFlags.Flag)
                         .Returns(flagValue);
                 }
             }
@@ -628,10 +600,10 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
             using Xunit;
             using Bitwarden.Server.Sdk.Features;
 
+            namespace Test;
+
             public class TestClass
             {
-                const string Flag = "my-flag";
-
                 private readonly IFeatureService _featureService;
 
                 public TestClass()
@@ -651,15 +623,13 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
         );
     }
 
-    private async Task RunAspNetCodeFixAsync([StringSyntax("C#-test")] string inputSource, [StringSyntax("C#-test")] string expectedFixedSource)
+    private void ConfigureForAspNet()
     {
         TestState.OutputKind = OutputKind.ConsoleApplication;
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(WebApplication).Assembly.Location));
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(EndpointRouteBuilderExtensions).Assembly.Location));
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IApplicationBuilder).Assembly.Location));
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IHost).Assembly.Location));
-
-        await RunCodeFixAsync(inputSource, expectedFixedSource);
     }
 
     private async Task RunDefaultCodeFixAsync([StringSyntax("C#-test")] string inputSource, [StringSyntax("C#-test")] string expectedFixedSource)
