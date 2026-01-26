@@ -9,24 +9,18 @@ public class FeaturesGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        IncrementalValuesProvider<FlagKeyCollectionSpec> flagKeyClasses = context.SyntaxProvider.ForAttributeWithMetadataName(
+        var flagKeyClasses = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Bitwarden.Server.Sdk.Features.FlagKeyCollectionAttribute",
             predicate: (_, _) => true,
             transform: FlagKeyCollectionSpec.Create
-        )
-            .Where(f => f is not null)!;
+        );
 
         context.RegisterSourceOutput(flagKeyClasses, (context, spec) =>
         {
-            foreach (var field in spec.Fields)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(FeatureFlagAnalyzer._removeFeatureFlagRule, field.Location, field.Name));
-            }
-
             var sw = new StringWriter();
             var writer = new IndentedTextWriter(sw);
             spec.Write(writer);
-            context.AddSource($"{spec.Type.FilenameHint}.FlagKeyCollection.g.cs", SourceText.From(sw.ToString(), Encoding.UTF8));
+            context.AddSource($"FlagKeyCollection.{spec.Type.FilenameHint}.g.cs", SourceText.From(sw.ToString(), Encoding.UTF8));
         });
     }
 }

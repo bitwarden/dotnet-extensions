@@ -33,7 +33,7 @@ public class TestBase : CodeFixTest<DefaultVerifier>
 
     protected override IEnumerable<DiagnosticAnalyzer> GetDiagnosticAnalyzers()
     {
-        return [];
+        return [new FeatureFlagAnalyzer()];
     }
 
     protected override CompilationWithAnalyzers CreateCompilationWithAnalyzers(Compilation compilation, ImmutableArray<DiagnosticAnalyzer> analyzers, AnalyzerOptions options, CancellationToken cancellationToken) => base.CreateCompilationWithAnalyzers(compilation, analyzers, options, cancellationToken);

@@ -6,30 +6,27 @@ namespace Bitwarden.Server.Sdk.Features.Analyzers;
 internal sealed record FlagKeyCollectionSpec
 {
     public required HierarchyInfo Type { get; init; }
-    public required EquatableArray<(string Name, string Value, Location Location)> Fields { get; init; }
+    public required EquatableArray<string> Fields { get; init; }
 
-    public static FlagKeyCollectionSpec? Create(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
+    public static FlagKeyCollectionSpec Create(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
     {
         if (context.TargetSymbol is not INamedTypeSymbol targetType)
         {
-            return null;
+            throw new InvalidOperationException("Should not be possible, the attribute is constrained to only classes.");
         }
 
         var stringType = context.SemanticModel.Compilation.GetSpecialType(SpecialType.System_String);
 
         var fields = targetType.GetMembers()
             .OfType<IFieldSymbol>()
-            .Where(f => (f.DeclaredAccessibility == Accessibility.Public
-                || f.DeclaredAccessibility == Accessibility.Internal)
-                && SymbolEqualityComparer.Default.Equals(f.Type, stringType)
-                && f.IsConst)
-            .Select(f => (f.Name, (string)f.ConstantValue!, f.Locations.First()))
+            .Where(f => SymbolEqualityComparer.Default.Equals(f.Type, stringType) && f.IsConst)
+            .Select(f => f.Name)
             .ToArray();
 
         return new FlagKeyCollectionSpec
         {
             Type = HierarchyInfo.From(targetType),
-            Fields = new EquatableArray<(string Name, string Value, Location Location)>(fields),
+            Fields = new EquatableArray<string>(fields),
         };
     }
 
@@ -57,14 +54,14 @@ internal sealed record FlagKeyCollectionSpec
 
             if (i == 0)
             {
-                writer.WriteLine("public IReadOnlyCollection<string> GetKeys()");
+                writer.WriteLine("public static IReadOnlyCollection<string> GetKeys()");
                 writer.WriteLine("{");
                 writer.Indent++;
                 writer.WriteLine("return [");
                 writer.Indent++;
                 foreach (var field in Fields)
                 {
-                    writer.WriteLine($"\"{field.Value}\",");
+                    writer.WriteLine($"{field},");
                 }
                 writer.Indent--;
                 writer.WriteLine("];");

@@ -1,11 +1,9 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
-using Microsoft.CodeAnalysis.Text;
 
 namespace Bitwarden.Server.Sdk.Features.Analyzers;
 
@@ -14,156 +12,47 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
 {
     const string HelpUrlFormat = "https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#{0}";
 
-    private static readonly DiagnosticDescriptor _flagShouldBeConstRule = new DiagnosticDescriptor(
-        "BW0001",
-        "Flag value should be a const",
-        "Flag value should be a const",
-        "Usage",
-        DiagnosticSeverity.Warning,
+    internal static readonly DiagnosticDescriptor _removeFeatureFlagRule = new(
+        id: "BW0001",
+        title: "Feature flags should be removed once not used",
+        messageFormat: "Remove feature flag",
+        category: "Usage",
+        defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
         description: "",
         helpLinkUri: HelpUrlFormat
     );
 
-    internal static readonly DiagnosticDescriptor _removeFeatureFlagRule = new DiagnosticDescriptor(
-        "BW0002",
-        "Remove feature flag",
-        "Remove feature flag",
-        "Usage",
-        DiagnosticSeverity.Info,
+    private static readonly DiagnosticDescriptor _flagKeyShouldBeNonNullOrEmpty = new(
+        id: "BW0002",
+        title: "Flag key value should be non-null or empty",
+        messageFormat: "Flag key value should be non-null or empty",
+        category: "Usage",
+        defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "",
         helpLinkUri: HelpUrlFormat
     );
 
-    private static readonly DiagnosticDescriptor _flagKeyShouldBeNonNullOrEmpty = new DiagnosticDescriptor(
-        "BW0003",
-        "Flag key value should be non-null or empty",
-        "Flag key value should be non-null or empty",
-        "Usage",
-        DiagnosticSeverity.Warning,
-        isEnabledByDefault: true,
-        description: "",
-        helpLinkUri: HelpUrlFormat
-    );
-
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(_flagShouldBeConstRule, _removeFeatureFlagRule, _flagKeyShouldBeNonNullOrEmpty);
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(_removeFeatureFlagRule, _flagKeyShouldBeNonNullOrEmpty);
 
     public override void Initialize(AnalysisContext context)
     {
         context.EnableConcurrentExecution();
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
-        context.RegisterSyntaxNodeAction(AnalyzeInvocation, SyntaxKind.InvocationExpression);
-        context.RegisterSyntaxNodeAction(AnalyzeAttribute, SyntaxKind.Attribute);
+        context.RegisterSyntaxNodeAction(AnalyzeFlagKeyCollectionAttribute, SyntaxKind.Attribute);
     }
 
-    private static void AnalyzeInvocation(SyntaxNodeAnalysisContext context)
-    {
-        var invocationSyntax = (InvocationExpressionSyntax)context.Node;
-        if (invocationSyntax.Expression is not MemberAccessExpressionSyntax ma)
-        {
-            return;
-        }
-
-        var methodName = ma.Name.Identifier.Text;
-
-        // TODO: Other entrypoints
-        if (methodName == "IsEnabled")
-        {
-            AnalyzeIsEnabledInvocation(context, invocationSyntax, ma);
-            return;
-        }
-        else if (methodName == "RequireFeature")
-        {
-            AnalyzeRequireFeatureMethodCall(context, invocationSyntax, ma);
-            return;
-        }
-    }
-
-    private static void AnalyzeIsEnabledInvocation(SyntaxNodeAnalysisContext context, InvocationExpressionSyntax invocationExpression, MemberAccessExpressionSyntax memberAccessExpression)
-    {
-        // The feature flag name plus optional default
-        if (invocationExpression.ArgumentList.Arguments.Count is not 1 or 2)
-        {
-            return;
-        }
-
-        // TODO: Can we validate that this isnt a static method here?
-
-        var featureFlagService = context.Compilation.GetTypeByMetadataName("Bitwarden.Server.Sdk.Features.IFeatureService");
-
-        if (context.SemanticModel.GetOperation(context.Node, context.CancellationToken) is not IInvocationOperation invocationOperation)
-        {
-            return;
-        }
-
-        if (invocationOperation.Instance is null)
-        {
-            // Static method, not us
-            return;
-        }
-
-        if (!SymbolEqualityComparer.Default.Equals(featureFlagService, invocationOperation.Instance.Type))
-        {
-            // Method doesn't belong to us
-            return;
-        }
-
-        // We previously validated there is 1 or 2 arguments so this array access should be safe
-        _ = TryAnalyzeFlagKeyArgument(context, invocationOperation.Arguments[0].Value);
-    }
-
-    private static void AnalyzeRequireFeatureMethodCall(SyntaxNodeAnalysisContext context, InvocationExpressionSyntax invocationExpression, MemberAccessExpressionSyntax memberAccessExpression)
-    {
-        if (invocationExpression.ArgumentList.Arguments.Count != 1)
-        {
-            return;
-        }
-
-        if (context.SemanticModel.GetOperation(invocationExpression, context.CancellationToken) is not IInvocationOperation invocationOperation)
-        {
-            return;
-        }
-
-        // Once we've moved from syntax -> operations we expect the number of arguments to become 2 since this
-        // is an extension method.
-        if (invocationOperation.Arguments.Length != 2)
-        {
-            return;
-        }
-
-        var endpointConventionsBuilderType = context.Compilation.GetTypesByMetadataName("Microsoft.AspNetCore.Builder.FeatureEndpointConventionBuilderExtensions")
-            .FirstOrDefault(nt => nt.ContainingAssembly.Name == "Bitwarden.Server.Sdk.Features");
-
-        if (!SymbolEqualityComparer.Default.Equals(endpointConventionsBuilderType, invocationOperation.TargetMethod.ContainingType))
-        {
-            return;
-        }
-
-        var stringType = context.Compilation.GetSpecialType(SpecialType.System_String);
-
-        var firstArg = invocationOperation.Arguments[1].Value;
-
-        // There are two versions of the RequireFeature method, one that takes a string and one that takes a function
-        // we want to only put the diagnostic on the string variant
-        if (!SymbolEqualityComparer.Default.Equals(firstArg.Type, stringType))
-        {
-            return;
-        }
-
-        _ = TryAnalyzeFlagKeyArgument(context, firstArg);
-    }
-
-    private static void AnalyzeAttribute(SyntaxNodeAnalysisContext context)
+    private static void AnalyzeFlagKeyCollectionAttribute(SyntaxNodeAnalysisContext context)
     {
         if (context.SemanticModel.GetOperation(context.Node, context.CancellationToken) is not IAttributeOperation attributeOperation)
         {
             return;
         }
 
-        var requireFeatureAttributeType = context.Compilation.GetTypeByMetadataName("Bitwarden.Server.Sdk.Features.RequireFeatureAttribute");
+        var flagKeyCollectionAttributeType = context.Compilation.GetTypeByMetadataName("Bitwarden.Server.Sdk.Features.FlagKeyCollectionAttribute");
 
-        if (requireFeatureAttributeType == null)
+        if (flagKeyCollectionAttributeType == null)
         {
             return;
         }
@@ -173,39 +62,57 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        if (!SymbolEqualityComparer.Default.Equals(requireFeatureAttributeType, attributeCreation.Type))
+        if (!SymbolEqualityComparer.Default.Equals(flagKeyCollectionAttributeType, attributeCreation.Type))
         {
             // Different attribute
             return;
         }
 
-        if (attributeCreation.Arguments.Length != 1)
+        if (attributeOperation.Syntax.Parent is not AttributeListSyntax attributeListSyntax)
         {
             return;
         }
 
-        _ = TryAnalyzeFlagKeyArgument(context, attributeCreation.Arguments[0].Value);
-    }
-
-    private static bool TryAnalyzeFlagKeyArgument(SyntaxNodeAnalysisContext context, IOperation flagKeyOperation)
-    {
-        if (flagKeyOperation is not IFieldReferenceOperation fieldRef
-            || !fieldRef.Field.HasConstantValue)
+        if (attributeListSyntax.Parent is not TypeDeclarationSyntax attachedTypeSyntax)
         {
-            context.ReportDiagnostic(Diagnostic.Create(_flagShouldBeConstRule, flagKeyOperation.Syntax.GetLocation()));
-            return false;
+            return;
         }
 
-        if (fieldRef.Field.ConstantValue == null || fieldRef.Field.ConstantValue is not string flagString || string.IsNullOrEmpty(flagString))
+        var attachedType = context.SemanticModel.GetDeclaredSymbol(attachedTypeSyntax);
+
+        if (attachedType == null)
         {
-            context.ReportDiagnostic(Diagnostic.Create(_flagKeyShouldBeNonNullOrEmpty, fieldRef.Field.Locations.First()));
-            return false;
+            return;
         }
 
-        var properties = ImmutableDictionary.CreateBuilder<string, string?>();
-        properties.Add("FlagKey", flagString);
+        var stringType = context.Compilation.GetSpecialType(SpecialType.System_String);
 
-        context.ReportDiagnostic(Diagnostic.Create(_removeFeatureFlagRule, fieldRef.Field.Locations.First()));
-        return true;
+        // Analyze all string field constants in the attached type
+        var candidateMembers = attachedType.GetMembers()
+            .OfType<IFieldSymbol>()
+            .Where(fs => fs.IsConst && SymbolEqualityComparer.Default.Equals(fs.Type, stringType));
+
+        foreach (var fieldMember in candidateMembers)
+        {
+            var constantValue = (string?)fieldMember.ConstantValue;
+            if (string.IsNullOrWhiteSpace(constantValue))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    _flagKeyShouldBeNonNullOrEmpty,
+                    fieldMember.Locations.First()
+                ));
+                continue;
+            }
+
+            var properties = ImmutableDictionary.CreateBuilder<string, string?>();
+            properties.Add("FlagKey", constantValue);
+
+            context.ReportDiagnostic(Diagnostic.Create(
+                descriptor: _removeFeatureFlagRule,
+                location: fieldMember.Locations.First(),
+                messageArgs: [constantValue],
+                properties: properties.ToImmutableDictionary()
+            ));
+        }
     }
 }

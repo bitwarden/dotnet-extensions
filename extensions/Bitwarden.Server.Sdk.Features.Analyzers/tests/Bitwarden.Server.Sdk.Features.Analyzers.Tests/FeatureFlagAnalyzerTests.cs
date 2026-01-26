@@ -8,102 +8,40 @@ public class FeatureFlagAnalyzerTests : AnalyzerTests<FeatureFlagAnalyzer>
 {
     public FeatureFlagAnalyzerTests()
     {
-        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IFeatureService).Assembly.Location));
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(FlagKeyCollectionAttribute).Assembly.Location));
     }
 
-    [Fact]
-    public async Task ShouldWarnIfConstNotUsed()
+    [Theory]
+    [InlineData("\"\"")]
+    [InlineData("null")]
+    [InlineData("\"   \"")]
+    public async Task ShouldWarnAboutInvalidFlagKeyValue(string? flagValue)
     {
         await RunAnalyzerAsync(
-            """
+            $$"""
             using Bitwarden.Server.Sdk.Features;
 
-            public class Something
+            [FlagKeyCollection]
+            public class MyFlags
             {
-                public Something(IFeatureService featureService)
-                {
-                    var enabled = featureService.IsEnabled({|BW0001:"my-flag"|});
-                }
+                public const string {|BW0002:Flag|} = {{flagValue}};
             }
             """
         );
     }
 
     [Fact]
-    public async Task ShouldWarnIfNullUsed()
+    public async Task ShouldSuggestRemovingValidFlagKeys()
     {
         await RunAnalyzerAsync(
             """
             using Bitwarden.Server.Sdk.Features;
 
-            public class Something
+            [FlagKeyCollection]
+            public class MyFlags
             {
-                public Something(IFeatureService featureService)
-                {
-                    var enabled = featureService.IsEnabled({|BW0001:null|});
-                }
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task ShouldWarnIfNullUsedInField()
-    {
-        await RunAnalyzerAsync(
-            """
-            using Bitwarden.Server.Sdk.Features;
-
-            public class Something
-            {
-                public const string? {|BW0003:Flag|} = null;
-
-                public Something(IFeatureService featureService)
-                {
-                    var isEnabled = featureService.IsEnabled(Flag);
-                }
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task ShouldSuggestRemovingFeature()
-    {
-        await RunAnalyzerAsync(
-            """
-            using Bitwarden.Server.Sdk.Features;
-
-            public class Something
-            {
-                public const string {|BW0002:Flag|} = "my-flag";
-
-                public Something(IFeatureService featureService)
-                {
-                    var isEnabled = featureService.IsEnabled(Flag);
-                }
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task ShouldSuggestRemovingFeature_WithMultipleReferences()
-    {
-        await RunAnalyzerAsync(
-            """
-            using Bitwarden.Server.Sdk.Features;
-
-            [FeatureFlagKeyCollection]
-            public class Something
-            {
-                public const string {|BW0002:Flag|} = "my-flag";
-
-                public Something(IFeatureService featureService)
-                {
-                    var isEnabled = featureService.IsEnabled(Flag);
-                    var isEnabled2 = featureService.IsEnabled(Flag);
-                }
+                public const string {|BW0001:Flag|} = "my-flag";
+                public const string {|BW0001:AnotherFlag|} = "another-flag";
             }
             """
         );

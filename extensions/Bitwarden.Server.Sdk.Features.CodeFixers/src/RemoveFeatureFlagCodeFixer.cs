@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Operations;
 
 namespace Bitwarden.Server.Sdk.CodeFixers;
@@ -12,7 +13,7 @@ namespace Bitwarden.Server.Sdk.CodeFixers;
 [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(RemoveFeatureFlagCodeFixer))]
 public class RemoveFeatureFlagCodeFixer : CodeFixProvider
 {
-    public override ImmutableArray<string> FixableDiagnosticIds { get; } = ImmutableArray.Create("BW0002");
+    public override ImmutableArray<string> FixableDiagnosticIds { get; } = ImmutableArray.Create("BW0001");
 
     public override Task RegisterCodeFixesAsync(CodeFixContext context)
     {
@@ -25,9 +26,9 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
             }
 
             context.RegisterCodeFix(CodeAction.Create(
-                "Remove feature flag",
-                createChangedDocument: (t) => RemoveFlagAsync(context.Document, diagnostic.Location, "", t),
-                equivalenceKey: $"BW0002-{flagKey}",
+                $"Remove '{flagKey}' feature.",
+                createChangedSolution: (token) => RemoveFlagAsync(context.Document, diagnostic.Location, token),
+                equivalenceKey: $"BW0001-{flagKey}",
                 CodeActionPriority.Default
             ), diagnostic);
         }
@@ -40,27 +41,119 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
         return WellKnownFixAllProviders.BatchFixer;
     }
 
-    private static async Task<Document> RemoveFlagAsync(Document document, Location location, string removalHint, CancellationToken token)
+    private static async Task<Solution> RemoveFlagAsync(Document document, Location location, CancellationToken token)
     {
+        var solution = document.Project.Solution;
         var root = await document.GetSyntaxRootAsync(token);
 
-        if (root == null)
+        if (root is null)
         {
             throw new InvalidOperationException("Syntax root could not be retrieved.");
         }
 
         var node = root.FindNode(location.SourceSpan);
 
-        return removalHint switch
+        if (node is not VariableDeclaratorSyntax variable)
         {
-            "isEnabledCheck" => await RemoveIsEnabledCheckAsync(document, root, node, token),
-            "requireFeatureAttribute" => RemoveRequireFeatureAttribute(document, root, node),
-            "requireFeatureMethod" => RemoveRequireFeatureMethod(document, root, node),
-            _ => throw new InvalidOperationException($"Invalid removal hint: {removalHint}"),
-        };
+            throw new InvalidOperationException("Diagnostic should have been put on a field reference.");
+        }
+
+        var semanticModel = await document.GetSemanticModelAsync(token);
+
+        if (semanticModel is null)
+        {
+            return solution;
+        }
+
+        var fieldSymbol = semanticModel.GetDeclaredSymbol(variable);
+
+        if (fieldSymbol is null)
+        {
+            return solution;
+        }
+
+        var references = await SymbolFinder.FindReferencesAsync(fieldSymbol, document.Project.Solution, token);
+
+        // Group references by document to process all changes in a single pass
+        var referencesByDocument = references
+            .SelectMany(r => r.Locations)
+            .GroupBy(loc => loc.Document.Id);
+
+        foreach (var documentGroup in referencesByDocument)
+        {
+            var referenceDocument = solution.GetDocument(documentGroup.Key)!;
+            var referenceRoot = await referenceDocument.GetSyntaxRootAsync(token);
+            if (referenceRoot is null)
+            {
+                continue;
+            }
+
+            // Collect all nodes that need fixing
+            var nodesToFix = documentGroup
+                .Select(referenceLocation => referenceRoot.FindNode(referenceLocation.Location.SourceSpan))
+                .ToList();
+
+            // Use TrackNodes to maintain node identity across replacements
+            var currentRoot = referenceRoot.TrackNodes(nodesToFix);
+
+            // Apply fixes sequentially, using GetCurrentNode to get the updated node after each change
+            foreach (var originalNode in nodesToFix)
+            {
+                var trackedNode = currentRoot.GetCurrentNode(originalNode);
+                if (trackedNode != null)
+                {
+                    currentRoot = await FixFlagUsageAsync(referenceDocument, currentRoot, trackedNode, token);
+                }
+            }
+
+            solution = solution.WithDocumentSyntaxRoot(referenceDocument.Id, currentRoot);
+        }
+
+        var fieldDeclaration = node.FirstAncestorOrSelf<FieldDeclarationSyntax>();
+
+        if (fieldDeclaration is null)
+        {
+            return solution;
+        }
+
+        // Now delete the field
+        root = root.RemoveNode(fieldDeclaration, SyntaxRemoveOptions.KeepNoTrivia);
+
+        return solution.WithDocumentSyntaxRoot(document.Id, root!);
     }
 
-    private static async Task<Document> RemoveIsEnabledCheckAsync(Document document, SyntaxNode root, SyntaxNode node, CancellationToken token)
+    private static async Task<SyntaxNode> FixFlagUsageAsync(Document document, SyntaxNode root, SyntaxNode node, CancellationToken cancellationToken)
+    {
+        // Possibly IFeatureService.IsEnabled(Thing)
+        // TODO: Will this also trigger on .RequireFeature for minimal APIs
+        var invocationExpression = node.FirstAncestorOrSelf<InvocationExpressionSyntax>();
+
+        if (invocationExpression is not null)
+        {
+            if (invocationExpression.Expression is not MemberAccessExpressionSyntax memberAccessExpressionSyntax)
+            {
+                return root;
+            }
+
+            if (memberAccessExpressionSyntax.Name.Identifier.Text == "IsEnabled")
+            {
+                // TODO: Validate further
+                return await RemoveIsEnabledCheckAsync(document, root, invocationExpression, cancellationToken);
+            }
+        }
+
+        // Maybe [RequireFeature] on controllers
+        var attributeSyntax = node.FirstAncestorOrSelf<AttributeSyntax>();
+
+        if (attributeSyntax is not null)
+        {
+
+        }
+
+        return root;
+    }
+
+    private static async Task<SyntaxNode> RemoveIsEnabledCheckAsync(Document document, SyntaxNode root, SyntaxNode node, CancellationToken token)
     {
         SyntaxNode? newSyntax = null;
 
@@ -93,25 +186,25 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
 
             if (semanticModel is null)
             {
-                return document;
+                return root;
             }
 
             if (memberAccess.Parent is null)
             {
-                return document;
+                return root;
             }
 
             var memberAccessOperation = semanticModel.GetOperation(memberAccess.Parent);
 
             if (memberAccessOperation is not IInvocationOperation invocationOperation)
             {
-                return document;
+                return root;
             }
 
             // First arg is the `this` parameter of the extension method
             if (invocationOperation.Arguments is not [_, var secondArg, ..])
             {
-                return document;
+                return root;
             }
 
             if (secondArg.Value.ConstantValue.HasValue && secondArg.Value.ConstantValue.Value is false)
@@ -123,7 +216,7 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
 
                 if (testMethod == null)
                 {
-                    return document;
+                    return root;
                 }
 
                 newSyntax = root.RemoveNode(testMethod, SyntaxRemoveOptions.KeepNoTrivia);
@@ -135,7 +228,7 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
 
                 if (wholeExpression is null)
                 {
-                    return document;
+                    return root;
                 }
 
                 newSyntax = root.RemoveNode(wholeExpression, SyntaxRemoveOptions.KeepTrailingTrivia);
@@ -143,7 +236,7 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
         }
 
         // If we don't have any other special cases, just replace the check with a `true` literal.
-        return document.WithSyntaxRoot(newSyntax ?? root.ReplaceNode(node, SyntaxFactory.LiteralExpression(SyntaxKind.TrueLiteralExpression)));
+        return newSyntax ?? root.ReplaceNode(node, SyntaxFactory.LiteralExpression(SyntaxKind.TrueLiteralExpression));
     }
 
     private static Document RemoveRequireFeatureAttribute(Document document, SyntaxNode root, SyntaxNode node)
