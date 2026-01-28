@@ -1,7 +1,6 @@
+using System.Diagnostics.CodeAnalysis;
 using Bitwarden.Server.Sdk.Features;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using LaunchDarkly.Sdk.Server.Interfaces;
-using System.Diagnostics.CodeAnalysis;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -22,6 +21,7 @@ public static class FeatureServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddProblemDetails();
+        services.AddHttpContextAccessor();
 
         services.AddOptions<FeatureFlagOptions>()
             .BindConfiguration("Features");

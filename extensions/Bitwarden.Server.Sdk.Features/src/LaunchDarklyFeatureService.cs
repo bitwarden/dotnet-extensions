@@ -1,6 +1,8 @@
 using System.Text.Json.Nodes;
 using LaunchDarkly.Sdk;
 using LaunchDarkly.Sdk.Server.Interfaces;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -12,6 +14,7 @@ internal sealed class LaunchDarklyFeatureService : IFeatureService
     private readonly IContextBuilder _contextBuilder;
     private readonly IOptionsMonitor<FeatureFlagOptions> _featureFlagOptions;
     private readonly ILogger<LaunchDarklyFeatureService> _logger;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
     // Should not change during the course of a request, so cache this
     private Context? _context;
@@ -20,11 +23,13 @@ internal sealed class LaunchDarklyFeatureService : IFeatureService
         ILaunchDarklyClientProvider launchDarklyClientProvider,
         IContextBuilder contextBuilder,
         IOptionsMonitor<FeatureFlagOptions> featureFlagOptions,
-        ILogger<LaunchDarklyFeatureService> logger)
+        ILogger<LaunchDarklyFeatureService> logger,
+        IHttpContextAccessor httpContextAccessor)
     {
         ArgumentNullException.ThrowIfNull(launchDarklyClientProvider);
         ArgumentNullException.ThrowIfNull(featureFlagOptions);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(httpContextAccessor);
 
         // Retrieving the ILdClient once in the constructor does mean that
         // we no longer receive possible changes to the clients during the
@@ -36,21 +41,28 @@ internal sealed class LaunchDarklyFeatureService : IFeatureService
         _contextBuilder = contextBuilder;
         _featureFlagOptions = featureFlagOptions;
         _logger = logger;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     public bool IsEnabled(string key, bool defaultValue = false)
     {
-        return _ldClient.BoolVariation(key, GetContext(), defaultValue);
+        var value = _ldClient.BoolVariation(key, GetContext(), defaultValue);
+        AddFeatureFlagTag(key, value);
+        return value;
     }
 
     public int GetIntVariation(string key, int defaultValue = 0)
     {
-        return _ldClient.IntVariation(key, GetContext(), defaultValue);
+        var value = _ldClient.IntVariation(key, GetContext(), defaultValue);
+        AddFeatureFlagTag(key, value);
+        return value;
     }
 
     public string GetStringVariation(string key, string? defaultValue = null)
     {
-        return _ldClient.StringVariation(key, GetContext(), defaultValue);
+        var value = _ldClient.StringVariation(key, GetContext(), defaultValue);
+        AddFeatureFlagTag(key, value);
+        return value;
     }
 
     public IReadOnlyDictionary<string, JsonValue> GetAll()
@@ -89,5 +101,22 @@ internal sealed class LaunchDarklyFeatureService : IFeatureService
     private Context GetContext()
     {
         return _context ??= _contextBuilder.Build();
+    }
+
+    private void AddFeatureFlagTag(string key, object value)
+    {
+        var httpContext = _httpContextAccessor.HttpContext;
+        if (httpContext == null)
+        {
+            return;
+        }
+
+        var tagKey = $"feature.flag.{key}";
+
+        // Add to activity (tracing)
+        httpContext.Features.Get<IHttpActivityFeature>()?.Activity?.AddTag(tagKey, value);
+
+        // Add to metrics
+        httpContext.Features.Get<IHttpMetricsTagsFeature>()?.Tags.Add(new KeyValuePair<string, object?>(tagKey, value));
     }
 }
