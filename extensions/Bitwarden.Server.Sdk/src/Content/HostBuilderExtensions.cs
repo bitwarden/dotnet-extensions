@@ -175,6 +175,16 @@ public static class HostBuilderExtensions
                 );
                 r.AddTelemetrySdk();
                 r.AddEnvironmentVariableDetector();
+
+                // Auto-detect the DD_ENV environment variable we used for DD instrumentation and add a resource
+                // attribute for it so that we can get better trace based metrics.
+                if (Environment.GetEnvironmentVariable("DD_ENV") is {} ddEnv)
+                {
+                    r.AddAttributes(new Dictionary<string, object>
+                    {
+                        ["env"] = ddEnv,
+                    });
+                }
             })
             .WithMetrics(metrics =>
             {
