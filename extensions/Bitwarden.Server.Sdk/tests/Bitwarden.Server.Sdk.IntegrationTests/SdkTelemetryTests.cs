@@ -16,13 +16,24 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
     [Fact(Timeout = 2 * 60 * 1000)]
     public async Task CustomMetricsAndTracesWork()
     {
-        using var result = await RunTelemetryAsync([]);
+        using var result = await RunTelemetryAsync(new Dictionary<string, string?>
+        {
+            { "DD_ENV", "usprd" },
+        });
 
         var resourceMetric = Assert.Single(result.Metrics!.RootElement.GetProperty("resourceMetrics").EnumerateArray());
         // Make sure that the service name is set
+        var allMetricResourceAttributes = resourceMetric.GetProperty("resource").GetProperty("attributes").EnumerateArray();
+
         Assert.Single(
-            resourceMetric.GetProperty("resource").GetProperty("attributes").EnumerateArray(),
+            allMetricResourceAttributes,
             a => a.GetProperty("key").GetString() == "service.name" && a.GetProperty("value").GetProperty("stringValue").GetString() == "Test"
+        );
+
+        // Check that DD_ENV environment variable became a env attribute
+        Assert.Single(
+            allMetricResourceAttributes,
+            a => a.GetProperty("key").GetString() == "env" && a.GetProperty("value").GetProperty("stringValue").GetString() == "usprd"
         );
 
         // Our custom scope should exist
@@ -39,10 +50,18 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
 
         var resourceSpan = Assert.Single(result.Traces!.RootElement.GetProperty("resourceSpans").EnumerateArray());
 
+        var allSpanResourceAttributes = resourceSpan.GetProperty("resource").GetProperty("attributes").EnumerateArray();
+
         // Make sure that the service name is set
         Assert.Single(
-            resourceSpan.GetProperty("resource").GetProperty("attributes").EnumerateArray(),
+            allSpanResourceAttributes,
             a => a.GetProperty("key").GetString() == "service.name" && a.GetProperty("value").GetProperty("stringValue").GetString() == "Test"
+        );
+
+        // Check that DD_ENV environment variable became a env attribute
+        Assert.Single(
+            allSpanResourceAttributes,
+            a => a.GetProperty("key").GetString() == "env" && a.GetProperty("value").GetProperty("stringValue").GetString() == "usprd"
         );
 
         var aspNetScope = Assert.Single(
