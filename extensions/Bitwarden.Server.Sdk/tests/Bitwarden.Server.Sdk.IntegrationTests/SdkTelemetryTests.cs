@@ -64,8 +64,10 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
             a => a.GetProperty("key").GetString() == "env" && a.GetProperty("value").GetProperty("stringValue").GetString() == "usprd"
         );
 
+        var allScopeSpans = resourceSpan.GetProperty("scopeSpans").EnumerateArray();
+
         var aspNetScope = Assert.Single(
-            resourceSpan.GetProperty("scopeSpans").EnumerateArray(),
+            allScopeSpans,
             s => s.GetProperty("scope").GetProperty("name").GetString() == "Microsoft.AspNetCore"
         );
 
@@ -79,6 +81,17 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
         Assert.Single(
             requestSpan.GetProperty("attributes").EnumerateArray(),
             a => a.GetProperty("key").GetString() == "custom_tag" && a.GetProperty("value").GetProperty("stringValue").GetString() == "my_value"
+        );
+
+        // Spans prefixed with Bitwarden. should be automatically listened to
+        var customScope = Assert.Single(
+            allScopeSpans,
+            s => s.GetProperty("scope").GetProperty("name").GetString() == "Bitwarden.MyFeature"
+        );
+
+        Assert.Single(
+            customScope.GetProperty("spans").EnumerateArray(),
+            s => s.GetProperty("name").GetString() == "MyOperation"
         );
     }
 

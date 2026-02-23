@@ -17,7 +17,8 @@ public sealed class TelemetryProjectFixture : MSBuildTestBase
         {
             { "Value", ResourceReaper.DefaultSessionId.ToString("D") },
         });
-        project.AdditionalFile("Program.cs", $$"""
+        project.AdditionalFile("Program.cs", /* lang=c# */ """
+            using System.Diagnostics;
             using System.Diagnostics.Tracing;
             using System.Diagnostics.Metrics;
             using Microsoft.AspNetCore.Http.Features;
@@ -27,12 +28,17 @@ public sealed class TelemetryProjectFixture : MSBuildTestBase
 
             builder.Services.AddSingleton<CustomMetrics>();
 
+            var source = new ActivitySource("Bitwarden.MyFeature");
 
             var app = builder.Build();
 
             app.MapGet("/", (HttpContext context, CustomMetrics metrics) =>
             {
+                // Custom trace
+                using var activity = source.StartActivity("MyOperation");
+                // Add tag to HTTP trace
                 context.Features.Get<IHttpActivityFeature>()?.Activity.SetTag("custom_tag", "my_value");
+                // Custom metric
                 metrics.Test();
                 return Results.Ok();
             });

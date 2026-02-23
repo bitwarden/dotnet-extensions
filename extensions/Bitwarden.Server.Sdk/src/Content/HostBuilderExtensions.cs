@@ -220,6 +220,7 @@ public static class HostBuilderExtensions
 #if BIT_INCLUDE_CACHING
                 tracing.AddFusionCacheInstrumentation();
 #endif
+                tracing.AddSource("Bitwarden.*");
             });
 
         if (configuration.GetValue(OtelDebuggingConfigKey, false))
