@@ -47,6 +47,7 @@
 
     <!-- Add the Fusion cache open telemetry library when telemetry and caching are being used. -->
     <PackageReference Condition="'$(BitIncludeCaching)' == 'true'" Include="ZiggyCreatures.FusionCache.OpenTelemetry" Version="2.5.0" />
+    <PackageReference Condition="'$(BitIncludeCaching)' == 'true'" Include="OpenTelemetry.Instrumentation.StackExchangeRedis" Version="1.15.0-beta.1" />
 
     <Compile Include="$(SdkContentRoot)/OtelDebuggingHostedService.cs" />
   </ItemGroup>
