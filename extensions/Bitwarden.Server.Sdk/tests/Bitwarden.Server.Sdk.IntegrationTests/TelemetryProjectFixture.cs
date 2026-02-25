@@ -22,6 +22,7 @@ public sealed class TelemetryProjectFixture : MSBuildTestBase
             using System.Diagnostics.Tracing;
             using System.Diagnostics.Metrics;
             using Microsoft.AspNetCore.Http.Features;
+            using ZiggyCreatures.Caching.Fusion;
 
             var builder = WebApplication.CreateBuilder();
             builder.UseBitwardenSdk();
@@ -32,7 +33,11 @@ public sealed class TelemetryProjectFixture : MSBuildTestBase
 
             var app = builder.Build();
 
-            app.MapGet("/", (HttpContext context, CustomMetrics metrics) =>
+            app.MapGet("/", async (
+                HttpContext context,
+                CustomMetrics metrics,
+                IConfiguration configuration
+            ) =>
             {
                 // Custom trace
                 using var activity = source.StartActivity("MyOperation");
@@ -40,6 +45,13 @@ public sealed class TelemetryProjectFixture : MSBuildTestBase
                 context.Features.Get<IHttpActivityFeature>()?.Activity.SetTag("custom_tag", "my_value");
                 // Custom metric
                 metrics.Test();
+
+                if (configuration["Caching:Redis:Configuration"] != null)
+                {
+                    var cache = context.RequestServices.GetRequiredKeyedService<IFusionCache>("MyCache");
+                    await cache.SetAsync("Key", "Value");
+                }
+
                 return Results.Ok();
             });
 
@@ -78,6 +90,7 @@ public sealed class TelemetryProjectFixture : MSBuildTestBase
             {
                 { "ContainerRepository", ImageName },
                 { "ContainerFamily", "alpine" },
+                { "BitIncludeCaching", "true" },
             },
             out var result, out var buildOutput, out var targetOutputs
         );
