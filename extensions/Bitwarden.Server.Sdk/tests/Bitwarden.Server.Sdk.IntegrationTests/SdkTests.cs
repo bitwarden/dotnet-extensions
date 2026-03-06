@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Build.Utilities.ProjectCreation;
 using Microsoft.Extensions.Logging;
 
@@ -8,16 +9,22 @@ public class SdkTests : MSBuildTestBase
     [Fact]
     public void NoOverridingProperties_CanCompile()
     {
-        ProjectCreator.Templates.SdkProject(out var result, out var buildOutput)
-            .TryGetConstant("BIT_INCLUDE_TELEMETRY", out var hasTelementryConstant)
-            .TryGetConstant("BIT_INCLUDE_FEATURES", out var hasFeaturesConstant)
-            .TryGetConstant("BIT_INCLUDE_AUTHENTICATION", out var hasAuthenticationConstant);
+        IEnumerable<(string Feature, bool DefaultValue)> featuresAndDefaults = [
+            ("TELEMETRY", true),
+            ("FEATURES", true),
+            ("AUTHENTICATION", true),
+            ("CACHING", false),
+        ];
+
+        var project = ProjectCreator.Templates.SdkProject(out var result, out var buildOutput);
 
         Assert.True(result, buildOutput.GetConsoleLog());
 
-        Assert.True(hasTelementryConstant);
-        Assert.True(hasFeaturesConstant);
-        Assert.True(hasAuthenticationConstant);
+        foreach (var (feature, expectedDefault) in featuresAndDefaults)
+        {
+            project.TryGetConstant($"BIT_INCLUDE_{feature}", out var actualValue);
+            Assert.Equal(expectedDefault, actualValue);
+        }
     }
 
     [Fact]
@@ -124,6 +131,24 @@ public class SdkTests : MSBuildTestBase
     }
 
     [Fact]
+    public void CachingTurnedOn_CanUseFusionCache()
+    {
+        ProjectCreator.Templates.SdkProject(
+            out var result,
+            out var buildOutput,
+            customAction: (project) =>
+            {
+                project.Property("BitIncludeCaching", bool.TrueString);
+            },
+            additional: """
+                app.MapGet("/test", ([FromKeyedServices("Test")]  ZiggyCreatures.Caching.Fusion.IFusionCache cache) => cache.GetOrSetAsync("Key", true));
+                """
+        );
+
+        Assert.True(result, buildOutput.GetConsoleLog());
+    }
+
+    [Fact]
     public void AuthenticationTurnedOff_CanCompile()
     {
         ProjectCreator.Templates.SdkProject(
@@ -138,34 +163,59 @@ public class SdkTests : MSBuildTestBase
         Assert.True(result, buildOutput.GetConsoleLog());
     }
 
-    public static TheoryData<bool, bool, bool> MatrixData
-        => new MatrixTheoryData<bool, bool, bool>([true, false], [true, false], [true, false]);
-
-    // There will be some variants that disallow the use of feature Y if feature X is not also enabled.
-    // Use this set to exclude those known variants from being tested.
-    public static HashSet<(bool, bool, bool)> ExcludedVariants => [];
-
-    [Theory, MemberData(nameof(MatrixData))]
-    public void AllVariants_Work(bool includeTelemetry, bool includeFeatures, bool includeAuthentication)
+    public static TheoryData<string> PossibleVariantData()
     {
-        if (ExcludedVariants.Contains((includeTelemetry, includeFeatures, includeAuthentication)))
+        string[] features = ["Telemetry", "Features", "Authentication", "Caching"];
+        var totalCombinations = (int)Math.Pow(2, features.Length);
+
+        var theory = new TheoryData<string>();
+
+        for (var i = 0; i < totalCombinations; i++)
         {
-            Assert.Skip($"""
-                Excluded Variant Skipped:
-                    IncludeTelemetry = {includeTelemetry}
-                    IncludeFeatures = {includeFeatures}
-                    IncludeAuthentication = {includeAuthentication}
-                """);
+            var variant = new Dictionary<string, bool>();
+
+            for (var j = 0; j < features.Length; j++)
+            {
+                // Check if the j-th bit is set in i
+                variant[features[j]] = (i & (1 << j)) != 0;
+            }
+
+            // TODO: When there are variants that need to be skipped do so here but still add
+            // a row with a skip message
+            theory.Add(Serialize(variant));
         }
+
+        return theory;
+
+        // We serialize it into a simple string so that it can be easily viewed in test explorer
+        static string Serialize(Dictionary<string, bool> features)
+        {
+            return string.Join(',', features.Select(feature => $"{feature.Key}={feature.Value}"));
+        }
+    }
+
+    [Theory, MemberData(nameof(PossibleVariantData))]
+    public void AllVariants_Work(string featureSets)
+    {
+        // Deserialize from simple string into dictionary
+        var features = featureSets.Split(",")
+            .Select(featureSet =>
+            {
+                var split = featureSet.Split("=");
+                Debug.Assert(split.Length == 2, "Invalid format");
+                return new KeyValuePair<string, bool>(split[0], bool.Parse(split[1]));
+            })
+            .ToDictionary();
 
         ProjectCreator.Templates.SdkProject(
             out var result,
             out var buildOutput,
             customAction: (project) =>
             {
-                project.Property("BitIncludeTelemetry", includeTelemetry.ToString());
-                project.Property("BitIncludeFeatures", includeFeatures.ToString());
-                project.Property("BitIncludeAuthentication", includeAuthentication.ToString());
+                foreach (var feature in features)
+                {
+                    project.Property($"BitInclude{feature.Key}", feature.Value.ToString());
+                }
             }
         );
 

@@ -302,7 +302,7 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
         var attributeList = (AttributeListSyntax)node.Parent!;
 
         // Remove the whole attribute list if this was the only attribute, otherwise just remove ours
-        var nodeToRemove = attributeList.Attributes.Count == 1 ? node.Parent : node;
+        var nodeToRemove = attributeList.Attributes.Count == 1 ? (SyntaxNode)attributeList : node;
         return root.RemoveNode(nodeToRemove, SyntaxRemoveOptions.KeepNoTrivia)!;
     }
 

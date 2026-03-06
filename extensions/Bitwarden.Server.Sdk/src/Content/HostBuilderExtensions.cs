@@ -9,6 +9,9 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Resources;
 #endif
+#if BIT_INCLUDE_CACHING
+using Bitwarden.Server.Sdk.Caching;
+#endif
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -42,6 +45,10 @@ public static class HostBuilderExtensions
 
 #if BIT_INCLUDE_AUTHENTICATION
         builder.Services.AddBitwardenAuthentication();
+#endif
+
+#if BIT_INCLUDE_CACHING
+        builder.Services.AddBitwardenCaching();
 #endif
 
         return builder;
@@ -80,6 +87,13 @@ public static class HostBuilderExtensions
         hostBuilder.ConfigureServices((_, services) =>
         {
             services.AddBitwardenAuthentication();
+        });
+#endif
+
+#if BIT_INCLUDE_CACHING
+        hostBuilder.ConfigureServices((_, services) =>
+        {
+            services.AddBitwardenCaching();
         });
 #endif
 
@@ -161,6 +175,16 @@ public static class HostBuilderExtensions
                 );
                 r.AddTelemetrySdk();
                 r.AddEnvironmentVariableDetector();
+
+                // Auto-detect the DD_ENV environment variable we used for DD instrumentation and add a resource
+                // attribute for it so that we can get better trace based metrics.
+                if (Environment.GetEnvironmentVariable("DD_ENV") is { } ddEnv)
+                {
+                    r.AddAttributes(new Dictionary<string, object>
+                    {
+                        ["env"] = ddEnv,
+                    });
+                }
             })
             .WithMetrics(metrics =>
             {
@@ -176,6 +200,10 @@ public static class HostBuilderExtensions
 
                 metrics.AddMeter("Bitwarden.*");
                 metrics.AddMeter("Bit.*");
+
+#if BIT_INCLUDE_CACHING
+                metrics.AddFusionCacheInstrumentation();
+#endif
             })
             .WithTracing(tracing =>
             {
@@ -188,7 +216,36 @@ public static class HostBuilderExtensions
                 tracing.AddHttpClientInstrumentation();
                 tracing.AddEntityFrameworkCoreInstrumentation();
                 tracing.AddSqlClientInstrumentation();
+
+#if BIT_INCLUDE_CACHING
+                tracing.AddFusionCacheInstrumentation();
+                tracing.AddRedisInstrumentation();
+#endif
+                tracing.AddSource("Bitwarden.*");
             });
+
+#if BIT_INCLUDE_CACHING
+        // The caching library uses RedisCacheOptions for customizing how redis is used.
+        // To make that work with open telemetry instrumentation we need access to the connection
+        // to make it get tracked, so switch uses of the Configuration property with ConnectionMultiplexerFactory
+        // which takes precedence. Ref: https://github.com/dotnet/aspnetcore/blob/eec80e1c63963802a215d58b3907d6e46090fc28/src/Caching/StackExchangeRedis/src/RedisCache.cs#L336-L343
+        services.AddSingleton<Microsoft.Extensions.Options.IPostConfigureOptions<Microsoft.Extensions.Caching.StackExchangeRedis.RedisCacheOptions>>(sp =>
+        {
+            return new Microsoft.Extensions.Options.PostConfigureOptions<Microsoft.Extensions.Caching.StackExchangeRedis.RedisCacheOptions>(name: null, options =>
+            {
+                if (!string.IsNullOrEmpty(options.Configuration))
+                {
+                    var instrumentation = sp.GetRequiredService<OpenTelemetry.Instrumentation.StackExchangeRedis.StackExchangeRedisInstrumentation>();
+                    options.ConnectionMultiplexerFactory = async () =>
+                    {
+                        var connection = await StackExchange.Redis.ConnectionMultiplexer.ConnectAsync(options.Configuration);
+                        instrumentation.AddConnection(connection);
+                        return connection;
+                    };
+                }
+            });
+        });
+#endif
 
         if (configuration.GetValue(OtelDebuggingConfigKey, false))
         {

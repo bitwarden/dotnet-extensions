@@ -22,7 +22,10 @@ public sealed class BitwardenIdentityClient
 
     public async Task<JsonDocument> ConnectTokenAsync(Dictionary<string, string> formContent)
     {
-        var response = await _identityClient.PostAsync("/connect/token", new FormUrlEncodedContent(formContent));
+        var response = await _identityClient.PostAsync("connect/token", new FormUrlEncodedContent(formContent));
+
+        response.EnsureSuccessStatusCode();
+
         // TODO: Package errors into helpful exceptions
         return (await response.Content.ReadFromJsonAsync<JsonDocument>())!;
     }

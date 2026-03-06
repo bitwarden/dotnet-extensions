@@ -17,23 +17,41 @@ public sealed class TelemetryProjectFixture : MSBuildTestBase
         {
             { "Value", ResourceReaper.DefaultSessionId.ToString("D") },
         });
-        project.AdditionalFile("Program.cs", $$"""
+        project.AdditionalFile("Program.cs", /* lang=c# */ """
+            using System.Diagnostics;
             using System.Diagnostics.Tracing;
             using System.Diagnostics.Metrics;
             using Microsoft.AspNetCore.Http.Features;
+            using ZiggyCreatures.Caching.Fusion;
 
             var builder = WebApplication.CreateBuilder();
             builder.UseBitwardenSdk();
 
             builder.Services.AddSingleton<CustomMetrics>();
 
+            var source = new ActivitySource("Bitwarden.MyFeature");
 
             var app = builder.Build();
 
-            app.MapGet("/", (HttpContext context, CustomMetrics metrics) =>
+            app.MapGet("/", async (
+                HttpContext context,
+                CustomMetrics metrics,
+                IConfiguration configuration
+            ) =>
             {
+                // Custom trace
+                using var activity = source.StartActivity("MyOperation");
+                // Add tag to HTTP trace
                 context.Features.Get<IHttpActivityFeature>()?.Activity.SetTag("custom_tag", "my_value");
+                // Custom metric
                 metrics.Test();
+
+                if (configuration["Caching:Redis:Configuration"] != null)
+                {
+                    var cache = context.RequestServices.GetRequiredKeyedService<IFusionCache>("MyCache");
+                    await cache.SetAsync("Key", "Value");
+                }
+
                 return Results.Ok();
             });
 
@@ -72,6 +90,7 @@ public sealed class TelemetryProjectFixture : MSBuildTestBase
             {
                 { "ContainerRepository", ImageName },
                 { "ContainerFamily", "alpine" },
+                { "BitIncludeCaching", "true" },
             },
             out var result, out var buildOutput, out var targetOutputs
         );

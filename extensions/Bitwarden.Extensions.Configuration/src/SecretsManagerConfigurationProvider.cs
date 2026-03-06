@@ -6,7 +6,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace Bitwarden.Extensions.Configuration;
 
-public class SecretsManagerConfigurationProvider : ConfigurationProvider, IDisposable
+internal sealed class SecretsManagerConfigurationProvider : ConfigurationProvider, IDisposable
 {
     private readonly TimeSpan? _reloadInterval;
     private readonly CancellationTokenSource _cancellationToken;
@@ -139,21 +139,11 @@ public class SecretsManagerConfigurationProvider : ConfigurationProvider, IDispo
 
     public void Dispose()
     {
-        Dispose(true);
-        GC.SuppressFinalize(this);
-    }
-
-    protected virtual void Dispose(bool disposing)
-    {
-        if (disposing)
+        if (!_disposed)
         {
-            if (!_disposed)
-            {
-                _innerHandler.Dispose();
-                _cancellationToken.Cancel();
-                _cancellationToken.Dispose();
-            }
-
+            _innerHandler.Dispose();
+            _cancellationToken.Cancel();
+            _cancellationToken.Dispose();
             _disposed = true;
         }
     }

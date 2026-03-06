@@ -14,7 +14,7 @@ public sealed class BitwardenEnvironment
         apiUri: new Uri("https://api.bitwarden.com"));
 
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public static BitwardenEnvironment DevelopmentEnvironment { get; } = Custom( 
+    public static BitwardenEnvironment DevelopmentEnvironment { get; } = Custom(
         new Uri("http://localhost:33656"),
         new Uri("http://localhost:4000"));
 
@@ -42,7 +42,7 @@ public sealed class BitwardenEnvironment
             Uri CreateUri()
             {
                 // TODO: Should have validation
-                return new Uri(_baseUri!, "/identity");
+                return new Uri(_baseUri!, "identity");
             }
 
             return _identityUri ?? CreateUri();
@@ -56,7 +56,7 @@ public sealed class BitwardenEnvironment
             Uri CreateUri()
             {
                 // TODO: Should have validation
-                return new Uri(_baseUri!, "/api");
+                return new Uri(_baseUri!, "api");
             }
 
             return _apiUri ?? CreateUri();

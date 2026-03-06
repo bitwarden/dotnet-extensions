@@ -1,8 +1,10 @@
 <Project>
   <PropertyGroup>
     <IsTestProject Condition="'$(IsTestProject)' == '' and ($(MSBuildProjectName.EndsWith('.Tests')) or $(MSBuildProjectName.EndsWith('.IntegrationTests')))">true</IsTestProject>
+    <IsBenchmarkProject Condition="'$(IsBenchmarkProject)' == '' and $(MSBuildProjectName.EndsWith('.Microbenchmarks'))">true</IsBenchmarkProject>
     <Nullable Condition="'$(Nullable)' == ''">enable</Nullable>
     <ImplicitUsings Condition="'$(ImplicitUsings)' == ''">enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
@@ -10,6 +12,7 @@
     <IsPackable Condition="'$(IsPackable)' == ''">false</IsPackable>
     <TestingPlatformDotnetTestSupport Condition="'$(TestingPlatformDotnetTestSupport)' == ''">true</TestingPlatformDotnetTestSupport>
     <UseMicrosoftTestingPlatformRunner Condition="'$(UseMicrosoftTestingPlatformRunner)' == ''">true</UseMicrosoftTestingPlatformRunner>
+    <TestingPlatformShowTestsFailure>true</TestingPlatformShowTestsFailure>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(IsPackable)' == 'true'">

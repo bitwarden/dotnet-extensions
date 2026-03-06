@@ -478,3 +478,6 @@ $RECYCLE.BIN/
 
 # Rider
 .idea/*
+
+# Folder to store coverage report
+/coverage
