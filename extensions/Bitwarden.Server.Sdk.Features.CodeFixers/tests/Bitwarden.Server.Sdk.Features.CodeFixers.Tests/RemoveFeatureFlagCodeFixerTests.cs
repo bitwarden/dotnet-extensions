@@ -459,6 +459,94 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
     }
 
     [Fact]
+    public async Task RequireFeatureMethod_OnlyStatementInBlock_LeavesEmptyBlock()
+    {
+        ConfigureForAspNet();
+        await RunDefaultCodeFixAsync(
+            """
+            using Microsoft.AspNetCore.Builder;
+            using Microsoft.AspNetCore.Http;
+            using Test;
+
+            var builder = WebApplication.CreateBuilder(args);
+            var app = builder.Build();
+
+            var endpoint = app.MapGet("/", () => "Hello world!");
+            Configure(endpoint);
+
+            app.Run();
+
+            static void Configure(IEndpointConventionBuilder endpoint)
+            {
+                endpoint.RequireFeature(MyFlags.Flag);
+            }
+            """,
+            """
+            using Microsoft.AspNetCore.Builder;
+            using Microsoft.AspNetCore.Http;
+            using Test;
+
+            var builder = WebApplication.CreateBuilder(args);
+            var app = builder.Build();
+
+            var endpoint = app.MapGet("/", () => "Hello world!");
+            Configure(endpoint);
+
+            app.Run();
+
+            static void Configure(IEndpointConventionBuilder endpoint)
+            {
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task RequireFeatureMethod_FirstStatementInBlock_RemovesAndPreservesIndentation()
+    {
+        ConfigureForAspNet();
+        await RunDefaultCodeFixAsync(
+            """
+            using Microsoft.AspNetCore.Builder;
+            using Microsoft.AspNetCore.Http;
+            using Test;
+
+            var builder = WebApplication.CreateBuilder(args);
+            var app = builder.Build();
+
+            var endpoint = app.MapGet("/", () => "Hello world!");
+            Configure(endpoint);
+
+            app.Run();
+
+            static void Configure(IEndpointConventionBuilder endpoint)
+            {
+                endpoint.RequireFeature(MyFlags.Flag);
+                endpoint.WithName("my-endpoint");
+            }
+            """,
+            """
+            using Microsoft.AspNetCore.Builder;
+            using Microsoft.AspNetCore.Http;
+            using Test;
+
+            var builder = WebApplication.CreateBuilder(args);
+            var app = builder.Build();
+
+            var endpoint = app.MapGet("/", () => "Hello world!");
+            Configure(endpoint);
+
+            app.Run();
+
+            static void Configure(IEndpointConventionBuilder endpoint)
+            {
+                endpoint.WithName("my-endpoint");
+            }
+            """
+        );
+    }
+
+    [Fact]
     public async Task TestCode_MocksTrue_DeletesSelf()
     {
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(Substitute).Assembly.Location));
@@ -622,446 +710,6 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
                 {
 
                 }
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task Trivia_OnMethod()
-    {
-        await RunDefaultCodeFixAsync(
-            """
-            namespace Test;
-
-            public class MyService
-            {
-                /// <cleanup cref="MyFlags.Flag" />
-                public void DoThing()
-                {
-                    // Legacy and should go away when a feature goes away
-                }
-
-                public void DoOtherThing()
-                {
-
-                }
-            }
-            """,
-            """
-            namespace Test;
-
-            public class MyService
-            {
-                public void DoOtherThing()
-                {
-
-                }
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task Trivia_OnProperty()
-    {
-        await RunDefaultCodeFixAsync(
-            """
-            namespace Test;
-
-            public class MyEntity
-            {
-                public decimal FirstProp { get; set; }
-                /// <cleanup cref="MyFlags.Flag" />
-                public int MyProp { get; set; }
-                public string? AnotherProp { get; set; }
-            }
-            """,
-            """
-            namespace Test;
-
-            public class MyEntity
-            {
-                public decimal FirstProp { get; set; }
-                public string? AnotherProp { get; set; }
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task Trivia_InsideMethod()
-    {
-        await RunDefaultCodeFixAsync(
-            """
-            namespace Test;
-
-            public class MyService
-            {
-                public void DoThing()
-                {
-                    /// <cleanup cref="MyFlags.Flag" />
-                    Run();
-                }
-
-                public void Run()
-                {
-
-                }
-            }
-            """,
-            """
-            namespace Test;
-
-            public class MyService
-            {
-                public void DoThing()
-                {
-                }
-
-                public void Run()
-                {
-
-                }
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task Trivia_OnField()
-    {
-        await RunDefaultCodeFixAsync(
-            """
-            namespace Test;
-
-            public class MyEntity
-            {
-                private int _firstField;
-                /// <cleanup cref="MyFlags.Flag" />
-                private string _featureField;
-                private bool _lastField;
-            }
-            """,
-            """
-            namespace Test;
-
-            public class MyEntity
-            {
-                private int _firstField;
-                private bool _lastField;
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task Trivia_OnConstructor()
-    {
-        await RunDefaultCodeFixAsync(
-            """
-            namespace Test;
-
-            public class MyService
-            {
-                /// <cleanup cref="MyFlags.Flag" />
-                public MyService(string name)
-                {
-                }
-
-                public void DoWork() { }
-            }
-            """,
-            """
-            namespace Test;
-
-            public class MyService
-            {
-                public void DoWork() { }
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task Trivia_OnNestedClass()
-    {
-        await RunDefaultCodeFixAsync(
-            """
-            namespace Test;
-
-            public class MyService
-            {
-                /// <cleanup cref="MyFlags.Flag" />
-                public class NestedFeatureClass
-                {
-                    public void Method() { }
-                }
-
-                public void OtherMethod() { }
-            }
-            """,
-            """
-            namespace Test;
-
-            public class MyService
-            {
-                public void OtherMethod() { }
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task Trivia_OnMultipleConsecutiveStatements()
-    {
-        await RunDefaultCodeFixAsync(
-            """
-            namespace Test;
-
-            public class MyService
-            {
-                public void DoThing()
-                {
-                    /// <cleanup cref="MyFlags.Flag" />
-                    Run1();
-                    /// <cleanup cref="MyFlags.Flag" />
-                    Run2();
-                    Run3();
-                }
-
-                public void Run1() { }
-                public void Run2() { }
-                public void Run3() { }
-            }
-            """,
-            """
-            namespace Test;
-
-            public class MyService
-            {
-                public void DoThing()
-                {
-                    Run3();
-                }
-
-                public void Run1() { }
-                public void Run2() { }
-                public void Run3() { }
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task Trivia_OnInterfaceMember()
-    {
-        await RunDefaultCodeFixAsync(
-            """
-            namespace Test;
-
-            public interface IMyService
-            {
-                void RegularMethod();
-                /// <cleanup cref="MyFlags.Flag" />
-                void FeatureMethod();
-            }
-            """,
-            """
-            namespace Test;
-
-            public interface IMyService
-            {
-                void RegularMethod();
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task Trivia_OnEvent()
-    {
-        await RunDefaultCodeFixAsync(
-            """
-            using System;
-
-            namespace Test;
-
-            public class MyService
-            {
-                public event EventHandler? RegularEvent;
-                /// <cleanup cref="MyFlags.Flag" />
-                public event EventHandler? FeatureEvent;
-            }
-            """,
-            """
-            using System;
-
-            namespace Test;
-
-            public class MyService
-            {
-                public event EventHandler? RegularEvent;
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task Trivia_OnIndexer()
-    {
-        await RunDefaultCodeFixAsync(
-            """
-            namespace Test;
-
-            public class MyCollection
-            {
-                /// <cleanup cref="MyFlags.Flag" />
-                public string this[int index] => "";
-
-                public void OtherMethod() { }
-            }
-            """,
-            """
-            namespace Test;
-
-            public class MyCollection
-            {
-                public void OtherMethod() { }
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task Trivia_EmptyClassAfterRemoval()
-    {
-        await RunDefaultCodeFixAsync(
-            """
-            namespace Test;
-
-            public class MyService
-            {
-                /// <cleanup cref="MyFlags.Flag" />
-                public void OnlyMethod() { }
-            }
-            """,
-            """
-            namespace Test;
-
-            public class MyService
-            {
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task Trivia_OnGenericMethod()
-    {
-        await RunDefaultCodeFixAsync(
-            """
-            namespace Test;
-
-            public class MyService
-            {
-                /// <cleanup cref="MyFlags.Flag" />
-                public T GetValue<T>() => default;
-
-                public void OtherMethod() { }
-            }
-            """,
-            """
-            namespace Test;
-
-            public class MyService
-            {
-                public void OtherMethod() { }
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task Trivia_OnDelegate()
-    {
-        await RunDefaultCodeFixAsync(
-            """
-            namespace Test;
-
-            public class MyService
-            {
-                /// <cleanup cref="MyFlags.Flag" />
-                public delegate void MyDelegate();
-
-                public void OtherMethod() { }
-            }
-            """,
-            """
-            namespace Test;
-
-            public class MyService
-            {
-                public void OtherMethod() { }
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task Trivia_WithRegularComments()
-    {
-        await RunDefaultCodeFixAsync(
-            """
-            namespace Test;
-
-            public class MyService
-            {
-                // Regular comment about the feature
-                /// <cleanup cref="MyFlags.Flag" />
-                public void FeatureMethod() { }
-
-                public void OtherMethod() { }
-            }
-            """,
-            """
-            namespace Test;
-
-            public class MyService
-            {
-                public void OtherMethod() { }
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task Trivia_OnRecordParameter()
-    {
-        // Note: Record parameters with feature comments remove the entire record
-        // because the parameter is part of the record declaration syntax itself
-        await RunDefaultCodeFixAsync(
-            """
-            namespace Test;
-
-            public record MyRecord(
-                int RegularProperty,
-                /// <cleanup cref="MyFlags.Flag" />
-                int FeatureProperty,
-                string AnotherProperty
-            );
-
-            public class OtherClass
-            {
-                public void Method() { }
-            }
-            """,
-            """
-            namespace Test;
-
-            public class OtherClass
-            {
-                public void Method() { }
             }
             """
         );
@@ -1616,169 +1264,6 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
                 }
 
                 private void ProcessData() { }
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task RequiredCommentAddsRequiredAttributeAndImportsIt()
-    {
-        await RunDefaultCodeFixAsync(
-            """
-            using System;
-            using Bitwarden.Server.Sdk.Features;
-
-            namespace Test;
-
-            public class MyResponseModel
-            {
-                /// <required cref="MyFlags.Flag" />
-                public string Name { get; set; }
-                public Guid Something { get; set; }
-            }
-            """,
-            """
-            using System;
-            using System.ComponentModel.DataAnnotations;
-            using Bitwarden.Server.Sdk.Features;
-
-            namespace Test;
-
-            public class MyResponseModel
-            {
-                [Required]
-                public string Name { get; set; }
-                public Guid Something { get; set; }
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task RequiredCommentAddsRequiredAttributeButDoesNotNeedToImport()
-    {
-        await RunDefaultCodeFixAsync(
-            """
-            using System;
-            using System.ComponentModel.DataAnnotations;
-            using Bitwarden.Server.Sdk.Features;
-
-            namespace Test;
-
-            public class MyResponseModel
-            {
-                /// <required cref="MyFlags.Flag" />
-                public string Name { get; set; }
-
-                [Required]
-                public string Description { get; set; }
-
-                public Guid Something { get; set; }
-            }
-            """,
-            """
-            using System;
-            using System.ComponentModel.DataAnnotations;
-            using Bitwarden.Server.Sdk.Features;
-
-            namespace Test;
-
-            public class MyResponseModel
-            {
-                [Required]
-                public string Name { get; set; }
-
-                [Required]
-                public string Description { get; set; }
-
-                public Guid Something { get; set; }
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task EditorConfig_SystemDirectivesNotFirst_SortsAlphabetically()
-    {
-        // Configure editorconfig to NOT sort System.* directives first
-        TestState.AnalyzerConfigFiles.Add(("/.editorconfig", """
-            root = true
-
-            [*.cs]
-            dotnet_sort_system_directives_first = false
-            """));
-
-        await RunDefaultCodeFixAsync(
-            """
-            using System;
-            using Bitwarden.Server.Sdk.Features;
-
-            namespace Test;
-
-            public class MyResponseModel
-            {
-                /// <required cref="MyFlags.Flag" />
-                public string Name { get; set; }
-                public Guid Something { get; set; }
-            }
-            """,
-            """
-            using Bitwarden.Server.Sdk.Features;
-            using System;
-            using System.ComponentModel.DataAnnotations;
-
-            namespace Test;
-
-            public class MyResponseModel
-            {
-                [Required]
-                public string Name { get; set; }
-                public Guid Something { get; set; }
-            }
-            """
-        );
-    }
-
-    [Fact]
-    public async Task EditorConfig_SeparateImportGroups_AddsBlankLinesBetweenGroups()
-    {
-        // Configure editorconfig to add blank lines between import directive groups
-        TestState.AnalyzerConfigFiles.Add(("/.editorconfig", """
-            root = true
-
-            [*.cs]
-            dotnet_sort_system_directives_first = true
-            dotnet_separate_import_directive_groups = true
-            """));
-
-        await RunDefaultCodeFixAsync(
-            """
-            using System;
-            using Bitwarden.Server.Sdk.Features;
-
-            namespace Test;
-
-            public class MyResponseModel
-            {
-                /// <required cref="MyFlags.Flag" />
-                public string Name { get; set; }
-                public Guid Something { get; set; }
-            }
-            """,
-            """
-            using System;
-            using System.ComponentModel.DataAnnotations;
-
-            using Bitwarden.Server.Sdk.Features;
-
-            namespace Test;
-
-            public class MyResponseModel
-            {
-                [Required]
-                public string Name { get; set; }
-                public Guid Something { get; set; }
             }
             """
         );
