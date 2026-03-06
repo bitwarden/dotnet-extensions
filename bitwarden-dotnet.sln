@@ -73,19 +73,15 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Server.Sdk.Cachin
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Bitwarden.Server.Sdk.Features.Analyzers", "Bitwarden.Server.Sdk.Features.Analyzers", "{C4F9C157-63CE-4FBE-B062-691AC9218874}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Server.Sdk.Features.Analyzers", "extensions\Bitwarden.Server.Sdk.Features.Analyzers\src\Bitwarden.Server.Sdk.Features.Analyzers.csproj", "{DBE06AE0-CFFE-4647-B1C7-187630998A0C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Server.Sdk.Features.Analyzers", "extensions\Bitwarden.Server.Sdk.Features\analyzers\Bitwarden.Server.Sdk.Features.Analyzers\Bitwarden.Server.Sdk.Features.Analyzers.csproj", "{DBE06AE0-CFFE-4647-B1C7-187630998A0C}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{C21E8D4A-D7E4-4E6E-B08D-5513EA2D1DE2}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Server.Sdk.Features.Analyzers.Tests", "extensions\Bitwarden.Server.Sdk.Features.Analyzers\tests\Bitwarden.Server.Sdk.Features.Analyzers.Tests\Bitwarden.Server.Sdk.Features.Analyzers.Tests.csproj", "{C7222CF7-A78A-4CA0-84B3-2E6B41F82291}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Server.Sdk.Features.Analyzers.Tests", "extensions\Bitwarden.Server.Sdk.Features\tests\Bitwarden.Server.Sdk.Features.Analyzers.Tests\Bitwarden.Server.Sdk.Features.Analyzers.Tests.csproj", "{C7222CF7-A78A-4CA0-84B3-2E6B41F82291}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Bitwarden.Server.Sdk.Features.CodeFixers", "Bitwarden.Server.Sdk.Features.CodeFixers", "{7998585D-AB9C-4184-B37D-C420ED10FE70}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Server.Sdk.Features.CodeFixers", "extensions\Bitwarden.Server.Sdk.Features.CodeFixers\src\Bitwarden.Server.Sdk.Features.CodeFixers.csproj", "{44FAFF79-7306-42FF-AD3C-B97AED927CAF}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Server.Sdk.Features.CodeFixers", "extensions\Bitwarden.Server.Sdk.Features\analyzers\Bitwarden.Server.Sdk.Features.CodeFixers\Bitwarden.Server.Sdk.Features.CodeFixers.csproj", "{44FAFF79-7306-42FF-AD3C-B97AED927CAF}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0533F144-1B8C-4235-82D4-9882BCDBACEA}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Server.Sdk.Features.CodeFixers.Tests", "extensions\Bitwarden.Server.Sdk.Features.CodeFixers\tests\Bitwarden.Server.Sdk.Features.CodeFixers.Tests\Bitwarden.Server.Sdk.Features.CodeFixers.Tests.csproj", "{93108BCF-A4A4-468E-870B-87E1D85C0723}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bitwarden.Server.Sdk.Features.CodeFixers.Tests", "extensions\Bitwarden.Server.Sdk.Features\tests\Bitwarden.Server.Sdk.Features.CodeFixers.Tests\Bitwarden.Server.Sdk.Features.CodeFixers.Tests.csproj", "{93108BCF-A4A4-468E-870B-87E1D85C0723}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -219,13 +215,11 @@ Global
 		{304CE520-CA65-46DF-8028-A015A4D16A63} = {2CB6FE39-9791-4AF5-BDD5-CB7825D9C8DC}
 		{8A78FF9F-FCA5-4797-8141-998F56D0D051} = {2CB6FE39-9791-4AF5-BDD5-CB7825D9C8DC}
 		{3D6D6EB0-4378-4912-89D1-D41A8CCC744E} = {8A78FF9F-FCA5-4797-8141-998F56D0D051}
-		{C4F9C157-63CE-4FBE-B062-691AC9218874} = {695C76EF-1102-4805-970F-7C995EE54930}
+		{C4F9C157-63CE-4FBE-B062-691AC9218874} = {026589E0-5AAA-44EB-B973-3CFFF5B54AFC}
 		{DBE06AE0-CFFE-4647-B1C7-187630998A0C} = {C4F9C157-63CE-4FBE-B062-691AC9218874}
-		{C21E8D4A-D7E4-4E6E-B08D-5513EA2D1DE2} = {C4F9C157-63CE-4FBE-B062-691AC9218874}
-		{C7222CF7-A78A-4CA0-84B3-2E6B41F82291} = {C21E8D4A-D7E4-4E6E-B08D-5513EA2D1DE2}
-		{7998585D-AB9C-4184-B37D-C420ED10FE70} = {695C76EF-1102-4805-970F-7C995EE54930}
+		{7998585D-AB9C-4184-B37D-C420ED10FE70} = {026589E0-5AAA-44EB-B973-3CFFF5B54AFC}
 		{44FAFF79-7306-42FF-AD3C-B97AED927CAF} = {7998585D-AB9C-4184-B37D-C420ED10FE70}
-		{0533F144-1B8C-4235-82D4-9882BCDBACEA} = {7998585D-AB9C-4184-B37D-C420ED10FE70}
-		{93108BCF-A4A4-468E-870B-87E1D85C0723} = {0533F144-1B8C-4235-82D4-9882BCDBACEA}
+		{C7222CF7-A78A-4CA0-84B3-2E6B41F82291} = {4949B721-5C7F-4D85-AB35-F57B54D7A6E6}
+		{93108BCF-A4A4-468E-870B-87E1D85C0723} = {4949B721-5C7F-4D85-AB35-F57B54D7A6E6}
 	EndGlobalSection
 EndGlobal

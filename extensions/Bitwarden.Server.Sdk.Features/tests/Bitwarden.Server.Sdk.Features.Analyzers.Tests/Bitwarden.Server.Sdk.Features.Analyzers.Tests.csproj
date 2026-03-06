@@ -15,8 +15,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.Features.Analyzers.csproj" />
-    <ProjectReference Include="..\..\..\Bitwarden.Server.Sdk.Features\src\Bitwarden.Server.Sdk.Features.csproj" />
+    <ProjectReference Include="..\..\analyzers\Bitwarden.Server.Sdk.Features.Analyzers\Bitwarden.Server.Sdk.Features.Analyzers.csproj" />
+    <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.Features.csproj" />
   </ItemGroup>
 
 </Project>
