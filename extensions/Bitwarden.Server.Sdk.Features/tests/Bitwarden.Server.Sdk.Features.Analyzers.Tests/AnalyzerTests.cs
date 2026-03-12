@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis.CSharp.Testing;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Testing;
 
-namespace Bitwarden.Server.Sdk.Analyzers.Tests;
+namespace Bitwarden.Server.Sdk.Features.Analyzers.Tests;
 
 public abstract class AnalyzerTests<TAnalyzer> : CSharpAnalyzerTest<TAnalyzer, DefaultVerifier>
     where TAnalyzer : DiagnosticAnalyzer, new()

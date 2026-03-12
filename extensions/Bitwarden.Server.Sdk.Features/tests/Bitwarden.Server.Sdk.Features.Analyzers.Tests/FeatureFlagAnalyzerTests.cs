@@ -1,8 +1,6 @@
 using Microsoft.CodeAnalysis;
-using Bitwarden.Server.Sdk.Features;
-using Bitwarden.Server.Sdk.Features.Analyzers;
 
-namespace Bitwarden.Server.Sdk.Analyzers.Tests;
+namespace Bitwarden.Server.Sdk.Features.Analyzers.Tests;
 
 public class FeatureFlagAnalyzerTests : AnalyzerTests<FeatureFlagAnalyzer>
 {

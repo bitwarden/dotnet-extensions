@@ -67,7 +67,6 @@ internal sealed record FlagKeyCollectionSpec
                 writer.WriteLine("];");
                 writer.Indent--;
                 writer.WriteLine("}");
-                writer.Indent--;
             }
         }
 

@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <PropertyGroup>
+    <Description>Feature flag support for Bitwarden server services, backed by LaunchDarkly. Includes middleware, endpoint conventions, and controller attributes for remotely toggling features.</Description>
+  </PropertyGroup>
+
+  <PropertyGroup>
     <VersionPrefix>1.2.0</VersionPrefix>
     <PreReleaseVersionLabel>beta</PreReleaseVersionLabel>
     <PreReleaseVersionIteration>1</PreReleaseVersionIteration>
