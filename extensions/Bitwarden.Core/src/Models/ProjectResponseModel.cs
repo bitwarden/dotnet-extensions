@@ -11,7 +11,7 @@ public class ProjectResponseModel
         bool read,
         bool write)
     {
-        (Id, OrganizationId, Name, CreationDate, RevisionDate, Read, Write) 
+        (Id, OrganizationId, Name, CreationDate, RevisionDate, Read, Write)
             = (id, organizationId, name, creationDate, revisionDate, read, write);
     }
     public Guid Id { get; }

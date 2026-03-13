@@ -1,5 +1,5 @@
-using Bitwarden.Core;
 using System.Diagnostics;
+using Bitwarden.Core;
 
 namespace Bitwarden.Extensions.Configuration.Tests;
 

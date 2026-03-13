@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Caching.Distributed;
@@ -231,7 +231,7 @@ public class BitwardenCachingServiceCollectionExtensionsTests : IClassFixture<Re
     [InlineData(1, "System.Int32")]
     [InlineData(4f, "System.Single")]
     [InlineData(1d, "System.Double")]
-    [InlineData(new int[]{ 1 }, "System.Int32[]")]
+    [InlineData(new int[] { 1 }, "System.Int32[]")]
     public void InvalidKey_Throws(object invalidKey, string typeName)
     {
         var provider = CreateProvider([]);
