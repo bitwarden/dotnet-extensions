@@ -42,7 +42,7 @@ public sealed class BitwardenEnvironment
             Uri CreateUri()
             {
                 // TODO: Should have validation
-                return new Uri(_baseUri!, "/identity");
+                return new Uri(_baseUri!, "identity");
             }
 
             return _identityUri ?? CreateUri();
@@ -56,7 +56,7 @@ public sealed class BitwardenEnvironment
             Uri CreateUri()
             {
                 // TODO: Should have validation
-                return new Uri(_baseUri!, "/api");
+                return new Uri(_baseUri!, "api");
             }
 
             return _apiUri ?? CreateUri();

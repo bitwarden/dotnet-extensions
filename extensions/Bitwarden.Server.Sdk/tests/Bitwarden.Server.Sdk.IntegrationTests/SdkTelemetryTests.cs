@@ -1,11 +1,14 @@
 using System.Text.Json;
 using DotNet.Testcontainers.Builders;
+using DotNet.Testcontainers.Containers;
 using Microsoft.Extensions.Logging;
 
 namespace Bitwarden.Server.Sdk.IntegrationTests;
 
 public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
 {
+    private const int TwentySeconds = 20 * 1000;
+
     private readonly TelemetryProjectFixture _fixture;
 
     public SdkTelemetryTests(TelemetryProjectFixture fixture)
@@ -13,16 +16,28 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
         _fixture = fixture;
     }
 
-    [Fact(Timeout = 2 * 60 * 1000)]
+    [Fact(Timeout = TwentySeconds)]
     public async Task CustomMetricsAndTracesWork()
     {
-        using var result = await RunTelemetryAsync([]);
+        using var result = await RunTelemetryAsync(new Dictionary<string, string?>
+        {
+            { "DD_ENV", "usprd" },
+            { "Caching:Redis:Configuration", "redis" },
+        });
 
         var resourceMetric = Assert.Single(result.Metrics!.RootElement.GetProperty("resourceMetrics").EnumerateArray());
         // Make sure that the service name is set
+        var allMetricResourceAttributes = resourceMetric.GetProperty("resource").GetProperty("attributes").EnumerateArray();
+
         Assert.Single(
-            resourceMetric.GetProperty("resource").GetProperty("attributes").EnumerateArray(),
+            allMetricResourceAttributes,
             a => a.GetProperty("key").GetString() == "service.name" && a.GetProperty("value").GetProperty("stringValue").GetString() == "Test"
+        );
+
+        // Check that DD_ENV environment variable became a env attribute
+        Assert.Single(
+            allMetricResourceAttributes,
+            a => a.GetProperty("key").GetString() == "env" && a.GetProperty("value").GetProperty("stringValue").GetString() == "usprd"
         );
 
         // Our custom scope should exist
@@ -39,15 +54,47 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
 
         var resourceSpan = Assert.Single(result.Traces!.RootElement.GetProperty("resourceSpans").EnumerateArray());
 
+        var allSpanResourceAttributes = resourceSpan.GetProperty("resource").GetProperty("attributes").EnumerateArray();
+
         // Make sure that the service name is set
         Assert.Single(
-            resourceSpan.GetProperty("resource").GetProperty("attributes").EnumerateArray(),
+            allSpanResourceAttributes,
             a => a.GetProperty("key").GetString() == "service.name" && a.GetProperty("value").GetProperty("stringValue").GetString() == "Test"
         );
 
+        // Check that DD_ENV environment variable became a env attribute
+        Assert.Single(
+            allSpanResourceAttributes,
+            a => a.GetProperty("key").GetString() == "env" && a.GetProperty("value").GetProperty("stringValue").GetString() == "usprd"
+        );
+
+        var allScopeSpans = resourceSpan.GetProperty("scopeSpans").EnumerateArray();
+
         var aspNetScope = Assert.Single(
-            resourceSpan.GetProperty("scopeSpans").EnumerateArray(),
+            allScopeSpans,
             s => s.GetProperty("scope").GetProperty("name").GetString() == "Microsoft.AspNetCore"
+        );
+
+        // Check that there is a scope for redis
+        var redisSpans = Assert.Single(
+            allScopeSpans,
+            s => s.GetProperty("scope").GetProperty("name").GetString() == "OpenTelemetry.Instrumentation.StackExchangeRedis"
+        ).GetProperty("spans").EnumerateArray();
+
+        Assert.Contains(
+            redisSpans,
+            s => s.GetProperty("name").GetString() == "SUBSCRIBE"
+        );
+
+        // Should have two Fusion cache spans
+        Assert.Single(
+            allScopeSpans,
+            s => s.GetProperty("scope").GetProperty("name").GetString() == "ZiggyCreatures.Caching.Fusion.Distributed"
+        );
+
+        Assert.Single(
+            allScopeSpans,
+            s => s.GetProperty("scope").GetProperty("name").GetString() == "ZiggyCreatures.Caching.Fusion"
         );
 
         // We expect a span for our simple endpoint
@@ -61,9 +108,20 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
             requestSpan.GetProperty("attributes").EnumerateArray(),
             a => a.GetProperty("key").GetString() == "custom_tag" && a.GetProperty("value").GetProperty("stringValue").GetString() == "my_value"
         );
+
+        // Spans prefixed with Bitwarden. should be automatically listened to
+        var customScope = Assert.Single(
+            allScopeSpans,
+            s => s.GetProperty("scope").GetProperty("name").GetString() == "Bitwarden.MyFeature"
+        );
+
+        Assert.Single(
+            customScope.GetProperty("spans").EnumerateArray(),
+            s => s.GetProperty("name").GetString() == "MyOperation"
+        );
     }
 
-    [Fact(Timeout = 2 * 60 * 1000)]
+    [Fact(Timeout = TwentySeconds)]
     public async Task OtelEnvironmentVariableWins()
     {
         using var result = await RunTelemetryAsync(new Dictionary<string, string?>
@@ -75,7 +133,7 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
         Assert.Equal("SOME_NAME", result.GetMetricsServiceName());
     }
 
-    [Fact(Timeout = 2 * 60 * 1000)]
+    [Fact(Timeout = TwentySeconds)]
     public async Task TelemetryCanBeDisabled()
     {
         using var result = await RunTelemetryAsync(new Dictionary<string, string?>
@@ -87,7 +145,7 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
         Assert.Null(result.Traces);
     }
 
-    [Fact(Timeout = 2 * 60 * 1000)]
+    [Fact(Timeout = TwentySeconds)]
     public async Task OnlyTracesCanBeDisabled()
     {
         using var result = await RunTelemetryAsync(new Dictionary<string, string?>
@@ -99,7 +157,7 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
         Assert.Null(result.Traces);
     }
 
-    [Fact(Timeout = 2 * 60 * 1000)]
+    [Fact(Timeout = TwentySeconds)]
     public async Task OnlyMetricsCanBeDisabled()
     {
         using var result = await RunTelemetryAsync(new Dictionary<string, string?>
@@ -111,7 +169,7 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
         Assert.NotNull(result.Traces);
     }
 
-    [Fact(Timeout = 2 * 60 * 1000)]
+    [Fact(Timeout = TwentySeconds)]
     public async Task SelfHostDoesNotDoTelemetryByDefault()
     {
         using var result = await RunTelemetryAsync(new Dictionary<string, string?>
@@ -123,7 +181,7 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
         Assert.Null(result.Traces);
     }
 
-    [Fact(Timeout = 2 * 60 * 1000)]
+    [Fact(Timeout = TwentySeconds)]
     public async Task SelfHostCanDoTelemetryIfEnabled()
     {
         using var result = await RunTelemetryAsync(new Dictionary<string, string?>
@@ -161,7 +219,6 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
             tempDir = Directory.CreateTempSubdirectory();
         }
 
-
         await using var otelContainer = new ContainerBuilder()
             .WithImage("otel/opentelemetry-collector-contrib")
             .WithNetwork(network)
@@ -195,6 +252,20 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
 
         await otelContainer.StartAsync(TestContext.Current.CancellationToken);
 
+        IContainer? redisContainer = null;
+
+        if (environmentVariables.ContainsKey("Caching:Redis:Configuration"))
+        {
+            redisContainer = new ContainerBuilder()
+                .WithImage("redis:latest")
+                .WithNetwork(network)
+                .WithNetworkAliases("redis")
+                .WithLogger(loggerFactory.CreateLogger("Redis"))
+                .Build();
+
+            await redisContainer.StartAsync(TestContext.Current.CancellationToken);
+        }
+
         await using var testContainer = new ContainerBuilder()
             .WithImage(TelemetryProjectFixture.ImageName)
             .WithNetwork(network)
@@ -207,10 +278,14 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
             .WithLogger(loggerFactory.CreateLogger("Example"))
             .Build();
 
-        await testContainer.StartAsync(TestContext.Current.CancellationToken);
+        await LoggedStartAsync(testContainer, loggerFactory.CreateLogger("TestContainer"));
 
         await testContainer.StopAsync(TestContext.Current.CancellationToken);
         await otelContainer.StopAsync(TestContext.Current.CancellationToken);
+        if (redisContainer is not null)
+        {
+            await redisContainer.StopAsync(TestContext.Current.CancellationToken);
+        }
 
         var (testOutput, _) = await testContainer.GetLogsAsync(ct: TestContext.Current.CancellationToken);
         loggerFactory.CreateLogger("TestOutput").LogInformation("{Stdout}", testOutput);
@@ -238,6 +313,24 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
             Metrics = await ReadDoc("metrics"),
             Traces = await ReadDoc("traces"),
         };
+    }
+
+    // This is helpful in scenarios when the container might never pass its
+    // health check and the tests will timeout. It creates its own
+    // cancellation token that collects logs from the container before
+    // actually cancelling the operation
+    private static async Task LoggedStartAsync(IContainer container, ILogger logger)
+    {
+        var cancellationTokenSource = new CancellationTokenSource();
+        TestContext.Current.CancellationToken.Register(() =>
+        {
+            var (stdout, stderr) = container.GetLogsAsync().GetAwaiter().GetResult();
+            logger.LogInformation("{Out}", stdout);
+            logger.LogError("{Error}", stderr);
+            cancellationTokenSource.Cancel();
+        });
+
+        await container.StartAsync(cancellationTokenSource.Token);
     }
 
     internal sealed class TelemetryResult : IDisposable

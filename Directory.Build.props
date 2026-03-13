@@ -12,6 +12,7 @@
     <IsPackable Condition="'$(IsPackable)' == ''">false</IsPackable>
     <TestingPlatformDotnetTestSupport Condition="'$(TestingPlatformDotnetTestSupport)' == ''">true</TestingPlatformDotnetTestSupport>
     <UseMicrosoftTestingPlatformRunner Condition="'$(UseMicrosoftTestingPlatformRunner)' == ''">true</UseMicrosoftTestingPlatformRunner>
+    <TestingPlatformShowTestsFailure>true</TestingPlatformShowTestsFailure>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(IsTestProject)' != 'true' and '$(IsBenchmarkProject)' != 'true'">
