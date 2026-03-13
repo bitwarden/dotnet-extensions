@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <VersionPrefix>0.4.0</VersionPrefix>
     <PreReleaseVersionLabel>beta</PreReleaseVersionLabel>
-    <PreReleaseVersionIteration>1</PreReleaseVersionIteration>
+    <PreReleaseVersionIteration>2</PreReleaseVersionIteration>
     <VersionSuffix Condition="'$(VersionSuffix)' == '' AND '$(IsPreRelease)' == 'true'">$(PreReleaseVersionLabel).$(PreReleaseVersionIteration)</VersionSuffix>
   </PropertyGroup>
 
