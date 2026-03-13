@@ -17,7 +17,7 @@ public class BitwardenSecretsClientTests
     public async Task UrlsAreConcatenatedProperly(string baseIdentityUrl, string baseApiUrl, string expectedConnectTokenRequest, string expectedRequestUrl)
     {
         var identityCalled = false;
-        var testIdentityHttpHandler  = new TestHttpMessageHandler((request) =>
+        var testIdentityHttpHandler = new TestHttpMessageHandler((request) =>
         {
             Assert.Equal(expectedConnectTokenRequest, request.RequestUri!.ToString());
             identityCalled = true;
