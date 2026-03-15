@@ -44,6 +44,9 @@ jobs:
         with:
           persist-credentials: true
           token: ${{ steps.app-token.outputs.token }}
+          # fetch-depth: 0 is required so that refs/remotes/origin/* are populated,
+          # which is what PruneReleaseBranches.ps1 queries via `git for-each-ref`.
+          fetch-depth: 0
 
       - name: Set up .NET
         uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602 # v5.0.1
