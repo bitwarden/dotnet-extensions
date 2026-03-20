@@ -29,7 +29,7 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
         {
             if (!diagnostic.Properties.TryGetValue("FlagKey", out var flagKey) || string.IsNullOrEmpty(flagKey))
             {
-                Debug.Fail($"We failed to add a flagKey property to a BW0002 diagnostic at {diagnostic.Location}");
+                Debug.Fail($"We failed to add a flagKey property to a BW0001 diagnostic at {diagnostic.Location}");
                 continue;
             }
 
