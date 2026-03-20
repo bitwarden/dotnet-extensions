@@ -19,8 +19,7 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
-        description: "",
-        helpLinkUri: HelpUrlFormat
+        helpLinkUri: string.Format(HelpUrlFormat, "BW0001")
     );
 
     private static readonly DiagnosticDescriptor _flagKeyShouldBeNonNullOrEmpty = new(
@@ -30,8 +29,7 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "",
-        helpLinkUri: HelpUrlFormat
+        helpLinkUri: string.Format(HelpUrlFormat, "BW0002")
     );
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(_removeFeatureFlagRule, _flagKeyShouldBeNonNullOrEmpty);
