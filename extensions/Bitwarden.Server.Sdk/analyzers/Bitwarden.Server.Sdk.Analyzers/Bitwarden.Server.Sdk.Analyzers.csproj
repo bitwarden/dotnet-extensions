@@ -7,6 +7,7 @@
     <Nullable>enable</Nullable>
     <AnalyzerLanguage>cs</AnalyzerLanguage>
     <IsPackable>false</IsPackable>
+    <NoWarn>RS2008</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

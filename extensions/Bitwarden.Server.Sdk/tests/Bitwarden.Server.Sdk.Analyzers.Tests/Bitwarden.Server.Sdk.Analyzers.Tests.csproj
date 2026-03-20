@@ -7,6 +7,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.2" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.8.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
     <PackageReference Include="xunit.v3" Version="[3.1.0]" />
   </ItemGroup>
 
@@ -15,8 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.Analyzers.csproj" />
-    <ProjectReference Include="..\..\..\Bitwarden.Server.Sdk.Features\src\Bitwarden.Server.Sdk.Features.csproj" />
+    <ProjectReference Include="..\..\analyzers\Bitwarden.Server.Sdk.Analyzers\Bitwarden.Server.Sdk.Analyzers.csproj" />
   </ItemGroup>
 
 </Project>

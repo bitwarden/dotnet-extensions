@@ -51,7 +51,13 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk/">
     <Project Path="extensions/Bitwarden.Server.Sdk/src/Bitwarden.Server.Sdk.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk/analyzers/">
+    <Project Path="extensions/Bitwarden.Server.Sdk/analyzers/Bitwarden.Server.Sdk.Analyzers/Bitwarden.Server.Sdk.Analyzers.csproj" />
+    <Project Path="extensions/Bitwarden.Server.Sdk/analyzers/Bitwarden.Server.Sdk.CodeFixers/Bitwarden.Server.Sdk.CodeFixers.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk/tests/Bitwarden.Server.Sdk.Analyzers.Tests/Bitwarden.Server.Sdk.Analyzers.Tests.csproj" />
+    <Project Path="extensions/Bitwarden.Server.Sdk/tests/Bitwarden.Server.Sdk.CodeFixers.Tests/Bitwarden.Server.Sdk.CodeFixers.Tests.csproj" />
     <Project Path="extensions/Bitwarden.Server.Sdk/tests/Bitwarden.Server.Sdk.IntegrationTests/Bitwarden.Server.Sdk.IntegrationTests.csproj" />
   </Folder>
 </Solution>
