@@ -42,7 +42,7 @@ public class DependencyInjectionAnalyzerTests : AnalyzerTests<DependencyInjectio
             using Microsoft.Extensions.DependencyInjection;
 
             var services = new ServiceCollection();
-            {|BW0004:services.Add{{lifetime}}<IMyService, MyService>({{key}})|};
+            {|BW0003:services.Add{{lifetime}}<IMyService, MyService>({{key}})|};
             """
         );
     }

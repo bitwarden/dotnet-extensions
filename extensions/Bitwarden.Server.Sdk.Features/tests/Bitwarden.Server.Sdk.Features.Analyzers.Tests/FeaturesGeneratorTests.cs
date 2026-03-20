@@ -315,7 +315,7 @@ public class FeaturesGeneratorTests
 
     private static readonly CSharpParseOptions _parseOptions = new(LanguageVersion.CSharp12);
 
-    private async Task RunAsync([StringSyntax("C#")] string source, [StringSyntax("C#")] string generatedSource)
+    private static async Task RunAsync([StringSyntax("C#")] string source, [StringSyntax("C#")] string generatedSource)
     {
         var projectName = $"FeaturesGeneratorTestProject-{Guid.NewGuid()}";
         var compilationOptions = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)

@@ -14,7 +14,7 @@ public sealed partial class DependencyInjectionAnalyzer : DiagnosticAnalyzer
     private static readonly Regex _addMethodRegex = new("^Add(?<Keyed>Keyed)?(?<Lifetime>Singleton|Scoped|Transient)$", RegexOptions.Compiled);
 
     private static readonly DiagnosticDescriptor _shouldUseTryAddOverload = new(
-        "BW0004",
+        "BW0003",
         "Should use {0} overloads",
         "Should use {0} overload instead",
         "Usage",
