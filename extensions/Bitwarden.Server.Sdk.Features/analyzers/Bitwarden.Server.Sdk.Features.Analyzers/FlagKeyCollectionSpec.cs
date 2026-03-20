@@ -45,7 +45,7 @@ internal sealed record FlagKeyCollectionSpec
             writer.Indent++;
         }
 
-        for (var i = Type.Hierarchy.Count - 1; i>= 0; i--)
+        for (var i = Type.Hierarchy.Count - 1; i >= 0; i--)
         {
             var type = Type.Hierarchy[i];
             writer.WriteLine($"partial {(type.IsRecord ? "record" : "class")} {type.QualifiedName}");
