@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Bitwarden.Server.Sdk.Features.Analyzers;
 
+[Generator(LanguageNames.CSharp)]
 public class FeaturesGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
