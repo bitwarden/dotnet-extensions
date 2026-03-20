@@ -1,5 +1,3 @@
-using System.Text;
-
 using Bitwarden.Core;
 
 namespace Bitwarden.Extensions.Configuration.Tests;

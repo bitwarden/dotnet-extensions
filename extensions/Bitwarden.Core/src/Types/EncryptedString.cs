@@ -108,7 +108,7 @@ public class EncryptedString : IDecryptable<SymmetricCryptoKey>
         {
             throw new FormatException();
         }
-        
+
         return new EncryptedString(type, encryptionPart);
     }
 
