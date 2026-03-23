@@ -80,7 +80,14 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
 
         foreach (var documentGroup in referencesByDocument)
         {
-            var referenceDocument = solution.GetDocument(documentGroup.Key)!;
+            var referenceDocument = solution.GetDocument(documentGroup.Key);
+
+            if (referenceDocument is null)
+            {
+                // This may be a source generated file
+                continue;
+            }
+
             var referenceRoot = await referenceDocument.GetSyntaxRootAsync(token);
             if (referenceRoot is null)
             {
