@@ -218,6 +218,163 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
         );
     }
 
+    [Fact]
+    public async Task BracelessIfCheck_InlinesBody()
+    {
+        await RunDefaultCodeFixAsync(
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class Something
+            {
+                public Something(IFeatureService featureService)
+                {
+                    if (featureService.IsEnabled(MyFlags.Flag))
+                        Do(true);
+                }
+
+                private void Do(bool value) { }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class Something
+            {
+                public Something(IFeatureService featureService)
+                {
+                    Do(true);
+                }
+
+                private void Do(bool value) { }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task BracelessNegatedIfCheck_NoElse_RemovesIf()
+    {
+        await RunDefaultCodeFixAsync(
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class Something
+            {
+                public Something(IFeatureService featureService)
+                {
+                    if (!featureService.IsEnabled(MyFlags.Flag))
+                        Do(true);
+                    Do(false);
+                }
+
+                private void Do(bool value) { }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class Something
+            {
+                public Something(IFeatureService featureService)
+                {
+                    Do(false);
+                }
+
+                private void Do(bool value) { }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task BracelessIfCheck_WithBracelessElse_InlinesThenBody()
+    {
+        await RunDefaultCodeFixAsync(
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class Something
+            {
+                public Something(IFeatureService featureService)
+                {
+                    if (featureService.IsEnabled(MyFlags.Flag))
+                        Do(true);
+                    else
+                        Do(false);
+                }
+
+                private void Do(bool value) { }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class Something
+            {
+                public Something(IFeatureService featureService)
+                {
+                    Do(true);
+                }
+
+                private void Do(bool value) { }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task BracelessNegatedIfCheck_WithBracelessElse_InlinesElseBody()
+    {
+        await RunDefaultCodeFixAsync(
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class Something
+            {
+                public Something(IFeatureService featureService)
+                {
+                    if (!featureService.IsEnabled(MyFlags.Flag))
+                        Do(true);
+                    else
+                        Do(false);
+                }
+
+                private void Do(bool value) { }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class Something
+            {
+                public Something(IFeatureService featureService)
+                {
+                    Do(false);
+                }
+
+                private void Do(bool value) { }
+            }
+            """
+        );
+    }
+
     // TODO:
     [Fact]
     public async Task ShouldRemoveAllFlags()

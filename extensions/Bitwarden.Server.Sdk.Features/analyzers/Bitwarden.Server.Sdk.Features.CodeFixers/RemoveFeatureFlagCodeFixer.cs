@@ -175,10 +175,10 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
                 root.ReplaceNode(binaryExpression, SimplifyBinary(binaryExpression, node)),
 
             PrefixUnaryExpressionSyntax { RawKind: (int)SyntaxKind.LogicalNotExpression, Parent: IfStatementSyntax ifStatement } =>
-                root.ReplaceNode(ifStatement, ifStatement.Else?.Statement.ChildNodes().Select(n => n.WithLeadingTrivia(ifStatement.GetLeadingTrivia())) ?? []),
+                root.ReplaceNode(ifStatement, GetStatements(ifStatement.Else?.Statement, ifStatement.GetLeadingTrivia())),
 
             IfStatementSyntax ifStatement =>
-                root.ReplaceNode(ifStatement, ifStatement.Statement.ChildNodes().Select(n => n.WithLeadingTrivia(ifStatement.GetLeadingTrivia()))),
+                root.ReplaceNode(ifStatement, GetStatements(ifStatement.Statement, ifStatement.GetLeadingTrivia())),
 
             _ => null
         };
@@ -334,6 +334,12 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
             memberAccessExpression.Expression.WithTriviaFrom(invocationExpression)
         );
     }
+
+    private static IEnumerable<SyntaxNode> GetStatements(StatementSyntax? statement, SyntaxTriviaList leadingTrivia) =>
+        statement is null ? [] :
+        statement is BlockSyntax block
+            ? block.Statements.Select(s => (SyntaxNode)s.WithLeadingTrivia(leadingTrivia))
+            : [statement.WithLeadingTrivia(leadingTrivia)];
 
     private static SyntaxNode SimplifyBinary(BinaryExpressionSyntax binaryExpression, SyntaxNode targetNode) =>
         binaryExpression.Left == targetNode
