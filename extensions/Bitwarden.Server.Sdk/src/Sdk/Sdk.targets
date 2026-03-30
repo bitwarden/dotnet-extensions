@@ -34,6 +34,13 @@
     <!-- Caching defaults to off -->
     <BitIncludeCaching Condition="'$(BitIncludeCaching)' == ''">false</BitIncludeCaching>
     <DefineConstants Condition="'$(BitIncludeCaching)' == 'true'">$(DefineConstants);BIT_INCLUDE_CACHING</DefineConstants>
+
+    <!--
+      Aspire integration defaults to disabled
+      Valid options: disabled, enabled
+    -->
+    <BitAspireIntegration Condition="'$(BitAspireIntegration)' == ''">disabled</BitAspireIntegration>
+    <DefineConstants Condition="'$(BitAspireIntegration)' == 'enabled'">$(DefineConstants);BIT_INCLUDE_ASPIRE_INTEGRATION</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(BitIncludeTelemetry)' == 'true'">
@@ -62,5 +69,9 @@
 
   <ItemGroup Condition="'$(BitIncludeCaching)' == 'true'">
     <PackageReference Include="Bitwarden.Server.Sdk.Caching" Version="0.1.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(BitAspireIntegration)' == 'enabled'">
+    <PackageReference Include="Microsoft.Extensions.ServiceDiscovery" Version="10.4.0" />
   </ItemGroup>
 </Project>

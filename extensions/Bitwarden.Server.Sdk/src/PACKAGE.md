@@ -35,3 +35,19 @@ Enabled by default and able to be removed using
 This feature automatically includes the `Bitwarden.Server.Sdk.Authentication` library and when using
 the `Microsoft.NET.Sdk.Web` SDK it will register Bitwarden style authentication in
 `UseBitwardenSdk()`. All considerations of that package apply to this SDK.
+
+## Aspire Integration
+
+Disabled by default and able to be enabled using `<BitAspireIntegration>enabled</BitAspireIntegration>`
+in your project file.
+
+This feature adds service discovery support via `Microsoft.Extensions.ServiceDiscovery`, registering
+it into the `IServiceCollection` and configuring it as the default for all `HttpClient` instances.
+When telemetry is also enabled, OTLP log exporting is configured with formatted messages and scopes
+included.
+
+This is primarily useful for local development with .NET Aspire. To enable it only in debug builds:
+
+```xml
+<BitAspireIntegration Condition="'$(Configuration)' == 'Debug'">enabled</BitAspireIntegration>
+```
