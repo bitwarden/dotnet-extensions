@@ -15,6 +15,7 @@ on:
           - Bitwarden.Server.Sdk.Caching
           - Bitwarden.Server.Sdk.Features
           - Bitwarden.Server.Sdk.HealthChecks
+          - Bitwarden.Server.Sdk.WebEssentials
 
 permissions: {}
 
