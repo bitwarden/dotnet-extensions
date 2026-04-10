@@ -1,4 +1,4 @@
-﻿using Bitwarden.Server.Sdk.WebEssentials;
+using Bitwarden.Server.Sdk.WebEssentials;
 
 namespace Microsoft.AspNetCore.Builder;
 
