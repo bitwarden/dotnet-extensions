@@ -63,6 +63,56 @@ jobs:
         env:
           IS_PRERELEASE: ${{ inputs.prerelease }}
 
+      - name: Upload artifacts
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: packages
+          path: |
+            **/*.nupkg
+            **/*.snupkg
+
+      - name: Log in to Azure
+        uses: bitwarden/gh-actions/azure-login@main
+        with:
+          subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          client_id: ${{ secrets.AZURE_CLIENT_ID }}
+
+      - name: Get Azure Key Vault secrets
+        id: get-kv-secrets
+        uses: bitwarden/gh-actions/get-keyvault-secrets@main
+        with:
+          keyvault: gh-org-bitwarden
+          secrets: "BW-GHAPP-ID,BW-GHAPP-KEY"
+
+      - name: Log out from Azure
+        uses: bitwarden/gh-actions/azure-logout@main
+
+      - name: Generate GH App token
+        uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859 # v3.0.0
+        id: app-token
+        with:
+          app-id: ${{ steps.get-kv-secrets.outputs.BW-GHAPP-ID }}
+          private-key: ${{ steps.get-kv-secrets.outputs.BW-GHAPP-KEY }}
+          owner: bitwarden
+          repositories: devops
+          permission-actions: write  # for dispatching workflows
+          permission-contents: read # for getting default branch as part of dispatching workflows
+
+      - name: Dispatch publishing
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          _REPOSITORY_NAME: ${{ github.event.repository.name }}
+          _VERSION: ${{ steps.current-version.outputs.VERSION }}
+        run: >
+          gh workflow run publish-nuget.yml
+          --repo bitwarden/devops
+          --field repository="${_REPOSITORY_NAME}"
+          --field run-id="${{ github.run_id }}"
+          --field artifact="packages"
+          --field environment="nuget"
+          --field version="${_VERSION}"
+
       - name: Create GitHub Release
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
@@ -147,56 +197,6 @@ jobs:
 
               console.log(`Upload response: ${uploadResponse.status}`);
             }
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: packages
-          path: |
-            **/*.nupkg
-            **/*.snupkg
-
-      - name: Log in to Azure
-        uses: bitwarden/gh-actions/azure-login@main
-        with:
-          subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          tenant_id: ${{ secrets.AZURE_TENANT_ID }}
-          client_id: ${{ secrets.AZURE_CLIENT_ID }}
-
-      - name: Get Azure Key Vault secrets
-        id: get-kv-secrets
-        uses: bitwarden/gh-actions/get-keyvault-secrets@main
-        with:
-          keyvault: gh-org-bitwarden
-          secrets: "BW-GHAPP-ID,BW-GHAPP-KEY"
-
-      - name: Log out from Azure
-        uses: bitwarden/gh-actions/azure-logout@main
-
-      - name: Generate GH App token
-        uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859 # v3.0.0
-        id: app-token
-        with:
-          app-id: ${{ steps.get-kv-secrets.outputs.BW-GHAPP-ID }}
-          private-key: ${{ steps.get-kv-secrets.outputs.BW-GHAPP-KEY }}
-          owner: bitwarden
-          repositories: devops
-          permission-actions: write  # for dispatching workflows
-          permission-contents: read # for getting default branch as part of dispatching workflows
-
-      - name: Dispatch publishing
-        env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-          _REPOSITORY_NAME: ${{ github.event.repository.name }}
-          _VERSION: ${{ steps.current-version.outputs.VERSION }}
-        run: >
-          gh workflow run publish-nuget.yml
-          --repo bitwarden/devops
-          --field repository="${_REPOSITORY_NAME}"
-          --field run-id="${{ github.run_id }}"
-          --field artifact="packages"
-          --field environment="nuget"
-          --field version="${_VERSION}"
 
   bump-version:
     name: Bump version
