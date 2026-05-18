@@ -1,7 +1,6 @@
 using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 
 namespace Bitwarden.Server.Sdk.Licensing;
 
