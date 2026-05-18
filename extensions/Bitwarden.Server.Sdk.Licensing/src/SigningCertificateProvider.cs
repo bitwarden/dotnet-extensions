@@ -5,7 +5,7 @@ using Azure.Storage.Blobs;
 namespace Bitwarden.Server.Sdk.Licensing;
 
 /// <summary>
-///
+/// Provides access to the certificate used to sign generated licenses.
 /// </summary>
 public interface ISigningCertificateProvider
 {
@@ -15,23 +15,28 @@ public interface ISigningCertificateProvider
     bool IsSupported { get; }
 
     /// <summary>
-    ///
+    /// Returns the signing certificate.
     /// </summary>
-    /// <returns></returns>
+    /// <returns>The certificate, including its private key, used to sign licenses.</returns>
+    /// <exception cref="NotSupportedException">
+    /// Thrown when the current environment cannot sign licenses (i.e. <see cref="IsSupported"/> is
+    /// <see langword="false"/>).
+    /// </exception>
     X509Certificate2 Get();
 }
 
 /// <summary>
-///
+/// Default implementation of <see cref="ISigningCertificateProvider"/> that returns a single,
+/// pre-loaded certificate.
 /// </summary>
 public sealed class SigningCertificateProvider : ISigningCertificateProvider
 {
     private readonly X509Certificate2 _certificate;
 
     /// <summary>
-    ///
+    /// Initializes a new instance backed by the supplied certificate.
     /// </summary>
-    /// <param name="certificate"></param>
+    /// <param name="certificate">The certificate returned from <see cref="Get"/>. Must contain a private key.</param>
     public SigningCertificateProvider(X509Certificate2 certificate)
     {
         _certificate = certificate;
@@ -47,19 +52,34 @@ public sealed class SigningCertificateProvider : ISigningCertificateProvider
     public X509Certificate2 Get() => _certificate;
 
     /// <summary>
-    ///
+    /// Attempts to locate a certificate in the current user's <c>My</c> store by thumbprint.
     /// </summary>
-    /// <param name="thumbprint"></param>
-    /// <param name="certificate"></param>
-    /// <returns></returns>
-    public static bool TryGetFromCertificateStore(string thumbprint, [MaybeNullWhen(false)] out X509Certificate2 certificate)
+    /// <param name="thumbprint">The SHA-1 thumbprint to search for.</param>
+    /// <param name="password">
+    /// Optional password used to unlock the certificate's private key. When supplied, the located
+    /// certificate is round-tripped through PFX with this password so the returned instance's
+    /// private key is bound to it. Pass <see langword="null"/> when the key is not
+    /// password-protected.
+    /// </param>
+    /// <param name="certificate">When this method returns <see langword="true"/>, the located certificate; otherwise <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> if a matching certificate was found; otherwise <see langword="false"/>.</returns>
+    public static bool TryGetFromCertificateStore(string thumbprint, string? password, [MaybeNullWhen(false)] out X509Certificate2 certificate)
     {
         using var store = new X509Store(StoreName.My, StoreLocation.CurrentUser);
         store.Open(OpenFlags.ReadOnly);
         var filtered = store.Certificates.Find(X509FindType.FindByThumbprint, thumbprint, false);
         if (filtered.Count > 0)
         {
-            certificate = filtered[0];
+            var found = filtered[0];
+            if (string.IsNullOrEmpty(password))
+            {
+                certificate = found;
+            }
+            else
+            {
+                var pfx = found.Export(X509ContentType.Pfx, password);
+                certificate = new X509Certificate2(pfx, password, X509KeyStorageFlags.Exportable);
+            }
             return true;
         }
 

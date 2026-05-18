@@ -6,18 +6,19 @@ using Microsoft.IdentityModel.Tokens;
 namespace Bitwarden.Server.Sdk.Licensing;
 
 /// <summary>
-///
+/// Generates signed JWT licenses for items of type <typeparamref name="T"/>.
 /// </summary>
-/// <typeparam name="T"></typeparam>
+/// <typeparam name="T">The type of item the license is issued for.</typeparam>
 public interface ILicenseGenerator<T>
 {
     /// <summary>
-    ///
+    /// Generates a signed license for the supplied item. Claims are contributed by each registered
+    /// <see cref="ILicenseClaimsFactory{T}"/>.
     /// </summary>
-    /// <param name="item"></param>
-    /// <param name="expirationDate"></param>
-    /// <param name="cancellationToken"></param>
-    /// <returns></returns>
+    /// <param name="item">The item the license is being issued for.</param>
+    /// <param name="expirationDate">The expiration of the license (the JWT <c>exp</c> claim).</param>
+    /// <param name="cancellationToken">A token to cancel claim contribution.</param>
+    /// <returns>The serialized JWT license string.</returns>
     public Task<string> GenerateAsync(T item, DateTimeOffset expirationDate, CancellationToken cancellationToken = default);
 }
 

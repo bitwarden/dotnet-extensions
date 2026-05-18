@@ -6,14 +6,14 @@ using Microsoft.Extensions.Options;
 namespace Bitwarden.Server.Sdk.Licensing;
 
 /// <summary>
-///
+/// Provides access to the public certificate used to validate license signatures.
 /// </summary>
 public interface IIssuerCertificateProvider
 {
     /// <summary>
-    ///
+    /// Returns the issuer certificate.
     /// </summary>
-    /// <returns></returns>
+    /// <returns>The X509 certificate (public key only) used to validate licenses.</returns>
     X509Certificate2 Get();
 }
 

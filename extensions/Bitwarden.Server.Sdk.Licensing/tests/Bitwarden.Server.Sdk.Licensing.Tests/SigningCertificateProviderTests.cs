@@ -9,6 +9,7 @@ public class SigningCertificateProviderTests
 
         var found = SigningCertificateProvider.TryGetFromCertificateStore(
             nonexistentThumbprint,
+            password: null,
             out var certificate);
 
         Assert.False(found);

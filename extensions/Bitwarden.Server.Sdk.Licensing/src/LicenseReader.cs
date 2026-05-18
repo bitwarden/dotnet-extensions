@@ -5,16 +5,19 @@ using Microsoft.IdentityModel.Tokens;
 namespace Bitwarden.Server.Sdk.Licensing;
 
 /// <summary>
-///
+/// Validates and reads the claims out of a license issued for items of type <typeparamref name="T"/>.
 /// </summary>
-/// <typeparam name="T"></typeparam>
+/// <typeparam name="T">The type of item the license was issued for.</typeparam>
 public interface ILicenseReader<T>
 {
     /// <summary>
-    ///
+    /// Validates a license and returns its claims keyed by claim type.
     /// </summary>
-    /// <param name="licenseContents"></param>
-    /// <returns></returns>
+    /// <param name="licenseContents">The serialized JWT license string.</param>
+    /// <returns>The claims contained in the license.</returns>
+    /// <exception cref="Microsoft.IdentityModel.Tokens.SecurityTokenException">
+    /// Thrown when the license fails signature, issuer, audience, or lifetime validation.
+    /// </exception>
     ValueTask<IReadOnlyDictionary<string, string>> ReadLicenseAsync(string licenseContents);
 }
 

@@ -9,16 +9,18 @@ using Microsoft.IdentityModel.Tokens;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-///
+/// Extension methods for registering the Bitwarden licensing services on an <see cref="IServiceCollection"/>.
 /// </summary>
 public static class LicensingServiceCollectionExtensions
 {
     /// <summary>
-    ///
+    /// Registers the licensing services, including <see cref="ILicenseGenerator{T}"/>,
+    /// <see cref="ILicenseReader{T}"/>, and the certificate providers used to sign and validate
+    /// licenses.
     /// </summary>
-    /// <param name="services"></param>
-    /// <param name="staticLicensingOptions"></param>
-    /// <returns></returns>
+    /// <param name="services">The service collection to register against.</param>
+    /// <param name="staticLicensingOptions">Static, startup-time licensing configuration (issuer, audience, thumbprints).</param>
+    /// <returns>The supplied <paramref name="services"/>, to allow chaining.</returns>
     public static IServiceCollection AddLicensing(this IServiceCollection services, StaticLicensingOptions staticLicensingOptions)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -59,6 +61,7 @@ public static class LicensingServiceCollectionExtensions
             else if (hostEnvironment.IsDevelopment()
                 && SigningCertificateProvider.TryGetFromCertificateStore(
                     staticLicensingOptions.GetThumbprint(hostEnvironment.EnvironmentName),
+                    licensingOptions.CertificatePassword,
                     out var certificate))
             {
                 return new SigningCertificateProvider(certificate);
@@ -82,12 +85,14 @@ public static class LicensingServiceCollectionExtensions
     }
 
     /// <summary>
-    ///
+    /// Registers a claims factory that contributes claims to licenses issued for items of type
+    /// <typeparamref name="T"/>. Multiple factories may be registered for the same
+    /// <typeparamref name="T"/>; each is invoked in registration order during license generation.
     /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <typeparam name="TImplementation"></typeparam>
-    /// <param name="services"></param>
-    /// <returns></returns>
+    /// <typeparam name="T">The type of item the license is issued for.</typeparam>
+    /// <typeparam name="TImplementation">The concrete claims factory implementation.</typeparam>
+    /// <param name="services">The service collection to register against.</param>
+    /// <returns>The supplied <paramref name="services"/>, to allow chaining.</returns>
     public static IServiceCollection AddLicenseFactory<
         T,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation
