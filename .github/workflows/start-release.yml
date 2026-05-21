@@ -24,90 +24,30 @@ env:
 
 jobs:
   start-release:
-    name: Create release candidate
-    runs-on: ubuntu-22.04
+    name: Trigger release branch creation
+    runs-on: ubuntu-24.04
     permissions:
-      id-token: write # Needed for Azure Login
+      contents: read
+      id-token: write
     steps:
-      - name: Log in to Azure
-        uses: bitwarden/gh-actions/azure-login@main
-        with:
-          subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          tenant_id: ${{ secrets.AZURE_TENANT_ID }}
-          client_id: ${{ secrets.AZURE_CLIENT_ID }}
-
-      - name: Get Azure Key Vault secrets
-        id: get-kv-secrets
-        uses: bitwarden/gh-actions/get-keyvault-secrets@main
-        with:
-          keyvault: gh-org-bitwarden
-          secrets: "BW-GHAPP-ID,BW-GHAPP-KEY"
-
-      - name: Log out from Azure
-        uses: bitwarden/gh-actions/azure-logout@main
-
-      - name: Generate GH App token
-        uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859 # v3.0.0
-        id: app-token
-        with:
-          app-id: ${{ steps.get-kv-secrets.outputs.BW-GHAPP-ID }}
-          private-key: ${{ steps.get-kv-secrets.outputs.BW-GHAPP-KEY }}
-          permission-contents: write # for pushing release branches
-
       - name: Check out repo
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          persist-credentials: true
-          token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: false
 
       - name: Set up .NET
         uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602 # v5.0.1
 
-      # get current version
       - name: Get current version
         id: current-version
         run: echo "VERSION=$(dotnet msbuild --getProperty:Version)" >> "$GITHUB_OUTPUT"
         working-directory: "${{ env.PACKAGE_DIRECTORY }}/src"
 
-      - name: Create release candidate branch
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          _PACKAGE: ${{ inputs.package }}
-          _CURRENT_VERSION: ${{ steps.current-version.outputs.VERSION }}
+      - name: Trigger cut release branch
+        uses: bitwarden/gh-actions/trigger-actions@main
         with:
-          github-token: ${{ steps.app-token.outputs.token }}
-          script: |
-            const packageName = process.env._PACKAGE;
-            const currentVersion = process.env._CURRENT_VERSION;
-
-            // Configure Git
-            await exec.exec(`git config user.name "github-actions"`);
-            await exec.exec(`git config user.email "github-actions@github.com"`);
-
-            var versionParts = currentVersion.split('.');
-
-            if (versionParts.length <= 2) {
-              core.setFailed(`Invalid current version: ${currentVersion}`);
-              return;
-            }
-
-            const releaseCandidateBranch = `release/${packageName}/${versionParts[0]}.${versionParts[1]}`;
-
-            await exec.exec(`git checkout -b ${releaseCandidateBranch}`);
-
-            await exec.exec(`git push --set-upstream origin HEAD:${releaseCandidateBranch}`);
-
-  bump-version:
-    name: Bump version
-    needs:
-      # Nothing bump-version actually depends on the output of start-release but if that job
-      # fails this one might succeed and create a commit that needs to be cleaned up if this
-      # one fails.
-      - start-release
-    uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
-    permissions:
-      id-token: write
-    with:
-      type: ga
-      package: ${{ inputs.package }}
-    secrets: inherit
+          azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+          task: cut-release-branch-dotnet-extensions
+          data: '{"package": "${{ inputs.package }}", "version": "${{ steps.current-version.outputs.VERSION }}"}'
