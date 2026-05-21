@@ -27,7 +27,7 @@ jobs:
 
       - name: Parse package
         id: parse-package
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           _REF: ${{ github.ref }}
         with:
@@ -65,7 +65,7 @@ jobs:
           IS_PRERELEASE: ${{ inputs.prerelease }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: packages
           path: |
@@ -84,5 +84,6 @@ jobs:
               "package": "${{ steps.parse-package.outputs.result }}",
               "version": "${{ steps.current-version.outputs.VERSION }}",
               "branch": "${{ github.ref_name }}",
-              "run_id": "${{ github.run_id }}"
+              "run_id": "${{ github.run_id }}",
+              "prerelease": ${{ inputs.prerelease }}
             }
