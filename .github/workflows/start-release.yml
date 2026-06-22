@@ -51,3 +51,14 @@ jobs:
           azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
           task: cut-release-branch-dotnet-extensions
           data: '{"package": "${{ inputs.package }}", "version": "${{ steps.current-version.outputs.VERSION }}"}'
+
+  bump-version:
+    name: Bump version on main branch
+    needs: start-release
+    uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
+    permissions:
+      id-token: write
+    with:
+      type: ga
+      package: ${{ inputs.package }}
+    secrets: inherit

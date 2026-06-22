@@ -87,3 +87,14 @@ jobs:
               "run_id": "${{ github.run_id }}",
               "prerelease": ${{ inputs.prerelease }}
             }
+
+  bump-version:
+    name: Bump version on release branch
+    needs: release
+    uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
+    permissions:
+      id-token: write
+    with:
+      type: ${{ inputs.prerelease && 'prerelease' || 'hotfix' }}
+      package: ${{ needs.release.outputs.package }}
+    secrets: inherit
