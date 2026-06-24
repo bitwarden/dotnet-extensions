@@ -42,20 +42,16 @@ jobs:
           $NEW_VERSION=$(./scripts/UpdatePackageVersion.ps1 -PackageName $env:PACKAGE_NAME -BumpType $env:BUMP_TYPE)
           Write-Output "NEW_VERSION=$NEW_VERSION" >> $Env:GITHUB_OUTPUT
 
-      # TODO (BRE-2027): Add gh-actions/upload-modified-files action here
-      # This action will upload the modified .csproj file(s) as artifacts
+      - name: Upload modified files
+        uses: bitwarden/gh-actions/upload-modified-files@main
+        with:
+          artifact_name: modified-files
 
-      - name: Trigger version bump commit in deploy repo
+      - name: Trigger protected branch update
         uses: bitwarden/gh-actions/trigger-actions@main
         with:
           azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
-          task: version-bump-dotnet-extensions
-          data: >
-            {
-              "package": "${{ inputs.package }}",
-              "new_version": "${{ steps.version-bumper.outputs.NEW_VERSION }}",
-              "branch": "${{ github.ref_name }}",
-              "run_id": "${{ github.run_id }}"
-            }
+          task: update-repository
+          data: '{"artifact_name": "modified-files", "target_branch": "${{ github.ref_name }}"}'
