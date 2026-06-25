@@ -28,7 +28,7 @@ public static class WebEssentialsEndpointRouteBuilderExtensions
 
         return endpoints.MapGet("/version", () =>
         {
-            return TypedResults.Ok(new VersionResponse(version));
+            return TypedResults.Ok(version);
         });
     }
 
