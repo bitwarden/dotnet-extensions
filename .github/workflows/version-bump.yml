@@ -43,9 +43,8 @@ jobs:
           Write-Output "NEW_VERSION=$NEW_VERSION" >> $Env:GITHUB_OUTPUT
 
       - name: Upload modified files
+        id: upload
         uses: bitwarden/gh-actions/upload-modified-files@main
-        with:
-          artifact_name: modified-files
 
       - name: Trigger protected branch update
         uses: bitwarden/gh-actions/trigger-actions@main
@@ -54,4 +53,4 @@ jobs:
           azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
           task: update-repository
-          data: '{"artifact_name": "modified-files", "target_branch": "${{ github.ref_name }}"}'
+          data: '{"artifact_name": "${{ steps.upload.outputs.artifact_name }}", "target_branch": "${{ github.ref_name }}"}'
