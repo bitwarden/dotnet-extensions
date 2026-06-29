@@ -57,6 +57,7 @@ jobs:
     needs: start-release
     uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
     permissions:
+      contents: read
       id-token: write
     with:
       type: ga
