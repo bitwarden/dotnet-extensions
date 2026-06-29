@@ -18,8 +18,8 @@ public class WebEssentialsEndpointRouteBuilderExtensionsTests
         var json = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         using var doc = JsonDocument.Parse(json);
-        Assert.True(doc.RootElement.TryGetProperty("version", out var versionElement));
-        Assert.True(Version.TryParse(versionElement.GetString(), out _));
+        Assert.Equal(JsonValueKind.String, doc.RootElement.ValueKind);
+        Assert.True(Version.TryParse(doc.RootElement.GetString(), out _));
     }
 
     private static WebApplication BuildApp()

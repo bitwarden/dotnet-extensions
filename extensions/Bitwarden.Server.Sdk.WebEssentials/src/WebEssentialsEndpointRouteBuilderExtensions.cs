@@ -1,5 +1,4 @@
 using System.Reflection;
-using Bitwarden.Server.Sdk.WebEssentials;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,7 +27,7 @@ public static class WebEssentialsEndpointRouteBuilderExtensions
 
         return endpoints.MapGet("/version", () =>
         {
-            return TypedResults.Ok(new VersionResponse(version));
+            return TypedResults.Ok(version);
         });
     }
 
