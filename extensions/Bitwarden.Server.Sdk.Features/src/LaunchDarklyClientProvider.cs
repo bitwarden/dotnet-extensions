@@ -24,6 +24,9 @@ internal sealed class LaunchDarklyClientProvider : ILaunchDarklyClientProvider, 
     private readonly ILoggerFactory _loggerFactory;
     private readonly IHostEnvironment _hostEnvironment;
     private readonly IVersionInfoAccessor _versionInfoAccessor;
+#if DEBUG
+    private readonly IHttpMessageHandlerFactory _httpMessageHandlerFactory;
+#endif
     private readonly IDisposable? _changeToken;
 
     private LdClient _client;
@@ -32,11 +35,18 @@ internal sealed class LaunchDarklyClientProvider : ILaunchDarklyClientProvider, 
         IOptionsMonitor<FeatureFlagOptions> featureFlagOptions,
         ILoggerFactory loggerFactory,
         IHostEnvironment hostEnvironment,
-        IVersionInfoAccessor versionInfoAccessor)
+        IVersionInfoAccessor versionInfoAccessor
+#if DEBUG
+        , IHttpMessageHandlerFactory httpMessageHandlerFactory
+#endif
+        )
     {
         _loggerFactory = loggerFactory;
         _hostEnvironment = hostEnvironment;
         _versionInfoAccessor = versionInfoAccessor;
+#if DEBUG
+        _httpMessageHandlerFactory = httpMessageHandlerFactory;
+#endif
 
         BuildClient(featureFlagOptions.CurrentValue);
         // Subscribe to options changes.
@@ -67,6 +77,10 @@ internal sealed class LaunchDarklyClientProvider : ILaunchDarklyClientProvider, 
             builder.DataSource(BuildDataSource(featureFlagOptions.FlagValues))
                 .Events(Components.NoEvents);
         }
+
+#if DEBUG
+        builder.Http(Components.HttpConfiguration().MessageHandler(_httpMessageHandlerFactory.CreateHandler("LaunchDarkly")));
+#endif
 
         var previousClient = Interlocked.Exchange(ref _client, new LdClient(builder.Build()));
         previousClient?.Dispose();

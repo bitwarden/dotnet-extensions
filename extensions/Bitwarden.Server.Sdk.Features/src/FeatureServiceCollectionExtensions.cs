@@ -21,6 +21,9 @@ public static class FeatureServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddProblemDetails();
+#if DEBUG
+        services.AddHttpClient();
+#endif
 
         services.AddOptions<FeatureFlagOptions>()
             .BindConfiguration("Features");
