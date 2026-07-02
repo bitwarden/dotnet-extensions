@@ -2,8 +2,13 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>true</IsPackable>
     <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
     <InterceptorsPreviewNamespaces>$(InterceptorsPreviewNamespaces);Microsoft.Extensions.Configuration.Binder.SourceGeneration</InterceptorsPreviewNamespaces>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Description>Feature flag support for Bitwarden server services, backed by LaunchDarkly. Includes middleware, endpoint conventions, and controller attributes for remotely toggling features.</Description>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -24,6 +29,22 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Bitwarden.Server.Sdk" />
     <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Features.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\analyzers\Bitwarden.Server.Sdk.Features.Analyzers\Bitwarden.Server.Sdk.Features.Analyzers.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\analyzers\Bitwarden.Server.Sdk.Features.CodeFixers\Bitwarden.Server.Sdk.Features.CodeFixers.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\analyzers\Bitwarden.Server.Sdk.Features.Analyzers\bin\$(Configuration)\netstandard2.0\Bitwarden.Server.Sdk.Features.Analyzers.dll"
+      Pack="true"
+      PackagePath="analyzers/dotnet/cs"
+      Visible="false" />
+    <None Include="..\analyzers\Bitwarden.Server.Sdk.Features.CodeFixers\bin\$(Configuration)\netstandard2.0\Bitwarden.Server.Sdk.Features.CodeFixers.dll"
+      Pack="true"
+      PackagePath="analyzers/dotnet/cs"
+      Visible="false" />
   </ItemGroup>
 
 </Project>

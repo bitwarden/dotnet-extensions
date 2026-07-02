@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Bitwarden.Server.Sdk.Features.CodeFixers.Tests</RootNamespace>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="[18.0.4]" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.2" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing" Version="1.1.2" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeRefactoring.Testing" Version="1.1.2" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.8.0" />
+    <PackageReference Include="xunit.v3" Version="3.0.1" />
+    <PackageReference Include="NSubstitute" Version="[5.3.0]" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\analyzers\Bitwarden.Server.Sdk.Features.CodeFixers\Bitwarden.Server.Sdk.Features.CodeFixers.csproj" />
+    <ProjectReference Include="..\..\analyzers\Bitwarden.Server.Sdk.Features.Analyzers\Bitwarden.Server.Sdk.Features.Analyzers.csproj" />
+    <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.Features.csproj" />
+  </ItemGroup>
+
+</Project>

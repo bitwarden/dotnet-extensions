@@ -35,6 +35,22 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\analyzers\Bitwarden.Server.Sdk.Analyzers\Bitwarden.Server.Sdk.Analyzers.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\analyzers\Bitwarden.Server.Sdk.CodeFixers\Bitwarden.Server.Sdk.CodeFixers.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\analyzers\Bitwarden.Server.Sdk.Analyzers\bin\$(Configuration)\netstandard2.0\Bitwarden.Server.Sdk.Analyzers.dll"
+      Pack="true"
+      PackagePath="analyzers/dotnet/cs"
+      Visible="false" />
+    <None Include="..\analyzers\Bitwarden.Server.Sdk.CodeFixers\bin\$(Configuration)\netstandard2.0\Bitwarden.Server.Sdk.CodeFixers.dll"
+      Pack="true"
+      PackagePath="analyzers/dotnet/cs"
+      Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="Sdk/**" Pack="true" PackagePath="Sdk/" />
   </ItemGroup>
 
