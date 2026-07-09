@@ -165,20 +165,28 @@ public class SdkTests : MSBuildTestBase
 
     public static TheoryData<string> PossibleVariantData()
     {
-        string[] features = ["Telemetry", "Features", "Authentication", "Caching"];
-        var totalCombinations = (int)Math.Pow(2, features.Length);
+        var variations = new Dictionary<string, string[]>
+        {
+            { "BitIncludeTelemetry", ["true", "false"] },
+            { "BitIncludeFeatures", ["true", "false"] },
+            { "BitIncludeAuthentication", ["true", "false"] },
+            { "BitIncludeCaching", ["true", "false"] },
+            { "BitAspireIntegration", ["enabled", "disabled"] },
+        };
 
+        var keys = variations.Keys.ToArray();
         var theory = new TheoryData<string>();
 
-        for (var i = 0; i < totalCombinations; i++)
-        {
-            var variant = new Dictionary<string, bool>();
+        // Generate the cartesian product of all possible values for each property
+        IEnumerable<IEnumerable<string>> seed = [[]];
+        var combinations = variations.Values.Aggregate(seed, (acc, values) =>
+            from prev in acc
+            from value in values
+            select prev.Append(value));
 
-            for (var j = 0; j < features.Length; j++)
-            {
-                // Check if the j-th bit is set in i
-                variant[features[j]] = (i & (1 << j)) != 0;
-            }
+        foreach (var combination in combinations)
+        {
+            var variant = keys.Zip(combination).ToDictionary(kv => kv.First, kv => kv.Second);
 
             // TODO: When there are variants that need to be skipped do so here but still add
             // a row with a skip message
@@ -188,9 +196,9 @@ public class SdkTests : MSBuildTestBase
         return theory;
 
         // We serialize it into a simple string so that it can be easily viewed in test explorer
-        static string Serialize(Dictionary<string, bool> features)
+        static string Serialize(Dictionary<string, string> properties)
         {
-            return string.Join(',', features.Select(feature => $"{feature.Key}={feature.Value}"));
+            return string.Join(',', properties.Select(p => $"{p.Key}={p.Value}"));
         }
     }
 
@@ -198,12 +206,12 @@ public class SdkTests : MSBuildTestBase
     public void AllVariants_Work(string featureSets)
     {
         // Deserialize from simple string into dictionary
-        var features = featureSets.Split(",")
+        var properties = featureSets.Split(",")
             .Select(featureSet =>
             {
                 var split = featureSet.Split("=");
                 Debug.Assert(split.Length == 2, "Invalid format");
-                return new KeyValuePair<string, bool>(split[0], bool.Parse(split[1]));
+                return new KeyValuePair<string, string>(split[0], split[1]);
             })
             .ToDictionary();
 
@@ -212,9 +220,9 @@ public class SdkTests : MSBuildTestBase
             out var buildOutput,
             customAction: (project) =>
             {
-                foreach (var feature in features)
+                foreach (var property in properties)
                 {
-                    project.Property($"BitInclude{feature.Key}", feature.Value.ToString());
+                    project.Property(property.Key, property.Value);
                 }
             }
         );

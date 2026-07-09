@@ -17,39 +17,17 @@ jobs:
     name: Bump version
     runs-on: ubuntu-22.04
     permissions:
-      id-token: write # Required for Azure login
+      contents: read
+      id-token: write
+    outputs:
+      package: ${{ inputs.package }}
+      new-version: ${{ steps.version-bumper.outputs.NEW_VERSION }}
 
     steps:
-      - name: Log in to Azure
-        uses: bitwarden/gh-actions/azure-login@main
-        with:
-          subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          tenant_id: ${{ secrets.AZURE_TENANT_ID }}
-          client_id: ${{ secrets.AZURE_CLIENT_ID }}
-
-      - name: Get Azure Key Vault secrets
-        id: get-kv-secrets
-        uses: bitwarden/gh-actions/get-keyvault-secrets@main
-        with:
-          keyvault: gh-org-bitwarden
-          secrets: "BW-GHAPP-ID,BW-GHAPP-KEY"
-
-      - name: Log out from Azure
-        uses: bitwarden/gh-actions/azure-logout@main
-
-      - name: Generate GH App token
-        uses: actions/create-github-app-token@7e473efe3cb98aa54f8d4bac15400b15fad77d94 # v2.2.0
-        id: app-token
-        with:
-          app-id: ${{ steps.get-kv-secrets.outputs.BW-GHAPP-ID }}
-          private-key: ${{ steps.get-kv-secrets.outputs.BW-GHAPP-KEY }}
-          permission-contents: write # for pushing commits
-
       - name: Check out repo
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          persist-credentials: true
-          token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: false
 
       - name: Set up .NET
         uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602 # v5.0.1
@@ -64,48 +42,15 @@ jobs:
           $NEW_VERSION=$(./scripts/UpdatePackageVersion.ps1 -PackageName $env:PACKAGE_NAME -BumpType $env:BUMP_TYPE)
           Write-Output "NEW_VERSION=$NEW_VERSION" >> $Env:GITHUB_OUTPUT
 
-      - name: Create version bump commit
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
-        env:
-          _INPUT_PACKAGE: ${{ inputs.package }}
-          _NEW_VERSION: ${{ steps.version-bumper.outputs.NEW_VERSION }}
+      - name: Upload modified files
+        id: upload
+        uses: bitwarden/gh-actions/upload-modified-files@main
+
+      - name: Trigger protected branch update
+        uses: bitwarden/gh-actions/trigger-actions@main
         with:
-          script: |
-            const packageName = process.env._INPUT_PACKAGE;
-            const newVersion = process.env._NEW_VERSION;
-
-            if (newVersion === '') {
-              core.setFailed('New version was not set.');
-              return;
-            }
-
-            // Configure Git
-            await exec.exec(`git config user.name "github-actions"`);
-            await exec.exec(`git config user.email "github-actions@github.com"`);
-
-            // Add and commit changes
-            const commitMessage = `Bump ${packageName} version to ${newVersion}`;
-            const gitCommitCommand = `git commit --all --message "${commitMessage}"`;
-            let gitCommitOutput = `$ ${gitCommitCommand}\n\n`;
-            let gitCommitFailed = false;
-
-            try {
-              await exec.exec(gitCommitCommand, [], {
-                listeners: {
-                  stdout: function stdout(data) { gitCommitOutput += data },
-                  stderr: function stderr(data) { gitCommitOutput += data }
-                }
-              });
-            } catch (error) {
-              gitCommitOutput += error;
-              gitCommitFailed = true;
-            }
-
-            if (gitCommitFailed) {
-              console.log(`Failed:\n\n${gitCommitOutput}`);
-              throw new Error("git commit command failed.");
-            }
-
-            await exec.exec(`git push`);
-
-            console.log("Successfully pushed version bump commit.");
+          azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+          task: update-repository
+          data: '{"artifact_name": "${{ steps.upload.outputs.artifact_name }}", "target_branch": "${{ github.ref_name }}"}'

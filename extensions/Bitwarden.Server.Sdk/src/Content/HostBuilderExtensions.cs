@@ -12,6 +12,9 @@ using OpenTelemetry.Resources;
 #if BIT_INCLUDE_CACHING
 using Bitwarden.Server.Sdk.Caching;
 #endif
+#if BIT_INCLUDE_TELEMETRY && BIT_INCLUDE_ASPIRE_INTEGRATION
+using OpenTelemetry.Logs;
+#endif
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -49,6 +52,15 @@ public static class HostBuilderExtensions
 
 #if BIT_INCLUDE_CACHING
         builder.Services.AddBitwardenCaching();
+#endif
+
+#if BIT_INCLUDE_ASPIRE_INTEGRATION
+        builder.Services.AddServiceDiscovery();
+
+        builder.Services.ConfigureHttpClientDefaults(http =>
+        {
+            http.AddServiceDiscovery();
+        });
 #endif
 
         return builder;
@@ -94,6 +106,18 @@ public static class HostBuilderExtensions
         hostBuilder.ConfigureServices((_, services) =>
         {
             services.AddBitwardenCaching();
+        });
+#endif
+
+#if BIT_INCLUDE_ASPIRE_INTEGRATION
+        hostBuilder.ConfigureServices((_, services) =>
+        {
+            services.AddServiceDiscovery();
+
+            services.ConfigureHttpClientDefaults(http =>
+            {
+                http.AddServiceDiscovery();
+            });
         });
 #endif
 
@@ -186,6 +210,17 @@ public static class HostBuilderExtensions
                     });
                 }
             })
+#if BIT_INCLUDE_ASPIRE_INTEGRATION
+            .WithLogging(loggingBuilder =>
+            {
+                loggingBuilder.AddOtlpExporter();
+            },
+            loggingOptions =>
+            {
+                loggingOptions.IncludeFormattedMessage = true;
+                loggingOptions.IncludeScopes = true;
+            })
+#endif
             .WithMetrics(metrics =>
             {
                 if (configuration.GetValue<bool>("OpenTelemetry:Metrics:Enabled", openTelemetryEnabled))

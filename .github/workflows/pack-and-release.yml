@@ -8,25 +8,26 @@ on:
 
 jobs:
   release:
-    name: Release
-    runs-on: ubuntu-22.04
+    name: Pack and trigger release
+    runs-on: ubuntu-24.04
     permissions:
-      contents: write
-      id-token: write  # Required for Azure login
+      contents: read
+      id-token: write
     outputs:
       package: ${{ steps.parse-package.outputs.result }}
+      version: ${{ steps.current-version.outputs.VERSION }}
     steps:
       - name: Check out repo
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Set up .NET
         uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602 # v5.0.1
 
       - name: Parse package
         id: parse-package
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           _REF: ${{ github.ref }}
         with:
@@ -63,91 +64,6 @@ jobs:
         env:
           IS_PRERELEASE: ${{ inputs.prerelease }}
 
-      - name: Create GitHub Release
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
-        env:
-          _PACKAGE: ${{ steps.parse-package.outputs.result }}
-          _CURRENT_VERSION: ${{ steps.current-version.outputs.VERSION }}
-          _EVENT_REF: ${{ github.event.ref }}
-          _INPUT_PRERELEASE: ${{ inputs.prerelease }}
-        with:
-          script: |
-            const package = process.env._PACKAGE;
-            const currentVersion = process.env._CURRENT_VERSION;
-            const eventRef = process.env._EVENT_REF;
-            const preRelease = process.env._INPUT_PRERELEASE === "true";
-            const currentRef = process.env.GITHUB_SHA;
-
-            // Configure Git
-            await exec.exec(`git config user.name "github-actions"`);
-            await exec.exec(`git config user.email "github-actions@github.com"`);
-
-            // List existing tags so that we could use them to link to the best full changelog
-            // Debug purposes only right now until there is enough data for me to make this command bullet proof
-            await exec.exec("git fetch --tags");
-            await exec.exec(`git --no-pager tag --list "${package}_v*" --no-contains "${currentRef}"`, [], {
-              listeners: {
-                stdout: function stdout(data) {
-                  console.log(`Found tags:\n${data}`);
-                }
-              },
-              ignoreErrorCode: true // Just for research purposes right now, it's fine if this fails
-            });
-
-            // Create tag
-            const tag = `${package}_v${currentVersion}`;
-
-            console.log(`Creating tag & release: ${tag}`);
-
-            await exec.exec(`git tag "${tag}"`);
-            await exec.exec(`git push origin --tags`);
-
-            // Create release
-            const { data } = await github.rest.repos.createRelease({
-              owner: "bitwarden",
-              repo: "dotnet-extensions",
-              tag_name: tag,
-              target_commitish: eventRef,
-              name: tag,
-              body: "",
-              prerelease: preRelease,
-              generate_release_notes: false, // This creates a link between this and the last tag but that might not be our version
-            });
-
-            const templateMarker = data.upload_url.indexOf("{");
-
-            let url = data.upload_url;
-
-            if (templateMarker > -1) {
-              url = url.substring(0, templateMarker);
-            }
-
-            const globber = await glob.create("**/*.nupkg");
-            const files = await globber.glob();
-
-            const fs = require("fs");
-            const path = require("path");
-
-            if (files.length === 0) {
-              core.setFailed("No files found, cannot create release.");
-              return;
-            }
-
-            for (const file of files) {
-              const endpoint = new URL(url);
-              endpoint.searchParams.append("name", path.basename(file));
-              const endpointString = endpoint.toString();
-              console.log(`Uploading file: ${file} to ${endpointString}`);
-              // do the upload
-              const uploadResponse = await github.request({
-                method: "POST",
-                url: endpointString,
-                data: fs.readFileSync(file),
-              });
-
-              console.log(`Upload response: ${uploadResponse.status}`);
-            }
-
       - name: Upload artifacts
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
@@ -156,56 +72,30 @@ jobs:
             **/*.nupkg
             **/*.snupkg
 
-      - name: Log in to Azure
-        uses: bitwarden/gh-actions/azure-login@main
+      - name: Trigger release workflow
+        uses: bitwarden/gh-actions/trigger-actions@main
         with:
-          subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          tenant_id: ${{ secrets.AZURE_TENANT_ID }}
-          client_id: ${{ secrets.AZURE_CLIENT_ID }}
-
-      - name: Get Azure Key Vault secrets
-        id: get-kv-secrets
-        uses: bitwarden/gh-actions/get-keyvault-secrets@main
-        with:
-          keyvault: gh-org-bitwarden
-          secrets: "BW-GHAPP-ID,BW-GHAPP-KEY"
-
-      - name: Log out from Azure
-        uses: bitwarden/gh-actions/azure-logout@main
-
-      - name: Generate GH App token
-        uses: actions/create-github-app-token@7e473efe3cb98aa54f8d4bac15400b15fad77d94 # v2.2.0
-        id: app-token
-        with:
-          app-id: ${{ steps.get-kv-secrets.outputs.BW-GHAPP-ID }}
-          private-key: ${{ steps.get-kv-secrets.outputs.BW-GHAPP-KEY }}
-          owner: bitwarden
-          repositories: devops
-          permission-actions: write  # for dispatching workflows
-          permission-contents: read # for getting default branch as part of dispatching workflows
-
-      - name: Dispatch publishing
-        env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-          _REPOSITORY_NAME: ${{ github.event.repository.name }}
-          _VERSION: ${{ steps.current-version.outputs.VERSION }}
-        run: >
-          gh workflow run publish-nuget.yml
-          --repo bitwarden/devops
-          --field repository="${_REPOSITORY_NAME}"
-          --field run-id="${{ github.run_id }}"
-          --field artifact="packages"
-          --field environment="nuget"
-          --field version="${_VERSION}"
+          azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+          task: release-dotnet-extensions
+          data: >
+            {
+              "package": "${{ steps.parse-package.outputs.result }}",
+              "version": "${{ steps.current-version.outputs.VERSION }}",
+              "branch": "${{ github.ref_name }}",
+              "run_id": "${{ github.run_id }}",
+              "prerelease": ${{ inputs.prerelease }}
+            }
 
   bump-version:
-    name: Bump version
-    needs:
-      - release
+    name: Bump version on release branch
+    needs: release
     uses: bitwarden/dotnet-extensions/.github/workflows/version-bump.yml@main
     permissions:
+      contents: read
       id-token: write
     with:
-      package: ${{ needs.release.outputs.package }}
       type: ${{ inputs.prerelease && 'prerelease' || 'hotfix' }}
+      package: ${{ needs.release.outputs.package }}
     secrets: inherit
