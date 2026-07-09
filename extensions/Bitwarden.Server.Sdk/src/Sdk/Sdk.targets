@@ -34,6 +34,9 @@
     <!-- Caching defaults to off -->
     <BitIncludeCaching Condition="'$(BitIncludeCaching)' == ''">false</BitIncludeCaching>
     <DefineConstants Condition="'$(BitIncludeCaching)' == 'true'">$(DefineConstants);BIT_INCLUDE_CACHING</DefineConstants>
+    <!-- WebEssentials defaults to on -->
+    <BitIncludeWebEssentials Condition="'$(BitIncludeWebEssentials)' == ''">true</BitIncludeWebEssentials>
+    <DefineConstants Condition="'$(BitIncludeWebEssentials)' == 'true'">$(DefineConstants);BIT_INCLUDE_WEB_ESSENTIALS</DefineConstants>
 
     <!--
       Aspire integration defaults to disabled
@@ -69,6 +72,10 @@
 
   <ItemGroup Condition="'$(BitIncludeCaching)' == 'true'">
     <PackageReference Include="Bitwarden.Server.Sdk.Caching" Version="0.1.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(BitIncludeWebEssentials)' == 'true'">
+    <PackageReference Include="Bitwarden.Server.Sdk.WebEssentials" Version="0.4.0" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(BitAspireIntegration)' == 'enabled'">

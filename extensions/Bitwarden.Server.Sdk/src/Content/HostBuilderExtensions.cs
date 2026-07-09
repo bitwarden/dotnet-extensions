@@ -54,6 +54,10 @@ public static class HostBuilderExtensions
         builder.Services.AddBitwardenCaching();
 #endif
 
+#if BIT_INCLUDE_WEB_ESSENTIALS
+        builder.Services.AddWebEssentials();
+#endif
+
 #if BIT_INCLUDE_ASPIRE_INTEGRATION
         builder.Services.AddServiceDiscovery();
 
@@ -106,6 +110,13 @@ public static class HostBuilderExtensions
         hostBuilder.ConfigureServices((_, services) =>
         {
             services.AddBitwardenCaching();
+        });
+#endif
+
+#if BIT_INCLUDE_WEB_ESSENTIALS
+        hostBuilder.ConfigureServices((_, services) =>
+        {
+            services.AddWebEssentials();
         });
 #endif
 
