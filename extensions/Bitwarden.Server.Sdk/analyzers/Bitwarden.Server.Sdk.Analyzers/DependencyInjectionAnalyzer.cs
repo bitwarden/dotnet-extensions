@@ -15,7 +15,7 @@ public sealed partial class DependencyInjectionAnalyzer : DiagnosticAnalyzer
 
     private static readonly DiagnosticDescriptor _shouldUseTryAddOverload = new(
         "BW0003",
-        "Should use {0} overloads",
+        "Should use TryAdd overloads",
         "Should use {0} overload instead",
         "Usage",
         DiagnosticSeverity.Warning,
