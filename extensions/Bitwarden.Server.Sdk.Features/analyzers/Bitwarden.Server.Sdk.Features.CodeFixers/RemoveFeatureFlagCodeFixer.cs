@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace Bitwarden.Server.Sdk.CodeFixers;
+namespace Bitwarden.Server.Sdk.Features.CodeFixers;
 
 internal record MockReturnInfo(bool ReturnsFalse, MemberDeclarationSyntax? TestMethod, ExpressionStatementSyntax? ExpressionStatement);
 

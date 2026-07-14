@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\analyzers\Bitwarden.Server.Sdk.Features.Analyzers\Bitwarden.Server.Sdk.Features.Analyzers.csproj" />
+    <ProjectReference Include="..\..\analyzers\Bitwarden.Server.Sdk.Features.CodeFixers\Bitwarden.Server.Sdk.Features.CodeFixers.csproj" />
     <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.Features.csproj" />
   </ItemGroup>
 
