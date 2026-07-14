@@ -20,9 +20,8 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
     );
 
     private static readonly DiagnosticDescriptor _flagKeyShouldBeNonNullOrEmpty = new(
-        id: "BW0002",
-        title: "Flag key value should be non-null or empty",
-        messageFormat: "Flag key value should be non-null or empty",
+        title: "Flag key value should not be null or empty",
+        messageFormat: "Flag key value should not be null or empty",
         category: "Usage",
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
