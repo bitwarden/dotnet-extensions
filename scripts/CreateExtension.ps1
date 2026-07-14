@@ -22,11 +22,7 @@ Param (
     [string] $PackageName
 )
 
-Write-Host "RepoRoot: $RepoRoot"
-
 $extensionsRoot = Join-Path $RepoRoot extensions $PackageName
-
-Write-Host "ExtensionsRoot: $extensionsRoot"
 
 $sourceRoot = Join-Path $extensionsRoot src
 

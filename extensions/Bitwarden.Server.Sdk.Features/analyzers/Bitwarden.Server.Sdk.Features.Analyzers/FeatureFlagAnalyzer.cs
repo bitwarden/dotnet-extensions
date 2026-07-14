@@ -1,9 +1,6 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
-using Microsoft.CodeAnalysis.Operations;
 
 namespace Bitwarden.Server.Sdk.Features.Analyzers;
 
@@ -32,63 +29,45 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
         helpLinkUri: string.Format(HelpUrlFormat, "BW0002")
     );
 
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(_removeFeatureFlagRule, _flagKeyShouldBeNonNullOrEmpty);
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
+        ImmutableArray.Create(_removeFeatureFlagRule, _flagKeyShouldBeNonNullOrEmpty);
 
     public override void Initialize(AnalysisContext context)
     {
         context.EnableConcurrentExecution();
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
-        context.RegisterSyntaxNodeAction(AnalyzeFlagKeyCollectionAttribute, SyntaxKind.Attribute);
+        // Use RegisterSymbolAction rather than RegisterSyntaxNodeAction so the framework
+        // provides pre-resolved INamedTypeSymbol objects. SemanticModel access inside
+        // SyntaxNodeAnalysisContext fails silently in roslyn-language-server's LSP host
+        // (GetSymbolInfo, GetTypeInfo, GetDeclaredSymbol, and GetAttributes all return
+        // null/empty for attribute types from referenced NuGet packages in that context).
+        context.RegisterSymbolAction(AnalyzeFlagKeyCollectionSymbol, SymbolKind.NamedType);
     }
 
-    private static void AnalyzeFlagKeyCollectionAttribute(SyntaxNodeAnalysisContext context)
+    private static void AnalyzeFlagKeyCollectionSymbol(SymbolAnalysisContext context)
     {
-        if (context.SemanticModel.GetOperation(context.Node, context.CancellationToken) is not IAttributeOperation attributeOperation)
-        {
-            return;
-        }
+        var typeSymbol = (INamedTypeSymbol)context.Symbol;
 
-        var flagKeyCollectionAttributeType = context.Compilation.GetTypeByMetadataName("Bitwarden.Server.Sdk.Features.FlagKeyCollectionAttribute");
+        // Check if this type has [FlagKeyCollection] by name and namespace.
+        // AttributeData.AttributeClass is the resolved attribute type symbol; comparing
+        // MetadataName + namespace avoids GetTypeByMetadataName (which can fail when
+        // the assembly can't be resolved in the LSP incremental-compilation context).
+        var hasFlagKeyCollection = typeSymbol.GetAttributes().Any(a =>
+            a.AttributeClass?.MetadataName == "FlagKeyCollectionAttribute" &&
+            a.AttributeClass.ContainingNamespace?.ToDisplayString() == "Bitwarden.Server.Sdk.Features");
 
-        if (flagKeyCollectionAttributeType == null)
-        {
-            return;
-        }
-
-        if (attributeOperation.Operation is not IObjectCreationOperation attributeCreation)
-        {
-            return;
-        }
-
-        if (!SymbolEqualityComparer.Default.Equals(flagKeyCollectionAttributeType, attributeCreation.Type))
-        {
-            // Different attribute
-            return;
-        }
-
-        if (attributeOperation.Syntax.Parent is not AttributeListSyntax attributeListSyntax)
-        {
-            return;
-        }
-
-        if (attributeListSyntax.Parent is not TypeDeclarationSyntax attachedTypeSyntax)
-        {
-            return;
-        }
-
-        var attachedType = context.SemanticModel.GetDeclaredSymbol(attachedTypeSyntax);
-
-        if (attachedType == null)
+        if (!hasFlagKeyCollection)
         {
             return;
         }
 
         var stringType = context.Compilation.GetSpecialType(SpecialType.System_String);
 
-        // Analyze all string field constants in the attached type
-        var candidateMembers = attachedType.GetMembers()
+        // Analyze all string field constants in the type.
+        var candidateMembers = typeSymbol.GetMembers()
             .OfType<IFieldSymbol>()
-            .Where(fs => fs.IsConst && SymbolEqualityComparer.Default.Equals(fs.Type, stringType));
+            .Where(fs => fs.IsConst && SymbolEqualityComparer.Default.Equals(fs.Type, stringType))
+            .ToList();
 
         foreach (var fieldMember in candidateMembers)
         {
@@ -105,12 +84,13 @@ public sealed class FeatureFlagAnalyzer : DiagnosticAnalyzer
             var properties = ImmutableDictionary.CreateBuilder<string, string?>();
             properties.Add("FlagKey", constantValue);
 
-            context.ReportDiagnostic(Diagnostic.Create(
+            var diag = Diagnostic.Create(
                 descriptor: _removeFeatureFlagRule,
                 location: fieldMember.Locations.First(),
                 messageArgs: [constantValue],
                 properties: properties.ToImmutableDictionary()
-            ));
+            );
+            context.ReportDiagnostic(diag);
         }
     }
 }

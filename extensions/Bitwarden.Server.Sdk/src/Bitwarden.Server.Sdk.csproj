@@ -35,8 +35,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\analyzers\Bitwarden.Server.Sdk.Analyzers\Bitwarden.Server.Sdk.Analyzers.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\analyzers\Bitwarden.Server.Sdk.CodeFixers\Bitwarden.Server.Sdk.CodeFixers.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\analyzers\Bitwarden.Server.Sdk.Analyzers\Bitwarden.Server.Sdk.Analyzers.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+    <ProjectReference Include="..\analyzers\Bitwarden.Server.Sdk.CodeFixers\Bitwarden.Server.Sdk.CodeFixers.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
   </ItemGroup>
 
   <ItemGroup>

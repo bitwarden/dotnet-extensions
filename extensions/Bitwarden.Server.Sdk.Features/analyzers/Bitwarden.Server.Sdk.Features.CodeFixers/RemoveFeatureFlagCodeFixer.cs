@@ -36,8 +36,7 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
             context.RegisterCodeFix(CodeAction.Create(
                 $"Remove '{flagKey}' feature.",
                 createChangedSolution: (token) => RemoveFlagAsync(context.Document, diagnostic.Location, token),
-                equivalenceKey: $"BW0001-{flagKey}",
-                CodeActionPriority.Default
+                equivalenceKey: $"BW0001-{flagKey}"
             ), diagnostic);
         }
 
@@ -114,8 +113,14 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
                 }
             }
 
+            // Also track mock-related nodes (TestMethod, ExpressionStatement) so GetCurrentNode
+            // works correctly after earlier fixes shrink or restructure the tree.
+            var extraNodesToTrack = mockAnalysis.Values
+                .SelectMany(mi => new SyntaxNode?[] { mi.TestMethod, mi.ExpressionStatement })
+                .OfType<SyntaxNode>();
+
             // Use TrackNodes to maintain node identity across replacements
-            var currentRoot = referenceRoot.TrackNodes(nodesToFix);
+            var currentRoot = referenceRoot.TrackNodes(nodesToFix.Concat(extraNodesToTrack).Distinct());
 
             // Apply fixes sequentially, using GetCurrentNode to get the updated node after each change
             foreach (var originalNode in nodesToFix)
@@ -129,6 +134,7 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
             }
 
             var updatedDocument = solution.GetDocument(referenceDocument.Id)!.WithSyntaxRoot(currentRoot);
+            updatedDocument = await Formatter.FormatAsync(updatedDocument, Formatter.Annotation, cancellationToken: token);
             updatedDocument = await Formatter.OrganizeImportsAsync(updatedDocument, token);
             solution = updatedDocument.Project.Solution;
         }
@@ -194,8 +200,9 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
         {
             if (mockInfo.ReturnsFalse && mockInfo.TestMethod is not null)
             {
-                // Delete the whole test
-                var testMethodInRoot = root.FindNode(mockInfo.TestMethod.Span);
+                // Delete the whole test - use GetCurrentNode since the tree may have been modified
+                // by a prior fix in the same document (FindNode with a stale span would throw).
+                var testMethodInRoot = root.GetCurrentNode(mockInfo.TestMethod);
                 if (testMethodInRoot is not null)
                 {
                     newSyntax = root.RemoveNode(testMethodInRoot, SyntaxRemoveOptions.KeepNoTrivia);
@@ -203,8 +210,8 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
             }
             else if (mockInfo.ExpressionStatement is not null)
             {
-                // Delete the whole expression of the mock
-                var expressionInRoot = root.FindNode(mockInfo.ExpressionStatement.Span);
+                // Delete the whole expression of the mock - use GetCurrentNode for the same reason.
+                var expressionInRoot = root.GetCurrentNode(mockInfo.ExpressionStatement);
                 if (expressionInRoot is not null)
                 {
                     newSyntax = root.RemoveNode(expressionInRoot, SyntaxRemoveOptions.KeepTrailingTrivia);
@@ -256,6 +263,43 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
             root = root.ReplaceNode(negation, replacement);
         }
 
+        // Fold binary expressions whose operands reduced to boolean literals
+        // (e.g. false || X → X, true && X → X). Runs in a loop because folding one
+        // binary may expose another (false || X || Y first gives X || Y, then X || Y
+        // may fold further if X is also a literal).
+        while (true)
+        {
+            var binary = root.DescendantNodes()
+                .OfType<BinaryExpressionSyntax>()
+                .FirstOrDefault(static b =>
+                    (b.IsKind(SyntaxKind.LogicalOrExpression) || b.IsKind(SyntaxKind.LogicalAndExpression)) &&
+                    (b.Left is LiteralExpressionSyntax l1 &&
+                         (l1.IsKind(SyntaxKind.TrueLiteralExpression) || l1.IsKind(SyntaxKind.FalseLiteralExpression)) ||
+                     b.Right is LiteralExpressionSyntax l2 &&
+                         (l2.IsKind(SyntaxKind.TrueLiteralExpression) || l2.IsKind(SyntaxKind.FalseLiteralExpression))));
+
+            if (binary is null) break;
+            root = root.ReplaceNode(binary, FoldBooleanBinary(binary));
+        }
+
+        // After binary folding an if-statement's condition may now be a bare literal.
+        // Inline the taken branch and discard the other.
+        while (true)
+        {
+            var literalIf = root.DescendantNodes()
+                .OfType<IfStatementSyntax>()
+                .FirstOrDefault(static s => s.Condition is LiteralExpressionSyntax lit &&
+                    (lit.IsKind(SyntaxKind.TrueLiteralExpression) || lit.IsKind(SyntaxKind.FalseLiteralExpression)));
+
+            if (literalIf is null) break;
+
+            var condition = (LiteralExpressionSyntax)literalIf.Condition;
+            var stmts = condition.IsKind(SyntaxKind.TrueLiteralExpression)
+                ? GetStatements(literalIf.Statement, literalIf.GetLeadingTrivia())
+                : GetStatements(literalIf.Else?.Statement, literalIf.GetLeadingTrivia());
+            root = root.ReplaceNode(literalIf, stmts);
+        }
+
         // Remove unreachable statements after return/throw in blocks
         return RemoveUnreachableCode(root);
     }
@@ -283,8 +327,11 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
 
             if (firstUnreachableIndex > 0)
             {
-                var newBlock = block.WithStatements(SyntaxFactory.List(statements.Take(firstUnreachableIndex)));
-                root = root.ReplaceNode(block, newBlock);
+                // Keep statements up to and including the return/throw, plus any local
+                // functions that follow — they are hoisted and may be called before the return.
+                var kept = statements.Take(firstUnreachableIndex)
+                    .Concat(statements.Skip(firstUnreachableIndex).OfType<LocalFunctionStatementSyntax>());
+                root = root.ReplaceNode(block, block.WithStatements(SyntaxFactory.List(kept)));
             }
         }
 
@@ -298,7 +345,8 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
         {
             if (statements[i] is ReturnStatementSyntax or ThrowStatementSyntax)
             {
-                return true;
+                // Local functions after a return are hoisted and not truly unreachable.
+                return statements.Skip(i + 1).Any(s => s is not LocalFunctionStatementSyntax);
             }
         }
         return false;
@@ -342,16 +390,55 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
         );
     }
 
+    private static SyntaxNode FoldBooleanBinary(BinaryExpressionSyntax binary)
+    {
+        var isOr = binary.IsKind(SyntaxKind.LogicalOrExpression);
+
+        if (binary.Left is LiteralExpressionSyntax leftLiteral)
+        {
+            var leftIsTrue = leftLiteral.IsKind(SyntaxKind.TrueLiteralExpression);
+            if (isOr)
+                // true || X → true (short-circuits), false || X → X
+                return leftIsTrue
+                    ? leftLiteral.WithTriviaFrom(binary)
+                    : binary.Right.WithLeadingTrivia(binary.Left.GetLeadingTrivia());
+            // true && X → X, false && X → false (short-circuits)
+            return leftIsTrue
+                ? binary.Right.WithLeadingTrivia(binary.Left.GetLeadingTrivia())
+                : leftLiteral.WithTriviaFrom(binary);
+        }
+
+        var rightLiteral = (LiteralExpressionSyntax)binary.Right;
+        var rightIsTrue = rightLiteral.IsKind(SyntaxKind.TrueLiteralExpression);
+        if (isOr)
+            // X || true → true, X || false → X
+            return rightIsTrue
+                ? rightLiteral.WithTriviaFrom(binary)
+                : binary.Left.WithTrailingTrivia(binary.Right.GetTrailingTrivia());
+        // X && true → X, X && false → false
+        return rightIsTrue
+            ? binary.Left.WithTrailingTrivia(binary.Right.GetTrailingTrivia())
+            : rightLiteral.WithTriviaFrom(binary);
+    }
+
     private static IEnumerable<SyntaxNode> GetStatements(StatementSyntax? statement, SyntaxTriviaList leadingTrivia) =>
         statement is null ? [] :
         statement is BlockSyntax block
-            ? block.Statements.Select(s => (SyntaxNode)s.WithLeadingTrivia(leadingTrivia))
+            ? block.Statements.Select(s => (SyntaxNode)s
+                .WithLeadingTrivia(leadingTrivia)
+                .WithAdditionalAnnotations(Formatter.Annotation))
             : [statement.WithLeadingTrivia(leadingTrivia)];
 
     private static SyntaxNode SimplifyBinary(BinaryExpressionSyntax binaryExpression, SyntaxNode targetNode) =>
         binaryExpression.Left == targetNode
-            ? binaryExpression.Right.WithTriviaFrom(binaryExpression.Left)
-            : binaryExpression.Left.WithTriviaFrom(binaryExpression.Right);
+            // Only carry the leading trivia (indentation) from the removed left operand;
+            // using WithTriviaFrom would also copy its trailing newline, pushing any
+            // following token (e.g. ';') onto a new line.
+            ? binaryExpression.Right.WithLeadingTrivia(binaryExpression.Left.GetLeadingTrivia())
+            // Only carry the trailing trivia from the removed right operand;
+            // using WithTriviaFrom would also copy its leading indentation (from a multi-line
+            // continuation), which would be placed incorrectly before the kept left operand.
+            : binaryExpression.Left.WithTrailingTrivia(binaryExpression.Right.GetTrailingTrivia());
 
     private static BlockSyntax CreateEmptyBlock(BlockSyntax originalBlock)
     {

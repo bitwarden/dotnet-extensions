@@ -812,6 +812,144 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
     }
 
     [Fact]
+    public async Task TestCode_MultipleMocksFalse_DeletesAllTests()
+    {
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(Substitute).Assembly.Location));
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(FactAttribute).Assembly.Location));
+
+        await RunDefaultCodeFixAsync("""
+            using NSubstitute;
+            using Xunit;
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class TestClass
+            {
+                private readonly IFeatureService _featureService;
+
+                public TestClass()
+                {
+                    _featureService = Substitute.For<IFeatureService>();
+                }
+
+                [Fact]
+                public void TestMethod1()
+                {
+                    _featureService
+                        .IsEnabled(MyFlags.Flag)
+                        .Returns(false);
+                }
+
+                [Fact]
+                public void TestMethod2()
+                {
+                    _featureService
+                        .IsEnabled(MyFlags.Flag)
+                        .Returns(false);
+                }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+            using NSubstitute;
+            using Xunit;
+
+            namespace Test;
+
+            public class TestClass
+            {
+                private readonly IFeatureService _featureService;
+
+                public TestClass()
+                {
+                    _featureService = Substitute.For<IFeatureService>();
+                }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task TestCode_MultipleMocksTrue_DeletesAllExpressions()
+    {
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(Substitute).Assembly.Location));
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(FactAttribute).Assembly.Location));
+
+        await RunDefaultCodeFixAsync("""
+            using NSubstitute;
+            using Xunit;
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class TestClass
+            {
+                private readonly IFeatureService _featureService;
+
+                public TestClass()
+                {
+                    _featureService = Substitute.For<IFeatureService>();
+                }
+
+                [Fact]
+                public void TestMethod1()
+                {
+                    _featureService
+                        .IsEnabled(MyFlags.Flag)
+                        .Returns(true);
+                    Do();
+                }
+
+                [Fact]
+                public void TestMethod2()
+                {
+                    _featureService
+                        .IsEnabled(MyFlags.Flag)
+                        .Returns(true);
+                    Do();
+                }
+
+                private void Do() { }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+            using NSubstitute;
+            using Xunit;
+
+            namespace Test;
+
+            public class TestClass
+            {
+                private readonly IFeatureService _featureService;
+
+                public TestClass()
+                {
+                    _featureService = Substitute.For<IFeatureService>();
+                }
+
+                [Fact]
+                public void TestMethod1()
+                {
+
+                    Do();
+                }
+
+                [Fact]
+                public void TestMethod2()
+                {
+
+                    Do();
+                }
+
+                private void Do() { }
+            }
+            """
+        );
+    }
+
+    [Fact]
     public async Task TestCode_MocksNonConstant_AddsErrorDirective()
     {
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(Substitute).Assembly.Location));
@@ -1386,6 +1524,371 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
     }
 
     [Fact]
+    public async Task ExpressionBodyWithAndAlsoAccessCheck_KeepsAccessCheck()
+    {
+        await RunDefaultCodeFixAsync(
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public interface IAccessService { bool HasPermission(); }
+
+            public class MyService
+            {
+                private readonly IFeatureService _featureService;
+                private readonly IAccessService _accessService;
+
+                public MyService(IFeatureService featureService, IAccessService accessService)
+                {
+                    _featureService = featureService;
+                    _accessService = accessService;
+                }
+
+                private bool CanDoThing() =>
+                    _featureService.IsEnabled(MyFlags.Flag)
+                    && _accessService.HasPermission();
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public interface IAccessService { bool HasPermission(); }
+
+            public class MyService
+            {
+                private readonly IFeatureService _featureService;
+                private readonly IAccessService _accessService;
+
+                public MyService(IFeatureService featureService, IAccessService accessService)
+                {
+                    _featureService = featureService;
+                    _accessService = accessService;
+                }
+
+                private bool CanDoThing() =>
+                    _accessService.HasPermission();
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task NestedIfsInIfBlock_InlinesBodyStatements()
+    {
+        await RunDefaultCodeFixAsync(
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class MyService
+            {
+                public string? GetValue(IFeatureService featureService, bool conditionA, bool conditionB, bool conditionC)
+                {
+                    if (featureService.IsEnabled(MyFlags.Flag))
+                    {
+                        if (conditionA)
+                        {
+                            return null;
+                        }
+
+                        if (conditionB)
+                        {
+                            return null;
+                        }
+                    }
+                    else
+                    {
+                        if (conditionC)
+                        {
+                            return null;
+                        }
+                    }
+
+                    return "value";
+                }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class MyService
+            {
+                public string? GetValue(IFeatureService featureService, bool conditionA, bool conditionB, bool conditionC)
+                {
+                    if (conditionA)
+                    {
+                        return null;
+                    }
+                    if (conditionB)
+                    {
+                        return null;
+                    }
+
+                    return "value";
+                }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task LocalFunctionsAfterReturn_ArePreserved()
+    {
+        await RunDefaultCodeFixAsync(
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class MyService
+            {
+                private readonly IFeatureService _featureService;
+
+                public MyService(IFeatureService featureService)
+                {
+                    _featureService = featureService;
+                }
+
+                public bool IsEnabled() =>
+                    _featureService.IsEnabled(MyFlags.Flag);
+
+                public void Process(bool condition)
+                {
+                    if (condition)
+                    {
+                        Helper();
+                    }
+
+                    return;
+
+                    void Helper() { }
+                }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class MyService
+            {
+                private readonly IFeatureService _featureService;
+
+                public MyService(IFeatureService featureService)
+                {
+                    _featureService = featureService;
+                }
+
+                public bool IsEnabled() => true;
+
+                public void Process(bool condition)
+                {
+                    if (condition)
+                    {
+                        Helper();
+                    }
+
+                    return;
+
+                    void Helper() { }
+                }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task NegatedFlagInOrChain_FoldsFalseOperandOut()
+    {
+        await RunDefaultCodeFixAsync(
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class MyService
+            {
+                private readonly bool _cond1;
+                private readonly bool _cond2;
+
+                public MyService(bool cond1, bool cond2)
+                {
+                    _cond1 = cond1;
+                    _cond2 = cond2;
+                }
+
+                public void Process(IFeatureService featureService)
+                {
+                    if (!featureService.IsEnabled(MyFlags.Flag)
+                        || _cond1
+                        || _cond2)
+                    {
+                        return;
+                    }
+
+                    DoWork();
+                }
+
+                private void DoWork() { }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class MyService
+            {
+                private readonly bool _cond1;
+                private readonly bool _cond2;
+
+                public MyService(bool cond1, bool cond2)
+                {
+                    _cond1 = cond1;
+                    _cond2 = cond2;
+                }
+
+                public void Process(IFeatureService featureService)
+                {
+                    if (_cond1
+                        || _cond2)
+                    {
+                        return;
+                    }
+
+                    DoWork();
+                }
+
+                private void DoWork() { }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task NegatedFlagInAndChain_FalseShortCircuits_RemovesBlock()
+    {
+        await RunDefaultCodeFixAsync(
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class MyService
+            {
+                private readonly bool _condition;
+
+                public MyService(bool condition)
+                {
+                    _condition = condition;
+                }
+
+                public void Process(IFeatureService featureService)
+                {
+                    if (!featureService.IsEnabled(MyFlags.Flag) && _condition)
+                    {
+                        DoThing();
+                    }
+
+                    Continue();
+                }
+
+                private void DoThing() { }
+                private void Continue() { }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class MyService
+            {
+                private readonly bool _condition;
+
+                public MyService(bool condition)
+                {
+                    _condition = condition;
+                }
+
+                public void Process(IFeatureService featureService)
+                {
+
+                    Continue();
+                }
+
+                private void DoThing() { }
+                private void Continue() { }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task OrBinary_MultiLine_RightSideRemoved_CleanCondition()
+    {
+        await RunDefaultCodeFixAsync(
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class MyService
+            {
+                private bool _condition;
+
+                public MyService(bool condition)
+                {
+                    _condition = condition;
+                }
+
+                public void DoThing(IFeatureService featureService)
+                {
+                    if (_condition ||
+                        featureService.IsEnabled(MyFlags.Flag))
+                    {
+                        Work();
+                    }
+                }
+
+                private void Work() { }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class MyService
+            {
+                private bool _condition;
+
+                public MyService(bool condition)
+                {
+                    _condition = condition;
+                }
+
+                public void DoThing(IFeatureService featureService)
+                {
+                    if (_condition)
+                    {
+                        Work();
+                    }
+                }
+
+                private void Work() { }
+            }
+            """
+        );
+    }
+
+    [Fact]
     public async Task CommentedRequireFeature_RemainsUnchanged()
     {
         // This test documents that commented attributes are NOT automatically removed
@@ -1433,6 +1936,112 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(EndpointRouteBuilderExtensions).Assembly.Location));
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IApplicationBuilder).Assembly.Location));
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IHost).Assembly.Location));
+    }
+
+    [Fact]
+    public async Task FlagDefinedInSeparateProject_FixesReferencesInConsumingProject()
+    {
+        CodeActionEquivalenceKey = "BW0001-my-flag";
+        TestBehaviors |= TestBehaviors.SkipGeneratedSourcesCheck;
+        CodeFixTestBehaviors |= CodeFixTestBehaviors.SkipLocalDiagnosticCheck;
+
+        var flagsProject = new ProjectState("FlagsProject", LanguageNames.CSharp, "FlagsProject/", ".cs");
+        flagsProject.ReferenceAssemblies = ReferenceAssemblies.Net.Net80;
+        flagsProject.AdditionalReferences.Add(
+            MetadataReference.CreateFromFile(typeof(IFeatureService).Assembly.Location));
+        flagsProject.Sources.Add(("MyFlags.cs", """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Flags;
+
+            [FlagKeyCollection]
+            public static partial class MyFlags
+            {
+                public const string Flag = "my-flag";
+            }
+            """));
+        flagsProject.Sources.Add(("FlagsService.cs", """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Flags;
+
+            public class FlagsService
+            {
+                public FlagsService(IFeatureService featureService)
+                {
+                    var isEnabled = featureService.IsEnabled(MyFlags.Flag);
+                }
+            }
+            """));
+
+        TestState.AdditionalProjects.Add("FlagsProject", flagsProject);
+        TestState.AdditionalProjectReferences.Add("FlagsProject");
+        TestState.ExpectedDiagnostics.Add(
+            new DiagnosticResult("BW0001", DiagnosticSeverity.Info)
+                .WithSpan("MyFlags.cs", 8, 25, 8, 29)
+                .WithArguments("my-flag"));
+
+        var fixedFlagsProject = new ProjectState("FlagsProject", LanguageNames.CSharp, "FlagsProject/", ".cs");
+        fixedFlagsProject.ReferenceAssemblies = ReferenceAssemblies.Net.Net80;
+        fixedFlagsProject.AdditionalReferences.Add(
+            MetadataReference.CreateFromFile(typeof(IFeatureService).Assembly.Location));
+        fixedFlagsProject.Sources.Add(("MyFlags.cs", """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Flags;
+
+            [FlagKeyCollection]
+            public static partial class MyFlags
+            {
+            }
+            """));
+        fixedFlagsProject.Sources.Add(("FlagsService.cs", """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Flags;
+
+            public class FlagsService
+            {
+                public FlagsService(IFeatureService featureService)
+                {
+                    var isEnabled = true;
+                }
+            }
+            """));
+
+        FixedState.AdditionalProjects.Add("FlagsProject", fixedFlagsProject);
+        FixedState.AdditionalProjectReferences.Add("FlagsProject");
+
+        await RunCodeFixAsync(
+            """
+            using Bitwarden.Server.Sdk.Features;
+            using Flags;
+
+            namespace Test;
+
+            public class MyService
+            {
+                public MyService(IFeatureService featureService)
+                {
+                    var isEnabled = featureService.IsEnabled(MyFlags.Flag);
+                }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+            using Flags;
+
+            namespace Test;
+
+            public class MyService
+            {
+                public MyService(IFeatureService featureService)
+                {
+                    var isEnabled = true;
+                }
+            }
+            """
+        );
     }
 
     private async Task RunDefaultCodeFixAsync([StringSyntax("C#-test")] string inputSource, [StringSyntax("C#-test")] string expectedFixedSource)
