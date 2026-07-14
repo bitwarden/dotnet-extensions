@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
-using Bitwarden.Server.Sdk.Features.CodeFixers;
 using Bitwarden.Server.Sdk.Features.Analyzers;
+using Bitwarden.Server.Sdk.Features.CodeFixers;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
