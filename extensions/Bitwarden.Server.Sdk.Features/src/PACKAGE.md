@@ -80,6 +80,39 @@ Example JSON configuration:
 }
 ```
 
+## Flag Key Collections
+
+Instead of passing raw string literals to `IsEnabled`, `RequireFeature`, or `[RequireFeature]`,
+define your flags as constants in a `partial` class and annotate it with `[FlagKeyCollection]`:
+
+```csharp
+[FlagKeyCollection]
+public static partial class FeatureFlags
+{
+    public const string MyNewFeature = "my-new-feature";
+    public const string AnotherFlag  = "another-flag";
+}
+```
+
+The `Bitwarden.Server.Sdk.Features.Analyzers` NuGet package (which ships alongside this package)
+includes a source generator that automatically adds a `GetKeys()` method to the class. Pass it to
+`AddKnownFeatureFlags()` so the runtime can validate and pre-load flag values at startup:
+
+```csharp
+builder.Services.AddFeatureFlagServices();
+builder.Services.AddKnownFeatureFlags(FeatureFlags.GetKeys());
+```
+
+### Diagnostics
+
+The analyzer package also includes two Roslyn diagnostics for classes annotated with
+`[FlagKeyCollection]`:
+
+| ID | Severity | Description |
+|----|----------|-------------|
+| BW0001 | Info | Reported on every flag constant as a reminder to remove it once the flag has been retired. A code fix is available that removes the constant and all of its usages across the solution. |
+| BW0002 | Warning | Reported when a flag constant has a `null`, empty, or whitespace value. |
+
 ## Customization
 
 ### Context Builder
