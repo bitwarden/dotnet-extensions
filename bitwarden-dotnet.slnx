@@ -30,6 +30,13 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Caching/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Caching/tests/Bitwarden.Server.Sdk.Caching.Tests/Bitwarden.Server.Sdk.Caching.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Environment/" />
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Environment/src/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Environment/src/Bitwarden.Server.Sdk.Environment.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Environment/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Environment/tests/Bitwarden.Server.Sdk.Environment.Tests/Bitwarden.Server.Sdk.Environment.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Features/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Features/src/Bitwarden.Server.Sdk.Features.csproj" />
   </Folder>
