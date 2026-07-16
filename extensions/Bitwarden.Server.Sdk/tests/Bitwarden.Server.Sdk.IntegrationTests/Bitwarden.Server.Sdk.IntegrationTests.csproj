@@ -7,18 +7,19 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Build" Version="[17.11.48]" />
-    <PackageReference Include="Microsoft.Build.Framework" Version="[17.11.48]" />
-    <PackageReference Include="Microsoft.Build.Utilities.Core" Version="[17.11.48]" />
+    <PackageReference Include="Microsoft.Build" Version="[18.6.3]" />
+    <PackageReference Include="Microsoft.Build.Framework" Version="[18.6.3]" />
+    <PackageReference Include="Microsoft.Build.Utilities.Core" Version="[18.6.3]" />
     <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="[18.0.4]" />
     <PackageReference Include="MSBuild.ProjectCreation" Version="[17.0.1]" />
     <PackageReference Include="Testcontainers" Version="4.7.0" />
     <PackageReference Include="xunit.v3" Version="[3.1.0]" />
     <!--
-      We need to pin this transitive dependency MSBuild wants > 8.0.2 but since our code coverage tool brings 6.0.2 the
-      assembly resolver takes the local one instead of the one installed with MSBuild and our tests fail
+      We need to pin this transitive dependency to the exact version bundled with the .NET SDK's MSBuild. The SDK's
+      in-process GenerateDepsFile task loads its own Microsoft.Extensions.DependencyModel; if the copy in our test
+      output has a different assembly version the load fails with a manifest mismatch and our tests fail.
     -->
-    <PackageReference Include="Microsoft.Extensions.DependencyModel" Version="8.0.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyModel" Version="10.0.9" />
   </ItemGroup>
 
   <ItemGroup>
