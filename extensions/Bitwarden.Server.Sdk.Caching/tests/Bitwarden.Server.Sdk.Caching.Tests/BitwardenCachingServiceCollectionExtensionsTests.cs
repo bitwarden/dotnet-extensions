@@ -277,8 +277,7 @@ public class BitwardenCachingServiceCollectionExtensionsTests : IClassFixture<Re
         var ex = Assert.Throws<InvalidOperationException>(
             () => provider.GetRequiredKeyedService<IFusionCache>(KeyedService.AnyKey)
         );
-        Assert.Contains("not valid", ex.Message);
-        Assert.Contains("AnyKey", ex.Message);
+        Assert.Equal("KeyedService.AnyKey cannot be used to resolve a single service.", ex.Message);
     }
 
     [Fact]
