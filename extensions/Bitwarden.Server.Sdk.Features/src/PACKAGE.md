@@ -108,10 +108,10 @@ builder.Services.AddKnownFeatureFlags(FeatureFlags.GetKeys());
 The analyzer package also includes two Roslyn diagnostics for classes annotated with
 `[FlagKeyCollection]`:
 
-| ID | Severity | Description |
-|----|----------|-------------|
-| BW0001 | Info | Reported on every flag constant as a reminder to remove it once the flag has been retired. A code fix is available that removes the constant and all of its usages across the solution. |
-| BW0002 | Warning | Reported when a flag constant has a `null`, empty, or whitespace value. |
+| ID | Severity |
+|----|----------|
+| [BW0001](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#bw0001) | Info |
+| [BW0002](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#bw0002) | Warning |
 
 ## Customization
 

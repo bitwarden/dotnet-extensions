@@ -13,22 +13,8 @@ Roslyn analyzer and incremental source generator for the Bitwarden feature flag 
 
 | ID | Severity | Title |
 |----|----------|-------|
-| [BW0001](#bw0001) | Info | Feature flags should be removed once not used |
-| [BW0002](#bw0002) | Warning | Flag key value should not be null or empty |
-
-### BW0001
-
-Reported on every `const string` field inside a `[FlagKeyCollection]` class. The intent is to keep
-feature flags visible in the IDE so that callers know they are candidates for removal once the flag
-has been fully rolled out or retired. The companion code fixer (`RemoveFeatureFlagCodeFixer` in
-`Bitwarden.Server.Sdk.Features.CodeFixers`) can automatically remove the flag constant and all of
-its usages across the solution.
-
-### BW0002
-
-Reported when a `const string` field in a `[FlagKeyCollection]` class has a `null`, empty, or
-whitespace value. Feature flag keys must be non-empty strings so that LaunchDarkly evaluations work
-correctly.
+| [BW0001](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#bw0001) | Info | Feature flags should be removed once not used |
+| [BW0002](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#bw0002) | Warning | Flag key value should not be null or empty |
 
 ## Source Generator
 
