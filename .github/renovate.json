@@ -1,7 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["github>bitwarden/renovate-config:non-pinned"],
-  "enabledManagers": ["github-actions", "nuget"],
+  "enabledManagers": ["dotnet-sdk", "github-actions", "nuget"],
+  "postUpdateOptions": ["nugetLockFileUpdate"],
   "packageRules": [
     {
       "groupName": "msbuild-packages",
@@ -36,6 +37,5 @@
       "matchManagers": ["github-actions"],
       "matchUpdateTypes": ["minor", "patch"]
     }
-  ],
-  "ignoreDeps": ["dotnet-sdk"]
+  ]
 }
