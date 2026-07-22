@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net8.0": {
+      "LaunchDarkly.ServerSdk": {
+        "type": "Direct",
+        "requested": "[8.14.1, )",
+        "resolved": "8.14.1",
+        "contentHash": "ufdAP+8OYpLEnDJanErS7wXj9xRYKCY1ZXmxaYuQwTB0qik3DviMRy5ml6Ehjd8kGgWZzOnur5EwqTKM+wW/AQ==",
+        "dependencies": {
+          "LaunchDarkly.Cache": "1.0.2",
+          "LaunchDarkly.CommonSdk": "7.2.0",
+          "LaunchDarkly.EventSource": "5.3.1",
+          "LaunchDarkly.InternalSdk": "3.6.1",
+          "LaunchDarkly.Logging": "2.0.0"
+        }
+      },
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[8.0.26, )",
+        "resolved": "8.0.26",
+        "contentHash": "o7/yVssM2r9Wyln2s9edBd5ANZXqdSdBI+g7JqXkyJmXrhs2WsJp25K5yPnYrTgdKBCjKB8bg+O2oew4sgzFaA=="
+      },
+      "LaunchDarkly.Cache": {
+        "type": "Transitive",
+        "resolved": "1.0.2",
+        "contentHash": "0bEnUVFVeW1TTDXb/bW6kS3FLQTLeGtw7Xh8yt6WNO56utVmtgcrMLvcnF6yeTn+N4FXrKfW09KkLNmK8YYQvw=="
+      },
+      "LaunchDarkly.CommonSdk": {
+        "type": "Transitive",
+        "resolved": "7.2.0",
+        "contentHash": "YLT9rl0ooxHVNWtSsKBjtqdBt8Ysg99sXHAO1G8dcSH4B6yv3qR0lyCo6GEb9EQpUuGdneGqO7Bs7K2B8F+lTg==",
+        "dependencies": {
+          "LaunchDarkly.Logging": "2.0.0"
+        }
+      },
+      "LaunchDarkly.EventSource": {
+        "type": "Transitive",
+        "resolved": "5.3.1",
+        "contentHash": "bVXethnjYnjC+hYSHYhn+1QFZhwtD0NYy1MJjtfOfC6CBW9h1pzR0hEAf16DQYl/LJtMi7fwOJbQhq8lFlFrSw==",
+        "dependencies": {
+          "LaunchDarkly.Logging": "[2.0.0, 3.0.0)"
+        }
+      },
+      "LaunchDarkly.InternalSdk": {
+        "type": "Transitive",
+        "resolved": "3.6.1",
+        "contentHash": "qkbqHzz3AruAPW5PfbwQEM883p2ArHG3xun8IONmBT/QdiAhLFqh/5vxMCUsT1GfPyyly4S0HxYx3GP01Gc3Pg==",
+        "dependencies": {
+          "LaunchDarkly.CommonSdk": "[7.2.0, 8.0.0)",
+          "LaunchDarkly.Logging": "[2.0.0, 3.0.0)"
+        }
+      },
+      "LaunchDarkly.Logging": {
+        "type": "Transitive",
+        "resolved": "2.0.0",
+        "contentHash": "lsLKNqAZ7HIlkdTIrf4FetfRA1SUDE3WlaZQn79aSVkLjYWEhUhkDDK7hORGh4JoA3V2gXN+cIvJQax2uR/ijA==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "6.0.0"
+        }
+      },
+      "Microsoft.Extensions.Logging.Abstractions": {
+        "type": "Transitive",
+        "resolved": "6.0.0",
+        "contentHash": "/HggWBbTwy8TgebGSX5DBZ24ndhzi93sHUBDvP1IxbZD7FDokYzdAr6+vbWGjw2XAfR2EJ1sfKUotpjHnFWPxA=="
+      }
+    }
+  }
+}

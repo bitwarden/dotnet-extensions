@@ -47,7 +47,7 @@ public static class CustomProjectCreatorTemplates
     }
 
     public static IReadOnlyCollection<FileInfo> NugetPackages { get; }
-    private const string TargetFramework = "net8.0";
+    private const string TargetFramework = "net10.0";
     private static readonly string ThisAssemblyDirectory = Path.GetDirectoryName(typeof(CustomProjectCreatorTemplates).Assembly.Location)!;
 
     public static ProjectCreator SdkProject(this ProjectCreatorTemplates templates,
@@ -98,14 +98,22 @@ public static class CustomProjectCreatorTemplates
 
     public static PackageRepository CreateDefaultPackageRepository(this ProjectCreator project)
     {
-        var repo = PackageRepository.Create(project.GetProjectDirectory(), new Uri("https://api.nuget.org/v3/index.json"));
+        // Copy locally-built .nupkg files into a folder-based NuGet source so that NuGet
+        // reads the full nuspec (including dependency metadata) from inside each package.
+        // PackageRepository.Package(FileInfo) synthesizes a stripped nuspec that omits
+        // dependencies, which causes transitive packages (e.g. LaunchDarkly) to be skipped
+        // during restore and therefore missing at runtime.
+        var localFeedDir = Path.Combine(project.GetProjectDirectory(), "local-packages");
+        Directory.CreateDirectory(localFeedDir);
 
         foreach (var packageFile in NugetPackages)
         {
-            repo.Package(packageFile, out _);
+            File.Copy(packageFile.FullName, Path.Combine(localFeedDir, packageFile.Name), overwrite: true);
         }
 
-        return repo;
+        return PackageRepository.Create(project.GetProjectDirectory(),
+            new Uri(Path.GetFullPath(localFeedDir)),
+            new Uri("https://api.nuget.org/v3/index.json"));
     }
 
     public static string GetProjectDirectory(this ProjectCreator project)
