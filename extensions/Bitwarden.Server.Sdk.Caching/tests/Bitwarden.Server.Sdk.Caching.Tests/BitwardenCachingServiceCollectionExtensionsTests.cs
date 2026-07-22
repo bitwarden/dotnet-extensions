@@ -312,6 +312,25 @@ public class BitwardenCachingServiceCollectionExtensionsTests : IClassFixture<Re
     }
 
     [Fact]
+    public async Task MemoryDistributedCache_WorksAsMemoryOnlyMode()
+    {
+        // Demonstrates the memory-only pattern: register MemoryDistributedCache when no Redis is
+        // available (e.g. local development, unit tests, or single-instance deployments).
+        // This gives the full FusionCache feature set (stampede protection, fail-safe, eager
+        // refresh) with an in-process L2 and no backplane.
+        var services = Create([]);
+        services.AddDistributedMemoryCache();
+        services.AddBitwardenCaching();
+
+        var provider = services.BuildServiceProvider();
+        var cache = provider.GetRequiredKeyedService<IFusionCache>("Test");
+
+        await cache.SetAsync("Key", "Value", token: TestContext.Current.CancellationToken);
+        var result = await cache.GetOrDefaultAsync<string>("Key", token: TestContext.Current.CancellationToken);
+        Assert.Equal("Value", result);
+    }
+
+    [Fact]
     public async Task RedisNotConfigured_NonKeyedDistributedCacheAdded_Works()
     {
         var services = Create([]);
