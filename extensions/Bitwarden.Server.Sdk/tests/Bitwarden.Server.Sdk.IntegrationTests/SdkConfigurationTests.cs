@@ -66,9 +66,9 @@ public class SdkConfigurationTests : IClassFixture<ConfigTestFixture>
             Environment: DOTNET_
             Json: appsettings.json
             Json: appsettings.Production.json
+            Json: appsettings.SelfHosted.json
             Json: Test.settings.json
             Json: Test.settings.Production.json
-            Json: appsettings.SelfHosted.json
             Environment: *
             Chained
                 MemoryConfigurationProvider
@@ -92,9 +92,9 @@ public class SdkConfigurationTests : IClassFixture<ConfigTestFixture>
             Environment: DOTNET_
             Json: appsettings.json
             Json: appsettings.Development.json
+            Json: appsettings.SelfHosted.json
             Json: Test.settings.json
             Json: Test.settings.Development.json
-            Json: appsettings.SelfHosted.json
             Json: secrets.json
             Environment: *
             Chained
@@ -120,9 +120,9 @@ public class SdkConfigurationTests : IClassFixture<ConfigTestFixture>
                 ChainedConfigurationProvider
             Json: appsettings.json
             Json: appsettings.Development.json
+            Json: appsettings.SelfHosted.json
             Json: Test.settings.json
             Json: Test.settings.Development.json
-            Json: appsettings.SelfHosted.json
             Json: secrets.json
             Environment: *
             """
