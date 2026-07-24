@@ -1,9 +1,52 @@
+using System.Diagnostics;
+using Bitwarden.Server.Sdk.Features;
 using Microsoft.Build.Utilities.ProjectCreation;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Bitwarden.Server.Sdk.IntegrationTests;
 
 public static class CustomProjectCreatorTemplates
 {
+    static CustomProjectCreatorTemplates()
+    {
+        // A bit hacky but we want to traverse to the extensions root directory so that we can easily traverse into each
+        // projects directory. Since all packable projects are going to generate a nupkg on build we can
+        // use the genuine nupkg file instead of maintaining their dependency tree twice. It is important to note though
+        // that these locally built nuget packages are generally not used. The SDK will usually reference a published
+        // to nuget version and the local package will be on vNext. This local file referencing stuff is only for testing
+        // integrating new changes in one of the packages into the SDK. To test that you'd bump the version the SDK references
+        // to what the current local version of the package is and then it will take precendence and get used in the
+        // tests.
+        var extensionsRoot = new DirectoryInfo(Path.Combine(ThisAssemblyDirectory, "..", "..", "..", "..", "..", ".."));
+        Debug.WriteLine($"ExtensionsRoot: {extensionsRoot.FullName}");
+
+        Type[] markerTypes = [typeof(IFeatureService), typeof(BitwardenAuthenticationServiceCollectionExtensions)];
+        var nugetPackages = new FileInfo[markerTypes.Length];
+
+        for (var i = 0; i < nugetPackages.Length; i++)
+        {
+            var type = markerTypes[i];
+            var assemblyName = type.Assembly.GetName();
+            var nugetPackageDirectory = new DirectoryInfo(Path.Combine(extensionsRoot.FullName, assemblyName.Name!, "src", "bin", "Debug"));
+
+            var searchFile = $"{assemblyName.Name}.{assemblyName.Version!.ToString(3)}.nupkg";
+
+            var nugetPackageFile = nugetPackageDirectory
+                .EnumerateFiles(searchFile)
+                .SingleOrDefault();
+
+            if (nugetPackageFile == null)
+            {
+                throw new InvalidOperationException($"Could not find nupkg file {searchFile} in directory {nugetPackageDirectory}");
+            }
+
+            nugetPackages[i] = nugetPackageFile;
+        }
+
+        NugetPackages = nugetPackages;
+    }
+
+    public static IReadOnlyCollection<FileInfo> NugetPackages { get; }
     private const string TargetFramework = "net10.0";
     private static readonly string ThisAssemblyDirectory = Path.GetDirectoryName(typeof(CustomProjectCreatorTemplates).Assembly.Location)!;
 
@@ -55,7 +98,14 @@ public static class CustomProjectCreatorTemplates
 
     public static PackageRepository CreateDefaultPackageRepository(this ProjectCreator project)
     {
-        return PackageRepository.Create(project.GetProjectDirectory(), new Uri("https://api.nuget.org/v3/index.json"));
+        var repo = PackageRepository.Create(project.GetProjectDirectory(), new Uri("https://api.nuget.org/v3/index.json"));
+
+        foreach (var packageFile in NugetPackages)
+        {
+            repo.Package(packageFile, out _);
+        }
+
+        return repo;
     }
 
     public static string GetProjectDirectory(this ProjectCreator project)
