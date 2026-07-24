@@ -47,7 +47,7 @@ public static class CustomProjectCreatorTemplates
     }
 
     public static IReadOnlyCollection<FileInfo> NugetPackages { get; }
-    private const string TargetFramework = "net8.0";
+    private const string TargetFramework = "net10.0";
     private static readonly string ThisAssemblyDirectory = Path.GetDirectoryName(typeof(CustomProjectCreatorTemplates).Assembly.Location)!;
 
     public static ProjectCreator SdkProject(this ProjectCreatorTemplates templates,
