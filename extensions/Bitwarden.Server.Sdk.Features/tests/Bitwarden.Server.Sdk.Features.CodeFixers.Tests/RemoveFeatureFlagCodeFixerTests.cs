@@ -1946,7 +1946,7 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
         CodeFixTestBehaviors |= CodeFixTestBehaviors.SkipLocalDiagnosticCheck;
 
         var flagsProject = new ProjectState("FlagsProject", LanguageNames.CSharp, "FlagsProject/", ".cs");
-        flagsProject.ReferenceAssemblies = ReferenceAssemblies.Net.Net80;
+        flagsProject.ReferenceAssemblies = ReferenceAssemblies.Net.Net100;
         flagsProject.AdditionalReferences.Add(
             MetadataReference.CreateFromFile(typeof(IFeatureService).Assembly.Location));
         flagsProject.Sources.Add(("MyFlags.cs", """
@@ -1982,7 +1982,7 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
                 .WithArguments("my-flag"));
 
         var fixedFlagsProject = new ProjectState("FlagsProject", LanguageNames.CSharp, "FlagsProject/", ".cs");
-        fixedFlagsProject.ReferenceAssemblies = ReferenceAssemblies.Net.Net80;
+        fixedFlagsProject.ReferenceAssemblies = ReferenceAssemblies.Net.Net100;
         fixedFlagsProject.AdditionalReferences.Add(
             MetadataReference.CreateFromFile(typeof(IFeatureService).Assembly.Location));
         fixedFlagsProject.Sources.Add(("MyFlags.cs", """
@@ -2085,7 +2085,7 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
         TestCode = inputSource;
         FixedCode = expectedFixedSource;
 
-        TestState.ReferenceAssemblies = ReferenceAssemblies.Net.Net80;
+        TestState.ReferenceAssemblies = ReferenceAssemblies.Net.Net100;
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IFeatureService).Assembly.Location));
 
         await RunAsync(TestContext.Current.CancellationToken);
