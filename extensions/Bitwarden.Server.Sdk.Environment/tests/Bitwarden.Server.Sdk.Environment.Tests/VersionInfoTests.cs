@@ -6,6 +6,9 @@ public class VersionInfoTests
     [InlineData("1.0.0", "1.0.0", null)]
     [InlineData("1.0.0+af18b2952b5ddf910bd2f729a7c89a04b8d67084", "1.0.0", "af18b2952b5ddf910bd2f729a7c89a04b8d67084")]
     [InlineData("1.0.0+af18b", "1.0.0", "af18b")]
+    [InlineData("1.0.0-alpha.1", "1.0.0", null)]
+    [InlineData("1.0.0-alpha.1+af18b2952b5ddf910bd2f729a7c89a04b8d67084", "1.0.0", "af18b2952b5ddf910bd2f729a7c89a04b8d67084")]
+    [InlineData("1.0.0-beta.2+af18b", "1.0.0", "af18b")]
     public void TryParse_Works(string input, string version, string? gitHash)
     {
         var success = VersionInfo.TryParse(input, null, out var versionInfo);

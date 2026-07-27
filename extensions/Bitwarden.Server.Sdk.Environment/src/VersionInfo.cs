@@ -47,24 +47,27 @@ public sealed partial class VersionInfo : ISpanParsable<VersionInfo>
         result = null;
         var plusIndex = s.IndexOf('+');
 
-        if (plusIndex == -1)
-        {
-            // No split char, treat it as version only
-            if (!Version.TryParse(s, out var versionOnly))
-            {
-                return false;
-            }
+        var versionPart = plusIndex == -1 ? s : s[0..plusIndex];
 
-            result = new VersionInfo(versionOnly, null);
-            return true;
+        // Strip SemVer pre-release label (e.g., "-alpha.1") before parsing as System.Version
+        var dashIndex = versionPart.IndexOf('-');
+        if (dashIndex != -1)
+        {
+            versionPart = versionPart[0..dashIndex];
         }
 
-        if (!Version.TryParse(s[0..plusIndex], out var version))
+        if (!Version.TryParse(versionPart, out var version))
         {
             return false;
         }
 
-        var gitHash = s[++plusIndex..];
+        if (plusIndex == -1)
+        {
+            result = new VersionInfo(version, null);
+            return true;
+        }
+
+        var gitHash = s[(plusIndex + 1)..];
 
         if (!GitHashRegex().IsMatch(gitHash))
         {
