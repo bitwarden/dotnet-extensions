@@ -1,6 +1,7 @@
 # Bitwarden.Server.Sdk.Environment
 
-Provides runtime environment information for Bitwarden server services, including version, Git hash, and self-host details.
+Provides runtime environment information for Bitwarden server services, including version, Git hash,
+and self-host details.
 
 ## Getting Started
 
@@ -13,10 +14,10 @@ services.AddBitwardenEnvironment();
 If your service can run in a self-hosted configuration, configure `SelfHostDetails` accordingly:
 
 ```csharp
-using Bitwarden.Server.Sdk.Environment.Internals;
+using Bitwarden.Server.Sdk.Environment.Setup;
 
 // For a self-hosted instance:
-services.Configure<SelfHostDetails>(details => details.MakeSelfHost("docker"));
+services.Configure<SelfHostDetails>(details => details.MakeSelfHost("lite"));
 
 // For a cloud instance (this is the default):
 services.Configure<SelfHostDetails>(details => details.MakeCloud());
@@ -41,6 +42,10 @@ public class MyService(IBitwardenEnvironment environment)
 
 ## Version Resolution
 
-The version and Git hash are read from the `AssemblyInformationalVersionAttribute` of the application's entry assembly. The attribute value is expected to follow the format `{version}+{gitHash}` (e.g., `1.2.3+af18b2952b`), which is produced automatically by the .NET SDK when source control metadata is embedded in the build.
+The version and Git hash are read from the `AssemblyInformationalVersionAttribute` of the
+application's entry assembly. The attribute value is expected to follow the format
+`{version}+{gitHash}` (e.g., `1.2.3+af18b2952b`), which is produced automatically by the .NET SDK
+when source control metadata is embedded in the build.
 
-If the attribute is missing or cannot be parsed, `Version` returns an empty string and `GitHash` returns `null`, and a warning is logged.
+If the attribute is missing or cannot be parsed, `Version` returns an empty string and `GitHash`
+returns `null`, and a warning is logged.

@@ -23,6 +23,7 @@ public class VersionInfoTests
     [InlineData("1.0.0+af18")]
     [InlineData("1.0.0+XXXXXXX")]
     [InlineData("notaversion+af18b2952b5ddf910bd2f729a7c89a04b8d67084")]
+    [InlineData("1.0.0+af18b2952z")] // valid hex prefix + non-hex suffix; anchored regex rejects, unanchored would not
     public void TryParse_Fails(string? input)
     {
         Assert.False(VersionInfo.TryParse(input, null, out _));

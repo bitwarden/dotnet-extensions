@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Environment.Internals;
+namespace Bitwarden.Server.Sdk.Environment.Setup;
 
 /// <summary>
 /// Options class used to configure whether the current instance is self-hosted and its deployment flavor.
@@ -11,7 +11,7 @@ public sealed class SelfHostDetails
     public bool SelfHosted { get; private set; }
 
     /// <summary>
-    /// Gets the self-host flavor (e.g., <c>"docker"</c>), or <see langword="null"/> for cloud instances.
+    /// Gets the self-host flavor (e.g., <c>"lite"</c>), or <see langword="null"/> for cloud instances.
     /// </summary>
     public string? SelfHostFlavor { get; private set; }
 
@@ -27,9 +27,11 @@ public sealed class SelfHostDetails
     /// <summary>
     /// Configures this instance as a self-hosted deployment with the specified flavor.
     /// </summary>
-    /// <param name="flavor">The self-host flavor (e.g., <c>"docker"</c>).</param>
+    /// <param name="flavor">The self-host flavor (e.g., <c>"lite"</c>).</param>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="flavor"/> is null, empty, or whitespace.</exception>
     public void MakeSelfHost(string flavor)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(flavor);
         SelfHosted = true;
         SelfHostFlavor = flavor;
     }

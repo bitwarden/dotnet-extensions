@@ -1,4 +1,4 @@
-using Bitwarden.Server.Sdk.Environment.Internals;
+using Bitwarden.Server.Sdk.Environment.Setup;
 using Microsoft.Extensions.Options;
 
 namespace Bitwarden.Server.Sdk.Environment;

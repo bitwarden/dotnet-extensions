@@ -4,12 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Bitwarden.Server.Sdk.Environment;
 
-internal interface IVersionInfoAccessor
-{
-    VersionInfo? Get();
-}
-
-internal class VersionInfoAccessor : IVersionInfoAccessor
+internal sealed class VersionInfoAccessor : IVersionInfoAccessor
 {
     private readonly IHostEnvironment _hostEnvironment;
     private readonly ILogger<VersionInfoAccessor> _logger;

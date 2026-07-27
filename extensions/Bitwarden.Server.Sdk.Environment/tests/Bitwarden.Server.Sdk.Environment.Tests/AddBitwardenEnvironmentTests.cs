@@ -1,4 +1,4 @@
-using Bitwarden.Server.Sdk.Environment.Internals;
+using Bitwarden.Server.Sdk.Environment.Setup;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

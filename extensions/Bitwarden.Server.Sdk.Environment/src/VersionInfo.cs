@@ -3,9 +3,12 @@ using System.Text.RegularExpressions;
 
 namespace Bitwarden.Server.Sdk.Environment;
 
-internal sealed partial class VersionInfo : ISpanParsable<VersionInfo>
+/// <summary>
+/// Represents parsed version information for a Bitwarden server application.
+/// </summary>
+public sealed partial class VersionInfo : ISpanParsable<VersionInfo>
 {
-    [GeneratedRegex("[0-9a-f]{5,40}")]
+    [GeneratedRegex("^[0-9a-f]{5,40}$")]
     private static partial Regex GitHashRegex();
 
     private VersionInfo(Version version, string? gitHash)
@@ -14,7 +17,10 @@ internal sealed partial class VersionInfo : ISpanParsable<VersionInfo>
         GitHash = gitHash;
     }
 
+    /// <summary>Gets the application version.</summary>
     public Version Version { get; }
+
+    /// <summary>Gets the Git commit hash embedded in the informational version, or <see langword="null"/> if not present.</summary>
     public string? GitHash { get; }
 
     /// <inheritdoc />

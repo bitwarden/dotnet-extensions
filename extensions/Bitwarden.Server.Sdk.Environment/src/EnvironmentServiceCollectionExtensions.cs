@@ -15,6 +15,8 @@ public static class EnvironmentServiceCollectionExtensions
     /// <returns>The same <see cref="IServiceCollection"/> for chaining.</returns>
     public static IServiceCollection AddBitwardenEnvironment(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         services.AddOptions();
         services.TryAddSingleton<IVersionInfoAccessor, VersionInfoAccessor>();
         services.TryAddSingleton<IBitwardenEnvironment, RuntimeBitwardenEnvironment>();
