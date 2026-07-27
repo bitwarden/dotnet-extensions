@@ -53,4 +53,4 @@ jobs:
           azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
           task: update-repository
-          data: '{"artifact_name": "${{ steps.upload.outputs.artifact_name }}", "target_branch": "${{ github.ref_name }}"}'
+          data: '{"artifact_name": "${{ steps.upload.outputs.artifact_name }}", "target_branch": "${{ github.ref_name }}", "pr_title": "Bump ${{ inputs.package }} version to ${{ steps.version-bumper.outputs.NEW_VERSION }}", "pr_body": "Version bump for ${{ inputs.package }} to ${{ steps.version-bumper.outputs.NEW_VERSION }}\n\n/cc @${{ github.event.sender.login }}", "wait_for_merge": "false"}'

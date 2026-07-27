@@ -14,6 +14,7 @@ public class SdkTests : MSBuildTestBase
             ("FEATURES", true),
             ("AUTHENTICATION", true),
             ("CACHING", false),
+            ("WEB_ESSENTIALS", true),
         ];
 
         var project = ProjectCreator.Templates.SdkProject(out var result, out var buildOutput);
@@ -172,6 +173,7 @@ public class SdkTests : MSBuildTestBase
             { "BitIncludeAuthentication", ["true", "false"] },
             { "BitIncludeCaching", ["true", "false"] },
             { "BitAspireIntegration", ["enabled", "disabled"] },
+            { "BitIncludeWebEssentials", ["true", "false"] },
         };
 
         var keys = variations.Keys.ToArray();

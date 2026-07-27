@@ -36,6 +36,20 @@ This feature automatically includes the `Bitwarden.Server.Sdk.Authentication` li
 the `Microsoft.NET.Sdk.Web` SDK it will register Bitwarden style authentication in
 `UseBitwardenSdk()`. All considerations of that package apply to this SDK.
 
+## Web Essentials
+
+Enabled by default and able to be removed using `<BitIncludeWebEssentials>false</BitIncludeWebEssentials>`
+in your project file.
+
+This feature automatically includes the `Bitwarden.Server.Sdk.WebEssentials` library and registers
+its services in `UseBitwardenSdk()`. All considerations of that package apply to this SDK.
+
+To add the security headers middleware, call `UseSecurityHeaders()` on your application builder:
+
+```csharp
+app.UseSecurityHeaders();
+```
+
 ## Aspire Integration
 
 Disabled by default and able to be enabled using `<BitAspireIntegration>enabled</BitAspireIntegration>`

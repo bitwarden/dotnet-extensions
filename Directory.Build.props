@@ -2,9 +2,12 @@
   <PropertyGroup>
     <IsTestProject Condition="'$(IsTestProject)' == '' and ($(MSBuildProjectName.EndsWith('.Tests')) or $(MSBuildProjectName.EndsWith('.IntegrationTests')))">true</IsTestProject>
     <IsBenchmarkProject Condition="'$(IsBenchmarkProject)' == '' and $(MSBuildProjectName.EndsWith('.Microbenchmarks'))">true</IsBenchmarkProject>
+    <IsAnalyzerProject Condition="'$(IsAnalyzerProject)' == '' and ($(MSBuildProjectName.EndsWith('.Analyzers')) or $(MSBuildProjectName.EndsWith('.CodeFixers')))">true</IsAnalyzerProject>
     <Nullable Condition="'$(Nullable)' == ''">enable</Nullable>
     <ImplicitUsings Condition="'$(ImplicitUsings)' == ''">enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode>true</RestoreLockedMode>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
@@ -15,7 +18,7 @@
     <TestingPlatformShowTestsFailure>true</TestingPlatformShowTestsFailure>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(IsTestProject)' != 'true' and '$(IsBenchmarkProject)' != 'true'">
+  <PropertyGroup Condition="'$(IsTestProject)' != 'true' and '$(IsBenchmarkProject)' != 'true' and '$(IsAnalyzerProject)' != 'true'">
     <Authors>Bitwarden Inc.</Authors>
     <PackageProjectUrl>https://github.com/bitwarden/dotnet-extensions</PackageProjectUrl>
     <PackageReleaseNotes>https://github.com/bitwarden/dotnet-extensions/releases</PackageReleaseNotes>
