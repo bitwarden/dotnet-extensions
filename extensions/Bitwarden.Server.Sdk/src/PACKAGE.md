@@ -12,8 +12,9 @@ right underneath the top level `<Project>` element in your `.csproj` file.
 
 ## Telemetry
 
-Enabled by default and able to be removed using `<BitIncludeTelemetry>false</BitIncludeTelemetry>`
-in your project file.
+Enabled by default for executable projects (`OutputType=Exe`) and disabled by default otherwise.
+Can be overridden using `<BitIncludeTelemetry>true</BitIncludeTelemetry>` or
+`<BitIncludeTelemetry>false</BitIncludeTelemetry>` in your project file.
 
 This feature automatically includes a suite of OpenTelemetry libraries and registers those services
 into the `IServiceCollection`.
@@ -29,7 +30,8 @@ of that package apply to this SDK.
 
 ## Authentication
 
-Enabled by default and able to be removed using
+Enabled by default for executable projects (`OutputType=Exe`) and disabled by default otherwise.
+Can be overridden using `<BitIncludeAuthentication>true</BitIncludeAuthentication>` or
 `<BitIncludeAuthentication>false</BitIncludeAuthentication>` in your project file.
 
 This feature automatically includes the `Bitwarden.Server.Sdk.Authentication` library and when using
@@ -38,8 +40,9 @@ the `Microsoft.NET.Sdk.Web` SDK it will register Bitwarden style authentication 
 
 ## Web Essentials
 
-Enabled by default and able to be removed using `<BitIncludeWebEssentials>false</BitIncludeWebEssentials>`
-in your project file.
+Enabled by default for executable projects (`OutputType=Exe`) and disabled by default otherwise.
+Can be overridden using `<BitIncludeWebEssentials>true</BitIncludeWebEssentials>` or
+`<BitIncludeWebEssentials>false</BitIncludeWebEssentials>` in your project file.
 
 This feature automatically includes the `Bitwarden.Server.Sdk.WebEssentials` library and registers
 its services in `UseBitwardenSdk()`. All considerations of that package apply to this SDK.

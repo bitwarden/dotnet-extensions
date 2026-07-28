@@ -15,7 +15,9 @@ decisions be known to us in the props file. This is why all we do is declare a m
 
 The [./Sdk/Sdk.targets](./Sdk/Sdk.targets) file is expected to be imported last. This way,
 properties defined in a consumer project will have been evaluated and can be used to make decisions
-on which packages to automatically reference.
+on which packages to automatically reference. Several features default to enabled only when
+`OutputType=Exe`. `Microsoft.NET.Sdk.Web` sets `OutputType=Exe` by default, so standard web
+application projects get these features automatically.
 
 The [`Content`](./Content/) directory are additional files that are packaged into the resulting
 NuGet package in their plaintext form. The `Sdk.targets` file can use files from here and include
