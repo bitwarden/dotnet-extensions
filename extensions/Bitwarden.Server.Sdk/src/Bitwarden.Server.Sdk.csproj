@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.Build.NoTargets">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <PackageType>MSBuildSdk</PackageType>
     <!-- We are a meta package, we don't actually want people to have to use netstandard to use us. -->
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
