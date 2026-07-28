@@ -22,20 +22,23 @@
 
   <!-- TODO Use the constants in places to avoid any configuration that doesn't compile -->
   <PropertyGroup Label="Define feature defaults and constants">
-    <!-- Telemetry defaults to on -->
-    <BitIncludeTelemetry Condition="'$(BitIncludeTelemetry)' == ''">true</BitIncludeTelemetry>
+    <!-- Telemetry defaults to on for executables, off otherwise -->
+    <BitIncludeTelemetry Condition="'$(BitIncludeTelemetry)' == '' and '$(OutputType)' == 'Exe'">true</BitIncludeTelemetry>
+    <BitIncludeTelemetry Condition="'$(BitIncludeTelemetry)' == ''">false</BitIncludeTelemetry>
     <DefineConstants Condition="'$(BitIncludeTelemetry)' == 'true'">$(DefineConstants);BIT_INCLUDE_TELEMETRY</DefineConstants>
     <!-- Features defaults to on -->
     <BitIncludeFeatures Condition="'$(BitIncludeFeatures)' == ''">true</BitIncludeFeatures>
     <DefineConstants Condition="'$(BitIncludeFeatures)' == 'true'">$(DefineConstants);BIT_INCLUDE_FEATURES</DefineConstants>
-    <!-- Authentication defaults to on -->
-    <BitIncludeAuthentication Condition="'$(BitIncludeAuthentication)' == ''">true</BitIncludeAuthentication>
+    <!-- Authentication defaults to on for executables, off otherwise -->
+    <BitIncludeAuthentication Condition="'$(BitIncludeAuthentication)' == '' and '$(OutputType)' == 'Exe'">true</BitIncludeAuthentication>
+    <BitIncludeAuthentication Condition="'$(BitIncludeAuthentication)' == ''">false</BitIncludeAuthentication>
     <DefineConstants Condition="'$(BitIncludeAuthentication)' == 'true'">$(DefineConstants);BIT_INCLUDE_AUTHENTICATION</DefineConstants>
     <!-- Caching defaults to off -->
     <BitIncludeCaching Condition="'$(BitIncludeCaching)' == ''">false</BitIncludeCaching>
     <DefineConstants Condition="'$(BitIncludeCaching)' == 'true'">$(DefineConstants);BIT_INCLUDE_CACHING</DefineConstants>
-    <!-- WebEssentials defaults to on -->
-    <BitIncludeWebEssentials Condition="'$(BitIncludeWebEssentials)' == ''">true</BitIncludeWebEssentials>
+    <!-- WebEssentials defaults to on for executables, off otherwise -->
+    <BitIncludeWebEssentials Condition="'$(BitIncludeWebEssentials)' == '' and '$(OutputType)' == 'Exe'">true</BitIncludeWebEssentials>
+    <BitIncludeWebEssentials Condition="'$(BitIncludeWebEssentials)' == ''">false</BitIncludeWebEssentials>
     <DefineConstants Condition="'$(BitIncludeWebEssentials)' == 'true'">$(DefineConstants);BIT_INCLUDE_WEB_ESSENTIALS</DefineConstants>
 
     <!--

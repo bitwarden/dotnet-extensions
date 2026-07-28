@@ -29,6 +29,21 @@ public class SdkTests : MSBuildTestBase
     }
 
     [Fact]
+    public void LibraryProject_DefaultsEntryPointFeaturesOff()
+    {
+        var project = ProjectCreator.Templates.SdkProject(sdk: "Microsoft.NET.Sdk");
+
+        foreach (var feature in new[] { "TELEMETRY", "AUTHENTICATION", "WEB_ESSENTIALS" })
+        {
+            project.TryGetConstant($"BIT_INCLUDE_{feature}", out var actual);
+            Assert.False(actual);
+        }
+
+        project.TryGetConstant("BIT_INCLUDE_FEATURES", out var features);
+        Assert.True(features);
+    }
+
+    [Fact]
     public void ShouldBuildWithNoWarningsIfProjectHasNullableDisabled()
     {
         ProjectCreator.Templates.SdkProject(
