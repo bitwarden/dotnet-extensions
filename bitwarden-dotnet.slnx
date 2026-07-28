@@ -33,8 +33,14 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Features/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Features/src/Bitwarden.Server.Sdk.Features.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Features/analyzers/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Features/analyzers/Bitwarden.Server.Sdk.Features.Analyzers/Bitwarden.Server.Sdk.Features.Analyzers.csproj" />
+    <Project Path="extensions/Bitwarden.Server.Sdk.Features/analyzers/Bitwarden.Server.Sdk.Features.CodeFixers/Bitwarden.Server.Sdk.Features.CodeFixers.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Features/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Features/tests/Bitwarden.Server.Sdk.Features.Tests/Bitwarden.Server.Sdk.Features.Tests.csproj" />
+    <Project Path="extensions/Bitwarden.Server.Sdk.Features/tests/Bitwarden.Server.Sdk.Features.Analyzers.Tests/Bitwarden.Server.Sdk.Features.Analyzers.Tests.csproj" />
+    <Project Path="extensions/Bitwarden.Server.Sdk.Features/tests/Bitwarden.Server.Sdk.Features.CodeFixers.Tests/Bitwarden.Server.Sdk.Features.CodeFixers.Tests.csproj" />
   </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.HealthChecks/">
     <Project Path="extensions/Bitwarden.Server.Sdk.HealthChecks/src/Bitwarden.Server.Sdk.HealthChecks.csproj" />
@@ -51,7 +57,13 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk/">
     <Project Path="extensions/Bitwarden.Server.Sdk/src/Bitwarden.Server.Sdk.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk/analyzers/">
+    <Project Path="extensions/Bitwarden.Server.Sdk/analyzers/Bitwarden.Server.Sdk.Analyzers/Bitwarden.Server.Sdk.Analyzers.csproj" />
+    <Project Path="extensions/Bitwarden.Server.Sdk/analyzers/Bitwarden.Server.Sdk.CodeFixers/Bitwarden.Server.Sdk.CodeFixers.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk/tests/Bitwarden.Server.Sdk.Analyzers.Tests/Bitwarden.Server.Sdk.Analyzers.Tests.csproj" />
+    <Project Path="extensions/Bitwarden.Server.Sdk/tests/Bitwarden.Server.Sdk.CodeFixers.Tests/Bitwarden.Server.Sdk.CodeFixers.Tests.csproj" />
     <Project Path="extensions/Bitwarden.Server.Sdk/tests/Bitwarden.Server.Sdk.IntegrationTests/Bitwarden.Server.Sdk.IntegrationTests.csproj" />
   </Folder>
 </Solution>
