@@ -38,10 +38,9 @@ The values are stored as static `StringValues` fields to avoid per-request alloc
 
 ## Version endpoint
 
-`MapVersionEndpoint()` registers a `GET /version` route. The non-intercepted fallback resolves the
-version at registration time by loading the assembly identified by
-`IHostEnvironment.ApplicationName` and reading its `AssemblyInformationalVersionAttribute`. Build
-metadata (the `+<hash>` suffix appended by the SDK) is stripped before returning.
+`MapVersionEndpoint()` registers a `GET /version` route. The version is resolved at registration
+time from `IBitwardenEnvironment`, which is automatically registered by `AddWebEssentials()`.
+`MapVersionEndpoint()` requires `AddWebEssentials()` to have been called first.
 
 ## Adding or changing features
 
