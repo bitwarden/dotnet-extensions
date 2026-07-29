@@ -94,6 +94,7 @@
 
   <Target Name="CheckBitwardenEnvironmentCompatibility" BeforeTargets="Build">
     <Warning
+      Code="BW0004"
       Condition="'$(BitIncludeEnvironment)' == 'false' and ('$(BitIncludeFeatures)' == 'true' or '$(BitIncludeWebEssentials)' == 'true')"
       Text="BitIncludeEnvironment is false but BitIncludeFeatures or BitIncludeWebEssentials is true. Those packages depend on Bitwarden.Server.Sdk.Environment, so the type will still be available transitively and AddBitwardenEnvironment() will not be called by UseBitwardenSdk(). Set BitIncludeEnvironment to true or disable the dependent packages." />
   </Target>

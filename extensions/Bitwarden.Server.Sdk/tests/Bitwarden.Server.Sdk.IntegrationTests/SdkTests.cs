@@ -239,7 +239,8 @@ public class SdkTests : MSBuildTestBase
         );
 
         Assert.True(result, buildOutput.GetConsoleLog());
-        Assert.Contains(buildOutput.WarningEvents, w => w.Message?.Contains("BitIncludeEnvironment") == true);
+        var warning = Assert.Single(buildOutput.WarningEvents, w => w.Code == "BW0004");
+        Assert.Contains("BitIncludeEnvironment", warning.Message);
     }
 
     [Fact]
