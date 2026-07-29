@@ -17,6 +17,8 @@ public static class WebEssentialsServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.AddBitwardenEnvironment();
+
         services.ConfigureHttpJsonOptions(options =>
         {
             options.SerializerOptions.TypeInfoResolverChain.Add(WebEssentialsJsonSerializerContext.Default);

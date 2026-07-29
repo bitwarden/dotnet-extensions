@@ -25,10 +25,11 @@ public static class FeatureServiceCollectionExtensions
         services.AddOptions<FeatureFlagOptions>()
             .BindConfiguration("Features");
 
+        services.AddBitwardenEnvironment();
+
         services.TryAddSingleton<IContextBuilder, AnonymousContextBuilder>();
 
         services.TryAddSingleton<ILaunchDarklyClientProvider, LaunchDarklyClientProvider>();
-        services.TryAddSingleton<IVersionInfoAccessor, VersionInfoAccessor>();
 
         services.TryAddScoped<IFeatureService, LaunchDarklyFeatureService>();
 

@@ -39,6 +39,11 @@
           "xunit.v3.core.mtp-v2": "[3.2.2]"
         }
       },
+      "Bitwarden.Server.Sdk.Environment": {
+        "type": "Transitive",
+        "resolved": "0.1.0",
+        "contentHash": "yLK3ik/+zQ4w41iDObvv4vq2QwWPaVMuyKFpzlgsukClOOuZUxJAivwnnZZDMXbp2wipWgaW4yeEY+yLdLVaVQ=="
+      },
       "Castle.Core": {
         "type": "Transitive",
         "resolved": "5.1.1",
@@ -206,6 +211,7 @@
       "bitwarden.server.sdk.features": {
         "type": "Project",
         "dependencies": {
+          "Bitwarden.Server.Sdk.Environment": "[0.1.0, )",
           "LaunchDarkly.ServerSdk": "[8.14.1, )"
         }
       }

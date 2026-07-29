@@ -1,8 +1,7 @@
-using System.Reflection;
+using Bitwarden.Server.Sdk.Environment;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 namespace Microsoft.AspNetCore.Routing;
 
@@ -20,20 +19,12 @@ public static class WebEssentialsEndpointRouteBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(endpoints);
 
-        var appName = endpoints.ServiceProvider.GetRequiredService<IHostEnvironment>().ApplicationName;
-        var version = ParseVersion(Assembly.Load(appName)
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-            ?.InformationalVersion);
+        var environment = endpoints.ServiceProvider.GetRequiredService<IBitwardenEnvironment>();
+        var version = string.IsNullOrEmpty(environment.Version) ? null : environment.Version;
 
         return endpoints.MapGet("/version", () =>
         {
             return TypedResults.Ok(version);
         });
-    }
-
-    private static string? ParseVersion(string? rawVersion)
-    {
-        var plusIdx = rawVersion?.IndexOf('+') ?? -1;
-        return plusIdx >= 0 ? rawVersion![..plusIdx] : rawVersion;
     }
 }
