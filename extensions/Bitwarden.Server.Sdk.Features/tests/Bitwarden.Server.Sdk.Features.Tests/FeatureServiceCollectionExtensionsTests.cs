@@ -131,14 +131,14 @@ public class FeatureServiceCollectionExtensionsTests
         // test will fail.
         const string TrueFlag = "TRUE_FEATURE_FLAG";
 
-        var sdkKey = Environment.GetEnvironmentVariable(SdkKeyEnv);
+        var sdkKey = System.Environment.GetEnvironmentVariable(SdkKeyEnv);
 
         if (string.IsNullOrEmpty(sdkKey))
         {
             Assert.Skip($"{SdkKeyEnv} not set.");
         }
 
-        var trueFlagKey = Environment.GetEnvironmentVariable(TrueFlag);
+        var trueFlagKey = System.Environment.GetEnvironmentVariable(TrueFlag);
 
         if (string.IsNullOrEmpty(trueFlagKey))
         {

@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Bitwarden.Server.Sdk.Environment;
 using LaunchDarkly.Logging;
 using LaunchDarkly.Sdk;
 using LaunchDarkly.Sdk.Server;
@@ -23,7 +24,7 @@ internal sealed class LaunchDarklyClientProvider : ILaunchDarklyClientProvider, 
 
     private readonly ILoggerFactory _loggerFactory;
     private readonly IHostEnvironment _hostEnvironment;
-    private readonly IVersionInfoAccessor _versionInfoAccessor;
+    private readonly IBitwardenEnvironment _environment;
     private readonly IDisposable? _changeToken;
 
     private LdClient _client;
@@ -32,11 +33,11 @@ internal sealed class LaunchDarklyClientProvider : ILaunchDarklyClientProvider, 
         IOptionsMonitor<FeatureFlagOptions> featureFlagOptions,
         ILoggerFactory loggerFactory,
         IHostEnvironment hostEnvironment,
-        IVersionInfoAccessor versionInfoAccessor)
+        IBitwardenEnvironment environment)
     {
         _loggerFactory = loggerFactory;
         _hostEnvironment = hostEnvironment;
-        _versionInfoAccessor = versionInfoAccessor;
+        _environment = environment;
 
         BuildClient(featureFlagOptions.CurrentValue);
         // Subscribe to options changes.
@@ -50,12 +51,10 @@ internal sealed class LaunchDarklyClientProvider : ILaunchDarklyClientProvider, 
             .ApplicationId(_hostEnvironment.ApplicationName)
             .ApplicationName(_hostEnvironment.ApplicationName);
 
-        var versionInfo = _versionInfoAccessor.Get();
-
-        if (versionInfo is not null)
+        if (!string.IsNullOrEmpty(_environment.Version))
         {
-            applicationInfo.ApplicationVersion(versionInfo.GitHash ?? versionInfo.Version.ToString())
-                .ApplicationVersionName(versionInfo.Version.ToString());
+            applicationInfo.ApplicationVersion(_environment.GitHash ?? _environment.Version)
+                .ApplicationVersionName(_environment.Version);
         }
 
         var builder = Configuration.Builder(featureFlagOptions.LaunchDarkly.SdkKey)
