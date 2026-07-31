@@ -53,6 +53,95 @@ To add the security headers middleware, call `UseSecurityHeaders()` on your appl
 app.UseSecurityHeaders();
 ```
 
+## Deployment Files
+
+The SDK provides two MSBuild targets for producing a list of every file whose change should
+trigger a new deployment of the project — its source files, resources, content, referenced
+project files, and NuGet lock file. This list is useful in CI to decide whether a PR actually
+needs a release.
+
+### Targets
+
+**`ListDeploymentFiles`** prints one absolute path per line to the MSBuild console:
+
+```
+dotnet msbuild -t:ListDeploymentFiles -v:m
+```
+
+**`WriteDeploymentFiles`** writes the same list to disk so CI scripts can consume it without
+parsing build output. The default output path is `obj/deployment-files.txt` and can be
+overridden:
+
+```
+dotnet msbuild -t:WriteDeploymentFiles
+dotnet msbuild -t:WriteDeploymentFiles -p:DeploymentFilesOutputPath=deployment-files.txt
+```
+
+### What is included
+
+The following are included automatically:
+
+- The `.csproj` file of each project
+- All `@(Compile)` items (`.cs` source files)
+- All `@(EmbeddedResource)` items
+- All `@(Content)` items where `CopyToOutputDirectory` is not `Never`
+- `packages.lock.json` when `RestorePackagesWithLockFile` is `true`
+- All of the above from transitively referenced projects
+
+To manually include additional files — such as SQL migration scripts, Dockerfiles, or
+configuration templates — add them to the `BitDeploymentInput` item group:
+
+```xml
+<ItemGroup>
+  <BitDeploymentInput Include="Dockerfile" />
+  <BitDeploymentInput Include="migrations/**/*.sql" />
+</ItemGroup>
+```
+
+### CI usage
+
+The following GitHub Actions job uses `WriteDeploymentFiles` to gate a release on whether
+any deployment-relevant file was changed in the PR:
+
+```yaml
+jobs:
+  check-deployment:
+    runs-on: ubuntu-latest
+    outputs:
+      needs-release: ${{ steps.check.outputs.needs-release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+
+      - name: Write deployment files
+        run: |
+          dotnet msbuild src/MyService/MyService.csproj \
+            -t:WriteDeploymentFiles \
+            -p:DeploymentFilesOutputPath=deployment-files.txt \
+            --nologo -v:q
+
+      - name: Check for overlap with PR changes
+        id: check
+        run: |
+          git diff --name-only origin/${{ github.base_ref }}...HEAD \
+            | sed "s|^|$GITHUB_WORKSPACE/|" \
+            > changed-files.txt
+
+          if grep -qxFf deployment-files.txt changed-files.txt; then
+            echo "needs-release=true" >> $GITHUB_OUTPUT
+          else
+            echo "needs-release=false" >> $GITHUB_OUTPUT
+          fi
+```
+
+The `sed` step converts `git diff`'s repo-relative paths to absolute paths so they can be
+compared against the absolute paths written by `WriteDeploymentFiles`. `grep -xFf` does
+exact whole-line fixed-string matching, so partial path matches cannot produce false
+positives.
+
 ## Aspire Integration
 
 Disabled by default and able to be enabled using `<BitAspireIntegration>enabled</BitAspireIntegration>`
