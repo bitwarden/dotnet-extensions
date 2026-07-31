@@ -99,3 +99,38 @@ services.TryAddTransient<IThirdService, ThirdService>();
 ```
 
 The code fix handles both generic and non-generic overloads, as well as all `AddKeyed*` variants (`TryAddKeyedSingleton`, `TryAddKeyedScoped`, `TryAddKeyedTransient`).
+
+---
+
+## BW0004
+
+**Title:** BitIncludeEnvironment is incompatible with dependent packages
+**Severity:** Warning
+**Category:** Configuration
+**Package:** `Bitwarden.Server.Sdk`
+**Code fix available:** No
+
+### Summary
+
+Reported when `BitIncludeEnvironment` is set to `false` while `BitIncludeFeatures` or `BitIncludeWebEssentials` is set to `true`. Both of those packages depend on `Bitwarden.Server.Sdk.Environment`, so `IBitwardenEnvironment` will still be available transitively even though `BitIncludeEnvironment` is `false`. Additionally, `AddBitwardenEnvironment()` will not be called by `UseBitwardenSdk()` in this configuration.
+
+### Example
+
+```xml
+<!-- BW0004 is reported for this combination -->
+<BitIncludeEnvironment>false</BitIncludeEnvironment>
+<BitIncludeFeatures>true</BitIncludeFeatures>
+```
+
+**Fix:** Either set `BitIncludeEnvironment` to `true`, or disable the dependent packages:
+
+```xml
+<BitIncludeEnvironment>true</BitIncludeEnvironment>
+<BitIncludeFeatures>true</BitIncludeFeatures>
+```
+
+To suppress the warning if the behavior is intentional:
+
+```xml
+<NoWarn>$(NoWarn);BW0004</NoWarn>
+```

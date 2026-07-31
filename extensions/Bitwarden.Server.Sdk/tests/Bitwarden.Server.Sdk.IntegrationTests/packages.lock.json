@@ -481,6 +481,15 @@
           "Microsoft.AspNetCore.Authentication.JwtBearer": "[8.0.20, )"
         }
       },
+      "bitwarden.server.sdk.environment": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.9, )",
+          "Microsoft.Extensions.Hosting.Abstractions": "[10.0.9, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.9, )",
+          "Microsoft.Extensions.Options": "[10.0.9, )"
+        }
+      },
       "bitwarden.server.sdk.features": {
         "type": "Project",
         "dependencies": {

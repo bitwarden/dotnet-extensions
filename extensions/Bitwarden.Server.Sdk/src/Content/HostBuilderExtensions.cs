@@ -58,6 +58,10 @@ public static class HostBuilderExtensions
         builder.Services.AddWebEssentials();
 #endif
 
+#if BIT_INCLUDE_ENVIRONMENT
+        builder.Services.AddBitwardenEnvironment();
+#endif
+
 #if BIT_INCLUDE_ASPIRE_INTEGRATION
         builder.Services.AddServiceDiscovery();
 
@@ -117,6 +121,13 @@ public static class HostBuilderExtensions
         hostBuilder.ConfigureServices((_, services) =>
         {
             services.AddWebEssentials();
+        });
+#endif
+
+#if BIT_INCLUDE_ENVIRONMENT
+        hostBuilder.ConfigureServices((_, services) =>
+        {
+            services.AddBitwardenEnvironment();
         });
 #endif
 
