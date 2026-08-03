@@ -10,7 +10,7 @@
     <IncludeSource>false</IncludeSource>
     <IncludeSymbols>false</IncludeSymbols>
 
-    <VersionPrefix>1.6.0</VersionPrefix>
+    <VersionPrefix>1.6.1</VersionPrefix>
     <PreReleaseVersionLabel>beta</PreReleaseVersionLabel>
     <PreReleaseVersionIteration>1</PreReleaseVersionIteration>
     <VersionSuffix Condition="'$(VersionSuffix)' == '' AND '$(IsPreRelease)' == 'true'">$(PreReleaseVersionLabel).$(PreReleaseVersionIteration)</VersionSuffix>
@@ -40,14 +40,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\analyzers\Bitwarden.Server.Sdk.Analyzers\bin\$(Configuration)\netstandard2.0\Bitwarden.Server.Sdk.Analyzers.dll"
-      Pack="true"
-      PackagePath="analyzers/dotnet/cs"
-      Visible="false" />
-    <None Include="..\analyzers\Bitwarden.Server.Sdk.CodeFixers\bin\$(Configuration)\netstandard2.0\Bitwarden.Server.Sdk.CodeFixers.dll"
-      Pack="true"
-      PackagePath="analyzers/dotnet/cs"
-      Visible="false" />
+    <None Include="..\analyzers\Bitwarden.Server.Sdk.Analyzers\bin\$(Configuration)\netstandard2.0\Bitwarden.Server.Sdk.Analyzers.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="..\analyzers\Bitwarden.Server.Sdk.CodeFixers\bin\$(Configuration)\netstandard2.0\Bitwarden.Server.Sdk.CodeFixers.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
 
   <ItemGroup>
