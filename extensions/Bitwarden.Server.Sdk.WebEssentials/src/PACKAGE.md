@@ -45,7 +45,7 @@ app.MapVersionEndpoint();
 Example response:
 
 ```json
-{ "version": "1.2.3" }
+"1.2.3"
 ```
 
 The version is read from the application assembly's `AssemblyInformationalVersion`.
