@@ -53,6 +53,35 @@ To add the security headers middleware, call `UseSecurityHeaders()` on your appl
 app.UseSecurityHeaders();
 ```
 
+## Environment
+
+Enabled by default for all project types. Can be disabled using
+`<BitIncludeEnvironment>false</BitIncludeEnvironment>` in your project file.
+
+This feature automatically includes the `Bitwarden.Server.Sdk.Environment` library and registers
+`IBitwardenEnvironment` in `UseBitwardenSdk()`. `IBitwardenEnvironment` exposes the application
+version, Git hash, and self-host details.
+
+Note that `Bitwarden.Server.Sdk.Features` and `Bitwarden.Server.Sdk.WebEssentials` both depend on
+this package internally, so disabling `BitIncludeEnvironment` while either of those is enabled will
+produce a build warning.
+
+If your service can run in a self-hosted configuration, configure `SelfHostDetails` after calling
+`UseBitwardenSdk()`:
+
+```csharp
+using Bitwarden.Server.Sdk.Environment.Setup;
+
+builder.Services.AddOptions<SelfHostDetails>()
+    .Configure<IConfiguration>((details, config) =>
+    {
+        if (config.GetValue<bool>("globalSettings:selfHosted"))
+            details.MakeSelfHost(config["globalSettings:selfHostFlavor"] ?? "unknown");
+        else
+            details.MakeCloud();
+    });
+```
+
 ## Deployment Files
 
 The SDK provides two MSBuild targets for producing a list of every file whose change should

@@ -15,6 +15,7 @@ public class SdkTests : MSBuildTestBase
             ("AUTHENTICATION", true),
             ("CACHING", false),
             ("WEB_ESSENTIALS", true),
+            ("ENVIRONMENT", true),
         ];
 
         var project = ProjectCreator.Templates.SdkProject(out var result, out var buildOutput);
@@ -41,6 +42,9 @@ public class SdkTests : MSBuildTestBase
 
         project.TryGetConstant("BIT_INCLUDE_FEATURES", out var features);
         Assert.True(features);
+
+        project.TryGetConstant("BIT_INCLUDE_ENVIRONMENT", out var environment);
+        Assert.True(environment);
     }
 
     [Fact]
@@ -179,6 +183,84 @@ public class SdkTests : MSBuildTestBase
         Assert.True(result, buildOutput.GetConsoleLog());
     }
 
+    [Fact]
+    public void EnvironmentTurnedOff_CanCompile()
+    {
+        ProjectCreator.Templates.SdkProject(
+            out var result,
+            out var buildOutput,
+            customAction: (project) =>
+            {
+                project.Property("BitIncludeEnvironment", bool.FalseString);
+            }
+        );
+
+        Assert.True(result, buildOutput.GetConsoleLog());
+    }
+
+    [Fact]
+    public void EnvironmentTurnedOff_CanNotUseIBitwardenEnvironment()
+    {
+        // Features and WebEssentials both transitively depend on Bitwarden.Server.Sdk.Environment,
+        // so all three must be disabled to truly remove the type from the compilation.
+        ProjectCreator.Templates.SdkProject(
+            out var result,
+            out var buildOutput,
+            customAction: (project) =>
+            {
+                project.Property("BitIncludeEnvironment", bool.FalseString);
+                project.Property("BitIncludeFeatures", bool.FalseString);
+                project.Property("BitIncludeWebEssentials", bool.FalseString);
+            },
+            additional: """
+                app.MapGet("/test", (Bitwarden.Server.Sdk.Environment.IBitwardenEnvironment env) => env.Version);
+                """
+        );
+
+        Assert.False(result, buildOutput.GetConsoleLog());
+
+        // error CS0234: The type or namespace name 'Environment' does not exist in the namespace 'Bitwarden.Server.Sdk' (are you missing an assembly reference?)
+        Assert.Contains(buildOutput.ErrorEvents, e => e.Code == "CS0234");
+    }
+
+    [Theory]
+    [InlineData("BitIncludeFeatures")]
+    [InlineData("BitIncludeWebEssentials")]
+    public void EnvironmentTurnedOff_WithDependentPackageOn_WarnsAboutIncompatibility(string dependentPackage)
+    {
+        ProjectCreator.Templates.SdkProject(
+            out var result,
+            out var buildOutput,
+            customAction: (project) =>
+            {
+                project.Property("BitIncludeEnvironment", bool.FalseString);
+                project.Property(dependentPackage, bool.TrueString);
+            }
+        );
+
+        Assert.True(result, buildOutput.GetConsoleLog());
+        var warning = Assert.Single(buildOutput.WarningEvents, w => w.Code == "BW0004");
+        Assert.Contains("BitIncludeEnvironment", warning.Message);
+    }
+
+    [Fact]
+    public void EnvironmentTurnedOn_CanUseIBitwardenEnvironment()
+    {
+        ProjectCreator.Templates.SdkProject(
+            out var result,
+            out var buildOutput,
+            customAction: (project) =>
+            {
+                project.Property("BitIncludeEnvironment", bool.TrueString);
+            },
+            additional: """
+                app.MapGet("/test", (Bitwarden.Server.Sdk.Environment.IBitwardenEnvironment env) => env.Version);
+                """
+        );
+
+        Assert.True(result, buildOutput.GetConsoleLog());
+    }
+
     public static TheoryData<string> PossibleVariantData()
     {
         var variations = new Dictionary<string, string[]>
@@ -189,6 +271,7 @@ public class SdkTests : MSBuildTestBase
             { "BitIncludeCaching", ["true", "false"] },
             { "BitAspireIntegration", ["enabled", "disabled"] },
             { "BitIncludeWebEssentials", ["true", "false"] },
+            { "BitIncludeEnvironment", ["true", "false"] },
         };
 
         var keys = variations.Keys.ToArray();

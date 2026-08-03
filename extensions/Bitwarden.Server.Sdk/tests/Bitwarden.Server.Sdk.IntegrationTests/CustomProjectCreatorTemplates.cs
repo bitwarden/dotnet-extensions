@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Bitwarden.Server.Sdk.Environment;
 using Bitwarden.Server.Sdk.Features;
 using Microsoft.Build.Utilities.ProjectCreation;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,7 +21,7 @@ public static class CustomProjectCreatorTemplates
         var extensionsRoot = new DirectoryInfo(Path.Combine(ThisAssemblyDirectory, "..", "..", "..", "..", "..", ".."));
         Debug.WriteLine($"ExtensionsRoot: {extensionsRoot.FullName}");
 
-        Type[] markerTypes = [typeof(IFeatureService), typeof(BitwardenAuthenticationServiceCollectionExtensions)];
+        Type[] markerTypes = [typeof(IFeatureService), typeof(BitwardenAuthenticationServiceCollectionExtensions), typeof(IBitwardenEnvironment)];
         var nugetPackages = new FileInfo[markerTypes.Length];
 
         for (var i = 0; i < nugetPackages.Length; i++)
