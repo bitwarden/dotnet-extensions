@@ -7,6 +7,21 @@ namespace Bitwarden.Server.Sdk.IntegrationTests;
 public class SdkTests : MSBuildTestBase
 {
     [Fact]
+    public void AnalyzerDiagnosticIsEmitted_WhenUsingAddSingletonInsteadOfTryAdd()
+    {
+        ProjectCreator.Templates.SdkProject(
+            out var result,
+            out var buildOutput,
+            additional: """
+                builder.Services.AddSingleton<System.IDisposable, System.IO.MemoryStream>();
+                """
+        );
+
+        Assert.True(result, buildOutput.GetConsoleLog());
+        Assert.Contains(buildOutput.WarningEvents, w => w.Code == "BW0003");
+    }
+
+    [Fact]
     public void NoOverridingProperties_CanCompile()
     {
         IEnumerable<(string Feature, bool DefaultValue)> featuresAndDefaults = [

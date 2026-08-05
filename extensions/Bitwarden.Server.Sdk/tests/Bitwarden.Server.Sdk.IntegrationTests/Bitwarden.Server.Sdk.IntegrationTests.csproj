@@ -32,6 +32,13 @@
     <None Include="..\..\src\Sdk\**\*" Link="Sdk\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
 
     <None Include="..\..\src\Content\**\*" Link="Content\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+
+    <!--
+      Sdk.props registers analyzers at analyzers/dotnet/cs/ relative to itself (i.e. relative to the Sdk/ directory).
+      Copy the built DLLs there so the in-process MSBuild tests can resolve them.
+    -->
+    <None Include="..\..\analyzers\Bitwarden.Server.Sdk.Analyzers\bin\$(Configuration)\netstandard2.0\Bitwarden.Server.Sdk.Analyzers.dll" Link="analyzers\dotnet\cs\Bitwarden.Server.Sdk.Analyzers.dll" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\analyzers\Bitwarden.Server.Sdk.CodeFixers\bin\$(Configuration)\netstandard2.0\Bitwarden.Server.Sdk.CodeFixers.dll" Link="analyzers\dotnet\cs\Bitwarden.Server.Sdk.CodeFixers.dll" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- All local features -->
@@ -42,6 +49,10 @@
 
     <!-- Create a project reference for each Sdk package -->
     <ProjectReference Include="@(SdkPackage->'..\..\..\Bitwarden.Server.Sdk.%(Identity)\src\Bitwarden.Server.Sdk.%(Identity).csproj')" />
+
+    <!-- Build-order-only references to ensure analyzer DLLs exist before tests copy them to output -->
+    <ProjectReference Include="..\..\analyzers\Bitwarden.Server.Sdk.Analyzers\Bitwarden.Server.Sdk.Analyzers.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\analyzers\Bitwarden.Server.Sdk.CodeFixers\Bitwarden.Server.Sdk.CodeFixers.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>
