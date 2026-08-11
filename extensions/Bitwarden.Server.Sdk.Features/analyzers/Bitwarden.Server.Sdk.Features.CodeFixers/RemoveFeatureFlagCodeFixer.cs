@@ -190,6 +190,14 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
             PrefixUnaryExpressionSyntax { RawKind: (int)SyntaxKind.LogicalNotExpression, Parent: IfStatementSyntax ifStatement } =>
                 root.ReplaceNode(ifStatement, GetStatements(ifStatement.Else?.Statement, ifStatement.GetLeadingTrivia())),
 
+            // expr is false — flag is always-on (true), so condition is always false; keep else, drop then.
+            IsPatternExpressionSyntax
+            {
+                Pattern: ConstantPatternSyntax { Expression: LiteralExpressionSyntax { } patternLiteral },
+                Parent: IfStatementSyntax isPatternIfStatement
+            } when patternLiteral.IsKind(SyntaxKind.FalseLiteralExpression) =>
+                root.ReplaceNode(isPatternIfStatement, GetStatements(isPatternIfStatement.Else?.Statement, isPatternIfStatement.GetLeadingTrivia())),
+
             IfStatementSyntax ifStatement =>
                 root.ReplaceNode(ifStatement, GetStatements(ifStatement.Statement, ifStatement.GetLeadingTrivia())),
 
@@ -228,6 +236,28 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
 
     private static SyntaxNode SimplifyBooleanExpressions(SyntaxNode root)
     {
+        // Fold is-pattern expressions whose operand has reduced to a boolean literal:
+        // e.g. `true is false` → `false`, `true is true` → `true`.
+        var isPatternToFold = root.DescendantNodes()
+            .OfType<IsPatternExpressionSyntax>()
+            .Where(static ip =>
+                ip.Expression is LiteralExpressionSyntax exprLit &&
+                (exprLit.IsKind(SyntaxKind.TrueLiteralExpression) || exprLit.IsKind(SyntaxKind.FalseLiteralExpression)) &&
+                ip.Pattern is ConstantPatternSyntax { Expression: LiteralExpressionSyntax patLit } &&
+                (patLit.IsKind(SyntaxKind.TrueLiteralExpression) || patLit.IsKind(SyntaxKind.FalseLiteralExpression)))
+            .ToList();
+
+        foreach (var isPattern in isPatternToFold)
+        {
+            var exprLit = (LiteralExpressionSyntax)isPattern.Expression;
+            var patLit = (LiteralExpressionSyntax)((ConstantPatternSyntax)isPattern.Pattern).Expression;
+            var matches = exprLit.IsKind(SyntaxKind.TrueLiteralExpression) == patLit.IsKind(SyntaxKind.TrueLiteralExpression);
+            var replacement = matches
+                ? SyntaxFactory.LiteralExpression(SyntaxKind.TrueLiteralExpression).WithTriviaFrom(isPattern)
+                : SyntaxFactory.LiteralExpression(SyntaxKind.FalseLiteralExpression).WithTriviaFrom(isPattern);
+            root = root.ReplaceNode(isPattern, replacement);
+        }
+
         // Find all ternary expressions with literal boolean conditions
         var ternariesToSimplify = root.DescendantNodes()
             .OfType<ConditionalExpressionSyntax>()
