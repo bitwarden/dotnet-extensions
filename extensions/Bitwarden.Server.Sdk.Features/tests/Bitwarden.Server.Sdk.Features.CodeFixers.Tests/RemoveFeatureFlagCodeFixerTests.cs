@@ -1433,6 +1433,141 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
     }
 
     [Fact]
+    public async Task TestCode_MocksNonConstant_LocalFunctionParam_OnlyRemovesReturns()
+    {
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(Substitute).Assembly.Location));
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(FactAttribute).Assembly.Location));
+
+        await RunDefaultCodeFixAsync("""
+            using NSubstitute;
+            using Xunit;
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class TestClass
+            {
+                private readonly IFeatureService _featureService;
+
+                public TestClass()
+                {
+                    _featureService = Substitute.For<IFeatureService>();
+                }
+
+                [Theory]
+                [InlineData(true)]
+                [InlineData(false)]
+                public void TestMethod(bool flagValue)
+                {
+                    void Setup(bool b)
+                    {
+                        _featureService
+                            .IsEnabled(MyFlags.Flag)
+                            .Returns(b);
+                    }
+                    Setup(flagValue);
+                }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+            using NSubstitute;
+            using Xunit;
+
+            namespace Test;
+
+            public class TestClass
+            {
+                private readonly IFeatureService _featureService;
+
+                public TestClass()
+                {
+                    _featureService = Substitute.For<IFeatureService>();
+                }
+
+                [Theory]
+                [InlineData(true)]
+                [InlineData(false)]
+                public void TestMethod(bool flagValue)
+                {
+                    void Setup(bool b)
+                    {
+                    }
+                    Setup(flagValue);
+                }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task TestCode_MocksNonConstant_MethodHasExtraParam_OnlyRemovesReturns()
+    {
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(Substitute).Assembly.Location));
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(FactAttribute).Assembly.Location));
+
+        await RunDefaultCodeFixAsync("""
+            using NSubstitute;
+            using Xunit;
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class TestClass
+            {
+                private readonly IFeatureService _featureService;
+
+                public TestClass()
+                {
+                    _featureService = Substitute.For<IFeatureService>();
+                }
+
+                [Theory]
+                [InlineData(true)]
+                [InlineData(false)]
+                public void TestMethod(bool flagValue, string value)
+                {
+                    _featureService
+                        .IsEnabled(MyFlags.Flag)
+                        .Returns(flagValue);
+
+                    DoWork(value);
+                }
+
+                private void DoWork(string v) { }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+            using NSubstitute;
+            using Xunit;
+
+            namespace Test;
+
+            public class TestClass
+            {
+                private readonly IFeatureService _featureService;
+
+                public TestClass()
+                {
+                    _featureService = Substitute.For<IFeatureService>();
+                }
+
+                [Theory]
+                [InlineData(true)]
+                [InlineData(false)]
+                public void TestMethod(bool flagValue, string value)
+                {
+                    DoWork(value);
+                }
+
+                private void DoWork(string v) { }
+            }
+            """
+        );
+    }
+
+    [Fact]
     public async Task MultipleFeatureFlags_RemovesOnlySpecifiedFlag()
     {
         // This test uses RunCodeFixAsync to verify only the specified flag is removed

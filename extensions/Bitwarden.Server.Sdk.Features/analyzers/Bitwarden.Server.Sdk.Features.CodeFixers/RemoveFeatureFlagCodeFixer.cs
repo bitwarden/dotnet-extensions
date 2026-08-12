@@ -689,6 +689,8 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
         if (!secondArg.Value.ConstantValue.HasValue
             && secondArg.Value is IParameterReferenceOperation { Parameter: var param }
             && returnsAccess.FirstAncestorOrSelf<MethodDeclarationSyntax>() is { } theoryMethod
+            && theoryMethod.ParameterList.Parameters is [{ } onlyParam]
+            && onlyParam.Identifier.Text == param.Name
             && IsTheoryWithBoolInlineData(theoryMethod)
             && IsParameterOnlyUsedOnce(theoryMethod, param.Name))
         {
