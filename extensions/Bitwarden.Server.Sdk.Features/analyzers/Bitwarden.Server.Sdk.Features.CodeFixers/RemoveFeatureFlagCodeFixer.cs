@@ -263,6 +263,29 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
             root = root.ReplaceNode(isPattern, replacement);
         }
 
+        // Fold negated is-pattern expressions whose operand has reduced to a boolean literal:
+        // e.g. `true is not true` → `false`, `true is not false` → `true`.
+        var isNotPatternToFold = root.DescendantNodes()
+            .OfType<IsPatternExpressionSyntax>()
+            .Where(static ip =>
+                ip.Expression is LiteralExpressionSyntax exprLit &&
+                (exprLit.IsKind(SyntaxKind.TrueLiteralExpression) || exprLit.IsKind(SyntaxKind.FalseLiteralExpression)) &&
+                ip.Pattern is UnaryPatternSyntax { Pattern: ConstantPatternSyntax { Expression: LiteralExpressionSyntax patLit } } &&
+                (patLit.IsKind(SyntaxKind.TrueLiteralExpression) || patLit.IsKind(SyntaxKind.FalseLiteralExpression)))
+            .ToList();
+
+        foreach (var isPattern in isNotPatternToFold)
+        {
+            var exprLit = (LiteralExpressionSyntax)isPattern.Expression;
+            var innerPatLit = (LiteralExpressionSyntax)((ConstantPatternSyntax)((UnaryPatternSyntax)isPattern.Pattern).Pattern).Expression;
+            // `is not` inverts the match — same literal → false, different → true.
+            var matches = exprLit.IsKind(SyntaxKind.TrueLiteralExpression) == innerPatLit.IsKind(SyntaxKind.TrueLiteralExpression);
+            var replacement = matches
+                ? SyntaxFactory.LiteralExpression(SyntaxKind.FalseLiteralExpression).WithTriviaFrom(isPattern)
+                : SyntaxFactory.LiteralExpression(SyntaxKind.TrueLiteralExpression).WithTriviaFrom(isPattern);
+            root = root.ReplaceNode(isPattern, replacement);
+        }
+
         // Find all ternary expressions with literal boolean conditions
         var ternariesToSimplify = root.DescendantNodes()
             .OfType<ConditionalExpressionSyntax>()

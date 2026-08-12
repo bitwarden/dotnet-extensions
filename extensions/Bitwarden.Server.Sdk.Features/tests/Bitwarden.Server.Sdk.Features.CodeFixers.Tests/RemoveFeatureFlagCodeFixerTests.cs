@@ -304,6 +304,91 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
     }
 
     [Fact]
+    public async Task ShouldInlineIfBodyWhenIsPatternNotFalse()
+    {
+        await RunDefaultCodeFixAsync(
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class Something
+            {
+                public Something(IFeatureService featureService)
+                {
+                    if (featureService.IsEnabled(MyFlags.Flag) is not false)
+                    {
+                        Do(true);
+                    }
+                    else
+                    {
+                        Do(false);
+                    }
+                }
+
+                private void Do(bool value) { }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class Something
+            {
+                public Something(IFeatureService featureService)
+                {
+                    Do(true);
+                }
+
+                private void Do(bool value) { }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task ShouldRemoveIfBlockWhenIsPatternNotTrue()
+    {
+        await RunDefaultCodeFixAsync(
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class Something
+            {
+                public Something(IFeatureService featureService)
+                {
+                    if (featureService.IsEnabled(MyFlags.Flag) is not true)
+                    {
+                        Do(true);
+                    }
+                    Do(false);
+                }
+
+                private void Do(bool value) { }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class Something
+            {
+                public Something(IFeatureService featureService)
+                {
+                    Do(false);
+                }
+
+                private void Do(bool value) { }
+            }
+            """
+        );
+    }
+
+    [Fact]
     public async Task BracelessIfCheck_InlinesBody()
     {
         await RunDefaultCodeFixAsync(
