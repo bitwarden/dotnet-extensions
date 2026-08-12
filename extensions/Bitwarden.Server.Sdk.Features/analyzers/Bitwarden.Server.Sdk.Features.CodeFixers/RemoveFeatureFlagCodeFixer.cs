@@ -11,7 +11,8 @@ using Microsoft.CodeAnalysis.Operations;
 
 namespace Bitwarden.Server.Sdk.Features.CodeFixers;
 
-internal record MockReturnInfo(bool ReturnsFalse, MemberDeclarationSyntax? TestMethod, ExpressionStatementSyntax? ExpressionStatement);
+internal record TheoryConversionInfo(MethodDeclarationSyntax Method, string ParamName);
+internal record MockReturnInfo(bool ReturnsFalse, MemberDeclarationSyntax? TestMethod, ExpressionStatementSyntax? ExpressionStatement, TheoryConversionInfo? TheoryConversion = null);
 
 [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(RemoveFeatureFlagCodeFixer))]
 public class RemoveFeatureFlagCodeFixer : CodeFixProvider
@@ -116,7 +117,7 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
             // Also track mock-related nodes (TestMethod, ExpressionStatement) so GetCurrentNode
             // works correctly after earlier fixes shrink or restructure the tree.
             var extraNodesToTrack = mockAnalysis.Values
-                .SelectMany(mi => new SyntaxNode?[] { mi.TestMethod, mi.ExpressionStatement })
+                .SelectMany(mi => new SyntaxNode?[] { mi.TestMethod, mi.ExpressionStatement, mi.TheoryConversion?.Method })
                 .OfType<SyntaxNode>();
 
             // Use TrackNodes to maintain node identity across replacements
@@ -216,13 +217,17 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
                     newSyntax = root.RemoveNode(testMethodInRoot, SyntaxRemoveOptions.KeepNoTrivia);
                 }
             }
+            else if (mockInfo.TheoryConversion is not null)
+            {
+                newSyntax = ConvertTheoryToFact(root, mockInfo.TheoryConversion, mockInfo.ExpressionStatement);
+            }
             else if (mockInfo.ExpressionStatement is not null)
             {
                 // Delete the whole expression of the mock - use GetCurrentNode for the same reason.
                 var expressionInRoot = root.GetCurrentNode(mockInfo.ExpressionStatement);
                 if (expressionInRoot is not null)
                 {
-                    newSyntax = root.RemoveNode(expressionInRoot, SyntaxRemoveOptions.KeepTrailingTrivia);
+                    newSyntax = RemoveNodeCleanly(root, expressionInRoot);
                 }
             }
         }
@@ -551,9 +556,91 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
         return newRoot.RemoveNode(newRoot.FindNode(nodeToRemove.Span), SyntaxRemoveOptions.KeepNoTrivia)!;
     }
 
+    private static SyntaxNode ConvertTheoryToFact(SyntaxNode root, TheoryConversionInfo info, ExpressionStatementSyntax? expressionStatement)
+    {
+        // Step 1: remove the Returns(...) expression statement first so the method node
+        // stays in the tree and GetCurrentNode still resolves it in step 2.
+        if (expressionStatement is not null)
+        {
+            var currentExpr = root.GetCurrentNode(expressionStatement);
+            if (currentExpr is not null)
+            {
+                root = RemoveNodeCleanly(root, currentExpr);
+            }
+        }
+
+        // Step 2: get the (now possibly shrunk) method from the updated root.
+        if (root.GetCurrentNode(info.Method) is not MethodDeclarationSyntax currentMethod)
+        {
+            return root;
+        }
+
+        // Step 3: swap [Theory] → [Fact] and drop all [InlineData] attribute lists.
+        var newAttributeLists = currentMethod.AttributeLists
+            .Select(al =>
+            {
+                var kept = al.Attributes
+                    .Where(a => !a.Name.ToString().Contains("InlineData"))
+                    .Select(a => a.Name.ToString().Contains("Theory")
+                        ? a.WithName(SyntaxFactory.IdentifierName("Fact"))
+                        : a)
+                    .ToList();
+                return kept.Count == 0 ? null : al.WithAttributes(SyntaxFactory.SeparatedList(kept));
+            })
+            .OfType<AttributeListSyntax>()
+            .ToList();
+
+        var newMethod = currentMethod.WithAttributeLists(SyntaxFactory.List(newAttributeLists));
+
+        // Step 4: remove the bool parameter from the method signature.
+        var paramToRemove = newMethod.ParameterList.Parameters
+            .FirstOrDefault(p => p.Identifier.Text == info.ParamName);
+        if (paramToRemove is not null)
+        {
+            newMethod = newMethod.WithParameterList(
+                newMethod.ParameterList.WithParameters(
+                    newMethod.ParameterList.Parameters.Remove(paramToRemove)));
+        }
+
+        return root.ReplaceNode(currentMethod, newMethod.WithAdditionalAnnotations(Formatter.Annotation));
+    }
+
+    private static bool IsTheoryWithBoolInlineData(MethodDeclarationSyntax method)
+    {
+        var attributes = method.AttributeLists.SelectMany(al => al.Attributes).ToList();
+
+        if (!attributes.Any(a => a.Name.ToString() is "Theory" or "TheoryAttribute"))
+        {
+            return false;
+        }
+
+        // Only handle the simple case: exactly two single-argument [InlineData] attributes,
+        // one with `true` and one with `false`.
+        var inlineDataValues = attributes
+            .Where(a => a.Name.ToString() is "InlineData" or "InlineDataAttribute")
+            .Select(a => a.ArgumentList?.Arguments)
+            .Where(args => args is { Count: 1 })
+            .Select(args => args!.Value[0].Expression)
+            .ToList();
+
+        return inlineDataValues.Count == 2
+            && inlineDataValues.Any(e => e.IsKind(SyntaxKind.TrueLiteralExpression))
+            && inlineDataValues.Any(e => e.IsKind(SyntaxKind.FalseLiteralExpression));
+    }
+
+    private static bool IsParameterOnlyUsedOnce(MethodDeclarationSyntax method, string paramName)
+    {
+        var searchRoot = (SyntaxNode?)method.Body ?? method.ExpressionBody;
+        if (searchRoot is null) return true;
+
+        return searchRoot.DescendantNodes()
+            .OfType<IdentifierNameSyntax>()
+            .Count(id => id.Identifier.Text == paramName) == 1;
+    }
+
     private static MockReturnInfo? AnalyzeMockReturns(SyntaxNode node, SemanticModel semanticModel)
     {
-        // Check pattern: featureService.IsEnabled(flag).Returns(false)
+        // Check pattern: featureService.IsEnabled(flag).Returns(...)
         if (node.FirstAncestorOrSelf<InvocationExpressionSyntax>() is not
             {
                 Expression: MemberAccessExpressionSyntax { Name.Identifier.Text: IsEnabledMethodName },
@@ -572,6 +659,19 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
         var testMethod = returnsFalse ? returnsAccess.FirstAncestorOrSelf<MemberDeclarationSyntax>() : null;
         var expressionStatement = returnsParent.FirstAncestorOrSelf<ExpressionStatementSyntax>();
 
-        return new MockReturnInfo(returnsFalse, testMethod, expressionStatement);
+        // Check for Theory→Fact conversion: Returns(param) where the method is a simple
+        // [Theory] with only [InlineData(true)] and [InlineData(false)], and the param
+        // is not used anywhere else in the method body.
+        TheoryConversionInfo? theoryConversion = null;
+        if (!secondArg.Value.ConstantValue.HasValue
+            && secondArg.Value is IParameterReferenceOperation { Parameter: var param }
+            && returnsAccess.FirstAncestorOrSelf<MethodDeclarationSyntax>() is { } theoryMethod
+            && IsTheoryWithBoolInlineData(theoryMethod)
+            && IsParameterOnlyUsedOnce(theoryMethod, param.Name))
+        {
+            theoryConversion = new TheoryConversionInfo(theoryMethod, param.Name);
+        }
+
+        return new MockReturnInfo(returnsFalse, testMethod, expressionStatement, theoryConversion);
     }
 }
