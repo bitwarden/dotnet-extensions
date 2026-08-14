@@ -2329,7 +2329,7 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
     }
 
     [Fact]
-    public async Task NegatedFlagInAndChain_FalseShortCircuits_RemovesBlock()
+    public async Task NegatedFlagInAndChain_PreservesRemainingCondition()
     {
         await RunDefaultCodeFixAsync(
             """
@@ -2376,11 +2376,62 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
 
                 public void Process(IFeatureService featureService)
                 {
+                    if (_condition)
+                    {
+                        DoThing();
+                    }
 
                     Continue();
                 }
 
                 private void DoThing() { }
+                private void Continue() { }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task NegatedFlagOnRightOfAndChain_PreservesNullGuard()
+    {
+        await RunDefaultCodeFixAsync(
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class MyService
+            {
+                public void Process(IFeatureService featureService, object? data)
+                {
+                    if (data is not null && !featureService.IsEnabled(MyFlags.Flag))
+                    {
+                        throw new System.InvalidOperationException();
+                    }
+
+                    Continue();
+                }
+
+                private void Continue() { }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class MyService
+            {
+                public void Process(IFeatureService featureService, object? data)
+                {
+                    if (data is not null)
+                    {
+                        throw new System.InvalidOperationException();
+                    }
+
+                    Continue();
+                }
+
                 private void Continue() { }
             }
             """

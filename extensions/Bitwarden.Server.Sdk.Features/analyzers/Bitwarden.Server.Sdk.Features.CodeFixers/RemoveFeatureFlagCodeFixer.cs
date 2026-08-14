@@ -191,6 +191,11 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
             PrefixUnaryExpressionSyntax { RawKind: (int)SyntaxKind.LogicalNotExpression, Parent: IfStatementSyntax ifStatement } =>
                 root.ReplaceNode(ifStatement, GetStatements(ifStatement.Else?.Statement, ifStatement.GetLeadingTrivia())),
 
+            // !IsEnabled(flag) is one operand of a binary expression (e.g. condition && !flag).
+            // Strip only the flag operand; keep the rest of the binary so guards like `x is not null` are preserved.
+            PrefixUnaryExpressionSyntax { RawKind: (int)SyntaxKind.LogicalNotExpression, Parent: BinaryExpressionSyntax binaryExpression } prefixUnary =>
+                root.ReplaceNode(binaryExpression, SimplifyBinary(binaryExpression, prefixUnary)),
+
             // expr is false — flag is always-on (true), so condition is always false; keep else, drop then.
             IsPatternExpressionSyntax
             {
