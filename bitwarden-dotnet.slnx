@@ -42,6 +42,16 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.HealthChecks/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.HealthChecks/tests/Bitwarden.Server.Sdk.HealthChecks.Tests/Bitwarden.Server.Sdk.HealthChecks.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.MessageBroker/" />
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.MessageBroker/src/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.MessageBroker/src/Bitwarden.Server.Sdk.MessageBroker.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.MessageBroker/perf/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.MessageBroker/perf/Bitwarden.Server.Sdk.MessageBroker.Microbenchmarks/Bitwarden.Server.Sdk.MessageBroker.Microbenchmarks.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.MessageBroker/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.MessageBroker/tests/Bitwarden.Server.Sdk.MessageBroker.Tests/Bitwarden.Server.Sdk.MessageBroker.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.WebEssentials/">
     <Project Path="extensions/Bitwarden.Server.Sdk.WebEssentials/src/Bitwarden.Server.Sdk.WebEssentials.csproj" />
   </Folder>
