@@ -28,10 +28,10 @@ internal sealed class ChannelPublisher<T> : IPublisher<T>
         var messageId = Guid.NewGuid().ToString();
         var traceId = activity?.Id;
         await _topic.WriteAsync(
-            writer =>
+            (writer, escrowFallback) =>
             {
                 var consumerActivity = MessageBrokerActivitySource.StartConsumerActivity(_topicName, traceId);
-                return new ChannelEnvelope<T>(writer, message, messageId, traceId,
+                return new ChannelEnvelope<T>(writer, escrowFallback, message, messageId, traceId,
                     deliveryCount: 1, _maxDeliveryCount, _logger, _topicName, consumerActivity);
             },
             cancellationToken);

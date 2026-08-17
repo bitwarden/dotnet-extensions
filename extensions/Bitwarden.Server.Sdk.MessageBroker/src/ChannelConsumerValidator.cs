@@ -6,12 +6,12 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>Marks that an <see cref="ISubscriber{T}"/> was registered for a topic key.</summary>
 internal sealed record ChannelSubscriberDescriptor(Type MessageType, string SubscriptionKey);
 
-/// <summary>Marks that a <see cref="MessageConsumer{T}"/> was registered for a topic key.</summary>
+/// <summary>Marks that a <see cref="IMessageConsumer{T}"/> was registered for a topic key.</summary>
 internal sealed record ChannelConsumerDescriptor(Type MessageType, string SubscriptionKey);
 
 /// <summary>
 /// Validates at startup that every channel subscriber has a corresponding
-/// <see cref="MessageConsumer{T}"/> hosted service. Only runs when the in-memory channel
+/// <see cref="IMessageConsumer{T}"/> hosted service. Only runs when the in-memory channel
 /// backend is active (no Azure Service Bus or Rabbit connection string configured).
 /// </summary>
 internal sealed class ChannelConsumerValidationService(

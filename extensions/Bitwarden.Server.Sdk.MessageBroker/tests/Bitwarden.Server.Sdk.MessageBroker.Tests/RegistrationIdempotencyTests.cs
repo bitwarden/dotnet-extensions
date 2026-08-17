@@ -90,9 +90,9 @@ public class RegistrationIdempotencyTests
     private static int CountHostedServices(IServiceCollection services) =>
         services.Count(d => d.ServiceType == typeof(IHostedService));
 
-    private sealed class NullConsumer(ISubscriber<MyItem> subscriber) : MessageConsumer<MyItem>(subscriber)
+    private sealed class NullConsumer : IMessageConsumer<MyItem>
     {
-        protected override Task HandleAsync(Envelope<MyItem> envelope, CancellationToken cancellationToken)
+        public Task HandleAsync(Envelope<MyItem> envelope, CancellationToken cancellationToken)
             => Task.CompletedTask;
     }
 }

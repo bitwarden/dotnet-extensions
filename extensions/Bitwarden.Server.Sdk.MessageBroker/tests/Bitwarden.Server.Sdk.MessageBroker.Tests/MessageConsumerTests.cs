@@ -206,10 +206,9 @@ public class MessageConsumerTests
         public SemaphoreSlim Received { get; } = new(0);
     }
 
-    private sealed class SignalingConsumer(ISubscriber<MyItem> subscriber, ConsumerState state)
-        : MessageConsumer<MyItem>(subscriber)
+    private sealed class SignalingConsumer(ConsumerState state) : IMessageConsumer<MyItem>
     {
-        protected override Task HandleAsync(Envelope<MyItem> envelope, CancellationToken cancellationToken)
+        public Task HandleAsync(Envelope<MyItem> envelope, CancellationToken cancellationToken)
         {
             var attempt = Interlocked.Increment(ref state.AttemptCount);
             if (state.FailFirstDelivery && attempt == 1)
@@ -245,6 +244,7 @@ public class MessageConsumerTests
         protected override Task CompleteAsyncCore(CancellationToken cancellationToken) => Task.CompletedTask;
         protected override Task AbandonCoreAsync(CancellationToken cancellationToken) =>
             throw new InvalidOperationException("simulated abandon failure");
+        protected override Task DeadLetterAsyncCore(string? reason, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     /// <summary>A well-behaved envelope that completes and abandons without side effects.</summary>
@@ -256,5 +256,6 @@ public class MessageConsumerTests
         public override int DeliveryCount => 1;
         protected override Task CompleteAsyncCore(CancellationToken cancellationToken) => Task.CompletedTask;
         protected override Task AbandonCoreAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        protected override Task DeadLetterAsyncCore(string? reason, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

@@ -23,6 +23,7 @@ public class ChannelEscrowTests
             .ConfigureServices(services =>
             {
                 services.AddPublisher<MyItem>("test");
+                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
                 services.AddMessageConsumer<MyItem, BlockingConsumer>("test", "group");
                 services.AddSingleton<IMessageEscrowStore>(escrow);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
@@ -55,6 +56,7 @@ public class ChannelEscrowTests
             .ConfigureServices(services =>
             {
                 services.AddPublisher<MyItem>("test");
+                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
                 services.AddMessageConsumer<MyItem, BlockingConsumer>("test", "group");
                 services.AddSingleton<IMessageEscrowStore>(escrow);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
@@ -108,6 +110,7 @@ public class ChannelEscrowTests
             .ConfigureServices(services =>
             {
                 services.AddPublisher<MyItem>("test");
+                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
                 services.AddMessageConsumer<MyItem, BlockingConsumer>("test", "group");
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -134,6 +137,7 @@ public class ChannelEscrowTests
             .ConfigureServices(services =>
             {
                 services.AddPublisher<MyItem>("test");
+                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
                 services.AddMessageConsumer<MyItem, BlockingConsumer>("test", "group");
                 services.AddSingleton<IMessageEscrowStore>(new ThrowingOnReadEscrowStore());
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
@@ -228,6 +232,7 @@ public class ChannelEscrowTests
             .ConfigureServices(services =>
             {
                 services.AddPublisher<MyItem>("test");
+                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
                 services.AddMessageConsumer<MyItem, BlockingConsumer>("test", "group");
                 services.AddSingleton<IMessageEscrowStore>(new ThrowingOnWriteEscrowStore());
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
@@ -259,6 +264,7 @@ public class ChannelEscrowTests
                 new Dictionary<string, string?> { { "RabbitUri", "amqp://guest:guest@localhost:1/" } }))
             .ConfigureServices(services =>
             {
+                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
                 services.AddMessageConsumer<MyItem, BlockingConsumer>("test", "group");
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -284,6 +290,7 @@ public class ChannelEscrowTests
                 services.AddKeyedSingleton<IMessageSerializer>("test",
                     (_, _) => new ThrowingOnSerializeSerializer());
                 services.AddPublisher<MyItem>("test");
+                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
                 services.AddMessageConsumer<MyItem, BlockingConsumer>("test", "group");
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -327,16 +334,25 @@ public class ChannelEscrowTests
         }
     }
 
-    /// <summary>Never processes messages; all channel items remain buffered for escrow testing.</summary>
-    private sealed class BlockingConsumer(ISubscriber<MyItem> subscriber) : MessageConsumer<MyItem>(subscriber)
+    /// <summary>
+    /// Never yields any messages; the consumer loop blocks until cancellation, leaving all
+    /// <see cref="ChannelTopic{T}"/> messages buffered for the escrow drain.
+    /// </summary>
+    private sealed class NeverYieldingSubscriber : ISubscriber<MyItem>
     {
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        public async IAsyncEnumerable<Envelope<MyItem>> SubscribeAsync(
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            try { await Task.Delay(Timeout.Infinite, stoppingToken); }
+            try { await Task.Delay(Timeout.Infinite, cancellationToken); }
             catch (OperationCanceledException) { }
+            yield break;
         }
+    }
 
-        protected override Task HandleAsync(Envelope<MyItem> envelope, CancellationToken cancellationToken)
+    /// <summary>Never processes messages; used alongside <see cref="NeverYieldingSubscriber"/>.</summary>
+    private sealed class BlockingConsumer : IMessageConsumer<MyItem>
+    {
+        public Task HandleAsync(Envelope<MyItem> envelope, CancellationToken cancellationToken)
             => Task.CompletedTask;
     }
 
@@ -346,10 +362,9 @@ public class ChannelEscrowTests
         public SemaphoreSlim Received { get; } = new(0, int.MaxValue);
     }
 
-    private sealed class RecordingConsumer(ISubscriber<MyItem> subscriber, RecordingState state)
-        : MessageConsumer<MyItem>(subscriber)
+    private sealed class RecordingConsumer(RecordingState state) : IMessageConsumer<MyItem>
     {
-        protected override Task HandleAsync(Envelope<MyItem> envelope, CancellationToken cancellationToken)
+        public Task HandleAsync(Envelope<MyItem> envelope, CancellationToken cancellationToken)
         {
             state.Ids.Add(envelope.Message.Id);
             state.Received.Release();

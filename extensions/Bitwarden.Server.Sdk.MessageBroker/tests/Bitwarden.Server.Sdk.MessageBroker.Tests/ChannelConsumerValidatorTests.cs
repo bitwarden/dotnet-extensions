@@ -95,9 +95,9 @@ public class ChannelConsumerValidatorTests
         }
     }
 
-    private sealed class NoOpConsumer(ISubscriber<MyItem> subscriber) : MessageConsumer<MyItem>(subscriber)
+    private sealed class NoOpConsumer : IMessageConsumer<MyItem>
     {
-        protected override Task HandleAsync(Envelope<MyItem> envelope, CancellationToken cancellationToken)
+        public Task HandleAsync(Envelope<MyItem> envelope, CancellationToken cancellationToken)
             => Task.CompletedTask;
     }
 }

@@ -22,7 +22,9 @@ public static class MessageBrokerServiceCollectionExtensions
             new SystemTextJsonMessageSerializer(
                 sp.GetRequiredService<IOptionsMonitor<MessageBrokerSerializerOptions>>(), (string)key!));
         services.TryAddKeyedSingleton<ChannelTopic<T>>(name, (sp, key) =>
-            new ChannelTopic<T>(sp.GetRequiredService<IOptionsMonitor<MessageTopicOptions<T>>>().Get((string)key!).SubscriptionNames,
+            new ChannelTopic<T>(
+                sp.GetRequiredService<IOptionsMonitor<MessageTopicOptions<T>>>().Get((string)key!).SubscriptionNames,
+                sp.GetServices<ChannelEscrowRegistration<T>>(),
                 sp.GetRequiredService<MessageBrokerMetrics>(),
                 (string)key!));
         services.TryAddKeyedSingleton<IPublisher<T>>(name, (sp, key) =>
@@ -72,12 +74,15 @@ public static class MessageBrokerServiceCollectionExtensions
                 sp.GetRequiredService<IOptionsMonitor<MessageBrokerSerializerOptions>>(), (string)key!));
         services.Configure<MessageTopicOptions<T>>(name, opts => opts.SubscriptionNames.Add(subscriptionName));
         services.TryAddKeyedSingleton<ChannelTopic<T>>(name, (sp, key) =>
-            new ChannelTopic<T>(sp.GetRequiredService<IOptionsMonitor<MessageTopicOptions<T>>>().Get((string)key!).SubscriptionNames,
+            new ChannelTopic<T>(
+                sp.GetRequiredService<IOptionsMonitor<MessageTopicOptions<T>>>().Get((string)key!).SubscriptionNames,
+                sp.GetServices<ChannelEscrowRegistration<T>>(),
                 sp.GetRequiredService<MessageBrokerMetrics>(),
                 (string)key!));
         // Register ChannelTopic<T> as IHostedService exactly once per (T, name) so it stops last
-        // in the LIFO shutdown sequence — after all consumers and escrow services. We use a private
-        // marker type to detect duplicates independently of the keyed-singleton registration (which
+        // in the LIFO shutdown sequence — after all consumers. ChannelTopic.StopAsync drains any
+        // remaining channel messages to escrow before sealing the writers. We use a private marker
+        // type to detect duplicates independently of the keyed-singleton registration (which
         // AddPublisher may have already created for the same topic).
         var marker = new ChannelTopicLifetimeMarker(typeof(T), name);
         if (!services.Any(d => d.ServiceType == typeof(ChannelTopicLifetimeMarker)
@@ -133,33 +138,34 @@ public static class MessageBrokerServiceCollectionExtensions
         this IServiceCollection services,
         string name,
         string subscriptionName)
-        where TConsumer : MessageConsumer<T>
+        where TConsumer : class, IMessageConsumer<T>
     {
         services.AddSubscriber<T>(name, subscriptionName);
         var subscriptionKey = $"{name}/{subscriptionName}";
 
-        // Register the escrow service BEFORE the consumer so it stops AFTER the consumer (LIFO
-        // stop order). This ensures the consumer has exited and messages are back in the channel
-        // before the escrow reads and persists them.
-        var escrowIsNew = !services.Any(d => d.ServiceType == typeof(ChannelEscrowService<T>) && (string?)d.ServiceKey == subscriptionKey);
-        services.TryAddKeyedSingleton<ChannelEscrowService<T>>(subscriptionKey, (sp, _) =>
-            new ChannelEscrowService<T>(
-                sp.GetRequiredKeyedService<ChannelTopic<T>>(name).GetOrAddSubscription(subscriptionName),
-                subscriptionKey, name,
+        // Register ChannelEscrowRegistration so ChannelTopic resolves it via
+        // IEnumerable<ChannelEscrowRegistration<T>> and wires up startup recovery and shutdown
+        // drain callbacks. Keyed by subscriptionKey for deduplication; also registered unkeyed
+        // so DI collects all instances when resolving the enumerable.
+        var escrowIsNew = !services.Any(d => d.ServiceType == typeof(ChannelEscrowRegistration<T>) && (string?)d.ServiceKey == subscriptionKey);
+        services.TryAddKeyedSingleton<ChannelEscrowRegistration<T>>(subscriptionKey, (sp, _) =>
+            new ChannelEscrowRegistration<T>(
+                name, subscriptionName, subscriptionKey,
                 sp.GetRequiredKeyedService<IMessageSerializer>(name),
                 sp.GetRequiredService<IOptions<MessagingOptions>>(),
                 sp.GetService<IMessageEscrowStore>(),
-                sp.GetRequiredService<ILogger<ChannelEscrowService<T>>>()));
+                sp.GetRequiredService<ILogger<ChannelEscrowRegistration<T>>>()));
         if (escrowIsNew)
-            services.AddSingleton<IHostedService>(sp =>
-                sp.GetRequiredKeyedService<ChannelEscrowService<T>>(subscriptionKey));
+            services.AddSingleton<ChannelEscrowRegistration<T>>(sp =>
+                sp.GetRequiredKeyedService<ChannelEscrowRegistration<T>>(subscriptionKey));
 
-        var consumerIsNew = !services.Any(d => d.ServiceType == typeof(TConsumer));
-        services.TryAddSingleton<TConsumer>(sp =>
-            ActivatorUtilities.CreateInstance<TConsumer>(sp,
-                sp.GetRequiredKeyedService<ISubscriber<T>>(subscriptionKey)));
-        if (consumerIsNew)
-            services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<TConsumer>());
+        // Forward ISubscriber<T> under typeof(TConsumer) so ConsumerBackgroundService can resolve
+        // it via IServiceProvider without a keyed-service attribute, making the type constructable
+        // by DI and letting TryAddEnumerable deduplicate the IHostedService registration by type.
+        services.TryAddSingleton<TConsumer>();
+        services.TryAddKeyedSingleton<ISubscriber<T>>(typeof(TConsumer),
+            (sp, _) => sp.GetRequiredKeyedService<ISubscriber<T>>(subscriptionKey));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ConsumerBackgroundService<T, TConsumer>>());
         services.AddSingleton(new ChannelConsumerDescriptor(typeof(T), subscriptionKey));
         // The validator is registered here (not in AddSubscriber) so it only activates when the app
         // has opted into the MessageConsumer framework. Raw AddSubscriber usage (tests, out-of-process

@@ -7,6 +7,7 @@ namespace Bitwarden.Server.Sdk.MessageBroker;
 public abstract class Envelope<T>
 {
     private readonly Activity? _activity;
+    private bool _settled;
 
     internal Envelope(T message, Activity? activity = null)
     {
@@ -37,6 +38,8 @@ public abstract class Envelope<T>
     /// <summary>Acknowledges the message, removing it from the queue permanently.</summary>
     public Task CompleteAsync(CancellationToken cancellationToken = default)
     {
+        if (_settled) return Task.CompletedTask;
+        _settled = true;
         _activity?.Dispose();
         return CompleteAsyncCore(cancellationToken);
     }
@@ -50,6 +53,8 @@ public abstract class Envelope<T>
     /// </summary>
     public Task AbandonAsync(string? reason = null, CancellationToken cancellationToken = default)
     {
+        if (_settled) return Task.CompletedTask;
+        _settled = true;
         _activity?.SetStatus(ActivityStatusCode.Error, reason);
         _activity?.Dispose();
         return AbandonCoreAsync(cancellationToken);
@@ -57,4 +62,26 @@ public abstract class Envelope<T>
 
     /// <inheritdoc cref="AbandonAsync"/>
     protected abstract Task AbandonCoreAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Permanently removes the message without redelivery. On Azure Service Bus and RabbitMQ this
+    /// routes the message to the broker's dead-letter queue or exchange; on the in-memory channel
+    /// backend the message is discarded with a warning log.
+    /// </summary>
+    /// <remarks>
+    /// May be called from inside <see cref="IMessageConsumer{T}.HandleAsync"/> when the consumer
+    /// determines a message is permanently unprocessable. The framework will skip its own
+    /// settlement after <see cref="IMessageConsumer{T}.HandleAsync"/> returns or throws.
+    /// </remarks>
+    public Task DeadLetterAsync(string? reason = null, CancellationToken cancellationToken = default)
+    {
+        if (_settled) return Task.CompletedTask;
+        _settled = true;
+        _activity?.SetStatus(ActivityStatusCode.Error, reason);
+        _activity?.Dispose();
+        return DeadLetterAsyncCore(reason, cancellationToken);
+    }
+
+    /// <inheritdoc cref="DeadLetterAsync"/>
+    protected abstract Task DeadLetterAsyncCore(string? reason, CancellationToken cancellationToken);
 }

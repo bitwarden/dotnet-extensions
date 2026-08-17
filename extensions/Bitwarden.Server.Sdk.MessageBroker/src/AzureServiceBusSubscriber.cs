@@ -103,5 +103,8 @@ internal sealed class AzureServiceBusSubscriber<T> : ISubscriber<T>, IAsyncDispo
         // automatically on close, which is equivalent to abandonment.
         protected override Task AbandonCoreAsync(CancellationToken cancellationToken) =>
             _receiver.IsClosed ? Task.CompletedTask : _receiver.AbandonMessageAsync(_sbMessage, cancellationToken: cancellationToken);
+
+        protected override Task DeadLetterAsyncCore(string? reason, CancellationToken cancellationToken) =>
+            _receiver.IsClosed ? Task.CompletedTask : _receiver.DeadLetterMessageAsync(_sbMessage, deadLetterReason: reason, cancellationToken: cancellationToken);
     }
 }
