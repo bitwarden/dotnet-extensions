@@ -51,17 +51,17 @@ public abstract class Envelope<T>
     /// Abandons the message, returning it to the queue for redelivery, and marks the
     /// message's activity as failed with <paramref name="reason"/>.
     /// </summary>
-    public Task AbandonAsync(string? reason = null, CancellationToken cancellationToken = default)
+    public Task RequeueAsync(string? reason = null, CancellationToken cancellationToken = default)
     {
         if (_settled) return Task.CompletedTask;
         _settled = true;
         _activity?.SetStatus(ActivityStatusCode.Error, reason);
         _activity?.Dispose();
-        return AbandonCoreAsync(cancellationToken);
+        return RequeueCoreAsync(cancellationToken);
     }
 
-    /// <inheritdoc cref="AbandonAsync"/>
-    protected abstract Task AbandonCoreAsync(CancellationToken cancellationToken);
+    /// <inheritdoc cref="RequeueAsync"/>
+    protected abstract Task RequeueCoreAsync(CancellationToken cancellationToken);
 
     /// <summary>
     /// Permanently removes the message without redelivery. On Azure Service Bus and RabbitMQ this

@@ -147,7 +147,7 @@ internal sealed class ChannelEscrowRegistration<T>
                 _subscriptionKey, m.MessageId);
     }
 
-    // Safety net: called when AbandonCoreAsync cannot write back to the channel because the
+    // Safety net: called when RequeueCoreAsync cannot write back to the channel because the
     // writer is already closed. Writes the single message straight to the store so it is not lost.
     private async Task EscrowDirectAsync(Envelope<T> envelope, CancellationToken cancellationToken)
     {

@@ -39,7 +39,7 @@ internal sealed class ConsumerBackgroundService<T, TConsumer> : BackgroundServic
             {
                 try
                 {
-                    await envelope.AbandonAsync(ex.Message, CancellationToken.None);
+                    await envelope.RequeueAsync(ex.Message, CancellationToken.None);
                 }
                 catch (Exception)
                 {

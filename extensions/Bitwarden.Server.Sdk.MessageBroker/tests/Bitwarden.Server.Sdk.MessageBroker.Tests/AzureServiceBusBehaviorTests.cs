@@ -122,7 +122,7 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
     }
 
     /// <summary>
-    /// Verifies that calling <see cref="Envelope{T}.AbandonAsync"/> after the iterator has been
+    /// Verifies that calling <see cref="Envelope{T}.RequeueAsync"/> after the iterator has been
     /// disposed (receiver closed) completes without error, covering the
     /// <c>_receiver.IsClosed ? Task.CompletedTask : ...</c> branch.
     /// </summary>
@@ -150,8 +150,8 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
         Assert.NotNull(captured!.MessageId);
         _ = captured.TraceId; // null when no tracing active; exercises the getter
 
-        // Receiver is now closed; AbandonAsync must short-circuit with Task.CompletedTask.
-        await captured.AbandonAsync(cancellationToken: TestContext.Current.CancellationToken);
+        // Receiver is now closed; RequeueAsync must short-circuit with Task.CompletedTask.
+        await captured.RequeueAsync(cancellationToken: TestContext.Current.CancellationToken);
     }
 
     // ASB subscriptions are persistent and accumulate messages across tests. Drain all

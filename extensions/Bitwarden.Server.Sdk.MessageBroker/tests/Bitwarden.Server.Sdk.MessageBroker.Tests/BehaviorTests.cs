@@ -191,7 +191,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         {
             Assert.Equal(1, envelope.Message.Id);
             Assert.Equal(1, envelope.DeliveryCount);
-            await envelope.AbandonAsync(cancellationToken: TestContext.Current.CancellationToken);
+            await envelope.RequeueAsync(cancellationToken: TestContext.Current.CancellationToken);
             break;
         }
 
@@ -737,7 +737,7 @@ public abstract class BehaviorTests : IAsyncLifetime
             {
                 deliveries++;
                 if (deliveries == 1)
-                    await envelope.AbandonAsync(cancellationToken: ct);
+                    await envelope.RequeueAsync(cancellationToken: ct);
                 else
                 {
                     await envelope.CompleteAsync(ct);

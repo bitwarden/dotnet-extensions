@@ -7,7 +7,7 @@ namespace Bitwarden.Server.Sdk.MessageBroker;
 /// Register with
 /// <see cref="Microsoft.Extensions.DependencyInjection.MessageBrokerServiceCollectionExtensions.AddMessageConsumer{T,TConsumer}"/>,
 /// which wires up the <see cref="ISubscriber{T}"/> and hosts the consumer's processing loop.
-/// Do not call <see cref="Envelope{T}.CompleteAsync"/> or <see cref="Envelope{T}.AbandonAsync"/>
+/// Do not call <see cref="Envelope{T}.CompleteAsync"/> or <see cref="Envelope{T}.RequeueAsync"/>
 /// inside <see cref="HandleAsync"/> — the framework settles the envelope automatically. To
 /// permanently discard a message without redelivery, call
 /// <see cref="Envelope{T}.DeadLetterAsync"/> and then return normally.

@@ -116,7 +116,7 @@ internal sealed class RabbitSubscriber<T> : ISubscriber<T>
 
         // If the channel is already closed (iterator was disposed), Rabbit automatically
         // requeued the unacked message on close, so there is nothing left to do.
-        protected override Task AbandonCoreAsync(CancellationToken cancellationToken) =>
+        protected override Task RequeueCoreAsync(CancellationToken cancellationToken) =>
             _channel.IsOpen ? _channel.BasicNackAsync(_deliveryTag, multiple: false, requeue: true, cancellationToken).AsTask() : Task.CompletedTask;
 
         protected override Task DeadLetterAsyncCore(string? reason, CancellationToken cancellationToken) =>

@@ -51,7 +51,7 @@ internal sealed class ChannelEnvelope<T> : Envelope<T>
         return Task.CompletedTask;
     }
 
-    protected override Task AbandonCoreAsync(CancellationToken cancellationToken)
+    protected override Task RequeueCoreAsync(CancellationToken cancellationToken)
     {
         if (DeliveryCount >= _maxDeliveryCount)
         {

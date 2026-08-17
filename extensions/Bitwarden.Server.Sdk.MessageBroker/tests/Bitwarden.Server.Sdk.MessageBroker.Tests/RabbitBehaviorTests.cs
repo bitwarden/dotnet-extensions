@@ -160,9 +160,9 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
     }
 
     /// <summary>
-    /// Verifies that calling <see cref="Envelope{T}.AbandonAsync"/> after the iterator has been
+    /// Verifies that calling <see cref="Envelope{T}.RequeueAsync"/> after the iterator has been
     /// disposed (rabbitChannel closed) completes without error, covering the
-    /// <c>_channel.IsOpen ? ... : Task.CompletedTask</c> branch in <c>RabbitSubscriber.AbandonCoreAsync</c>.
+    /// <c>_channel.IsOpen ? ... : Task.CompletedTask</c> branch in <c>RabbitSubscriber.RequeueCoreAsync</c>.
     /// </summary>
     [Fact(Timeout = 60 * 1000)]
     public async Task AbandonOnClosedChannelCompletesCleanly()
@@ -188,8 +188,8 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
         Assert.NotNull(captured!.MessageId);
         _ = captured.TraceId; // null when no tracing active; exercises the getter
 
-        // Channel is now closed; AbandonAsync must short-circuit with Task.CompletedTask.
-        await captured.AbandonAsync(cancellationToken: TestContext.Current.CancellationToken);
+        // Channel is now closed; RequeueAsync must short-circuit with Task.CompletedTask.
+        await captured.RequeueAsync(cancellationToken: TestContext.Current.CancellationToken);
     }
 
     public override async ValueTask DisposeAsync()

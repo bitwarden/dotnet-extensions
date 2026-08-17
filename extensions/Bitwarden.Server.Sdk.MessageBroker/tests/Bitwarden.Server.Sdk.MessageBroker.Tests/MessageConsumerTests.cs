@@ -36,7 +36,7 @@ public class MessageConsumerTests
     }
 
     [Fact(Timeout = 60 * 1000)]
-    public async Task FailedMessageIsAbandoned()
+    public async Task FailedMessageIsRequeued()
     {
         var state = new ConsumerState { FailFirstDelivery = true };
 
@@ -55,7 +55,7 @@ public class MessageConsumerTests
         var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>("test");
         await publisher.PublishAsync(new MyItem(7), TestContext.Current.CancellationToken);
 
-        // The first delivery throws → the base class calls AbandonAsync → message is re-queued.
+        // The first delivery throws → the base class calls RequeueAsync → message is re-queued.
         // The second delivery succeeds → the semaphore is released.
         await state.Received.WaitAsync(TestContext.Current.CancellationToken);
 
@@ -95,7 +95,7 @@ public class MessageConsumerTests
     public async Task MessageExceedingMaxDeliveryCountIsDiscarded()
     {
         // MaxDeliveryCount=1: the first (and only) delivery is also the last.
-        // A failed first delivery triggers AbandonAsync, which discards instead of re-queuing.
+        // A failed first delivery triggers RequeueAsync, which discards instead of re-queuing.
         var state = new ConsumerState { FailFirstDelivery = true };
 
         var host = new HostBuilder()
@@ -128,11 +128,11 @@ public class MessageConsumerTests
     }
 
     /// <summary>
-    /// Verifies that when both HandleAsync and AbandonAsync throw, the consumer swallows
-    /// the abandon failure and continues processing subsequent messages.
+    /// Verifies that when both HandleAsync and RequeueAsync throw, the consumer swallows
+    /// the requeue failure and continues processing subsequent messages.
     /// </summary>
     [Fact(Timeout = 60 * 1000)]
-    public async Task ConsumerContinuesWhenAbandonThrows()
+    public async Task ConsumerContinuesWhenRequeueThrows()
     {
         // Feed envelopes into the consumer via a direct channel so we control the sequence.
         var ch = Channel.CreateUnbounded<Envelope<MyItem>>();
@@ -153,9 +153,9 @@ public class MessageConsumerTests
 
         await host.StartAsync(TestContext.Current.CancellationToken);
 
-        // First: HandleAsync throws (FailFirstDelivery), then AbandonAsync throws.
-        // The consumer must swallow the abandon failure and continue.
-        await ch.Writer.WriteAsync(new ThrowingAbandonEnvelope(), TestContext.Current.CancellationToken);
+        // First: HandleAsync throws (FailFirstDelivery), then RequeueAsync throws.
+        // The consumer must swallow the requeue failure and continue.
+        await ch.Writer.WriteAsync(new ThrowingRequeueEnvelope(), TestContext.Current.CancellationToken);
         await Task.Delay(200, TestContext.Current.CancellationToken);
 
         // Second: the consumer processes the good envelope normally.
@@ -234,20 +234,20 @@ public class MessageConsumerTests
             _reader.ReadAllAsync(cancellationToken);
     }
 
-    /// <summary>An envelope whose <see cref="Envelope{T}.AbandonAsync"/> always throws.</summary>
-    private sealed class ThrowingAbandonEnvelope : Envelope<MyItem>
+    /// <summary>An envelope whose <see cref="Envelope{T}.RequeueAsync"/> always throws.</summary>
+    private sealed class ThrowingRequeueEnvelope : Envelope<MyItem>
     {
-        public ThrowingAbandonEnvelope() : base(new MyItem(-1)) { }
-        public override string MessageId => "throwing-abandon";
+        public ThrowingRequeueEnvelope() : base(new MyItem(-1)) { }
+        public override string MessageId => "throwing-requeue";
         public override string? TraceId => null;
         public override int DeliveryCount => 1;
         protected override Task CompleteAsyncCore(CancellationToken cancellationToken) => Task.CompletedTask;
-        protected override Task AbandonCoreAsync(CancellationToken cancellationToken) =>
-            throw new InvalidOperationException("simulated abandon failure");
+        protected override Task RequeueCoreAsync(CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("simulated requeue failure");
         protected override Task DeadLetterAsyncCore(string? reason, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
-    /// <summary>A well-behaved envelope that completes and abandons without side effects.</summary>
+    /// <summary>A well-behaved envelope that completes and requeues without side effects.</summary>
     private sealed class GoodEnvelope : Envelope<MyItem>
     {
         public GoodEnvelope(MyItem message) : base(message) { }
@@ -255,7 +255,7 @@ public class MessageConsumerTests
         public override string? TraceId => null;
         public override int DeliveryCount => 1;
         protected override Task CompleteAsyncCore(CancellationToken cancellationToken) => Task.CompletedTask;
-        protected override Task AbandonCoreAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        protected override Task RequeueCoreAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         protected override Task DeadLetterAsyncCore(string? reason, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

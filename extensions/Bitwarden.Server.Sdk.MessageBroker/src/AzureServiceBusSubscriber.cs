@@ -101,7 +101,7 @@ internal sealed class AzureServiceBusSubscriber<T> : ISubscriber<T>, IAsyncDispo
 
         // If the receiver is already closed (iterator was disposed), the lock was released
         // automatically on close, which is equivalent to abandonment.
-        protected override Task AbandonCoreAsync(CancellationToken cancellationToken) =>
+        protected override Task RequeueCoreAsync(CancellationToken cancellationToken) =>
             _receiver.IsClosed ? Task.CompletedTask : _receiver.AbandonMessageAsync(_sbMessage, cancellationToken: cancellationToken);
 
         protected override Task DeadLetterAsyncCore(string? reason, CancellationToken cancellationToken) =>
