@@ -43,26 +43,34 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
         {
             var factory = new ConnectionFactory { Uri = new Uri(uri) };
             var conn = await factory.CreateConnectionAsync(cancellationToken);
-
-            await using var channel = await conn.CreateChannelAsync(cancellationToken: cancellationToken);
-
-            foreach (var decl in _declarations)
+            try
             {
-                await channel.ExchangeDeclareAsync(decl.ExchangeName, ExchangeType.Fanout, durable: true,
-                    cancellationToken: cancellationToken);
+                await using var channel = await conn.CreateChannelAsync(cancellationToken: cancellationToken);
 
-                if (decl.QueueName is not null)
+                foreach (var decl in _declarations)
                 {
-                    await channel.QueueDeclareAsync(decl.QueueName, durable: true, exclusive: false,
-                        autoDelete: false,
-                        arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum" },
+                    await channel.ExchangeDeclareAsync(decl.ExchangeName, ExchangeType.Fanout, durable: true,
                         cancellationToken: cancellationToken);
-                    await channel.QueueBindAsync(decl.QueueName, decl.ExchangeName, routingKey: "",
-                        cancellationToken: cancellationToken);
-                }
-            }
 
-            _tcs.TrySetResult(conn);
+                    if (decl.QueueName is not null)
+                    {
+                        await channel.QueueDeclareAsync(decl.QueueName, durable: true, exclusive: false,
+                            autoDelete: false,
+                            arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum" },
+                            cancellationToken: cancellationToken);
+                        await channel.QueueBindAsync(decl.QueueName, decl.ExchangeName, routingKey: "",
+                            cancellationToken: cancellationToken);
+                    }
+                }
+
+                _tcs.TrySetResult(conn);
+            }
+            catch
+            {
+                // Topology declaration failed; dispose the connection we opened so it is not leaked.
+                await conn.DisposeAsync();
+                throw;
+            }
         }
         catch (Exception ex)
         {

@@ -52,7 +52,17 @@ internal sealed class AzureServiceBusSubscriber<T> : ISubscriber<T>, IAsyncDispo
 
             foreach (var sbMessage in received)
             {
-                var message = _serializer.Deserialize<T>(sbMessage.Body.ToArray());
+                T? message;
+                try
+                {
+                    message = _serializer.Deserialize<T>(sbMessage.Body.ToArray());
+                }
+                catch (Exception)
+                {
+                    await receiver.DeadLetterMessageAsync(sbMessage, cancellationToken: cancellationToken);
+                    continue;
+                }
+
                 if (message is not null)
                 {
                     _metrics.RecordConsume(_topicName);

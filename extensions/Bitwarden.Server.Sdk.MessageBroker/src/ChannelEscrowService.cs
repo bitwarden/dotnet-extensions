@@ -131,8 +131,8 @@ internal sealed class ChannelEscrowService<T> : IHostedService
         }
 
         foreach (var m in messages)
-            _logger.LogError("Undelivered message escrowed to log for {Key}: {MessageId} payload={Payload}",
-                _subscriptionKey, m.MessageId, Convert.ToBase64String(m.Payload));
+            _logger.LogError("Undelivered message escrowed to log for {Key}: {MessageId}",
+                _subscriptionKey, m.MessageId);
     }
 
     private bool IsExternalBackend()

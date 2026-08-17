@@ -38,8 +38,9 @@
 
   <ItemGroup>
     <!-- Testcontainers 4.13.0 transitively depends on SSH.NET 2025.1.0 (GHSA-q939-rpr3-3284).
-         No patched SSH.NET version is available via NuGet yet; suppress until Testcontainers
-         ships with a fixed dependency. -->
+         SSH.NET is not referenced directly. No patched version is available on NuGet yet;
+         suppress until Testcontainers ships with a fixed dependency.
+         TODO(2026-08-17): upgrade Testcontainers once it picks up SSH.NET 2026.0.0 or later. -->
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-q939-rpr3-3284" />
   </ItemGroup>
 

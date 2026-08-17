@@ -5,10 +5,17 @@ namespace Bitwarden.Server.Sdk.MessageBroker;
 
 /// <summary>Serializes and deserializes message broker messages.</summary>
 /// <remarks>
-/// Register a custom implementation before calling
+/// Register a custom implementation using
+/// <see cref="ServiceCollectionServiceExtensions.AddKeyedSingleton{TService,TImplementation}(IServiceCollection,object)"/>
+/// keyed to the topic name <em>before</em> calling
 /// <see cref="MessageBrokerServiceCollectionExtensions.AddPublisher{T}"/> or
 /// <see cref="MessageBrokerServiceCollectionExtensions.AddSubscriber{T}"/> to replace the default
-/// System.Text.Json serializer.
+/// System.Text.Json serializer for that topic:
+/// <code>
+/// services.AddKeyedSingleton&lt;IMessageSerializer, MySerializer&gt;("my-topic");
+/// services.AddPublisher&lt;MyMessage&gt;("my-topic");
+/// </code>
+/// A non-keyed <c>AddSingleton&lt;IMessageSerializer&gt;</c> registration is silently ignored.
 /// </remarks>
 public interface IMessageSerializer
 {

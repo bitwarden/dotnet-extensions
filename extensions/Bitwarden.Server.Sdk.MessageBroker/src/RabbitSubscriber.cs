@@ -34,7 +34,17 @@ internal sealed class RabbitSubscriber<T> : ISubscriber<T>
         var consumer = new AsyncEventingBasicConsumer(rabbitChannel);
         consumer.ReceivedAsync += async (_, ea) =>
         {
-            var message = _serializer.Deserialize<T>(ea.Body.Span);
+            T? message;
+            try
+            {
+                message = _serializer.Deserialize<T>(ea.Body.Span);
+            }
+            catch (Exception)
+            {
+                await rabbitChannel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false);
+                return;
+            }
+
             if (message is not null)
             {
                 var messageId = ea.BasicProperties.MessageId ?? Guid.NewGuid().ToString();
