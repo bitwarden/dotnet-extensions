@@ -198,6 +198,143 @@ public class MessageConsumerTests
         await host.StopAsync(TestContext.Current.CancellationToken);
     }
 
+    // -------------------------------------------------------------------------
+    // Settlement-guard tests
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// When <see cref="IMessageConsumer{T}.HandleAsync"/> returns without settling the envelope,
+    /// the framework calls <see cref="Envelope{T}.CompleteAsync"/> exactly once.
+    /// </summary>
+    [Fact(Timeout = 60 * 1000)]
+    public async Task FrameworkCompletesEnvelopeWhenHandlerDoesNotSettle()
+    {
+        var ch = Channel.CreateUnbounded<Envelope<MyItem>>();
+        var envelope = new TrackingEnvelope(new MyItem(1));
+
+        var host = new HostBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/test",
+                    (_, _) => new ChannelBackedSubscriber(ch.Reader));
+                services.AddMessageConsumer<MyItem, ActionConsumer>("test", "test");
+                services.AddSingleton<Func<Envelope<MyItem>, CancellationToken, Task>>(
+                    (_, _) => Task.CompletedTask);
+                services.AddOptions<MessagingOptions>().BindConfiguration("");
+            })
+            .Build();
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        await ch.Writer.WriteAsync(envelope, TestContext.Current.CancellationToken);
+        await envelope.Settled.WaitAsync(TestContext.Current.CancellationToken);
+        await host.StopAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, envelope.CompleteCalls);
+        Assert.Equal(0, envelope.RequeueCalls);
+        Assert.Equal(0, envelope.DeadLetterCalls);
+    }
+
+    /// <summary>
+    /// When <see cref="IMessageConsumer{T}.HandleAsync"/> calls
+    /// <see cref="Envelope{T}.RequeueAsync"/> explicitly and returns normally, the framework's
+    /// subsequent <see cref="Envelope{T}.CompleteAsync"/> is a no-op — the envelope is settled
+    /// exactly once via requeue.
+    /// </summary>
+    [Fact(Timeout = 60 * 1000)]
+    public async Task FrameworkSkipsCompleteWhenHandlerExplicitlyRequeues()
+    {
+        var ch = Channel.CreateUnbounded<Envelope<MyItem>>();
+        var envelope = new TrackingEnvelope(new MyItem(2));
+
+        var host = new HostBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/test",
+                    (_, _) => new ChannelBackedSubscriber(ch.Reader));
+                services.AddMessageConsumer<MyItem, ActionConsumer>("test", "test");
+                services.AddSingleton<Func<Envelope<MyItem>, CancellationToken, Task>>(
+                    (e, ct) => e.RequeueAsync(cancellationToken: ct));
+                services.AddOptions<MessagingOptions>().BindConfiguration("");
+            })
+            .Build();
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        await ch.Writer.WriteAsync(envelope, TestContext.Current.CancellationToken);
+        await envelope.Settled.WaitAsync(TestContext.Current.CancellationToken);
+        await host.StopAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, envelope.CompleteCalls);
+        Assert.Equal(1, envelope.RequeueCalls);
+        Assert.Equal(0, envelope.DeadLetterCalls);
+    }
+
+    /// <summary>
+    /// When <see cref="IMessageConsumer{T}.HandleAsync"/> calls
+    /// <see cref="Envelope{T}.DeadLetterAsync"/> and returns normally, the framework's subsequent
+    /// <see cref="Envelope{T}.CompleteAsync"/> is a no-op — the envelope is settled exactly once
+    /// via dead-letter.
+    /// </summary>
+    [Fact(Timeout = 60 * 1000)]
+    public async Task FrameworkSkipsCompleteWhenHandlerDeadLetters()
+    {
+        var ch = Channel.CreateUnbounded<Envelope<MyItem>>();
+        var envelope = new TrackingEnvelope(new MyItem(3));
+
+        var host = new HostBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/test",
+                    (_, _) => new ChannelBackedSubscriber(ch.Reader));
+                services.AddMessageConsumer<MyItem, ActionConsumer>("test", "test");
+                services.AddSingleton<Func<Envelope<MyItem>, CancellationToken, Task>>(
+                    (e, ct) => e.DeadLetterAsync(cancellationToken: ct));
+                services.AddOptions<MessagingOptions>().BindConfiguration("");
+            })
+            .Build();
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        await ch.Writer.WriteAsync(envelope, TestContext.Current.CancellationToken);
+        await envelope.Settled.WaitAsync(TestContext.Current.CancellationToken);
+        await host.StopAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, envelope.CompleteCalls);
+        Assert.Equal(0, envelope.RequeueCalls);
+        Assert.Equal(1, envelope.DeadLetterCalls);
+    }
+
+    /// <summary>
+    /// When <see cref="IMessageConsumer{T}.HandleAsync"/> throws, the framework calls
+    /// <see cref="Envelope{T}.RequeueAsync"/> exactly once — <see cref="Envelope{T}.CompleteAsync"/>
+    /// is never called.
+    /// </summary>
+    [Fact(Timeout = 60 * 1000)]
+    public async Task FrameworkRequeuesEnvelopeWhenHandlerThrows()
+    {
+        var ch = Channel.CreateUnbounded<Envelope<MyItem>>();
+        var envelope = new TrackingEnvelope(new MyItem(4));
+
+        var host = new HostBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/test",
+                    (_, _) => new ChannelBackedSubscriber(ch.Reader));
+                services.AddMessageConsumer<MyItem, ActionConsumer>("test", "test");
+                services.AddSingleton<Func<Envelope<MyItem>, CancellationToken, Task>>(
+                    (_, _) => Task.FromException(new InvalidOperationException("simulated failure")));
+                services.AddOptions<MessagingOptions>().BindConfiguration("");
+            })
+            .Build();
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        await ch.Writer.WriteAsync(envelope, TestContext.Current.CancellationToken);
+        await envelope.Settled.WaitAsync(TestContext.Current.CancellationToken);
+        await host.StopAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, envelope.CompleteCalls);
+        Assert.Equal(1, envelope.RequeueCalls);
+        Assert.Equal(0, envelope.DeadLetterCalls);
+    }
+
     private sealed class ConsumerState
     {
         public bool FailFirstDelivery { get; init; }
@@ -232,6 +369,62 @@ public class MessageConsumerTests
 
         public IAsyncEnumerable<Envelope<MyItem>> SubscribeAsync(CancellationToken cancellationToken = default) =>
             _reader.ReadAllAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Drives a consumer via a delegate so settlement-guard tests can vary handler behaviour
+    /// without defining a new consumer class per scenario.
+    /// </summary>
+    private sealed class ActionConsumer : IMessageConsumer<MyItem>
+    {
+        private readonly Func<Envelope<MyItem>, CancellationToken, Task> _handler;
+
+        public ActionConsumer(Func<Envelope<MyItem>, CancellationToken, Task> handler)
+        {
+            _handler = handler;
+        }
+
+        public Task HandleAsync(Envelope<MyItem> envelope, CancellationToken cancellationToken)
+            => _handler(envelope, cancellationToken);
+    }
+
+    /// <summary>
+    /// Records how many times each settlement path was taken so tests can assert exactly one
+    /// settlement occurred via the expected method. Releases <see cref="Settled"/> on any
+    /// settlement so the test can await it without a fixed delay.
+    /// </summary>
+    private sealed class TrackingEnvelope : Envelope<MyItem>
+    {
+        public int CompleteCalls;
+        public int RequeueCalls;
+        public int DeadLetterCalls;
+        public SemaphoreSlim Settled { get; } = new(0);
+
+        public TrackingEnvelope(MyItem message) : base(message) { }
+        public override string MessageId => Guid.NewGuid().ToString();
+        public override string? TraceId => null;
+        public override int DeliveryCount => 1;
+
+        protected override Task CompleteAsyncCore(CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref CompleteCalls);
+            Settled.Release();
+            return Task.CompletedTask;
+        }
+
+        protected override Task RequeueCoreAsync(CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref RequeueCalls);
+            Settled.Release();
+            return Task.CompletedTask;
+        }
+
+        protected override Task DeadLetterAsyncCore(string? reason, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref DeadLetterCalls);
+            Settled.Release();
+            return Task.CompletedTask;
+        }
     }
 
     /// <summary>An envelope whose <see cref="Envelope{T}.RequeueAsync"/> always throws.</summary>

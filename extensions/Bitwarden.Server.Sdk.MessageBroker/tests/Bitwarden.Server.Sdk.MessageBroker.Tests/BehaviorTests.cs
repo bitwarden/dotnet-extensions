@@ -68,6 +68,27 @@ public abstract class BehaviorTests : IAsyncLifetime
     protected string SubscriptionKey => $"{TopicName}/{SubscriptionName}";
 
     /// <summary>
+    /// Whether the broker automatically redelivers a message whose lock has expired without the
+    /// consumer settling it. False for the in-memory channel backend (no lock concept).
+    /// </summary>
+    protected virtual bool SupportsAutomaticRedelivery => true;
+
+    /// <summary>
+    /// Whether disposing the <see cref="IAsyncEnumerator{T}"/> returned by
+    /// <see cref="ISubscriber{T}.SubscribeAsync"/> immediately requeues any unsettled message
+    /// held by that enumerator. True for broker backends (ASB releases the lock on receiver
+    /// close; Rabbit requeues unacked messages on channel close). False for the in-memory channel
+    /// backend, which simply discards the message.
+    /// </summary>
+    protected virtual bool SupportsDisposalRequeue => true;
+
+    /// <summary>
+    /// How long to wait after not settling a message before expecting the broker to redeliver it.
+    /// Override when the broker is configured with a shorter lock/consumer timeout.
+    /// </summary>
+    protected virtual TimeSpan LockExpiryDelay => TimeSpan.FromSeconds(35);
+
+    /// <summary>
     /// Creates the primary host with publisher, default subscriber, and the two pub-sub
     /// subscriber groups ("pm" and "sm") pre-registered so all tests share one host.
     /// </summary>
@@ -205,6 +226,94 @@ public abstract class BehaviorTests : IAsyncLifetime
         }
     }
 
+    /// <summary>
+    /// Verifies that disposing the <see cref="IAsyncEnumerator{T}"/> without settling the
+    /// current envelope immediately makes the message available again — the broker interprets
+    /// enumerator disposal (receiver/channel close) as abandonment and requeues at once,
+    /// without waiting for any lock timeout.
+    /// </summary>
+    [Fact(Timeout = 60 * 1000)]
+    public async Task DisposingEnumeratorWithUnsettledMessageRequeuesImmediately()
+    {
+        Assert.SkipUnless(SupportsDisposalRequeue,
+            "This backend does not requeue unsettled messages on enumerator disposal (in-memory channel discards them).");
+
+        var host = await CreateInstanceAsync();
+        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>(TopicName);
+        var subscriber = (await CreateSecondaryInstanceAsync(host)).Services
+            .GetRequiredKeyedService<ISubscriber<MyItem>>(SubscriptionKey);
+
+        await publisher.PublishAsync(new MyItem(1), TestContext.Current.CancellationToken);
+
+        // Receive without settling, then dispose the enumerator — this closes the underlying
+        // receiver/channel, which the broker treats as abandonment.
+        var ct = TestContext.Current.CancellationToken;
+        var enumerator = subscriber.SubscribeAsync(ct).GetAsyncEnumerator(ct);
+        await enumerator.MoveNextAsync();
+        Assert.Equal(1, enumerator.Current.Message.Id);
+        Assert.Equal(1, enumerator.Current.DeliveryCount);
+        await enumerator.DisposeAsync(); // unsettled — broker must requeue immediately
+
+        // The message must be immediately available with an incremented DeliveryCount.
+        await foreach (var envelope in subscriber.SubscribeAsync(ct))
+        {
+            Assert.Equal(1, envelope.Message.Id);
+            Assert.True(envelope.DeliveryCount > 1,
+                $"Expected DeliveryCount > 1 after enumerator disposal but got {envelope.DeliveryCount}.");
+            await envelope.CompleteAsync(ct);
+            break;
+        }
+    }
+
+    /// <summary>
+    /// Verifies that a message whose lock expires without the consumer settling it is
+    /// automatically redelivered by the broker with an incremented <see cref="Envelope{T}.DeliveryCount"/>.
+    /// This test is <c>Explicit</c> because it requires a real broker configured with a short
+    /// lock timeout, and it must wait for that timeout to elapse before asserting redelivery.
+    /// Run with <c>--explicit on</c> or <c>--explicit only</c>.
+    /// </summary>
+    [Fact(Explicit = true, Timeout = 5 * 60 * 1000)]
+    public async Task UnsettledEnvelopeIsRedeliveredAfterLockExpiry()
+    {
+        Assert.SkipUnless(SupportsAutomaticRedelivery,
+            "This backend does not support automatic lock-expiry redelivery (in-memory channel has no lock concept).");
+
+        var host = await CreateInstanceAsync();
+        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>(TopicName);
+        var subscriber = (await CreateSecondaryInstanceAsync(host)).Services
+            .GetRequiredKeyedService<ISubscriber<MyItem>>(SubscriptionKey);
+
+        await publisher.PublishAsync(new MyItem(99), TestContext.Current.CancellationToken);
+
+        // Hold the enumerator open so the broker keeps the lock alive — disposing it would
+        // abandon the message immediately rather than letting the lock time out naturally.
+        var ct = TestContext.Current.CancellationToken;
+        var enumerator = subscriber.SubscribeAsync(ct).GetAsyncEnumerator(ct);
+        try
+        {
+            await enumerator.MoveNextAsync();
+            var first = enumerator.Current;
+            Assert.Equal(99, first.Message.Id);
+            Assert.Equal(1, first.DeliveryCount);
+            // Intentionally unsettled — the enumerator stays open so the broker holds the lock.
+
+            // Wait for the broker to reclaim the expired lock and redeliver.
+            await Task.Delay(LockExpiryDelay, ct);
+
+            // The redelivered message must arrive on the same open receiver with DeliveryCount > 1.
+            await enumerator.MoveNextAsync();
+            var redelivered = enumerator.Current;
+            Assert.Equal(99, redelivered.Message.Id);
+            Assert.True(redelivered.DeliveryCount > 1,
+                $"Expected DeliveryCount > 1 after lock expiry but got {redelivered.DeliveryCount}.");
+            await redelivered.CompleteAsync(ct);
+        }
+        finally
+        {
+            await enumerator.DisposeAsync();
+        }
+    }
+
     [Fact(Timeout = 60 * 1000)]
     public async Task StoppingSubscriberDoesNotLoseMessages()
     {
@@ -293,8 +402,7 @@ public abstract class BehaviorTests : IAsyncLifetime
     public async Task PublishThrowsBrokerUnavailableExceptionWhenBrokerIsDown()
     {
         var config = CreateBrokerDownConfig();
-        if (config is null)
-            return;
+        Assert.SkipWhen(config is null, "This backend cannot be configured to fail on publish (e.g., in-memory channel).");
 
         var host = await BuildHostAsync(config, services => services.AddPublisher<MyItem>(TopicName));
         var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>(TopicName);
@@ -310,8 +418,7 @@ public abstract class BehaviorTests : IAsyncLifetime
     public async Task SubscribeThrowsBrokerDisconnectedExceptionWhenBrokerGoesDown()
     {
         var result = await TrySetupDroppableBrokerAsync();
-        if (result is null)
-            return;
+        Assert.SkipWhen(result is null, "This backend does not support mid-stream broker disconnection testing.");
 
         var (config, stopBrokerAsync) = result.Value;
         var host = await BuildHostAsync(config, services =>
@@ -349,8 +456,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         var host = await CreateInstanceAsync();
 
         var injected = await TryInjectInvalidMessageAsync(TopicName);
-        if (!injected)
-            return; // backend doesn't support raw injection; not applicable for this transport
+        Assert.SkipWhen(!injected, "This backend does not support raw message injection (in-memory channel only accepts typed messages).");
 
         var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>(TopicName);
         var secondaryHost = await CreateSecondaryInstanceAsync(host);

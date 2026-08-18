@@ -237,7 +237,7 @@ public class AzureServiceBusFixture : IAsyncLifetime
                               "DefaultMessageTimeToLive": "PT1H",
                               "ForwardDeadLetteredMessagesTo": "",
                               "ForwardTo": "",
-                              "LockDuration": "PT1M",
+                              "LockDuration": "PT30S",
                               "MaxDeliveryCount": 10,
                               "RequiresSession": false
                             }
@@ -249,7 +249,7 @@ public class AzureServiceBusFixture : IAsyncLifetime
                               "DefaultMessageTimeToLive": "PT1H",
                               "ForwardDeadLetteredMessagesTo": "",
                               "ForwardTo": "",
-                              "LockDuration": "PT1M",
+                              "LockDuration": "PT30S",
                               "MaxDeliveryCount": 10,
                               "RequiresSession": false
                             }
@@ -261,7 +261,7 @@ public class AzureServiceBusFixture : IAsyncLifetime
                               "DefaultMessageTimeToLive": "PT1H",
                               "ForwardDeadLetteredMessagesTo": "",
                               "ForwardTo": "",
-                              "LockDuration": "PT1M",
+                              "LockDuration": "PT30S",
                               "MaxDeliveryCount": 10,
                               "RequiresSession": false
                             }

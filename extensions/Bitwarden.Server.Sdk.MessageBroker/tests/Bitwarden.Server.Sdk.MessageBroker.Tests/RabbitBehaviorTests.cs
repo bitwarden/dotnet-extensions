@@ -27,6 +27,11 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
     protected override Dictionary<string, string?> CreateConfig() =>
         new() { { "RabbitUri", _fixture.GetUri() } };
 
+    // Rabbit has no per-message lock; unacked messages are only requeued when the channel closes
+    // (or after the broker's consumer acknowledgement timeout, which defaults to 30 minutes).
+    // The lock-expiry redelivery test is not meaningful for this backend.
+    protected override bool SupportsAutomaticRedelivery => false;
+
     // All subscriptions are pre-declared on the shared host so CreateSecondaryInstanceAsync
     // can return the same host. Each SubscribeAsync() call creates an independent channel,
     // making concurrent calls on the same subscriber singleton behave as competing consumers.
