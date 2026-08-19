@@ -56,6 +56,21 @@ public class RegistrationIdempotencyTests
     }
 
     [Fact]
+    public void AddMessageConsumer_SameConsumerTypeDifferentSubscriptions_RegistersBothHostedServices()
+    {
+        // The same consumer class may handle messages from multiple subscriptions.
+        // Each (TConsumer, subscriptionKey) pair must get its own background service.
+        var services = new ServiceCollection();
+        services.AddMessageConsumer<MyItem, NullConsumer>("test", "group-a");
+        var hostedServiceCountAfterFirst = CountHostedServices(services);
+
+        services.AddMessageConsumer<MyItem, NullConsumer>("test", "group-b");
+
+        // One additional ConsumerBackgroundService is expected; ChannelTopic is shared (same topic name).
+        Assert.Equal(hostedServiceCountAfterFirst + 1, CountHostedServices(services));
+    }
+
+    [Fact]
     public void AddPublisherThenAddSubscriber_ChannelTopicHostedServiceRegisteredOnce()
     {
         var services = new ServiceCollection();

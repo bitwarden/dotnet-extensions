@@ -10,7 +10,7 @@ Azure Service Bus, RabbitMQ, and an in-memory `System.Threading.Channels` fallba
 - `IPublisher<T>` — publishes messages to a named topic
 - `ISubscriber<T>` — receives messages from a named topic as `IAsyncEnumerable<Envelope<T>>`
 - `Envelope<T>` — wraps a received message with broker metadata (`MessageId`, `TraceId`,
-  `DeliveryCount`) and settlement methods (`CompleteAsync`, `AbandonAsync`)
+  `DeliveryCount`) and settlement methods (`CompleteAsync`, `RequeueAsync`, `DeadLetterAsync`)
 
 Both interfaces are registered as keyed singletons. The service key is the topic name, or
 `topic/subscription` when a subscription name is provided.
@@ -32,14 +32,15 @@ Setting both raises `OptionsValidationException` at startup via `MessagingOption
 |---|---|
 | `MessageBrokerServiceCollectionExtensions.cs` | DI registration; backend selection logic |
 | `Envelope.cs` | Abstract base class for received messages |
-| `MessageConsumer.cs` | Abstract `BackgroundService` base class; auto-settles envelopes |
+| `IMessageConsumer.cs` | Public interface for consumers registered via `AddMessageConsumer` |
+| `ConsumerBackgroundService.cs` | Hosted service that drives the consumer loop; auto-settles envelopes |
 | `IMessageEscrowStore.cs` | Public interface for durable message escrow on shutdown |
 | `ChannelPublisher.cs` / `ChannelSubscriber.cs` | In-memory backend |
-| `ChannelEnvelope.cs` | In-memory envelope; handles `AbandonAsync` requeue logic |
-| `ChannelTopic.cs` | Fan-out channel; one `Channel<T>` per subscription |
-| `ChannelEscrowService.cs` | Drains undelivered messages to escrow on shutdown; recovers on startup |
+| `ChannelEnvelope.cs` | In-memory envelope; handles `RequeueAsync` requeue logic |
+| `ChannelTopic.cs` | Fan-out channel; one `Channel<T>` per subscription; drains to escrow on shutdown |
+| `ChannelEscrowRegistration.cs` | Registers startup recovery and shutdown drain callbacks with `ChannelTopic` |
 | `RabbitPublisher.cs` / `RabbitSubscriber.cs` | RabbitMQ backend |
-| `RabbitTopologyHostedService.cs` | Declares exchanges and quorum queues at startup |
+| `RabbitConnection.cs` | Manages the shared RabbitMQ connection; declares exchanges and queues at startup |
 | `AzureServiceBusPublisher.cs` / `AzureServiceBusSubscriber.cs` | Azure Service Bus backend |
 | `MessageBrokerActivitySource.cs` | Shared `ActivitySource` for publish and consume spans |
 | `MessageBrokerMetrics.cs` | Shared metrics (publish counter, consume counter, channel depth gauge) |
@@ -56,26 +57,25 @@ to the exchange, giving pub/sub fan-out with per-group competing consumers.
 
 ## Shutdown and escrow
 
-`IHostApplicationLifetime.ApplicationStopping` fires before `IHostedService.StopAsync`. `ChannelTopic`
-registers on this token to call `TryComplete()` on all channel writers, sealing the channel so no new
-messages can be published.
+`ChannelTopic<T>` is registered as an `IHostedService` first, so it stops last under LIFO shutdown
+order — after all `ConsumerBackgroundService` instances have exited. Its `StopAsync` calls the
+`ShutdownDrain` callbacks registered by `ChannelEscrowRegistration<T>`, which serialize any
+messages still in the channel and write them to `IMessageEscrowStore` before sealing the writers.
 
 `ChannelSubscriber` is a simple pass-through: it reads from the channel reader until `WaitToReadAsync`
-returns `false` (channel completed) or the caller's `CancellationToken` fires. There is no built-in
-drain on shutdown — the subscriber exits when cancelled.
+returns `false` (channel sealed) or the caller's `CancellationToken` fires.
 
-`ChannelEscrowService<T>` (registered by `AddMessageConsumer`) fills that gap. Because hosted services
-stop in reverse registration order and the escrow is registered before the consumer, the stop sequence is:
+The stop sequence when using `AddMessageConsumer` is:
 
-1. `ApplicationStopping` fires → `ChannelTopic.TryComplete()` called (writers sealed)
-2. Consumer's `StopAsync` → stoppingToken cancelled → consumer exits (messages remain in channel)
-3. Escrow's `StopAsync` → `TryRead` drains remaining messages → serializes → writes to `IMessageEscrowStore`
+1. `ConsumerBackgroundService.StopAsync` → stoppingToken cancelled → consumer exits (messages remain in channel)
+2. `ChannelTopic.StopAsync` → drain callbacks serialize remaining messages → writes to `IMessageEscrowStore` → seals writers
 
-At the next startup, escrow's `StartAsync` calls `ReadAndClearAsync`, deserializes the stored messages,
-and re-injects them into the channel writer before consumers begin processing.
+At the next startup, `ChannelTopic.StartAsync` calls the recovery callbacks registered by
+`ChannelEscrowRegistration<T>`, which deserialize the stored messages and re-inject them into the
+channel writer before consumers begin processing.
 
-When no `IMessageEscrowStore` is registered, undelivered messages are logged as errors (base64-encoded)
-and discarded. Register an implementation with the DI container to enable durable recovery:
+When no `IMessageEscrowStore` is registered, undelivered messages are logged as errors (message ID
+only) and discarded. Register an implementation with the DI container to enable durable recovery:
 
 ```csharp
 services.AddSingleton<IMessageEscrowStore, MyDatabaseEscrowStore>();
@@ -118,5 +118,5 @@ Tests require Docker (for Testcontainers). The RabbitMQ and Azure Service Bus em
 start automatically. Use `dotnet run` rather than `dotnet test`; this is an xUnit v3 project with
 `OutputType=Exe`.
 
-The test suite covers all three backends via shared `BehaviorTests` and `PubSubBehaviorTests` base
-classes. Channel-specific tests (drain on shutdown, queue depth gauge) live in `ChannelBehaviorTests`.
+The test suite covers all three backends via the shared `BehaviorTests` base class.
+Channel-specific tests (drain on shutdown, queue depth gauge) live in `ChannelBehaviorTests`.

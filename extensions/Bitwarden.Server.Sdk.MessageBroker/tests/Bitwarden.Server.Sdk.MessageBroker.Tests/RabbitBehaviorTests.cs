@@ -55,6 +55,23 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
         return true;
     }
 
+    protected override async Task<bool> TryInjectMalformedJsonMessageAsync(string topicName)
+    {
+        // Publish a malformed JSON body so the subscriber hits the catch(Exception) block
+        // in the deserializer and exercises the nack/discard path for thrown exceptions.
+        var factory = new ConnectionFactory { Uri = new Uri(_fixture.GetUri()) };
+        await using var conn = await factory.CreateConnectionAsync(TestContext.Current.CancellationToken);
+        await using var channel = await conn.CreateChannelAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await channel.BasicPublishAsync(
+            exchange: topicName,
+            routingKey: "",
+            mandatory: false,
+            basicProperties: new BasicProperties(),
+            body: "{"u8.ToArray(),
+            cancellationToken: TestContext.Current.CancellationToken);
+        return true;
+    }
+
     // Use an invalid host/port so the connection attempt fails immediately, faulting the TCS
     // without throwing from StartAsync (resilient startup). The first publish then surfaces
     // BrokerUnavailableException wrapping the underlying BrokerUnreachableException.

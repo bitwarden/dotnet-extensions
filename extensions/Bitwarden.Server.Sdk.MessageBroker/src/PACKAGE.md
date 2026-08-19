@@ -63,23 +63,23 @@ await publisher.PublishBatchAsync(events, ct);
 
 ## Consuming
 
-### With `MessageConsumer<T>` (recommended)
+### With `IMessageConsumer<T>` (recommended)
 
-Extend `MessageConsumer<T>` and register with `AddMessageConsumer`. This registers both the subscriber
-and a hosted service in one call, and handles settlement automatically — `CompleteAsync` on success,
-`AbandonAsync` when `HandleAsync` throws:
+Implement `IMessageConsumer<T>` and register with `AddMessageConsumer`. This registers both the
+subscriber and a hosted service in one call, and handles settlement automatically — `CompleteAsync`
+on success, `RequeueAsync` when `HandleAsync` throws:
 
 ```csharp
 // Registration
 services.AddMessageConsumer<OrderCreated, OrderNotificationService>("orders", subscriptionName: "notifications");
 
 // Implementation
-public class OrderNotificationService(ISubscriber<OrderCreated> subscriber) : MessageConsumer<OrderCreated>(subscriber)
+public class OrderNotificationService(IEmailService email) : IMessageConsumer<OrderCreated>
 {
-    protected override async Task HandleAsync(Envelope<OrderCreated> envelope, CancellationToken cancellationToken)
+    public async Task HandleAsync(Envelope<OrderCreated> envelope, CancellationToken cancellationToken)
     {
-        await SendEmailAsync(envelope.Message, cancellationToken);
-        // No need to call CompleteAsync/AbandonAsync — the base class does it.
+        await email.SendAsync(envelope.Message, cancellationToken);
+        // No need to call CompleteAsync/RequeueAsync — the framework settles the envelope.
     }
 }
 ```
@@ -90,18 +90,13 @@ The consumer is registered as a singleton so it can be resolved by type in tests
 var consumer = host.Services.GetRequiredService<OrderNotificationService>();
 ```
 
-If the constructor needs additional services they are resolved from the container:
-
-```csharp
-public class OrderNotificationService(ISubscriber<OrderCreated> subscriber, IEmailService email)
-    : MessageConsumer<OrderCreated>(subscriber)
-```
+Additional constructor parameters are resolved from the container automatically.
 
 ### With `ISubscriber<T>` directly
 
 For more control — custom retry logic, dead-lettering after N deliveries, or consuming outside a
 `BackgroundService` — inject `ISubscriber<T>` as a keyed service and iterate it yourself. Each message
-must be either completed or abandoned before the next is requested:
+must be either completed or requeued before the next is requested:
 
 ```csharp
 public class OrderNotificationService(
@@ -116,9 +111,9 @@ public class OrderNotificationService(
                 await SendEmailAsync(envelope.Message, stoppingToken);
                 await envelope.CompleteAsync(stoppingToken);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                await envelope.AbandonAsync(stoppingToken);
+                await envelope.RequeueAsync(ex.Message, stoppingToken);
             }
         }
     }

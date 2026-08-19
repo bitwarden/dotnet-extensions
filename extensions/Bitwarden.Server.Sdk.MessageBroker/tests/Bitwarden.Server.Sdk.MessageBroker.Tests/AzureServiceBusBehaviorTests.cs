@@ -41,6 +41,18 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
         return true;
     }
 
+    protected override async Task<bool> TryInjectMalformedJsonMessageAsync(string topicName)
+    {
+        // Publish a malformed JSON body so the subscriber hits the catch(Exception) block
+        // in the deserializer and exercises the dead-letter path for thrown exceptions.
+        await using var client = new ServiceBusClient(_fixture.GetConnectionString());
+        await using var sender = client.CreateSender(topicName);
+        await sender.SendMessageAsync(
+            new ServiceBusMessage(BinaryData.FromBytes("{"u8.ToArray())),
+            TestContext.Current.CancellationToken);
+        return true;
+    }
+
     // Use an unreachable endpoint so the Azure SDK surfaces ServiceBusException when it
     // exhausts its retry policy; this is mapped to BrokerUnavailableException.
     private const string UnreachableConnectionString =

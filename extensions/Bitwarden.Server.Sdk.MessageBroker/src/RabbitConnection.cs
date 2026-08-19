@@ -79,6 +79,9 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
             // StartAsync complete without throwing allows the host to start even when the
             // broker is temporarily unavailable; the first publish/subscribe will surface
             // the exception via BrokerUnavailableException.
+            // TODO: Add a retry mechanism. The one-shot TaskCompletionSource means a transient
+            // outage at startup permanently disables messaging for the lifetime of the process —
+            // even after Rabbit recovers, GetConnectionAsync returns the same faulted task forever.
             _tcs.TrySetException(ex);
         }
     }

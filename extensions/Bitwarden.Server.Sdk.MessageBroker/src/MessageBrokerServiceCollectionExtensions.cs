@@ -130,8 +130,10 @@ public static class MessageBrokerServiceCollectionExtensions
     /// </para>
     /// <para>
     /// <typeparamref name="TConsumer"/> is registered as a singleton so it can be resolved by
-    /// type (e.g., in tests). Its constructor must accept <see cref="ISubscriber{T}"/> as a
-    /// parameter; all other constructor parameters are resolved from the service provider.
+    /// type (e.g., in tests). All constructor parameters are resolved from the service provider;
+    /// do not take <see cref="ISubscriber{T}"/> as a constructor parameter —
+    /// <see cref="ConsumerBackgroundService{T,TConsumer}"/> owns the subscription and invokes
+    /// <see cref="IMessageConsumer{T}.HandleAsync"/> for each delivered message.
     /// </para>
     /// </remarks>
     public static IServiceCollection AddMessageConsumer<T, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TConsumer>(
@@ -140,8 +142,9 @@ public static class MessageBrokerServiceCollectionExtensions
         string subscriptionName)
         where TConsumer : class, IMessageConsumer<T>
     {
-        services.AddSubscriber<T>(name, subscriptionName);
         var subscriptionKey = $"{name}/{subscriptionName}";
+
+        services.AddSubscriber<T>(name, subscriptionName);
 
         // Register ChannelEscrowRegistration so ChannelTopic resolves it via
         // IEnumerable<ChannelEscrowRegistration<T>> and wires up startup recovery and shutdown
@@ -159,13 +162,25 @@ public static class MessageBrokerServiceCollectionExtensions
             services.AddSingleton<ChannelEscrowRegistration<T>>(sp =>
                 sp.GetRequiredKeyedService<ChannelEscrowRegistration<T>>(subscriptionKey));
 
-        // Forward ISubscriber<T> under typeof(TConsumer) so ConsumerBackgroundService can resolve
-        // it via IServiceProvider without a keyed-service attribute, making the type constructable
-        // by DI and letting TryAddEnumerable deduplicate the IHostedService registration by type.
+        // TConsumer is a singleton so it can be resolved by type in tests and shared across
+        // subscriptions when the same consumer class handles multiple topics.
         services.TryAddSingleton<TConsumer>();
-        services.TryAddKeyedSingleton<ISubscriber<T>>(typeof(TConsumer),
-            (sp, _) => sp.GetRequiredKeyedService<ISubscriber<T>>(subscriptionKey));
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ConsumerBackgroundService<T, TConsumer>>());
+
+        // Register one ConsumerBackgroundService per (TConsumer, subscriptionKey) pair.
+        // TryAddKeyedSingleton deduplicates by (ServiceType, ServiceKey), so the same
+        // (TConsumer, subscriptionKey) pair is idempotent, while the same consumer class on a
+        // different subscription gets its own keyed instance and its own IHostedService forward.
+        var consumerIsNew = !services.Any(d =>
+            d.ServiceType == typeof(ConsumerBackgroundService<T, TConsumer>) &&
+            (string?)d.ServiceKey == subscriptionKey);
+        services.TryAddKeyedSingleton<ConsumerBackgroundService<T, TConsumer>>(subscriptionKey, (sp, _) =>
+            new ConsumerBackgroundService<T, TConsumer>(
+                sp.GetRequiredService<TConsumer>(),
+                sp.GetRequiredKeyedService<ISubscriber<T>>(subscriptionKey)));
+        if (consumerIsNew)
+            services.AddSingleton<IHostedService>(sp =>
+                sp.GetRequiredKeyedService<ConsumerBackgroundService<T, TConsumer>>(subscriptionKey));
+
         services.AddSingleton(new ChannelConsumerDescriptor(typeof(T), subscriptionKey));
         // The validator is registered here (not in AddSubscriber) so it only activates when the app
         // has opted into the MessageConsumer framework. Raw AddSubscriber usage (tests, out-of-process

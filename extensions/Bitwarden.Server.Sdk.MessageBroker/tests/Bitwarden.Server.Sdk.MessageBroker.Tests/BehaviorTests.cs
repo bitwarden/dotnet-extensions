@@ -450,6 +450,14 @@ public abstract class BehaviorTests : IAsyncLifetime
     protected virtual Task<bool> TryInjectInvalidMessageAsync(string topicName) =>
         Task.FromResult(false);
 
+    /// <summary>
+    /// Injects a message with a malformed JSON body directly into the broker to trigger the
+    /// deserialize-throws / dead-letter path. Returns false if the backend does not support raw
+    /// injection; the test is then skipped.
+    /// </summary>
+    protected virtual Task<bool> TryInjectMalformedJsonMessageAsync(string topicName) =>
+        Task.FromResult(false);
+
     [Fact(Timeout = 60 * 1000)]
     public async Task DeadLettersUndeserializableMessage()
     {
@@ -466,6 +474,31 @@ public abstract class BehaviorTests : IAsyncLifetime
         await publisher.PublishAsync(new MyItem(99), TestContext.Current.CancellationToken);
 
         // The subscriber must discard the null-body message (dead-letter / nack without requeue)
+        // and deliver the valid message without blocking.
+        await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
+        {
+            Assert.Equal(99, envelope.Message.Id);
+            await envelope.CompleteAsync(TestContext.Current.CancellationToken);
+            break;
+        }
+    }
+
+    [Fact(Timeout = 60 * 1000)]
+    public async Task DeadLettersMalformedJsonMessage()
+    {
+        var host = await CreateInstanceAsync();
+
+        var injected = await TryInjectMalformedJsonMessageAsync(TopicName);
+        Assert.SkipWhen(!injected, "This backend does not support raw message injection (in-memory channel only accepts typed messages).");
+
+        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>(TopicName);
+        var secondaryHost = await CreateSecondaryInstanceAsync(host);
+        var subscriber = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItem>>(SubscriptionKey);
+
+        // Publish a valid message after the malformed one.
+        await publisher.PublishAsync(new MyItem(99), TestContext.Current.CancellationToken);
+
+        // The subscriber must dead-letter the malformed message (JsonException in the catch block)
         // and deliver the valid message without blocking.
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {

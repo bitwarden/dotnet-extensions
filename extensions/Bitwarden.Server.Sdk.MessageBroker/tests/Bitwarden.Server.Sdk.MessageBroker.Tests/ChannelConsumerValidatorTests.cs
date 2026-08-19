@@ -85,7 +85,7 @@ public class ChannelConsumerValidatorTests
             await host.StartAsync(TestContext.Current.CancellationToken);
             await host.StopAsync(TestContext.Current.CancellationToken);
         }
-        catch (InvalidOperationException ex) when (ex.Message.Contains("channel listeners have no MessageConsumer"))
+        catch (InvalidOperationException ex) when (ex.Message.Contains("channel subscribers have no MessageConsumer"))
         {
             Assert.Fail("Validator should not fire for external broker backends.");
         }

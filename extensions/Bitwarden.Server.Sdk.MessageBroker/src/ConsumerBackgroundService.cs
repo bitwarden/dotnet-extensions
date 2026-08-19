@@ -14,16 +14,11 @@ internal sealed class ConsumerBackgroundService<T, TConsumer> : BackgroundServic
     private readonly ISubscriber<T> _subscriber;
 
     /// <param name="consumer">The consumer to invoke for each message.</param>
-    /// <param name="sp">
-    /// Used to resolve <see cref="ISubscriber{T}"/> keyed by <c>typeof(<typeparamref name="TConsumer"/>)</c>,
-    /// which <see cref="MessageBrokerServiceCollectionExtensions.AddMessageConsumer{T,TConsumer}"/>
-    /// registers as a forwarding alias so this type is constructable by DI without a keyed-service
-    /// attribute, enabling <c>TryAddEnumerable</c> deduplication.
-    /// </param>
-    public ConsumerBackgroundService(TConsumer consumer, IServiceProvider sp)
+    /// <param name="subscriber">The subscriber to consume messages from.</param>
+    public ConsumerBackgroundService(TConsumer consumer, ISubscriber<T> subscriber)
     {
         _consumer = consumer;
-        _subscriber = sp.GetRequiredKeyedService<ISubscriber<T>>(typeof(TConsumer));
+        _subscriber = subscriber;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
