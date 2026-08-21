@@ -130,8 +130,15 @@ internal sealed class TempDotNetProject : IDisposable
 
         using var process = Process.Start(MakeProcessStartInfo(
             $"msbuild \"{_projectPath}\" --nologo -getProperty:{name}"))!;
-        var output = process.StandardOutput.ReadToEnd().Trim();
+
+        // Drain stderr concurrently even though we don't use it; failing to read it
+        // can fill the pipe buffer and deadlock if the process writes enough there.
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
+        Task.WhenAll(stdoutTask, stderrTask).GetAwaiter().GetResult();
         process.WaitForExit();
+
+        var output = stdoutTask.Result.Trim();
         return string.IsNullOrEmpty(output) ? null : output;
     }
 
@@ -260,10 +267,17 @@ internal sealed class TempDotNetProject : IDisposable
             a.StartsWith('-') || !a.Contains(' ') ? a : $"\"{a}\""));
 
         using var process = Process.Start(MakeProcessStartInfo(arguments))!;
-        var stdout = process.StandardOutput.ReadToEnd();
-        var stderr = process.StandardError.ReadToEnd();
+
+        // Read stdout and stderr concurrently. Reading them sequentially risks a deadlock:
+        // the process fills the stderr pipe buffer waiting for it to be drained, while we
+        // block on ReadToEnd() waiting for stdout — neither side can make progress.
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
+        Task.WhenAll(stdoutTask, stderrTask).GetAwaiter().GetResult();
         process.WaitForExit();
 
+        var stdout = stdoutTask.Result;
+        var stderr = stderrTask.Result;
         var fullOutput = (stdout.Length > 0 && stderr.Length > 0)
             ? stdout + System.Environment.NewLine + stderr
             : stdout + stderr;
@@ -289,8 +303,13 @@ internal sealed class TempDotNetProject : IDisposable
         // MSBuild diagnostic format (examples):
         //   /path/to/file.cs(5,1): error CS0234: The type ... [/path/to/Test.csproj]
         //   /path/to/Sdk.targets(95,5): warning BW0004: BitInclude... [/path/to/Test.csproj]
+        //
+        // The trailing "[/path/to/Project.csproj]" is stripped by anchoring to an absolute
+        // path (Unix "/" or Windows "X:\") rather than a bare "[.*]". A bare bracket match
+        // is ambiguous: a message that contains "[Something]" would be cut short because the
+        // greedy inner quantifier would consume the content up to the last "]" on the line.
         var pattern = new Regex(
-            $@"\b{Regex.Escape(severity)}\s+([A-Za-z]{{2,}}\d+)\s*:\s*(.+?)(?:\s*\[.+\])?\s*$",
+            $@"\b{Regex.Escape(severity)}\s+([A-Za-z]{{2,}}\d+)\s*:\s*(.+?)(?:\s+\[(?:[A-Za-z]:\\|/)[^\]]+\])?\s*$",
             RegexOptions.Multiline | RegexOptions.IgnoreCase);
 
         // Deduplicate: MSBuild's outer/inner build passes can emit the same warning
