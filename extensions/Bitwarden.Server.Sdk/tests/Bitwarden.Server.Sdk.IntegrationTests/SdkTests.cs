@@ -1,10 +1,9 @@
 using System.Diagnostics;
-using Microsoft.Build.Utilities.ProjectCreation;
 using Microsoft.Extensions.Logging;
 
 namespace Bitwarden.Server.Sdk.IntegrationTests;
 
-public class SdkTests : MSBuildTestBase
+public class SdkTests
 {
     [Fact]
     public void NoOverridingProperties_CanCompile()
@@ -18,184 +17,145 @@ public class SdkTests : MSBuildTestBase
             ("ENVIRONMENT", true),
         ];
 
-        var project = ProjectCreator.Templates.SdkProject(out var result, out var buildOutput);
+        using var project = new TempDotNetProject();
+        project.WithDefaultProgramCs();
 
-        Assert.True(result, buildOutput.GetConsoleLog());
+        var result = project.Build();
+        Assert.True(result.Succeeded, result.GetConsoleLog());
 
         foreach (var (feature, expectedDefault) in featuresAndDefaults)
-        {
-            project.TryGetConstant($"BIT_INCLUDE_{feature}", out var actualValue);
-            Assert.Equal(expectedDefault, actualValue);
-        }
+            Assert.Equal(expectedDefault, project.HasConstant($"BIT_INCLUDE_{feature}"));
     }
 
     [Fact]
     public void LibraryProject_DefaultsEntryPointFeaturesOff()
     {
-        var project = ProjectCreator.Templates.SdkProject(sdk: "Microsoft.NET.Sdk");
+        using var project = new TempDotNetProject("Microsoft.NET.Sdk");
 
         foreach (var feature in new[] { "TELEMETRY", "AUTHENTICATION", "WEB_ESSENTIALS" })
-        {
-            project.TryGetConstant($"BIT_INCLUDE_{feature}", out var actual);
-            Assert.False(actual);
-        }
+            Assert.False(project.HasConstant($"BIT_INCLUDE_{feature}"));
 
-        project.TryGetConstant("BIT_INCLUDE_FEATURES", out var features);
-        Assert.True(features);
-
-        project.TryGetConstant("BIT_INCLUDE_ENVIRONMENT", out var environment);
-        Assert.True(environment);
+        Assert.True(project.HasConstant("BIT_INCLUDE_FEATURES"));
+        Assert.True(project.HasConstant("BIT_INCLUDE_ENVIRONMENT"));
     }
 
     [Fact]
     public void ShouldBuildWithNoWarningsIfProjectHasNullableDisabled()
     {
-        ProjectCreator.Templates.SdkProject(
-            out var result,
-            out var buildOutput,
-            customAction: (project) =>
-            {
-                project.Property("Nullable", "disable");
-            }
-        )
-            .TryGetItems("Compile", out var compileItems);
+        using var project = new TempDotNetProject();
+        project.WithProperty("Nullable", "disable");
+        project.WithDefaultProgramCs();
 
-        Assert.True(result, buildOutput.GetConsoleLog());
+        var result = project.Build();
 
-        Assert.Empty(buildOutput.WarningEvents);
+        Assert.True(result.Succeeded, result.GetConsoleLog());
+        Assert.Empty(result.WarningEvents);
     }
 
     [Fact]
     public void ShouldBuildWithNoDocsWarnings()
     {
-        ProjectCreator.Templates.SdkProject(
-            out var result,
-            out var buildOutput,
-            customAction: (project) =>
-            {
-                project.Property("TreatWarningsAsErrors", "true");
-                project.Property("GenerateDocumentationFile", "true");
-            }
-        );
+        using var project = new TempDotNetProject();
+        project.WithProperty("TreatWarningsAsErrors", "true");
+        project.WithProperty("GenerateDocumentationFile", "true");
+        project.WithDefaultProgramCs();
 
-        Assert.Empty(buildOutput.Errors);
+        var result = project.Build();
+
+        Assert.Empty(result.Errors);
     }
 
     [Fact]
     public void TelemetryTurnedOff_CanCompile()
     {
-        ProjectCreator.Templates.SdkProject(
-            out var result,
-            out var buildOutput,
-            customAction: (project) =>
-            {
-                project.Property("BitIncludeTelemetry", bool.FalseString);
-            }
-        );
+        using var project = new TempDotNetProject();
+        project.WithProperty("BitIncludeTelemetry", bool.FalseString);
+        project.WithDefaultProgramCs();
 
-        Assert.True(result, buildOutput.GetConsoleLog());
+        var result = project.Build();
+
+        Assert.True(result.Succeeded, result.GetConsoleLog());
     }
 
     [Fact]
     public void FeaturesTurnedOff_CanCompile()
     {
-        ProjectCreator.Templates.SdkProject(
-            out var result,
-            out var buildOutput,
-            customAction: (project) =>
-            {
-                project.Property("BitIncludeFeatures", bool.FalseString);
-            }
-        );
+        using var project = new TempDotNetProject();
+        project.WithProperty("BitIncludeFeatures", bool.FalseString);
+        project.WithDefaultProgramCs();
 
-        Assert.True(result, buildOutput.GetConsoleLog());
+        var result = project.Build();
+
+        Assert.True(result.Succeeded, result.GetConsoleLog());
     }
 
     [Fact]
     public void FeaturesTurnedOff_CanNotUseFeatureService()
     {
-        ProjectCreator.Templates.SdkProject(
-            out var result,
-            out var buildOutput,
-            customAction: (project) =>
-            {
-                project.Property("BitIncludeFeatures", bool.FalseString);
-            },
-            additional: """
-                app.MapGet("/test", (Bitwarden.Server.Sdk.Features.IFeatureService featureService) => featureService.GetAll());
-                """
-        );
+        using var project = new TempDotNetProject();
+        project.WithProperty("BitIncludeFeatures", bool.FalseString);
+        project.WithDefaultProgramCs("""
+            app.MapGet("/test", (Bitwarden.Server.Sdk.Features.IFeatureService featureService) => featureService.GetAll());
+            """);
 
-        Assert.False(result, buildOutput.GetConsoleLog());
+        var result = project.Build();
+
+        Assert.False(result.Succeeded, result.GetConsoleLog());
 
         // error CS0234: The type or namespace name 'Features' does not exist in the namespace 'Bitwarden.Server.Sdk' (are you missing an assembly reference?)
-        Assert.Contains(buildOutput.ErrorEvents, e => e.Code == "CS0234");
+        Assert.Contains(result.ErrorEvents, e => e.Code == "CS0234");
     }
 
     [Fact]
     public void FeaturesTurnedOn_CanUseFeatureService()
     {
-        ProjectCreator.Templates.SdkProject(
-            out var result,
-            out var buildOutput,
-            customAction: (project) =>
-            {
-                project.Property("BitIncludeFeatures", bool.TrueString);
-            },
-            additional: """
-                app.MapGet("/test", (Bitwarden.Server.Sdk.Features.IFeatureService featureService) => featureService.GetAll());
-                """
-        );
+        using var project = new TempDotNetProject();
+        project.WithProperty("BitIncludeFeatures", bool.TrueString);
+        project.WithDefaultProgramCs("""
+            app.MapGet("/test", (Bitwarden.Server.Sdk.Features.IFeatureService featureService) => featureService.GetAll());
+            """);
 
-        Assert.True(result, buildOutput.GetConsoleLog());
+        var result = project.Build();
+
+        Assert.True(result.Succeeded, result.GetConsoleLog());
     }
 
     [Fact]
     public void CachingTurnedOn_CanUseFusionCache()
     {
-        ProjectCreator.Templates.SdkProject(
-            out var result,
-            out var buildOutput,
-            customAction: (project) =>
-            {
-                project.Property("BitIncludeCaching", bool.TrueString);
-            },
-            additional: """
-                app.MapGet("/test", ([FromKeyedServices("Test")]  ZiggyCreatures.Caching.Fusion.IFusionCache cache) => cache.GetOrSetAsync("Key", true));
-                """
-        );
+        using var project = new TempDotNetProject();
+        project.WithProperty("BitIncludeCaching", bool.TrueString);
+        project.WithDefaultProgramCs("""
+            app.MapGet("/test", ([FromKeyedServices("Test")]  ZiggyCreatures.Caching.Fusion.IFusionCache cache) => cache.GetOrSetAsync("Key", true));
+            """);
 
-        Assert.True(result, buildOutput.GetConsoleLog());
+        var result = project.Build();
+
+        Assert.True(result.Succeeded, result.GetConsoleLog());
     }
 
     [Fact]
     public void AuthenticationTurnedOff_CanCompile()
     {
-        ProjectCreator.Templates.SdkProject(
-            out var result,
-            out var buildOutput,
-            customAction: (project) =>
-            {
-                project.Property("BitIncludeAuthentication", bool.FalseString);
-            }
-        );
+        using var project = new TempDotNetProject();
+        project.WithProperty("BitIncludeAuthentication", bool.FalseString);
+        project.WithDefaultProgramCs();
 
-        Assert.True(result, buildOutput.GetConsoleLog());
+        var result = project.Build();
+
+        Assert.True(result.Succeeded, result.GetConsoleLog());
     }
 
     [Fact]
     public void EnvironmentTurnedOff_CanCompile()
     {
-        ProjectCreator.Templates.SdkProject(
-            out var result,
-            out var buildOutput,
-            customAction: (project) =>
-            {
-                project.Property("BitIncludeEnvironment", bool.FalseString);
-            }
-        );
+        using var project = new TempDotNetProject();
+        project.WithProperty("BitIncludeEnvironment", bool.FalseString);
+        project.WithDefaultProgramCs();
 
-        Assert.True(result, buildOutput.GetConsoleLog());
+        var result = project.Build();
+
+        Assert.True(result.Succeeded, result.GetConsoleLog());
     }
 
     [Fact]
@@ -203,24 +163,20 @@ public class SdkTests : MSBuildTestBase
     {
         // Features and WebEssentials both transitively depend on Bitwarden.Server.Sdk.Environment,
         // so all three must be disabled to truly remove the type from the compilation.
-        ProjectCreator.Templates.SdkProject(
-            out var result,
-            out var buildOutput,
-            customAction: (project) =>
-            {
-                project.Property("BitIncludeEnvironment", bool.FalseString);
-                project.Property("BitIncludeFeatures", bool.FalseString);
-                project.Property("BitIncludeWebEssentials", bool.FalseString);
-            },
-            additional: """
-                app.MapGet("/test", (Bitwarden.Server.Sdk.Environment.IBitwardenEnvironment env) => env.Version);
-                """
-        );
+        using var project = new TempDotNetProject();
+        project.WithProperty("BitIncludeEnvironment", bool.FalseString);
+        project.WithProperty("BitIncludeFeatures", bool.FalseString);
+        project.WithProperty("BitIncludeWebEssentials", bool.FalseString);
+        project.WithDefaultProgramCs("""
+            app.MapGet("/test", (Bitwarden.Server.Sdk.Environment.IBitwardenEnvironment env) => env.Version);
+            """);
 
-        Assert.False(result, buildOutput.GetConsoleLog());
+        var result = project.Build();
+
+        Assert.False(result.Succeeded, result.GetConsoleLog());
 
         // error CS0234: The type or namespace name 'Environment' does not exist in the namespace 'Bitwarden.Server.Sdk' (are you missing an assembly reference?)
-        Assert.Contains(buildOutput.ErrorEvents, e => e.Code == "CS0234");
+        Assert.Contains(result.ErrorEvents, e => e.Code == "CS0234");
     }
 
     [Theory]
@@ -228,37 +184,30 @@ public class SdkTests : MSBuildTestBase
     [InlineData("BitIncludeWebEssentials")]
     public void EnvironmentTurnedOff_WithDependentPackageOn_WarnsAboutIncompatibility(string dependentPackage)
     {
-        ProjectCreator.Templates.SdkProject(
-            out var result,
-            out var buildOutput,
-            customAction: (project) =>
-            {
-                project.Property("BitIncludeEnvironment", bool.FalseString);
-                project.Property(dependentPackage, bool.TrueString);
-            }
-        );
+        using var project = new TempDotNetProject();
+        project.WithProperty("BitIncludeEnvironment", bool.FalseString);
+        project.WithProperty(dependentPackage, bool.TrueString);
+        project.WithDefaultProgramCs();
 
-        Assert.True(result, buildOutput.GetConsoleLog());
-        var warning = Assert.Single(buildOutput.WarningEvents, w => w.Code == "BW0004");
+        var result = project.Build();
+
+        Assert.True(result.Succeeded, result.GetConsoleLog());
+        var warning = Assert.Single(result.WarningEvents, w => w.Code == "BW0004");
         Assert.Contains("BitIncludeEnvironment", warning.Message);
     }
 
     [Fact]
     public void EnvironmentTurnedOn_CanUseIBitwardenEnvironment()
     {
-        ProjectCreator.Templates.SdkProject(
-            out var result,
-            out var buildOutput,
-            customAction: (project) =>
-            {
-                project.Property("BitIncludeEnvironment", bool.TrueString);
-            },
-            additional: """
-                app.MapGet("/test", (Bitwarden.Server.Sdk.Environment.IBitwardenEnvironment env) => env.Version);
-                """
-        );
+        using var project = new TempDotNetProject();
+        project.WithProperty("BitIncludeEnvironment", bool.TrueString);
+        project.WithDefaultProgramCs("""
+            app.MapGet("/test", (Bitwarden.Server.Sdk.Environment.IBitwardenEnvironment env) => env.Version);
+            """);
 
-        Assert.True(result, buildOutput.GetConsoleLog());
+        var result = project.Build();
+
+        Assert.True(result.Succeeded, result.GetConsoleLog());
     }
 
     public static TheoryData<string> PossibleVariantData()
@@ -296,10 +245,8 @@ public class SdkTests : MSBuildTestBase
         return theory;
 
         // We serialize it into a simple string so that it can be easily viewed in test explorer
-        static string Serialize(Dictionary<string, string> properties)
-        {
-            return string.Join(',', properties.Select(p => $"{p.Key}={p.Value}"));
-        }
+        static string Serialize(Dictionary<string, string> properties) =>
+            string.Join(',', properties.Select(p => $"{p.Key}={p.Value}"));
     }
 
     [Theory, MemberData(nameof(PossibleVariantData))]
@@ -315,19 +262,14 @@ public class SdkTests : MSBuildTestBase
             })
             .ToDictionary();
 
-        ProjectCreator.Templates.SdkProject(
-            out var result,
-            out var buildOutput,
-            customAction: (project) =>
-            {
-                foreach (var property in properties)
-                {
-                    project.Property(property.Key, property.Value);
-                }
-            }
-        );
+        using var project = new TempDotNetProject();
+        foreach (var property in properties)
+            project.WithProperty(property.Key, property.Value);
+        project.WithDefaultProgramCs();
 
-        Assert.True(result, buildOutput.GetConsoleLog());
+        var result = project.Build();
+
+        Assert.True(result.Succeeded, result.GetConsoleLog());
     }
 }
 
