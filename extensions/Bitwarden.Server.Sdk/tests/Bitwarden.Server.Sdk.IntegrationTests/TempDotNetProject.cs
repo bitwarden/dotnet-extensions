@@ -138,6 +138,10 @@ internal sealed class TempDotNetProject : IDisposable
         Task.WhenAll(stdoutTask, stderrTask).GetAwaiter().GetResult();
         process.WaitForExit();
 
+        if (process.ExitCode != 0)
+            throw new InvalidOperationException(
+                $"msbuild -getProperty:{name} failed (exit {process.ExitCode}):{System.Environment.NewLine}{stdoutTask.Result}{stderrTask.Result}");
+
         var output = stdoutTask.Result.Trim();
         return string.IsNullOrEmpty(output) ? null : output;
     }
@@ -167,7 +171,9 @@ internal sealed class TempDotNetProject : IDisposable
         if (_hasRestored) return;
         _hasRestored = true;
         EnsureProjectWritten();
-        RunDotNet(["restore", _projectPath, "--nologo"]);
+        var result = RunDotNet(["restore", _projectPath, "--nologo"]);
+        if (!result.Succeeded)
+            throw new InvalidOperationException($"dotnet restore failed:{System.Environment.NewLine}{result.Output}");
     }
 
     private void WriteProjectFile()
@@ -231,11 +237,31 @@ internal sealed class TempDotNetProject : IDisposable
         // nearest higher patch in the same feature band (10.0.2xx) instead.
         var globalJson = Path.GetFullPath(
             Path.Combine(ThisAssemblyDirectory, "..", "..", "..", "..", "..", "..", "..", "global.json"));
-        if (!File.Exists(globalJson)) return;
 
-        var content = File.ReadAllText(globalJson)
-            .Replace("\"rollForward\": \"disable\"", "\"rollForward\": \"latestPatch\"");
-        File.WriteAllText(Path.Combine(_directory, "global.json"), content);
+        if (!File.Exists(globalJson))
+            throw new InvalidOperationException(
+                $"global.json not found at expected path '{globalJson}'. " +
+                "The 7-level relative walk from the test output directory may need updating.");
+
+        var original = File.ReadAllText(globalJson);
+
+        // Replace rollForward:disable with latestPatch so the subprocess can resolve the
+        // nearest available patch in the same feature band without requiring the exact
+        // version (e.g. 10.0.202) to be installed. Use a regex to tolerate whitespace
+        // variants around the colon or quotes.
+        var patched = Regex.Replace(original,
+            @"""rollForward""\s*:\s*""disable""",
+            @"""rollForward"": ""latestPatch""");
+
+        // Guard: if the result still contains rollForward:disable, the regex didn't match
+        // because the format changed and the replacement silently failed. Throw rather than
+        // write a global.json that will cause the subprocess to pick the wrong SDK.
+        if (Regex.IsMatch(patched, @"""rollForward""\s*:\s*""disable"""))
+            throw new InvalidOperationException(
+                $"global.json at '{globalJson}' still contains 'rollForward: disable' after patching. " +
+                "The subprocess will fall back to the highest installed SDK, reintroducing the multi-SDK version conflict.");
+
+        File.WriteAllText(Path.Combine(_directory, "global.json"), patched);
     }
 
     private void WriteNugetConfig()
