@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Security;
 using System.Text;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Bitwarden.Server.Sdk.Environment;
 using Bitwarden.Server.Sdk.Features;
@@ -243,25 +244,22 @@ internal sealed class TempDotNetProject : IDisposable
                 $"global.json not found at expected path '{globalJson}'. " +
                 "The 7-level relative walk from the test output directory may need updating.");
 
-        var original = File.ReadAllText(globalJson);
+        // Parse and mutate via JsonNode so the patch is format-independent — no regex
+        // needed, and the guard checks the parsed value rather than the serialized text.
+        var root = JsonNode.Parse(File.ReadAllText(globalJson))!;
+        var rollForward = root["sdk"]?["rollForward"]?.GetValue<string>();
 
-        // Replace rollForward:disable with latestPatch so the subprocess can resolve the
-        // nearest available patch in the same feature band without requiring the exact
-        // version (e.g. 10.0.202) to be installed. Use a regex to tolerate whitespace
-        // variants around the colon or quotes.
-        var patched = Regex.Replace(original,
-            @"""rollForward""\s*:\s*""disable""",
-            @"""rollForward"": ""latestPatch""");
-
-        // Guard: if the result still contains rollForward:disable, the regex didn't match
-        // because the format changed and the replacement silently failed. Throw rather than
-        // write a global.json that will cause the subprocess to pick the wrong SDK.
-        if (Regex.IsMatch(patched, @"""rollForward""\s*:\s*""disable"""))
+        // Patch disable → latestPatch so the subprocess finds the nearest available patch
+        // in the same feature band (e.g. 10.0.204 when 10.0.202 is not installed) without
+        // jumping to a different band (e.g. 10.0.400) that carries an incompatible MSBuild.
+        if (rollForward == "disable")
+            root["sdk"]!["rollForward"] = "latestPatch";
+        else if (rollForward is not null && rollForward != "latestPatch")
             throw new InvalidOperationException(
-                $"global.json at '{globalJson}' still contains 'rollForward: disable' after patching. " +
-                "The subprocess will fall back to the highest installed SDK, reintroducing the multi-SDK version conflict.");
+                $"global.json at '{globalJson}' has unexpected rollForward value '{rollForward}'. " +
+                "The subprocess SDK selection may not match the repo's intended feature band.");
 
-        File.WriteAllText(Path.Combine(_directory, "global.json"), patched);
+        File.WriteAllText(Path.Combine(_directory, "global.json"), root.ToJsonString());
     }
 
     private void WriteNugetConfig()
