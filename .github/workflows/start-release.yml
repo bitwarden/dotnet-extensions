@@ -16,6 +16,7 @@ on:
           - Bitwarden.Server.Sdk.Environment
           - Bitwarden.Server.Sdk.Features
           - Bitwarden.Server.Sdk.HealthChecks
+          - Bitwarden.Server.Sdk.MessageBroker
           - Bitwarden.Server.Sdk.WebEssentials
 
 permissions: {}
