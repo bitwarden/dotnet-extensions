@@ -16,7 +16,7 @@
         "type": "Direct",
         "requested": "[8.0.27, )",
         "resolved": "8.0.27",
-        "contentHash": "WndxmklJY4EjecTSMbfO+oAdO2nHLGUoVSlb+Lv853sNxQnwxDDl2Ff+G04S6jT2AfqsCh6WX3b56ewOwVKRyQ=="
+        "contentHash": "rQi9TxifHRnXP7lVRZH05DxD2/XGbJp12q0ozcbrlBlBnyyzssFTH/2vLhtKWUp2CT1qVscTrcYTFiwTyKPKRg=="
       },
       "Microsoft.Extensions.Configuration.Abstractions": {
         "type": "Transitive",
