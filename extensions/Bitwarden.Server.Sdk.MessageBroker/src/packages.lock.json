@@ -46,9 +46,9 @@
       },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
-        "requested": "[10.0.6, )",
-        "resolved": "10.0.6",
-        "contentHash": "Iv8IFWPnBsNIwA8V554YOAOumiojGwUsu9NSBINNUkFoENjHdwS5wpdAI47mGJWCCDFIM71Zv3jkD57DwqBpJg=="
+        "requested": "[10.0.8, )",
+        "resolved": "10.0.8",
+        "contentHash": "dVbSXGIFNR5nZcv2tOLoWI+a9T4jtFd77IYjuND+QVe360qWgAF7H0WtoopYhRw/+SgpGUTyrkrh+65+ClNnfw=="
       },
       "RabbitMQ.Client": {
         "type": "Direct",
