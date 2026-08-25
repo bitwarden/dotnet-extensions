@@ -4,7 +4,7 @@ using Azure.Messaging.ServiceBus;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-internal sealed class AzureServiceBusSubscriber<T> : ISubscriber<T>, IAsyncDisposable
+internal sealed class AzureServiceBusSubscriber<T> : ISubscriber<T>
 {
     private readonly string _topicName;
     private readonly string _subscriptionName;
@@ -12,11 +12,11 @@ internal sealed class AzureServiceBusSubscriber<T> : ISubscriber<T>, IAsyncDispo
     private readonly IMessageSerializer _serializer;
     private readonly MessageBrokerMetrics _metrics;
 
-    public AzureServiceBusSubscriber(string connectionString, string topicName, string subscriptionName, IMessageSerializer serializer, MessageBrokerMetrics metrics)
+    public AzureServiceBusSubscriber(ServiceBusClient client, string topicName, string subscriptionName, IMessageSerializer serializer, MessageBrokerMetrics metrics)
     {
         _topicName = topicName;
         _subscriptionName = subscriptionName;
-        _client = new ServiceBusClient(connectionString);
+        _client = client;
         _serializer = serializer;
         _metrics = metrics;
     }
@@ -77,8 +77,6 @@ internal sealed class AzureServiceBusSubscriber<T> : ISubscriber<T>, IAsyncDispo
             }
         }
     }
-
-    public ValueTask DisposeAsync() => _client.DisposeAsync();
 
     private sealed class AzureServiceBusEnvelope : Envelope<T>
     {
