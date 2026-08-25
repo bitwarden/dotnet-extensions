@@ -1,3 +1,4 @@
+using Azure.Messaging.ServiceBus;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -17,6 +18,7 @@ public static class MessageBrokerServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MessagingOptions>, MessagingOptionsValidator>());
         services.AddOptions<MessagingOptions>().ValidateOnStart();
         AddRabbitInfrastructure(services);
+        AddAzureServiceBusInfrastructure(services);
 
         services.TryAddKeyedSingleton<IMessageSerializer>(name, (sp, key) =>
             new SystemTextJsonMessageSerializer(
@@ -34,7 +36,7 @@ public static class MessageBrokerServiceCollectionExtensions
             var metrics = sp.GetRequiredService<MessageBrokerMetrics>();
             if (!string.IsNullOrEmpty(options.AzureServiceBusConnectionString))
             {
-                return new AzureServiceBusPublisher<T>(options.AzureServiceBusConnectionString, name, serializer, metrics);
+                return new AzureServiceBusPublisher<T>(sp.GetRequiredService<ServiceBusClient>(), name, serializer, metrics);
             }
             if (!string.IsNullOrEmpty(options.RabbitUri))
             {
@@ -68,6 +70,7 @@ public static class MessageBrokerServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MessagingOptions>, MessagingOptionsValidator>());
         services.AddOptions<MessagingOptions>().ValidateOnStart();
         AddRabbitInfrastructure(services);
+        AddAzureServiceBusInfrastructure(services);
 
         services.TryAddKeyedSingleton<IMessageSerializer>(name, (sp, key) =>
             new SystemTextJsonMessageSerializer(
@@ -99,7 +102,7 @@ public static class MessageBrokerServiceCollectionExtensions
             var metrics = sp.GetRequiredService<MessageBrokerMetrics>();
             if (!string.IsNullOrEmpty(options.AzureServiceBusConnectionString))
             {
-                return new AzureServiceBusSubscriber<T>(options.AzureServiceBusConnectionString, name, subscriptionName, serializer, metrics);
+                return new AzureServiceBusSubscriber<T>(sp.GetRequiredService<ServiceBusClient>(), name, subscriptionName, serializer, metrics);
             }
             if (!string.IsNullOrEmpty(options.RabbitUri))
             {
@@ -198,5 +201,12 @@ public static class MessageBrokerServiceCollectionExtensions
             return;
         services.AddSingleton<RabbitConnection>();
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<RabbitConnection>());
+    }
+
+    private static void AddAzureServiceBusInfrastructure(IServiceCollection services)
+    {
+        services.TryAddSingleton<ServiceBusClient>(sp =>
+            new ServiceBusClient(
+                sp.GetRequiredService<IOptions<MessagingOptions>>().Value.AzureServiceBusConnectionString));
     }
 }

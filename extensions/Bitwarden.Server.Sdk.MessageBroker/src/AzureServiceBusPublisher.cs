@@ -7,16 +7,14 @@ namespace Microsoft.Extensions.DependencyInjection;
 internal sealed class AzureServiceBusPublisher<T> : IPublisher<T>, IAsyncDisposable
 {
     private readonly string _topicName;
-    private readonly ServiceBusClient _client;
     private readonly ServiceBusSender _sender;
     private readonly IMessageSerializer _serializer;
     private readonly MessageBrokerMetrics _metrics;
 
-    public AzureServiceBusPublisher(string connectionString, string topicName, IMessageSerializer serializer, MessageBrokerMetrics metrics)
+    public AzureServiceBusPublisher(ServiceBusClient client, string topicName, IMessageSerializer serializer, MessageBrokerMetrics metrics)
     {
         _topicName = topicName;
-        _client = new ServiceBusClient(connectionString);
-        _sender = _client.CreateSender(topicName);
+        _sender = client.CreateSender(topicName);
         _serializer = serializer;
         _metrics = metrics;
     }
@@ -74,9 +72,5 @@ internal sealed class AzureServiceBusPublisher<T> : IPublisher<T>, IAsyncDisposa
         }
     }
 
-    public async ValueTask DisposeAsync()
-    {
-        await _sender.DisposeAsync();
-        await _client.DisposeAsync();
-    }
+    public async ValueTask DisposeAsync() => await _sender.DisposeAsync();
 }
