@@ -1,5 +1,5 @@
-using Azure.Messaging.ServiceBus;
 using System.Diagnostics.CodeAnalysis;
+using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
