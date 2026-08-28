@@ -1,23 +1,22 @@
-
 using DotNet.Testcontainers.Containers;
-using Microsoft.Build.Utilities.ProjectCreation;
 
 namespace Bitwarden.Server.Sdk.IntegrationTests;
 
-public sealed class TelemetryProjectFixture : MSBuildTestBase
+public sealed class TelemetryProjectFixture
 {
     public const string ImageName = "test-telemetry";
-    public ProjectCreator Project { get; }
 
     public TelemetryProjectFixture()
     {
-        var project = ProjectCreator.Templates.SdkProject();
-        // Include a label that will make this image get auto cleaned up by test containers
-        project.ItemInclude("ContainerLabel", ResourceReaper.ResourceReaperSessionLabel, metadata: new Dictionary<string, string?>
+        using var project = new TempDotNetProject();
+
+        // Include a label that will make this image get auto cleaned up by test containers.
+        project.WithItem("ContainerLabel", ResourceReaper.ResourceReaperSessionLabel, new Dictionary<string, string?>
         {
             { "Value", ResourceReaper.DefaultSessionId.ToString("D") },
         });
-        project.AdditionalFile("Program.cs", /* lang=c# */ """
+
+        project.WithFile("Program.cs", /* lang=c# */ """
             using System.Diagnostics;
             using System.Diagnostics.Tracing;
             using System.Diagnostics.Metrics;
@@ -78,25 +77,18 @@ public sealed class TelemetryProjectFixture : MSBuildTestBase
                     _meter.Dispose();
                 }
             }
-            """
-        );
-        using var packageRepo = project.CreateDefaultPackageRepository();
-        project.Save();
+            """);
 
-        project.TryBuild(
+        var result = project.MsBuild(
             restore: true,
             targets: ["Publish", "PublishContainer"],
-            globalProperties: new Dictionary<string, string>
+            extraProperties: new Dictionary<string, string>
             {
                 { "ContainerRepository", ImageName },
                 { "ContainerFamily", "alpine" },
                 { "BitIncludeCaching", "true" },
-            },
-            out var result, out var buildOutput, out var targetOutputs
-        );
+            });
 
-        Assert.True(result, buildOutput.GetConsoleLog());
-
-        Project = project;
+        Assert.True(result.Succeeded, result.GetConsoleLog());
     }
 }

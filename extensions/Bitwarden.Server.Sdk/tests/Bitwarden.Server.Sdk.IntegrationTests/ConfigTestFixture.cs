@@ -1,9 +1,8 @@
 using DotNet.Testcontainers.Containers;
-using Microsoft.Build.Utilities.ProjectCreation;
 
 namespace Bitwarden.Server.Sdk.IntegrationTests;
 
-public sealed class ConfigTestFixture : MSBuildTestBase
+public sealed class ConfigTestFixture
 {
     public const string LegacyEntryPointDebug = "legacy-entrypoint-debug";
     public const string LegacyEntryPointRelease = "legacy-entrypoint-release";
@@ -38,13 +37,15 @@ public sealed class ConfigTestFixture : MSBuildTestBase
 
     private static void CreateImage(string name, bool useRelease, string setupCode)
     {
-        var project = ProjectCreator.Templates.SdkProject();
-        // Include a label that will make this image get auto cleaned up by test containers
-        project.ItemInclude("ContainerLabel", ResourceReaper.ResourceReaperSessionLabel, metadata: new Dictionary<string, string?>
+        using var project = new TempDotNetProject();
+
+        // Include a label that will make this image get auto cleaned up by test containers.
+        project.WithItem("ContainerLabel", ResourceReaper.ResourceReaperSessionLabel, new Dictionary<string, string?>
         {
             { "Value", ResourceReaper.DefaultSessionId.ToString("D") },
         });
-        project.AdditionalFile("Program.cs", $$"""
+
+        project.WithFile("Program.cs", $$"""
             using Microsoft.Extensions.Configuration.EnvironmentVariables;
             using Microsoft.Extensions.Configuration.Memory;
             using Microsoft.Extensions.Configuration.Json;
@@ -93,22 +94,18 @@ public sealed class ConfigTestFixture : MSBuildTestBase
             Console.WriteLine("Done");
             """
         );
-        using var packageRepo = project.CreateDefaultPackageRepository();
-        project.Save();
 
-        project.TryBuild(
+        var result = project.MsBuild(
             restore: true,
             targets: ["Publish", "PublishContainer"],
-            globalProperties: new Dictionary<string, string>
+            extraProperties: new Dictionary<string, string>
             {
                 { "ContainerRepository", name },
                 { "ContainerFamily", "alpine" },
                 { "Configuration", useRelease ? "Release" : "Debug" },
                 { "UserSecretsId", "test-secrets" },
-            },
-            out var result, out var buildOutput, out var targetOutputs
-        );
+            });
 
-        Assert.True(result, buildOutput.GetConsoleLog());
+        Assert.True(result.Succeeded, result.GetConsoleLog());
     }
 }
