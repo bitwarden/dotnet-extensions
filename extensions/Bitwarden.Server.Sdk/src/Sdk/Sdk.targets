@@ -98,4 +98,77 @@
       Condition="'$(BitIncludeEnvironment)' == 'false' and ('$(BitIncludeFeatures)' == 'true' or '$(BitIncludeWebEssentials)' == 'true')"
       Text="BitIncludeEnvironment is false but BitIncludeFeatures or BitIncludeWebEssentials is true. Those packages depend on Bitwarden.Server.Sdk.Environment, so the type will still be available transitively and AddBitwardenEnvironment() will not be called by UseBitwardenSdk(). Set BitIncludeEnvironment to true or disable the dependent packages." />
   </Target>
+
+  <!-- Internal target that recursively collects deployment files from this project and all
+       transitively referenced projects. Used by ListDeploymentFiles. -->
+  <Target Name="_CollectDeploymentFiles" Returns="@(_DeploymentFile)">
+    <MSBuild
+      Projects="@(ProjectReference)"
+      Targets="_CollectDeploymentFiles"
+      SkipNonexistentTargets="true">
+      <Output TaskParameter="TargetOutputs" ItemName="_DeploymentFile" />
+    </MSBuild>
+    <PropertyGroup>
+      <!-- NuGetLockFilePath is only populated from restore-generated props, so default it
+           here to the same path NuGet would use if it hasn't been resolved yet. -->
+      <_LockFilePath Condition="'$(NuGetLockFilePath)' != ''">$(NuGetLockFilePath)</_LockFilePath>
+      <_LockFilePath Condition="'$(_LockFilePath)' == ''">$([MSBuild]::NormalizePath($(MSBuildProjectDirectory), 'packages.lock.json'))</_LockFilePath>
+    </PropertyGroup>
+    <ItemGroup>
+      <_DeploymentFile Include="$(MSBuildProjectFullPath)" />
+      <_DeploymentFile Include="@(Compile->'%(FullPath)')" />
+      <_DeploymentFile Include="@(EmbeddedResource->'%(FullPath)')" />
+      <_DeploymentFile Include="%(Content.FullPath)" Condition="'%(Content.CopyToOutputDirectory)' != 'Never'" />
+      <_DeploymentFile Include="@(BitDeploymentInput->'%(FullPath)')" />
+      <_DeploymentFile Include="$(_LockFilePath)" Condition="'$(RestorePackagesWithLockFile)' == 'true' AND Exists('$(_LockFilePath)')" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    Lists every file that contributes to the deployment of the consuming project,
+    including all transitively referenced projects. Duplicates (e.g. from diamond
+    dependencies) are removed.
+
+    To manually include additional files (e.g. config files, SQL scripts) that should
+    influence deployment decisions, add them to the BitDeploymentInput item group:
+
+      <ItemGroup>
+        <BitDeploymentInput Include="appsettings.json" />
+      </ItemGroup>
+
+    Usage: dotnet msbuild -t:ListDeploymentFiles
+  -->
+  <Target Name="ListDeploymentFiles" DependsOnTargets="_CollectDeploymentFiles">
+    <RemoveDuplicates Inputs="@(_DeploymentFile)">
+      <Output TaskParameter="Filtered" ItemName="_UniqueDeploymentFile" />
+    </RemoveDuplicates>
+    <Message Importance="High" Text="%(_UniqueDeploymentFile.Identity)" />
+  </Target>
+
+  <!--
+    Writes the deployment file list to disk (one absolute path per line) for
+    consumption by CI scripts without parsing MSBuild console output.
+
+    The output path defaults to $(BaseIntermediateOutputPath)deployment-files.txt
+    and can be overridden via a property:
+
+      dotnet msbuild -t:WriteDeploymentFiles -p:DeploymentFilesOutputPath=out.txt
+
+    Usage: dotnet msbuild -t:WriteDeploymentFiles
+  -->
+  <PropertyGroup>
+    <DeploymentFilesOutputPath Condition="'$(DeploymentFilesOutputPath)' == ''">$(BaseIntermediateOutputPath)deployment-files.txt</DeploymentFilesOutputPath>
+  </PropertyGroup>
+
+  <Target Name="WriteDeploymentFiles" DependsOnTargets="_CollectDeploymentFiles">
+    <RemoveDuplicates Inputs="@(_DeploymentFile)">
+      <Output TaskParameter="Filtered" ItemName="_UniqueDeploymentFile" />
+    </RemoveDuplicates>
+    <WriteLinesToFile
+      File="$(DeploymentFilesOutputPath)"
+      Lines="@(_UniqueDeploymentFile)"
+      Overwrite="true"
+      WriteOnlyWhenDifferent="true" />
+    <Message Importance="High" Text="Deployment files written to: $(DeploymentFilesOutputPath)" />
+  </Target>
 </Project>
