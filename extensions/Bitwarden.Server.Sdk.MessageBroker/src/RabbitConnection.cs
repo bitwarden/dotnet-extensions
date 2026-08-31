@@ -54,9 +54,27 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
 
                     if (decl.QueueName is not null)
                     {
-                        await channel.QueueDeclareAsync(decl.QueueName, durable: true, exclusive: false,
+                        // Declare a dead-letter exchange and queue for messages that exceed
+                        // the delivery limit or are explicitly dead-lettered by the consumer.
+                        var dlxName = $"{decl.QueueName}.dlx";
+                        var dlqName = $"{decl.QueueName}.dlq";
+                        await channel.ExchangeDeclareAsync(dlxName, ExchangeType.Fanout, durable: true,
+                            cancellationToken: cancellationToken);
+                        await channel.QueueDeclareAsync(dlqName, durable: true, exclusive: false,
                             autoDelete: false,
                             arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum" },
+                            cancellationToken: cancellationToken);
+                        await channel.QueueBindAsync(dlqName, dlxName, routingKey: "",
+                            cancellationToken: cancellationToken);
+
+                        await channel.QueueDeclareAsync(decl.QueueName, durable: true, exclusive: false,
+                            autoDelete: false,
+                            arguments: new Dictionary<string, object?>
+                            {
+                                ["x-queue-type"] = "quorum",
+                                ["x-dead-letter-exchange"] = dlxName,
+                                ["x-delivery-limit"] = (long)_options.Value.MaxDeliveryCount,
+                            },
                             cancellationToken: cancellationToken);
                         await channel.QueueBindAsync(decl.QueueName, decl.ExchangeName, routingKey: "",
                             cancellationToken: cancellationToken);

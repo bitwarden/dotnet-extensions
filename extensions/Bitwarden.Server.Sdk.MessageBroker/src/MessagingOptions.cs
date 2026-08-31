@@ -10,9 +10,11 @@ public class MessagingOptions
     public string? RabbitUri { get; set; }
 
     /// <summary>
-    /// The maximum number of times an in-memory channel message is redelivered before being
-    /// discarded. Applies only to the in-memory channel backend; Azure Service Bus and Rabbit
-    /// manage redelivery limits on the broker side. Default is 10.
+    /// The maximum number of times a message is delivered before being routed to a dead-letter
+    /// destination. For the in-memory channel backend this controls how many times the message
+    /// is redelivered before being discarded. For RabbitMQ this is applied as
+    /// <c>x-delivery-limit</c> on each quorum queue. Azure Service Bus manages the delivery
+    /// limit on the topic/subscription directly and does not use this value. Default is 10.
     /// </summary>
     public int MaxDeliveryCount { get; set; } = 10;
 }
