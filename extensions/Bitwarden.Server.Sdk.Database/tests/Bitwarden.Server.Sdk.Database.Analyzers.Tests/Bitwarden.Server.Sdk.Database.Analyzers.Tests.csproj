@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" Version="[2.0.0-beta4.22272.1]" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.4" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.3.0" />
+    <PackageReference Include="xunit.v3.mtp-v2" Version="[3.2.2]" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="[18.8.0]" />
+    <!-- Provider packages are referenced explicitly here (not transitively from the SDK) so that
+         BuildCompilationAsync picks them up from the test bin directory. The generator detects
+         referenced providers via compilation.ReferencedAssemblyNames and only emits code for
+         those that are present — these references ensure all four providers are exercised in tests. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.8" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.8" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.4" />
+    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.2" />
+    <!-- Pin the patched SQLite native library (GHSA-2m69-gcr7-jv3q). -->
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
+    <PackageReference Include="Testcontainers.MsSql" Version="[4.9.0]" />
+    <!-- Testcontainers pulls a vulnerable SSH.NET; same pin as the other test projects. -->
+    <PackageReference Include="SSH.NET" Version="[2026.0.0]" />
+  </ItemGroup>
+
+  <!-- One definition of the fixture, shared rather than duplicated. -->
+  <ItemGroup>
+    <Compile Include="..\Bitwarden.Server.Sdk.Database.Tests\SqlServerFixture.cs"
+             Link="SqlServerFixture.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\analyzers\Bitwarden.Server.Sdk.Database.Analyzers\Bitwarden.Server.Sdk.Database.Analyzers.csproj" />
+    <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.Database.csproj" />
+  </ItemGroup>
+
+</Project>
