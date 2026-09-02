@@ -371,21 +371,26 @@ Server flags below.
 The generated CLI accepts connections directly, which is useful in CI/CD pipelines:
 
 ```bash
-# EF Core providers — one provider at a time
-dotnet run -- <connectionString> --provider PostgreSql
+# EF Core providers — one option per provider your project references, any number in one pass
+dotnet run -- \
+  --postgresql "Host=…;Database=orders" \
+  --mysql "Server=…;Database=orders" \
+  --sqlite "Data Source=orders.db"
 
-# Run all EF Core providers in a single pass (useful for CI)
-dotnet run -- migrate \
-  --ConnectionStrings:PostgreSql="Host=…;Database=orders" \
-  --ConnectionStrings:MySql="Server=…;Database=orders" \
-  --ConnectionStrings:Sqlite="Data Source=orders.db"
-
-# SQL Server (DbUp)
-dotnet run -- migrate --ConnectionStrings:SqlServer="Server=…;Database=orders"
+# SQL Server (DbUp) — the connection string is positional
+dotnet run -- "Server=…;Database=orders"
 ```
+
+The option names are the providers your project references, lowercased: `--sqlite`, `--sqlserver`,
+`--postgresql`, `--mysql`. A provider you leave out is skipped. The SQL Server migrator is a separate
+build of the same project (see [Building a SQL Server migrator image](#building-a-sql-server-migrator-image)) and takes its
+connection string as a positional argument rather than an option.
 
 The EF providers take connection strings only. To see what is pending for one of them, use
 `dotnet ef migrations list --context <Provider>Context`.
+
+> `--ConnectionStrings:Sqlite=…` and friends are a different thing: the generated design-time
+> factories read them so `dotnet ef` can reach a database. They are not accepted by the CLI above.
 
 Additional flags for SQL Server:
 

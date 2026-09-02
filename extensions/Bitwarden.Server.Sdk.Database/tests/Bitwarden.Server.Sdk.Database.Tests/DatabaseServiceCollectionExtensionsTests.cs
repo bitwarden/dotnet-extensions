@@ -138,7 +138,7 @@ public class DatabaseServiceCollectionExtensionsTests
     }
 }
 
-public class AddSqlServerDatabaseTests
+public class AddSqlServerDatabaseMigratorTests
 {
     private static IServiceCollection BuildServices(Action<IServiceCollection>? configure = null)
     {
@@ -149,13 +149,13 @@ public class AddSqlServerDatabaseTests
             opts.Provider = DatabaseProvider.SqlServer;
             opts.ConnectionString = "Server=localhost;Database=test;";
         });
-        services.AddSqlServerDatabase("Test", typeof(AddSqlServerDatabaseTests).Assembly);
+        services.AddSqlServerDatabaseMigrator("Test", typeof(AddSqlServerDatabaseMigratorTests).Assembly);
         configure?.Invoke(services);
         return services;
     }
 
     [Fact]
-    public void AddSqlServerDatabase_RegistersKeyedMigrator()
+    public void AddSqlServerDatabaseMigrator_RegistersKeyedMigrator()
     {
         var services = BuildServices();
         Assert.Contains(services, d =>
@@ -165,7 +165,7 @@ public class AddSqlServerDatabaseTests
     }
 
     [Fact]
-    public void AddSqlServerDatabase_RegistersHostedService()
+    public void AddSqlServerDatabaseMigrator_RegistersHostedService()
     {
         var services = BuildServices();
         Assert.Contains(services, d =>
@@ -174,11 +174,11 @@ public class AddSqlServerDatabaseTests
     }
 
     [Fact]
-    public void AddSqlServerDatabase_CalledTwice_HostedServiceRegisteredOnce()
+    public void AddSqlServerDatabaseMigrator_CalledTwice_HostedServiceRegisteredOnce()
     {
         var services = new ServiceCollection();
-        services.AddSqlServerDatabase("Test", typeof(AddSqlServerDatabaseTests).Assembly);
-        services.AddSqlServerDatabase("Test", typeof(AddSqlServerDatabaseTests).Assembly);
+        services.AddSqlServerDatabaseMigrator("Test", typeof(AddSqlServerDatabaseMigratorTests).Assembly);
+        services.AddSqlServerDatabaseMigrator("Test", typeof(AddSqlServerDatabaseMigratorTests).Assembly);
 
         var count = services.Count(d =>
             d.ServiceType == typeof(IHostedService) &&
@@ -187,7 +187,7 @@ public class AddSqlServerDatabaseTests
     }
 
     [Fact]
-    public void AddSqlServerDatabase_WithAutoMigrateWhenSelfHosted_TurnsItOnForThatSchema()
+    public void AddSqlServerDatabaseMigrator_WithAutoMigrateWhenSelfHosted_TurnsItOnForThatSchema()
     {
         var env = Substitute.For<IBitwardenEnvironment>();
         env.SelfHosted.Returns(true);
@@ -238,7 +238,7 @@ public class AddSqlServerDatabaseTests
     }
 
     [Fact]
-    public void AddSqlServerDatabase_DoesNotMigrateOnStartupByItself()
+    public void AddSqlServerDatabaseMigrator_DoesNotMigrateOnStartupByItself()
     {
         using var serviceProvider = BuildServices().BuildServiceProvider();
         var options = serviceProvider.GetRequiredService<IOptionsMonitor<AutoMigrateOptions>>();

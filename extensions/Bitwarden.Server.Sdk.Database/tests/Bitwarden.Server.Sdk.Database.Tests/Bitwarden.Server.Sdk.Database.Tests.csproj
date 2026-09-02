@@ -19,6 +19,8 @@
     <PackageReference Include="Microsoft.Extensions.Diagnostics.Testing" Version="[10.1.0]" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="[9.1.0]" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="[8.0.8]" />
+    <!-- Test-only: proves a DbUp-migrated SQL Server schema is still queryable through EF Core. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="[8.0.8]" />
     <PackageReference Include="Testcontainers.MsSql" Version="[4.9.0]" />
     <PackageReference Include="Testcontainers.PostgreSql" Version="[4.9.0]" />
     <PackageReference Include="Testcontainers.MySql" Version="[4.9.0]" />

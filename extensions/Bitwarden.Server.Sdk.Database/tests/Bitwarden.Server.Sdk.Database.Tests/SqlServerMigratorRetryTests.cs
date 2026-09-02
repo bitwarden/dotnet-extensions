@@ -18,6 +18,7 @@ public sealed class SqlServerMigratorRetryTests : IClassFixture<SqlServerFixture
 {
     private const string ScriptPrefix = "Bitwarden.Server.Sdk.Database.Tests.Migrations.SqlServer";
     private const string ScriptUpgradeMode = "Server is in script upgrade mode.";
+    private const string PreviousPrefix = "Bit.Setup";
 
     private readonly SqlServerFixture _sqlServer;
 
@@ -44,7 +45,7 @@ public sealed class SqlServerMigratorRetryTests : IClassFixture<SqlServerFixture
             opts.ScriptPrefix = ScriptPrefix;
             configure?.Invoke(opts);
         });
-        services.AddSqlServerDatabase("Test", typeof(SqlServerMigratorRetryTests).Assembly);
+        services.AddSqlServerDatabaseMigrator("Test", typeof(SqlServerMigratorRetryTests).Assembly);
 
         // Registered last so it wins: the 20 second waits between attempts are not worth serving.
         services.AddSingleton<TimeProvider>(time);
@@ -163,21 +164,30 @@ public sealed class SqlServerMigratorRetryTests : IClassFixture<SqlServerFixture
         await SettleAsync(seedTime, seeding);
         await seeding;
 
-        // Fails the journal rewrite, which every attempt performs while preparing the database.
+        // Move the journal to an older name so every attempt has a rewrite to perform.
+        await ExecuteAsync(connectionString, $"""
+            UPDATE [dbo].[Migration]
+            SET [ScriptName] = STUFF([ScriptName], 1, LEN('{ScriptPrefix}.'), '{PreviousPrefix}.')
+            WHERE LEFT([ScriptName], LEN('{ScriptPrefix}.')) = '{ScriptPrefix}.';
+            """);
+
+        // Fails the rewrite, then puts the journal back so the next attempt has the same work to
+        // do. The rewrite itself is idempotent, so a server that never recovers has to be staged.
         await ExecuteAsync(connectionString, $"""
             CREATE TRIGGER trg_fail_journal ON [dbo].[Migration] AFTER UPDATE AS
             BEGIN
+                UPDATE [dbo].[Migration]
+                SET [ScriptName] = STUFF([ScriptName], 1, LEN('{ScriptPrefix}.'), '{PreviousPrefix}.')
+                WHERE LEFT([ScriptName], LEN('{ScriptPrefix}.')) = '{ScriptPrefix}.';
                 RAISERROR('{ScriptUpgradeMode}', 16, 1);
             END;
             """);
 
         try
         {
-            // A previous prefix the current one extends, so the rewrite keeps finding rows to
-            // rewrite and the trigger keeps firing — a server that never comes back.
             var (migrator, time, logs, _) = await BuildMigratorAsync(
                 DatabaseName,
-                opts => opts.PreviousScriptPrefix = "Bitwarden.Server.Sdk.Database.Tests");
+                opts => opts.PreviousScriptPrefix = PreviousPrefix);
 
             var migration = migrator.MigrateAsync(TestContext.Current.CancellationToken);
             await SettleAsync(time, migration);

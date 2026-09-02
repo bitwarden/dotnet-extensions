@@ -96,11 +96,18 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator
     /// Rewrites recorded script names in place. Values are parameterised; only the journal
     /// schema and table, which are fixed by this package, are part of the statement text.
     /// </summary>
+    /// <remarks>
+    /// Anchored to the start of the name, and skipping rows that already carry the new prefix, so
+    /// running it twice is a no-op. An unanchored replace would rewrite a prefix appearing anywhere
+    /// in the name, and would append the new segment again on every run whenever the new prefix
+    /// extends the old one.
+    /// </remarks>
     internal static string JournalRenameSql =>
         $"IF OBJECT_ID('{JournalSchema}.{JournalTable}','U') IS NOT NULL "
         + $"UPDATE [{JournalSchema}].[{JournalTable}] "
-        + "SET [ScriptName] = REPLACE([ScriptName], @from, @to) "
-        + "WHERE CHARINDEX(@from, [ScriptName]) > 0;";
+        + "SET [ScriptName] = STUFF([ScriptName], 1, LEN(@from), @to) "
+        + "WHERE LEFT([ScriptName], LEN(@from)) = @from "
+        + "AND LEFT([ScriptName], LEN(@to)) <> @to;";
 
     /// <summary>
     /// Whether a phase records what it applied. Transition scripts deliberately don't, so they

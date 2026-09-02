@@ -11,6 +11,27 @@ namespace Bitwarden.Server.Sdk.Database.Tests;
 /// <summary>Minimal DbContext used in tests. Contains no entities or migrations.</summary>
 internal class TestDbContext(DbContextOptions<TestDbContext> options) : DbContext(options);
 
+/// <summary>
+/// An entity mapped to the <c>dbo.Orders</c> table the SQL Server scripts create, so a test can
+/// read through EF what DbUp put there.
+/// </summary>
+internal sealed class Order
+{
+    public int Id { get; set; }
+
+    public string Name { get; set; } = string.Empty;
+}
+
+/// <summary>DbContext over <see cref="Order"/>, for querying a DbUp-migrated SQL Server schema.</summary>
+internal class OrdersDbContext : DbContext
+{
+    public OrdersDbContext(DbContextOptions<OrdersDbContext> options) : base(options)
+    {
+    }
+
+    public DbSet<Order> Orders => Set<Order>();
+}
+
 /// <summary>Second minimal DbContext for multi-schema tests.</summary>
 internal class AnotherTestDbContext(DbContextOptions<AnotherTestDbContext> options) : DbContext(options);
 

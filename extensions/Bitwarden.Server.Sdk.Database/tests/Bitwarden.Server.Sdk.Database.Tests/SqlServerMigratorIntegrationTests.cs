@@ -1,4 +1,5 @@
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
@@ -31,7 +32,7 @@ public class SqlServerMigratorIntegrationTests(SqlServerFixture sqlServer) : ICl
             opts.ScriptPrefix = ScriptPrefix;
             configure?.Invoke(opts);
         });
-        services.AddSqlServerDatabase("Test", typeof(SqlServerMigratorIntegrationTests).Assembly);
+        services.AddSqlServerDatabaseMigrator("Test", typeof(SqlServerMigratorIntegrationTests).Assembly);
 
         var provider = services.BuildServiceProvider();
 
@@ -162,6 +163,79 @@ public class SqlServerMigratorIntegrationTests(SqlServerFixture sqlServer) : ICl
         var journal = await JournalAsync(connectionString);
         Assert.Equal(2, journal.Count);
         Assert.DoesNotContain(journal, name => name.Contains(".Transition.", StringComparison.Ordinal));
+    }
+
+    [Fact(Explicit = true)]
+    public async Task ASqlServerSchema_IsQueryableThroughEfCore_WhileDbUpOwnsTheSchema()
+    {
+        // SQL Server opts out of EF *migrations*, not EF. A service that reads the schema registers
+        // with AddDatabase and gets a working DbContext; only the migrator is swapped for DbUp.
+        var connectionString = await sqlServer.ConnectionStringForAsync("ef_query_test");
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.Configure<DatabaseOptions>("Test", opts =>
+        {
+            opts.Provider = DatabaseProvider.SqlServer;
+            opts.ConnectionString = connectionString;
+        });
+        services.Configure<SqlServerMigrationOptions>("Test", opts => opts.ScriptPrefix = ScriptPrefix);
+        services.AddDatabase<OrdersDbContext, WidgetMigrationsAssembly>(
+            "Test",
+            static (opts, builder) => builder.UseSqlServer(opts.ConnectionString));
+
+        await using var serviceProvider = services.BuildServiceProvider();
+        await using var scope = serviceProvider.CreateAsyncScope();
+
+        // The keyed migrator resolves to DbUp even though a DbContext is registered.
+        var migrator = scope.ServiceProvider.GetRequiredKeyedService<IDatabaseMigrator>("Test");
+        await migrator.MigrateAsync(TestContext.Current.CancellationToken);
+
+        var context = scope.ServiceProvider.GetRequiredService<OrdersDbContext>();
+        var names = await context.Orders
+            .Select(order => order.Name)
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(["initial"], names);
+    }
+
+    [Fact(Explicit = true)]
+    public async Task PreviousScriptNamespace_ThatTheCurrentOneExtends_IsAppliedOnce()
+    {
+        // Adoption by moving scripts into a provider subfolder, so the new prefix contains the old
+        // one. An unanchored rewrite re-appended the new segment on every run until no journal row
+        // matched a script any more and the whole set looked pending again.
+        const string CurrentPrefix = $"{ScriptPrefix}.";
+        const string PreviousPrefix = "Bitwarden.Server.Sdk.Database.Tests.Migrations";
+
+        var (seed, connectionString, _) = await BuildMigratorAsync("rename_extend_test");
+        await seed.MigrateAsync(TestContext.Current.CancellationToken);
+
+        await using (var connection = new SqlConnection(connectionString))
+        {
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+            await new SqlCommand(
+                $"UPDATE [dbo].[Migration] SET [ScriptName] = "
+                + $"STUFF([ScriptName], 1, LEN('{CurrentPrefix}'), '{PreviousPrefix}.') "
+                + $"WHERE LEFT([ScriptName], LEN('{CurrentPrefix}')) = '{CurrentPrefix}'",
+                connection).ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
+        var (adopting, _, _) = await BuildMigratorAsync(
+            "rename_extend_test",
+            opts => opts.PreviousScriptPrefix = PreviousPrefix);
+
+        await adopting.MigrateAsync(TestContext.Current.CancellationToken);
+        var afterFirst = await JournalAsync(connectionString);
+
+        await adopting.MigrateAsync(TestContext.Current.CancellationToken);
+        var afterSecond = await JournalAsync(connectionString);
+
+        // The second run changes nothing, and no script was re-applied.
+        Assert.Equal(afterFirst, afterSecond);
+        Assert.Equal(2, afterSecond.Count);
+        Assert.All(afterSecond, name => Assert.StartsWith(CurrentPrefix, name));
+        Assert.Equal(["initial"], await OrderNamesAsync(connectionString));
     }
 
     [Fact(Explicit = true)]

@@ -67,7 +67,7 @@ public static class DatabaseServiceCollectionExtensions
     /// </param>
     /// <param name="scriptsAssembly">Assembly that contains the embedded SQL scripts.</param>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public static IServiceCollection AddSqlServerDatabase(
+    public static IServiceCollection AddSqlServerDatabaseMigrator(
         this IServiceCollection services,
         string name,
         Assembly scriptsAssembly)

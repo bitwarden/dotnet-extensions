@@ -173,7 +173,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
                     {
                         o.ScriptPrefix = ScriptPrefix;
                     });
-                    return services.AddSqlServerDatabase("My", typeof(MyDatabaseContext).Assembly);
+                    return services.AddSqlServerDatabaseMigrator("My", typeof(MyDatabaseContext).Assembly);
                 }
             #else
                 /// <summary>Registers MyDatabase migration services against the named options key "My".</summary>
@@ -483,7 +483,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
                     {
                         o.ScriptPrefix = ScriptPrefix;
                     });
-                    return services.AddSqlServerDatabase("Custom", typeof(FooDatabaseContext).Assembly);
+                    return services.AddSqlServerDatabaseMigrator("Custom", typeof(FooDatabaseContext).Assembly);
                 }
             #else
                 /// <summary>Registers FooDatabase migration services against the named options key "Custom".</summary>
@@ -771,7 +771,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
                     {
                         o.ScriptPrefix = ScriptPrefix;
                     });
-                    return services.AddSqlServerDatabase("My", typeof(MyDatabaseContext).Assembly);
+                    return services.AddSqlServerDatabaseMigrator("My", typeof(MyDatabaseContext).Assembly);
                 }
             #else
                 /// <summary>Registers MyDatabase migration services against the named options key "My".</summary>
@@ -1071,7 +1071,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
                     {
                         o.ScriptPrefix = ScriptPrefix;
                     });
-                    return services.AddSqlServerDatabase("My", typeof(MyDatabaseContext).Assembly);
+                    return services.AddSqlServerDatabaseMigrator("My", typeof(MyDatabaseContext).Assembly);
                 }
             #else
                 /// <summary>Registers MyDatabase migration services against the named options key "My".</summary>
@@ -1371,7 +1371,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
 
         // Both values arrive escaped, and the file compiles — the harness checks that for every test.
         Assert.Contains(@"private const string ScriptPrefix = ""Bit.Migrator\\DbScripts"";", generated);
-        Assert.Contains(@"AddSqlServerDatabase(""Vault\\Legacy""", generated);
+        Assert.Contains(@"AddSqlServerDatabaseMigrator(""Vault\\Legacy""", generated);
     }
 
     [Fact]

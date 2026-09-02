@@ -50,6 +50,15 @@ public class JournalRenameTests
     }
 
     [Fact]
+    public void PrefixThatTheCurrentOneExtends_IsStillRewritten()
+    {
+        // Moving scripts into a provider subfolder under the same root. The statement is anchored
+        // and skips rows already carrying the new prefix, so this shape is safe rather than banned.
+        Assert.True(SqlServerMigrator.ShouldRenameJournalEntries(
+            WithPrevious("Bit.Migrator")));
+    }
+
+    [Fact]
     public void RenameStatement_ParameterisesTheValues()
     {
         var sql = SqlServerMigrator.JournalRenameSql;
@@ -57,8 +66,26 @@ public class JournalRenameTests
         Assert.Contains("@from", sql);
         Assert.Contains("@to", sql);
         Assert.Contains("[dbo].[Migration]", sql);
-        // Guards the table's existence, and touches only rows that actually contain the fragment.
+        // Guards the table's existence.
         Assert.Contains("IF OBJECT_ID('dbo.Migration','U') IS NOT NULL", sql);
-        Assert.Contains("WHERE CHARINDEX(@from, [ScriptName]) > 0", sql);
+    }
+
+    [Fact]
+    public void RenameStatement_IsAnchoredAndRunnableTwice()
+    {
+        var sql = SqlServerMigrator.JournalRenameSql;
+
+        // Matches the prefix only at the start of the name, and rewrites just that many characters.
+        Assert.Contains("WHERE LEFT([ScriptName], LEN(@from)) = @from", sql);
+        Assert.Contains("STUFF([ScriptName], 1, LEN(@from), @to)", sql);
+
+        // Rows already carrying the new prefix are left alone, which is what makes a second run a
+        // no-op when the new prefix extends the old one.
+        Assert.Contains("AND LEFT([ScriptName], LEN(@to)) <> @to", sql);
+
+        // An unanchored rewrite matched anywhere in the name and re-appended the new segment on
+        // every run, mangling the journal until every applied script looked pending again.
+        Assert.DoesNotContain("CHARINDEX", sql);
+        Assert.DoesNotContain("REPLACE(", sql);
     }
 }

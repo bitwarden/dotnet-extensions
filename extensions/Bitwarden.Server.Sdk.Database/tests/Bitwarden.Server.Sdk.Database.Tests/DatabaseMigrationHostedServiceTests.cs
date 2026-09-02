@@ -91,7 +91,7 @@ public class DatabaseMigrationHostedServiceTests
             o.Phase = MigrationPhase.Transition;
             o.ScriptPrefix = "Acme.Vault.SqlServer";
         });
-        services.AddSqlServerDatabase("Vault", typeof(DatabaseMigrationHostedServiceTests).Assembly);
+        services.AddSqlServerDatabaseMigrator("Vault", typeof(DatabaseMigrationHostedServiceTests).Assembly);
         services.Configure<AutoMigrateOptions>("Vault", o => o.AutoMigrate = true);
 
         var hostedService = BuildHostedServiceCore(services);

@@ -269,7 +269,7 @@ public sealed partial class DatabaseSetupGenerator
                 {
         {{assignments}}
                 });
-                return services.AddSqlServerDatabase({{Literal(attr.MigratorKey)}}, typeof({{attr.TypeName}}).Assembly);
+                return services.AddSqlServerDatabaseMigrator({{Literal(attr.MigratorKey)}}, typeof({{attr.TypeName}}).Assembly);
             }
         #else
             /// <summary>Registers {{attr.SchemaName}} migration services against the named options key {{Literal(attr.MigratorKey)}}.</summary>

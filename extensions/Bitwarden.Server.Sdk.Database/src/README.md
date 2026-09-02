@@ -28,7 +28,7 @@ plumbing. See `PACKAGE.md` for the consumer guide.
   `IMigrationsAssembly` with the generated dispatcher, and registers a keyed `IDatabaseMigrator`.
   Registering a schema does not migrate it: the hosted runner only acts on schemas a host has opted
   in with `AutoMigrateWhenSelfHosted(key)`.
-- `DatabaseServiceCollectionExtensions.AddSqlServerDatabase(name, scriptsAssembly)` — SQL-Server-only
+- `DatabaseServiceCollectionExtensions.AddSqlServerDatabaseMigrator(name, scriptsAssembly)` — SQL-Server-only
   variant: skips the EF Core DbContext and registers only the DbUp migrator.
 
 ### Migrators
@@ -78,7 +78,7 @@ where relevant):
 
 | Symbol | Effect |
 |--------|--------|
-| `SQLSERVER_MIGRATOR_BUILD` | Strips EF Core provider contexts, factories, and the `IMigrationsAssembly` dispatcher. `AddVaultDatabase()` calls `AddSqlServerDatabase` instead. Used by SQL-Server-only deployment builds that bundle only DbUp. |
+| `SQLSERVER_MIGRATOR_BUILD` | Strips EF Core provider contexts, factories, and the `IMigrationsAssembly` dispatcher. `AddVaultDatabase()` calls `AddSqlServerDatabaseMigrator` instead. Used by SQL-Server-only deployment builds that bundle only DbUp. |
 
 ## SQL Server script conventions
 
