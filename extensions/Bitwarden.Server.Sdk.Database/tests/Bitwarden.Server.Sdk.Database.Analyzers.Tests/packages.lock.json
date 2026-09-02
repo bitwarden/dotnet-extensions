@@ -4,7 +4,7 @@
     "net10.0": {
       "Microsoft.CodeAnalysis.CSharp.Analyzer.Testing": {
         "type": "Direct",
-        "requested": "[1.1.4, )",
+        "requested": "[1.1.4, 1.1.4]",
         "resolved": "1.1.4",
         "contentHash": "7VhTi95r0MA4XtOHJZS7ZtLbjL8GGRjQYAa9h7gq2msyE9GaI9wOh/9Obw8ObPGIrGt0ii2KEWGILuwz9drcDQ==",
         "dependencies": {
@@ -14,7 +14,7 @@
       },
       "Microsoft.CodeAnalysis.CSharp.Workspaces": {
         "type": "Direct",
-        "requested": "[5.3.0, )",
+        "requested": "[5.3.0, 5.3.0]",
         "resolved": "5.3.0",
         "contentHash": "mRwxchBs3ewXK4dqK4R/eVCx99VIq1k/lhwArlu+fJuV0uzmbkTTRw4jR9gN9sOcAQfX0uV9KQlmCk1yC0JNog==",
         "dependencies": {
@@ -28,7 +28,7 @@
       },
       "Microsoft.EntityFrameworkCore.Sqlite": {
         "type": "Direct",
-        "requested": "[8.0.8, )",
+        "requested": "[8.0.8, 8.0.8]",
         "resolved": "8.0.8",
         "contentHash": "IDB7Xs16hN/3VkWFCCa4r3fqoJxMVezwq418gr8dBkRBO0pxH+BX/Kjk/U3PYXDvzVLkXqUgJsHv1XoFrJbZPQ==",
         "dependencies": {
@@ -38,7 +38,7 @@
       },
       "Microsoft.EntityFrameworkCore.SqlServer": {
         "type": "Direct",
-        "requested": "[8.0.8, )",
+        "requested": "[8.0.8, 8.0.8]",
         "resolved": "8.0.8",
         "contentHash": "A2F52W+hnGqvprx37HcAnYnJv4QoFFdc9cxd/QGNSd1vCu1I0eAEKRd0r9KS3E5I5RRj/m9XJfYCyTdy1cdn5Q==",
         "dependencies": {
@@ -59,7 +59,7 @@
       },
       "Npgsql.EntityFrameworkCore.PostgreSQL": {
         "type": "Direct",
-        "requested": "[8.0.4, )",
+        "requested": "[8.0.4, 8.0.4]",
         "resolved": "8.0.4",
         "contentHash": "/hHd9MqTRVDgIpsToCcxMDxZqla0HAQACiITkq1+L9J2hmHKV6lBAPlauF+dlNSfHpus7rrljWx4nAanKD6qAw==",
         "dependencies": {
@@ -71,7 +71,7 @@
       },
       "Pomelo.EntityFrameworkCore.MySql": {
         "type": "Direct",
-        "requested": "[8.0.2, )",
+        "requested": "[8.0.2, 8.0.2]",
         "resolved": "8.0.2",
         "contentHash": "XjnlcxVBLnEMbyEc5cZzgZeDyLvAniACZQ04W1slWN0f4rmfNzl98gEMvHnFH0fMDF06z9MmgGi/Sr7hJ+BVnw==",
         "dependencies": {
@@ -81,7 +81,7 @@
       },
       "SQLitePCLRaw.lib.e_sqlite3": {
         "type": "Direct",
-        "requested": "[3.53.3, )",
+        "requested": "[3.53.3, 3.53.3]",
         "resolved": "3.53.3",
         "contentHash": "ZXiSbBkrlw2Of/dBqny/qtQol7dlThrUD8zH/jkQicCFm2yn2BbhKsQW0+YHAzhANWz4ZJCz7gvo88BwluVhkA=="
       },
