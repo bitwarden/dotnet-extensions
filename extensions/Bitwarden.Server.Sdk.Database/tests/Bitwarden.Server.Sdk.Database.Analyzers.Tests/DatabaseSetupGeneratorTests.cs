@@ -218,36 +218,34 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
                     {
                         Description = "SQL Server connection string",
                     };
-                    var phase = new Option<MigrationPhase>(["-p", "--phase"])
+                    var phase = new Option<MigrationPhase>("--phase", "-p")
                     {
                         Description = "Script set to apply: Initial or Transition",
+                        DefaultValueFactory = _ => MigrationPhase.Initial,
                     };
-                    phase.SetDefaultValue(MigrationPhase.Initial);
-                    var dryRun = new Option<bool>(["-d", "--dry-run"])
+                    var dryRun = new Option<bool>("--dry-run", "-d")
                     {
                         Description = "Print the scripts that would be applied without executing them",
                     };
-                    var noTransaction = new Option<bool>(["--no-transaction"])
+                    var noTransaction = new Option<bool>("--no-transaction")
                     {
                         Description = "Run without a transaction",
                     };
-                    var root = new RootCommand
+                    var root = new RootCommand("MyDatabase SQL Server migrations")
                     {
                         connectionString,
                         phase,
                         dryRun,
                         noTransaction,
                     };
-                    root.SetHandler(async ctx =>
-                    {
-                        await DatabaseMigrationCli.RunSqlServerAsync(
-                            ctx.ParseResult.GetValueForArgument(connectionString),
+                    root.SetAction((parseResult, cancellationToken) =>
+                        DatabaseMigrationCli.RunSqlServerAsync(
+                            parseResult.GetValue(connectionString),
                             "My",
                             services => services.AddMyDatabase(),
-                            ctx.ParseResult.GetValueForOption(phase),
-                            ctx.ParseResult.GetValueForOption(noTransaction),
-                            ctx.ParseResult.GetValueForOption(dryRun));
-                    });
+                            parseResult.GetValue(phase),
+                            parseResult.GetValue(noTransaction),
+                            parseResult.GetValue(dryRun)));
                     return root;
                 }
             }
@@ -272,19 +270,19 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
                     {
                         Description = "MySQL connection string",
                     };
-                    var root = new RootCommand
+                    var root = new RootCommand("MyDatabase migrations")
                     {
                         sqlite,
                         sqlServer,
                         postgreSql,
                         mySql,
                     };
-                    root.SetHandler(async ctx =>
+                    root.SetAction(async (parseResult, cancellationToken) =>
                     {
-                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.Sqlite, ctx.ParseResult.GetValueForOption(sqlite), "My", services => services.AddMyDatabase());
-                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.SqlServer, ctx.ParseResult.GetValueForOption(sqlServer), "My", services => services.AddMyDatabase());
-                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.PostgreSql, ctx.ParseResult.GetValueForOption(postgreSql), "My", services => services.AddMyDatabase());
-                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.MySql, ctx.ParseResult.GetValueForOption(mySql), "My", services => services.AddMyDatabase());
+                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.Sqlite, parseResult.GetValue(sqlite), "My", services => services.AddMyDatabase());
+                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.SqlServer, parseResult.GetValue(sqlServer), "My", services => services.AddMyDatabase());
+                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.PostgreSql, parseResult.GetValue(postgreSql), "My", services => services.AddMyDatabase());
+                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.MySql, parseResult.GetValue(mySql), "My", services => services.AddMyDatabase());
                     });
 
             #if DEBUG
@@ -299,15 +297,13 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
                     {
                         Description = "Migration name",
                     };
-                    addMigration.AddArgument(migrationName);
-                    addMigration.SetHandler(async ctx =>
-                    {
-                        await DatabaseMigrationCli.AddMigrationsAsync(
-                            ctx.ParseResult.GetValueForArgument(migrationName)!,
+                    addMigration.Add(migrationName);
+                    addMigration.SetAction((parseResult, cancellationToken) =>
+                        DatabaseMigrationCli.AddMigrationsAsync(
+                            parseResult.GetValue(migrationName)!,
                             Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../")),
-                            efProviders);
-                    });
-                    root.AddCommand(addMigration);
+                            efProviders));
+                    root.Add(addMigration);
             #endif // DEBUG
                     return root;
                 }
@@ -318,7 +314,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
             internal static class MyDatabaseMigrationProgram
             {
                 public static Task<int> RunAsync(string[] args)
-                    => MyDatabaseMigrationApp.Build().InvokeAsync(args);
+                    => MyDatabaseMigrationApp.Build().Parse(args).InvokeAsync();
             }
 
             // Entry point for the migration executable.
@@ -528,36 +524,34 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
                     {
                         Description = "SQL Server connection string",
                     };
-                    var phase = new Option<MigrationPhase>(["-p", "--phase"])
+                    var phase = new Option<MigrationPhase>("--phase", "-p")
                     {
                         Description = "Script set to apply: Initial or Transition",
+                        DefaultValueFactory = _ => MigrationPhase.Initial,
                     };
-                    phase.SetDefaultValue(MigrationPhase.Initial);
-                    var dryRun = new Option<bool>(["-d", "--dry-run"])
+                    var dryRun = new Option<bool>("--dry-run", "-d")
                     {
                         Description = "Print the scripts that would be applied without executing them",
                     };
-                    var noTransaction = new Option<bool>(["--no-transaction"])
+                    var noTransaction = new Option<bool>("--no-transaction")
                     {
                         Description = "Run without a transaction",
                     };
-                    var root = new RootCommand
+                    var root = new RootCommand("FooDatabase SQL Server migrations")
                     {
                         connectionString,
                         phase,
                         dryRun,
                         noTransaction,
                     };
-                    root.SetHandler(async ctx =>
-                    {
-                        await DatabaseMigrationCli.RunSqlServerAsync(
-                            ctx.ParseResult.GetValueForArgument(connectionString),
+                    root.SetAction((parseResult, cancellationToken) =>
+                        DatabaseMigrationCli.RunSqlServerAsync(
+                            parseResult.GetValue(connectionString),
                             "Custom",
                             services => services.AddFooDatabase(),
-                            ctx.ParseResult.GetValueForOption(phase),
-                            ctx.ParseResult.GetValueForOption(noTransaction),
-                            ctx.ParseResult.GetValueForOption(dryRun));
-                    });
+                            parseResult.GetValue(phase),
+                            parseResult.GetValue(noTransaction),
+                            parseResult.GetValue(dryRun)));
                     return root;
                 }
             }
@@ -582,19 +576,19 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
                     {
                         Description = "MySQL connection string",
                     };
-                    var root = new RootCommand
+                    var root = new RootCommand("FooDatabase migrations")
                     {
                         sqlite,
                         sqlServer,
                         postgreSql,
                         mySql,
                     };
-                    root.SetHandler(async ctx =>
+                    root.SetAction(async (parseResult, cancellationToken) =>
                     {
-                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.Sqlite, ctx.ParseResult.GetValueForOption(sqlite), "Custom", services => services.AddFooDatabase());
-                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.SqlServer, ctx.ParseResult.GetValueForOption(sqlServer), "Custom", services => services.AddFooDatabase());
-                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.PostgreSql, ctx.ParseResult.GetValueForOption(postgreSql), "Custom", services => services.AddFooDatabase());
-                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.MySql, ctx.ParseResult.GetValueForOption(mySql), "Custom", services => services.AddFooDatabase());
+                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.Sqlite, parseResult.GetValue(sqlite), "Custom", services => services.AddFooDatabase());
+                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.SqlServer, parseResult.GetValue(sqlServer), "Custom", services => services.AddFooDatabase());
+                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.PostgreSql, parseResult.GetValue(postgreSql), "Custom", services => services.AddFooDatabase());
+                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.MySql, parseResult.GetValue(mySql), "Custom", services => services.AddFooDatabase());
                     });
 
             #if DEBUG
@@ -609,15 +603,13 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
                     {
                         Description = "Migration name",
                     };
-                    addMigration.AddArgument(migrationName);
-                    addMigration.SetHandler(async ctx =>
-                    {
-                        await DatabaseMigrationCli.AddMigrationsAsync(
-                            ctx.ParseResult.GetValueForArgument(migrationName)!,
+                    addMigration.Add(migrationName);
+                    addMigration.SetAction((parseResult, cancellationToken) =>
+                        DatabaseMigrationCli.AddMigrationsAsync(
+                            parseResult.GetValue(migrationName)!,
                             Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../")),
-                            efProviders);
-                    });
-                    root.AddCommand(addMigration);
+                            efProviders));
+                    root.Add(addMigration);
             #endif // DEBUG
                     return root;
                 }
@@ -628,7 +620,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
             internal static class FooDatabaseMigrationProgram
             {
                 public static Task<int> RunAsync(string[] args)
-                    => FooDatabaseMigrationApp.Build().InvokeAsync(args);
+                    => FooDatabaseMigrationApp.Build().Parse(args).InvokeAsync();
             }
 
             // Entry point for the migration executable.
@@ -813,36 +805,34 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
                     {
                         Description = "SQL Server connection string",
                     };
-                    var phase = new Option<MigrationPhase>(["-p", "--phase"])
+                    var phase = new Option<MigrationPhase>("--phase", "-p")
                     {
                         Description = "Script set to apply: Initial or Transition",
+                        DefaultValueFactory = _ => MigrationPhase.Initial,
                     };
-                    phase.SetDefaultValue(MigrationPhase.Initial);
-                    var dryRun = new Option<bool>(["-d", "--dry-run"])
+                    var dryRun = new Option<bool>("--dry-run", "-d")
                     {
                         Description = "Print the scripts that would be applied without executing them",
                     };
-                    var noTransaction = new Option<bool>(["--no-transaction"])
+                    var noTransaction = new Option<bool>("--no-transaction")
                     {
                         Description = "Run without a transaction",
                     };
-                    var root = new RootCommand
+                    var root = new RootCommand("MyDatabase SQL Server migrations")
                     {
                         connectionString,
                         phase,
                         dryRun,
                         noTransaction,
                     };
-                    root.SetHandler(async ctx =>
-                    {
-                        await DatabaseMigrationCli.RunSqlServerAsync(
-                            ctx.ParseResult.GetValueForArgument(connectionString),
+                    root.SetAction((parseResult, cancellationToken) =>
+                        DatabaseMigrationCli.RunSqlServerAsync(
+                            parseResult.GetValue(connectionString),
                             "My",
                             services => services.AddMyDatabase(),
-                            ctx.ParseResult.GetValueForOption(phase),
-                            ctx.ParseResult.GetValueForOption(noTransaction),
-                            ctx.ParseResult.GetValueForOption(dryRun));
-                    });
+                            parseResult.GetValue(phase),
+                            parseResult.GetValue(noTransaction),
+                            parseResult.GetValue(dryRun)));
                     return root;
                 }
             }
@@ -863,17 +853,17 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
                     {
                         Description = "PostgreSQL connection string",
                     };
-                    var root = new RootCommand
+                    var root = new RootCommand("MyDatabase migrations")
                     {
                         sqlite,
                         sqlServer,
                         postgreSql,
                     };
-                    root.SetHandler(async ctx =>
+                    root.SetAction(async (parseResult, cancellationToken) =>
                     {
-                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.Sqlite, ctx.ParseResult.GetValueForOption(sqlite), "My", services => services.AddMyDatabase());
-                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.SqlServer, ctx.ParseResult.GetValueForOption(sqlServer), "My", services => services.AddMyDatabase());
-                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.PostgreSql, ctx.ParseResult.GetValueForOption(postgreSql), "My", services => services.AddMyDatabase());
+                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.Sqlite, parseResult.GetValue(sqlite), "My", services => services.AddMyDatabase());
+                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.SqlServer, parseResult.GetValue(sqlServer), "My", services => services.AddMyDatabase());
+                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.PostgreSql, parseResult.GetValue(postgreSql), "My", services => services.AddMyDatabase());
                     });
 
             #if DEBUG
@@ -887,15 +877,13 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
                     {
                         Description = "Migration name",
                     };
-                    addMigration.AddArgument(migrationName);
-                    addMigration.SetHandler(async ctx =>
-                    {
-                        await DatabaseMigrationCli.AddMigrationsAsync(
-                            ctx.ParseResult.GetValueForArgument(migrationName)!,
+                    addMigration.Add(migrationName);
+                    addMigration.SetAction((parseResult, cancellationToken) =>
+                        DatabaseMigrationCli.AddMigrationsAsync(
+                            parseResult.GetValue(migrationName)!,
                             Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../")),
-                            efProviders);
-                    });
-                    root.AddCommand(addMigration);
+                            efProviders));
+                    root.Add(addMigration);
             #endif // DEBUG
                     return root;
                 }
@@ -906,7 +894,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
             internal static class MyDatabaseMigrationProgram
             {
                 public static Task<int> RunAsync(string[] args)
-                    => MyDatabaseMigrationApp.Build().InvokeAsync(args);
+                    => MyDatabaseMigrationApp.Build().Parse(args).InvokeAsync();
             }
 
             // Entry point for the migration executable.
@@ -1116,36 +1104,34 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
                     {
                         Description = "SQL Server connection string",
                     };
-                    var phase = new Option<MigrationPhase>(["-p", "--phase"])
+                    var phase = new Option<MigrationPhase>("--phase", "-p")
                     {
                         Description = "Script set to apply: Initial or Transition",
+                        DefaultValueFactory = _ => MigrationPhase.Initial,
                     };
-                    phase.SetDefaultValue(MigrationPhase.Initial);
-                    var dryRun = new Option<bool>(["-d", "--dry-run"])
+                    var dryRun = new Option<bool>("--dry-run", "-d")
                     {
                         Description = "Print the scripts that would be applied without executing them",
                     };
-                    var noTransaction = new Option<bool>(["--no-transaction"])
+                    var noTransaction = new Option<bool>("--no-transaction")
                     {
                         Description = "Run without a transaction",
                     };
-                    var root = new RootCommand
+                    var root = new RootCommand("MyDatabase SQL Server migrations")
                     {
                         connectionString,
                         phase,
                         dryRun,
                         noTransaction,
                     };
-                    root.SetHandler(async ctx =>
-                    {
-                        await DatabaseMigrationCli.RunSqlServerAsync(
-                            ctx.ParseResult.GetValueForArgument(connectionString),
+                    root.SetAction((parseResult, cancellationToken) =>
+                        DatabaseMigrationCli.RunSqlServerAsync(
+                            parseResult.GetValue(connectionString),
                             "My",
                             services => services.AddMyDatabase(),
-                            ctx.ParseResult.GetValueForOption(phase),
-                            ctx.ParseResult.GetValueForOption(noTransaction),
-                            ctx.ParseResult.GetValueForOption(dryRun));
-                    });
+                            parseResult.GetValue(phase),
+                            parseResult.GetValue(noTransaction),
+                            parseResult.GetValue(dryRun)));
                     return root;
                 }
             }
@@ -1170,19 +1156,19 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
                     {
                         Description = "MySQL connection string",
                     };
-                    var root = new RootCommand
+                    var root = new RootCommand("MyDatabase migrations")
                     {
                         sqlite,
                         sqlServer,
                         postgreSql,
                         mySql,
                     };
-                    root.SetHandler(async ctx =>
+                    root.SetAction(async (parseResult, cancellationToken) =>
                     {
-                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.Sqlite, ctx.ParseResult.GetValueForOption(sqlite), "My", services => services.AddMyDatabase());
-                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.SqlServer, ctx.ParseResult.GetValueForOption(sqlServer), "My", services => services.AddMyDatabase());
-                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.PostgreSql, ctx.ParseResult.GetValueForOption(postgreSql), "My", services => services.AddMyDatabase());
-                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.MySql, ctx.ParseResult.GetValueForOption(mySql), "My", services => services.AddMyDatabase());
+                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.Sqlite, parseResult.GetValue(sqlite), "My", services => services.AddMyDatabase());
+                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.SqlServer, parseResult.GetValue(sqlServer), "My", services => services.AddMyDatabase());
+                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.PostgreSql, parseResult.GetValue(postgreSql), "My", services => services.AddMyDatabase());
+                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.MySql, parseResult.GetValue(mySql), "My", services => services.AddMyDatabase());
                     });
 
             #if DEBUG
@@ -1197,15 +1183,13 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
                     {
                         Description = "Migration name",
                     };
-                    addMigration.AddArgument(migrationName);
-                    addMigration.SetHandler(async ctx =>
-                    {
-                        await DatabaseMigrationCli.AddMigrationsAsync(
-                            ctx.ParseResult.GetValueForArgument(migrationName)!,
+                    addMigration.Add(migrationName);
+                    addMigration.SetAction((parseResult, cancellationToken) =>
+                        DatabaseMigrationCli.AddMigrationsAsync(
+                            parseResult.GetValue(migrationName)!,
                             "/my/project",
-                            efProviders);
-                    });
-                    root.AddCommand(addMigration);
+                            efProviders));
+                    root.Add(addMigration);
             #endif // DEBUG
                     return root;
                 }
@@ -1216,7 +1200,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
             internal static class MyDatabaseMigrationProgram
             {
                 public static Task<int> RunAsync(string[] args)
-                    => MyDatabaseMigrationApp.Build().InvokeAsync(args);
+                    => MyDatabaseMigrationApp.Build().Parse(args).InvokeAsync();
             }
 
             // Entry point for the migration executable.

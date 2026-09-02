@@ -310,7 +310,7 @@ public sealed partial class DatabaseSetupGenerator
         internal static class {{attr.SchemaName}}MigrationProgram
         {
             public static Task<int> RunAsync(string[] args)
-                => {{attr.SchemaName}}MigrationApp.Build().InvokeAsync(args);
+                => {{attr.SchemaName}}MigrationApp.Build().Parse(args).InvokeAsync();
         }
         """;
 
@@ -323,36 +323,34 @@ public sealed partial class DatabaseSetupGenerator
                 {
                     Description = "SQL Server connection string",
                 };
-                var phase = new Option<MigrationPhase>(["-p", "--phase"])
+                var phase = new Option<MigrationPhase>("--phase", "-p")
                 {
                     Description = "Script set to apply: Initial or Transition",
+                    DefaultValueFactory = _ => MigrationPhase.Initial,
                 };
-                phase.SetDefaultValue(MigrationPhase.Initial);
-                var dryRun = new Option<bool>(["-d", "--dry-run"])
+                var dryRun = new Option<bool>("--dry-run", "-d")
                 {
                     Description = "Print the scripts that would be applied without executing them",
                 };
-                var noTransaction = new Option<bool>(["--no-transaction"])
+                var noTransaction = new Option<bool>("--no-transaction")
                 {
                     Description = "Run without a transaction",
                 };
-                var root = new RootCommand
+                var root = new RootCommand("{{attr.SchemaName}} SQL Server migrations")
                 {
                     connectionString,
                     phase,
                     dryRun,
                     noTransaction,
                 };
-                root.SetHandler(async ctx =>
-                {
-                    await DatabaseMigrationCli.RunSqlServerAsync(
-                        ctx.ParseResult.GetValueForArgument(connectionString),
+                root.SetAction((parseResult, cancellationToken) =>
+                    DatabaseMigrationCli.RunSqlServerAsync(
+                        parseResult.GetValue(connectionString),
                         {{Literal(attr.MigratorKey)}},
                         services => services.Add{{attr.SchemaName}}(),
-                        ctx.ParseResult.GetValueForOption(phase),
-                        ctx.ParseResult.GetValueForOption(noTransaction),
-                        ctx.ParseResult.GetValueForOption(dryRun));
-                });
+                        parseResult.GetValue(phase),
+                        parseResult.GetValue(noTransaction),
+                        parseResult.GetValue(dryRun)));
                 return root;
             }
         }
@@ -369,16 +367,20 @@ public sealed partial class DatabaseSetupGenerator
             $"            Description = \"{ProviderDescription(p.Name)}\",\n" +
             "        };"));
 
+        // Required by RootCommand in System.CommandLine 2.0. SchemaName often already ends in
+        // "Database", so no second "database" here.
+        var description = $"{attr.SchemaName} migrations";
+
         var rootCommand = providers.Length > 0
-            ? "        var root = new RootCommand\n"
+            ? $"        var root = new RootCommand(\"{description}\")\n"
               + "        {\n"
               + string.Join("\n", providers.Select(p => $"            {LowerFirst(p.Name)},")) + "\n"
               + "        };"
-            : "        var root = new RootCommand();";
+            : $"        var root = new RootCommand(\"{description}\");";
 
         var migrateCalls = string.Join("\n", providers.Select(p =>
             $"            await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.{p.Name}, " +
-            $"ctx.ParseResult.GetValueForOption({LowerFirst(p.Name)}), {Literal(attr.MigratorKey)}, " +
+            $"parseResult.GetValue({LowerFirst(p.Name)}), {Literal(attr.MigratorKey)}, " +
             $"services => services.Add{attr.SchemaName}());"));
 
         var efProviders = string.Join("\n", providers
@@ -399,7 +401,7 @@ public sealed partial class DatabaseSetupGenerator
             {
         {{options}}
         {{rootCommand}}
-                root.SetHandler(async ctx =>
+                root.SetAction(async (parseResult, cancellationToken) =>
                 {
         {{migrateCalls}}
                 });
@@ -414,15 +416,13 @@ public sealed partial class DatabaseSetupGenerator
                 {
                     Description = "Migration name",
                 };
-                addMigration.AddArgument(migrationName);
-                addMigration.SetHandler(async ctx =>
-                {
-                    await DatabaseMigrationCli.AddMigrationsAsync(
-                        ctx.ParseResult.GetValueForArgument(migrationName)!,
+                addMigration.Add(migrationName);
+                addMigration.SetAction((parseResult, cancellationToken) =>
+                    DatabaseMigrationCli.AddMigrationsAsync(
+                        parseResult.GetValue(migrationName)!,
         {{projectDirArgument}}
-                        efProviders);
-                });
-                root.AddCommand(addMigration);
+                        efProviders));
+                root.Add(addMigration);
         #endif // DEBUG
                 return root;
             }
