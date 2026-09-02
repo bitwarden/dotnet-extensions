@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3.mtp-v2" Version="[3.2.2]" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="[18.8.0]" />
+    <PackageReference Include="NSubstitute" Version="[5.3.0]" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.Testing" Version="[10.1.0]" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="[9.1.0]" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="[8.0.8]" />
+    <!-- Test-only: proves a DbUp-migrated SQL Server schema is still queryable through EF Core. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="[8.0.8]" />
+    <PackageReference Include="Testcontainers.MsSql" Version="[4.9.0]" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="[4.9.0]" />
+    <PackageReference Include="Testcontainers.MySql" Version="[4.9.0]" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[8.0.4]" />
+    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="[8.0.2]" />
+    <!-- Testcontainers pulls a vulnerable SSH.NET; same pin as the SDK integration tests. -->
+    <PackageReference Include="SSH.NET" Version="[2026.0.0]" />
+    <!-- Overrides the vulnerable 2.1.6 that Microsoft.EntityFrameworkCore.Sqlite pulls in. -->
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="[3.53.3]" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.Database.csproj" />
+  </ItemGroup>
+
+  <!-- What the SDK embeds by convention for a database project; spelled out here because these
+       tests don't build through it. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Migrations\**\HelperScripts\**\*.sql" />
+    <EmbeddedResource Include="Migrations\SqlServer\**\*.sql" />
+  </ItemGroup>
+
+</Project>
