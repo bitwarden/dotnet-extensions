@@ -200,45 +200,6 @@ public class SqlServerMigratorIntegrationTests(SqlServerFixture sqlServer) : ICl
     }
 
     [Fact(Explicit = true)]
-    public async Task PreviousScriptNamespace_ThatTheCurrentOneExtends_IsAppliedOnce()
-    {
-        // Adoption by moving scripts into a provider subfolder, so the new prefix contains the old
-        // one. An unanchored rewrite re-appended the new segment on every run until no journal row
-        // matched a script any more and the whole set looked pending again.
-        const string CurrentPrefix = $"{ScriptPrefix}.";
-        const string PreviousPrefix = "Bitwarden.Server.Sdk.Database.Tests.Migrations";
-
-        var (seed, connectionString, _) = await BuildMigratorAsync("rename_extend_test");
-        await seed.MigrateAsync(TestContext.Current.CancellationToken);
-
-        await using (var connection = new SqlConnection(connectionString))
-        {
-            await connection.OpenAsync(TestContext.Current.CancellationToken);
-            await new SqlCommand(
-                $"UPDATE [dbo].[Migration] SET [ScriptName] = "
-                + $"STUFF([ScriptName], 1, LEN('{CurrentPrefix}'), '{PreviousPrefix}.') "
-                + $"WHERE LEFT([ScriptName], LEN('{CurrentPrefix}')) = '{CurrentPrefix}'",
-                connection).ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
-        }
-
-        var (adopting, _, _) = await BuildMigratorAsync(
-            "rename_extend_test",
-            opts => opts.PreviousScriptPrefix = PreviousPrefix);
-
-        await adopting.MigrateAsync(TestContext.Current.CancellationToken);
-        var afterFirst = await JournalAsync(connectionString);
-
-        await adopting.MigrateAsync(TestContext.Current.CancellationToken);
-        var afterSecond = await JournalAsync(connectionString);
-
-        // The second run changes nothing, and no script was re-applied.
-        Assert.Equal(afterFirst, afterSecond);
-        Assert.Equal(2, afterSecond.Count);
-        Assert.All(afterSecond, name => Assert.StartsWith(CurrentPrefix, name));
-        Assert.Equal(["initial"], await OrderNamesAsync(connectionString));
-    }
-
-    [Fact(Explicit = true)]
     public async Task PreviousScriptNamespace_AdoptsAJournalWrittenUnderAnOlderName()
     {
         // A journal from an era whose names this build no longer produces: without the rewrite every

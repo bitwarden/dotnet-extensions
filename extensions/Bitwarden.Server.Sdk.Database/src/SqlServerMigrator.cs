@@ -90,24 +90,45 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator
             && !string.IsNullOrWhiteSpace(options.PreviousScriptPrefix)
             && !string.IsNullOrWhiteSpace(options.ScriptPrefix)
             // Nothing to do when the journal already records what this build produces.
-            && options.PreviousScriptPrefix!.TrimEnd('.') != options.ScriptPrefix.TrimEnd('.');
+            && options.PreviousScriptPrefix!.TrimEnd('.') != options.ScriptPrefix.TrimEnd('.')
+            && NotOverlapping(
+                options.PreviousScriptPrefix!.TrimEnd('.'), options.ScriptPrefix.TrimEnd('.'));
+
+    /// <summary>
+    /// Whether the rewrite can be applied safely. Overlapping prefixes are rejected at build time
+    /// by <c>BWDB001</c>, so this only catches options configured by hand, and throws rather than
+    /// skipping: a rewrite that silently does nothing leaves the journal under a name no script has
+    /// and re-applies the whole set.
+    /// </summary>
+    private static bool NotOverlapping(string previous, string current)
+    {
+        if (previous.StartsWith(current, StringComparison.Ordinal)
+            || current.StartsWith(previous, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"PreviousScriptPrefix '{previous}' overlaps ScriptPrefix '{current}': one is a "
+                + "prefix of the other. The journal rewrite only supports adopting an unrelated "
+                + "name.");
+        }
+
+        return true;
+    }
 
     /// <summary>
     /// Rewrites recorded script names in place. Values are parameterised; only the journal
     /// schema and table, which are fixed by this package, are part of the statement text.
     /// </summary>
     /// <remarks>
-    /// Anchored to the start of the name, and skipping rows that already carry the new prefix, so
-    /// running it twice is a no-op. An unanchored replace would rewrite a prefix appearing anywhere
-    /// in the name, and would append the new segment again on every run whenever the new prefix
-    /// extends the old one.
+    /// Anchored to the start of the name, and running it twice is a no-op: afterwards no row starts
+    /// with the old prefix. That holds because the prefixes cannot overlap — <c>BWDB001</c> rejects
+    /// a previous prefix that contains the current one or is contained by it, so the rewritten name
+    /// can never match the pattern that produced it.
     /// </remarks>
     internal static string JournalRenameSql =>
         $"IF OBJECT_ID('{JournalSchema}.{JournalTable}','U') IS NOT NULL "
         + $"UPDATE [{JournalSchema}].[{JournalTable}] "
         + "SET [ScriptName] = STUFF([ScriptName], 1, LEN(@from), @to) "
-        + "WHERE LEFT([ScriptName], LEN(@from)) = @from "
-        + "AND LEFT([ScriptName], LEN(@to)) <> @to;";
+        + "WHERE LEFT([ScriptName], LEN(@from)) = @from;";
 
     /// <summary>
     /// Whether a phase records what it applied. Transition scripts deliberately don't, so they

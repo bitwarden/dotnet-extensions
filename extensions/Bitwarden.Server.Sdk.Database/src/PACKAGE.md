@@ -239,6 +239,22 @@ Recorded names carrying it are rewritten onto `BitSqlServerScriptPrefix`, so
 `Bit.Setup.DbScripts.<file>.sql` becomes `Bit.Migrator.DbScripts.<file>.sql`. Because both ends are
 full prefixes, this also covers a journal whose folder segment differed, not just its namespace.
 
+The two prefixes must be **unrelated names** — neither one a prefix of the other. Rewriting is
+anchored to the start of the recorded name, which is what makes it safe to run on every migration:
+afterwards no row begins with the old prefix, so a second run has nothing to match. That guarantee
+depends on the rewritten name not looking like the pattern that produced it, which fails if one
+prefix contains the other. `BWDB001` rejects such a pair at build time rather than letting it reach
+a journal:
+
+```
+error BWDB001: BitPreviousSqlServerScriptPrefix 'Bit.Migrator.DbScripts' and
+BitSqlServerScriptPrefix 'Bit.Migrator.DbScripts.SqlServer' overlap: one is a prefix of the other.
+```
+
+This is not a limitation in practice: the property exists to adopt a journal from a different era,
+whose name is by definition unrelated to the current one. Renaming *within* one lineage needs no
+rewriting at all — point `BitSqlServerScriptPrefix` at the name the journal already holds.
+
 It is a build property rather than a runtime setting because it describes the schema's history, not
 a deployment: every host that migrates this schema needs it, and one forgetting to configure it
 would silently lose the protection. The generated `Add{Schema}Database` applies it.

@@ -215,6 +215,12 @@ Implemented:
   convention, with `Exclude="@(EmbeddedResource)"` so a project declaring its own items keeps them.
   The script folder is fixed: `BitSqlServerScriptPrefix` describes the recorded name, not the
   layout, so an adopted schema moves its scripts like any other.
+- `BWDB001` is the generator's only diagnostic: an error when `BitPreviousSqlServerScriptPrefix`
+  overlaps `BitSqlServerScriptPrefix`, meaning one is a prefix of the other. The journal rewrite is
+  anchored to the start of the recorded name and so is idempotent only for unrelated names; both
+  values are build properties, so the overlap is decided at compile time instead of against a
+  production journal. `SqlServerMigrator` throws on the same condition, for options configured by
+  hand rather than by the generator.
 - `BitSqlServerScriptPrefix` and `BitPreviousSqlServerScriptPrefix` are read from `CompilerVisibleProperty`
   items, and the generated `Add{Schema}Database` bakes them into `SqlServerMigrationOptions` — so the folder scripts are embedded under and the folder
   the migrator reads come from one property. The rename is unconditional for database projects,
@@ -236,3 +242,15 @@ providers don't serve, and supporting them would mean filtering the entries the 
 migrations-assembly hands to EF — EF applies whatever migrations it can see, so the phase would have
 to be resolved from `DbContextOptions` when the dispatcher is constructed.
 
+## Possible future work
+
+- **The journal is fixed to `dbo.Migration`.** `SqlServerMigrator` hardcodes
+  `JournalSchema = "dbo"` and `JournalTable = "Migration"`, which is what `bitwarden/server` uses
+  and therefore what an adopted journal is guaranteed to be. The pair reaches three places: the
+  `JournalToSqlTable` call that configures DbUp, the `OBJECT_ID` existence check, and the rewrite
+  statement. A consumer whose objects live outside `dbo`, or who would rather keep the journal
+  beside them than in `dbo`, has no way to say so. If that comes up, the likely shape is another
+  couple of `SqlServerMigrationOptions` properties defaulting to the current values — the migrator
+  already reads named options per schema — plus a decision about what the rewrite should do for a
+  journal that has itself moved, since `BitPreviousSqlServerScriptPrefix` only describes the
+  recorded *names*, not where they are recorded.

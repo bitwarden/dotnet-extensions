@@ -50,12 +50,16 @@ public class JournalRenameTests
     }
 
     [Fact]
-    public void PrefixThatTheCurrentOneExtends_IsStillRewritten()
+    public void OverlappingPrefixes_AreRejected()
     {
-        // Moving scripts into a provider subfolder under the same root. The statement is anchored
-        // and skips rows already carrying the new prefix, so this shape is safe rather than banned.
-        Assert.True(SqlServerMigrator.ShouldRenameJournalEntries(
-            WithPrevious("Bit.Migrator")));
+        // Either direction of overlap. The rewrite is only idempotent for unrelated names, so the
+        // generator rejects these at build time (BWDB001) and hand-configured options throw rather
+        // than silently rewriting nothing.
+        Assert.Throws<InvalidOperationException>(
+            () => SqlServerMigrator.ShouldRenameJournalEntries(WithPrevious("Bit.Migrator")));
+
+        Assert.Throws<InvalidOperationException>(
+            () => SqlServerMigrator.ShouldRenameJournalEntries(WithPrevious($"{Current}.SqlServer")));
     }
 
     [Fact]
@@ -79,9 +83,8 @@ public class JournalRenameTests
         Assert.Contains("WHERE LEFT([ScriptName], LEN(@from)) = @from", sql);
         Assert.Contains("STUFF([ScriptName], 1, LEN(@from), @to)", sql);
 
-        // Rows already carrying the new prefix are left alone, which is what makes a second run a
-        // no-op when the new prefix extends the old one.
-        Assert.Contains("AND LEFT([ScriptName], LEN(@to)) <> @to", sql);
+        // No further guard is needed: overlapping prefixes are rejected before this runs, so a
+        // rewritten name can never match the pattern that produced it.
 
         // An unanchored rewrite matched anywhere in the name and re-appended the new segment on
         // every run, mangling the journal until every applied script looked pending again.

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
@@ -1332,6 +1333,59 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
         Assert.DoesNotContain("PreviousScriptPrefix", generated);
     }
 
+    [Theory]
+    // The new prefix extends the old one, and the reverse.
+    [InlineData("Bit.Migrator.DbScripts", "Bit.Migrator.DbScripts.SqlServer")]
+    [InlineData("Bit.Migrator.DbScripts.SqlServer", "Bit.Migrator.DbScripts")]
+    public async Task OverlappingScriptPrefixes_AreRejectedAtBuildTime(
+        string previousScriptPrefix,
+        string scriptPrefix)
+    {
+        // The rewrite is only idempotent for unrelated names. Both prefixes are build properties,
+        // so an overlap is decidable here rather than discovered against a production journal.
+        var diagnostics = await GenerateDiagnosticsAsync(
+            """
+            using Microsoft.EntityFrameworkCore;
+            using Bitwarden.Server.Sdk.Database;
+            using My.App;
+
+            [assembly: DatabaseSetup<MyDatabaseContext>(MigratorKey = "Vault")]
+
+            namespace My.App;
+
+            public class MyDatabaseContext(DbContextOptions options) : DbContext(options);
+            """,
+            scriptPrefix: scriptPrefix,
+            previousScriptPrefix: previousScriptPrefix);
+
+        var diagnostic = Assert.Single(diagnostics);
+        Assert.Equal("BWDB001", diagnostic.Id);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Contains(previousScriptPrefix, diagnostic.GetMessage());
+    }
+
+    [Fact]
+    public async Task UnrelatedScriptPrefixes_AreAccepted()
+    {
+        // The shape the rewrite exists for: adopting a journal written under an unrelated name.
+        var generated = await GenerateAsync(
+            """
+            using Microsoft.EntityFrameworkCore;
+            using Bitwarden.Server.Sdk.Database;
+            using My.App;
+
+            [assembly: DatabaseSetup<MyDatabaseContext>(MigratorKey = "Vault")]
+
+            namespace My.App;
+
+            public class MyDatabaseContext(DbContextOptions options) : DbContext(options);
+            """,
+            scriptPrefix: "Bit.Migrator.DbScripts",
+            previousScriptPrefix: "Bit.Setup");
+
+        Assert.Contains("o.PreviousScriptPrefix = PreviousScriptPrefix;", generated);
+    }
+
     [Fact]
     public async Task ValuesNeedingEscaping_AreEmittedAsValidLiterals()
     {
@@ -1949,6 +2003,38 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
             source, excludeAssemblyNames, projectDir, scriptPrefix, previousScriptPrefix);
 
         new DefaultVerifier().EqualOrDiff(generatedSource, actual);
+    }
+
+    /// <summary>
+    /// Runs the generator and returns what it reported, for cases where a diagnostic is the
+    /// expected output. <see cref="GenerateAsync"/> fails on any diagnostic.
+    /// </summary>
+    private static async Task<ImmutableArray<Diagnostic>> GenerateDiagnosticsAsync(
+        [StringSyntax("C#")] string source,
+        string? scriptPrefix = null,
+        string? previousScriptPrefix = null)
+    {
+        var compilation = await BuildCompilationAsync(source, excludeAssemblyNames: null);
+
+        var buildProperties = new Dictionary<string, string>();
+        if (scriptPrefix is not null)
+            buildProperties["build_property.BitSqlServerScriptPrefix"] = scriptPrefix;
+        if (previousScriptPrefix is not null)
+            buildProperties["build_property.BitPreviousSqlServerScriptPrefix"] = previousScriptPrefix;
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: [new DatabaseSetupGenerator().AsSourceGenerator()],
+            driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true),
+            parseOptions: _parseOptions,
+            optionsProvider: new MockAnalyzerConfigOptionsProvider(buildProperties));
+
+        driver.RunGeneratorsAndUpdateCompilation(
+            compilation,
+            out _,
+            out var diagnostics,
+            TestContext.Current.CancellationToken);
+
+        return diagnostics;
     }
 
     private static async Task<string> GenerateAsync(

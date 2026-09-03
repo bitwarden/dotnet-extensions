@@ -20,6 +20,28 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
         new("MySql", "Pomelo.EntityFrameworkCore.MySql"),
     ];
 
+    /// <summary>
+    /// Reported when the previous and current script prefixes overlap. The journal rewrite exists
+    /// to adopt a journal written under an unrelated name, and is only idempotent for prefixes
+    /// where neither contains the other. Both come from build properties, so this is decidable
+    /// here rather than left to fail against a production database.
+    /// </summary>
+    private static readonly DiagnosticDescriptor OverlappingScriptPrefixes = new(
+        id: "BWDB001",
+        title: "Previous script prefix overlaps the current one",
+        messageFormat: "BitPreviousSqlServerScriptPrefix '{0}' and BitSqlServerScriptPrefix '{1}' "
+            + "overlap: one is a prefix of the other. The journal rewrite only supports adopting an "
+            + "unrelated name. Set BitPreviousSqlServerScriptPrefix to the name the journal actually "
+            + "records, or remove it if the journal already matches this build.",
+        category: "Bitwarden.Database",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static bool PrefixesOverlap(string previous, string current)
+        => previous.Length != current.Length
+            && (previous.StartsWith(current, StringComparison.Ordinal)
+                || current.StartsWith(previous, StringComparison.Ordinal));
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Each step below produces an equatable output type so Roslyn's incremental caching
@@ -274,6 +296,15 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
         EquatableArray<ProviderSpec> providers,
         BuildProperties buildProperties)
     {
+        if (buildProperties.PreviousScriptPrefix is { } previous
+            && buildProperties.ScriptPrefix is { } current
+            && PrefixesOverlap(previous, current))
+        {
+            spc.ReportDiagnostic(Diagnostic.Create(
+                OverlappingScriptPrefixes, Location.None, previous, current));
+            return;
+        }
+
         spc.AddSource(
             $"{attr.SchemaName}.g.cs",
             SourceText.From(
