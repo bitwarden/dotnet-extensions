@@ -17,14 +17,14 @@ public class RegistrationIdempotencyTests
     public void AddPublisher_CalledTwice_DoesNotDuplicateKeyedServices()
     {
         var services = new ServiceCollection();
-        services.AddPublisher<MyItem>("test");
-        var publisherCount = Count<IPublisher<MyItem>>(services, "test");
+        services.AddPublisher<MyItemPayload, MyItem>("test");
+        var publisherCount = Count<Publisher<MyItemPayload, MyItem>>(services, "test");
         var serializerCount = Count<IMessageSerializer>(services, "test");
         var hostedServiceCount = CountHostedServices(services);
 
-        services.AddPublisher<MyItem>("test");
+        services.AddPublisher<MyItemPayload, MyItem>("test");
 
-        Assert.Equal(publisherCount, Count<IPublisher<MyItem>>(services, "test"));
+        Assert.Equal(publisherCount, Count<Publisher<MyItemPayload, MyItem>>(services, "test"));
         Assert.Equal(serializerCount, Count<IMessageSerializer>(services, "test"));
         Assert.Equal(hostedServiceCount, CountHostedServices(services));
     }
@@ -33,13 +33,13 @@ public class RegistrationIdempotencyTests
     public void AddSubscriber_CalledTwice_DoesNotDuplicateKeyedServicesOrHostedServices()
     {
         var services = new ServiceCollection();
-        services.AddSubscriber<MyItem>("test", "group");
-        var subscriberCount = Count<ISubscriber<MyItem>>(services, "test/group");
+        services.AddSubscriber<MyItemPayload, MyItem>("test", "group");
+        var subscriberCount = Count<ISubscriber<MyItemPayload, MyItem>>(services, "test/group");
         var hostedServiceCount = CountHostedServices(services);
 
-        services.AddSubscriber<MyItem>("test", "group");
+        services.AddSubscriber<MyItemPayload, MyItem>("test", "group");
 
-        Assert.Equal(subscriberCount, Count<ISubscriber<MyItem>>(services, "test/group"));
+        Assert.Equal(subscriberCount, Count<ISubscriber<MyItemPayload, MyItem>>(services, "test/group"));
         Assert.Equal(hostedServiceCount, CountHostedServices(services));
     }
 
@@ -47,10 +47,10 @@ public class RegistrationIdempotencyTests
     public void AddMessageConsumer_CalledTwice_DoesNotDuplicateHostedServices()
     {
         var services = new ServiceCollection();
-        services.AddMessageConsumer<MyItem, NullConsumer>("test", "group");
+        services.AddMessageConsumer<MyItemPayload, MyItem, NullConsumer>("test", "group");
         var hostedServiceCount = CountHostedServices(services);
 
-        services.AddMessageConsumer<MyItem, NullConsumer>("test", "group");
+        services.AddMessageConsumer<MyItemPayload, MyItem, NullConsumer>("test", "group");
 
         Assert.Equal(hostedServiceCount, CountHostedServices(services));
     }
@@ -61,10 +61,10 @@ public class RegistrationIdempotencyTests
         // The same consumer class may handle messages from multiple subscriptions.
         // Each (TConsumer, subscriptionKey) pair must get its own background service.
         var services = new ServiceCollection();
-        services.AddMessageConsumer<MyItem, NullConsumer>("test", "group-a");
+        services.AddMessageConsumer<MyItemPayload, MyItem, NullConsumer>("test", "group-a");
         var hostedServiceCountAfterFirst = CountHostedServices(services);
 
-        services.AddMessageConsumer<MyItem, NullConsumer>("test", "group-b");
+        services.AddMessageConsumer<MyItemPayload, MyItem, NullConsumer>("test", "group-b");
 
         // One additional ConsumerBackgroundService is expected; ChannelTopic is shared (same topic name).
         Assert.Equal(hostedServiceCountAfterFirst + 1, CountHostedServices(services));
@@ -74,13 +74,13 @@ public class RegistrationIdempotencyTests
     public void AddPublisherThenAddSubscriber_ChannelTopicHostedServiceRegisteredOnce()
     {
         var services = new ServiceCollection();
-        services.AddPublisher<MyItem>("test");
-        services.AddSubscriber<MyItem>("test", "group");
+        services.AddPublisher<MyItemPayload, MyItem>("test");
+        services.AddSubscriber<MyItemPayload, MyItem>("test", "group");
         var hostedServiceCount = CountHostedServices(services);
 
         // Calling either again must not grow the IHostedService list.
-        services.AddPublisher<MyItem>("test");
-        services.AddSubscriber<MyItem>("test", "group");
+        services.AddPublisher<MyItemPayload, MyItem>("test");
+        services.AddSubscriber<MyItemPayload, MyItem>("test", "group");
 
         Assert.Equal(hostedServiceCount, CountHostedServices(services));
     }
@@ -89,12 +89,12 @@ public class RegistrationIdempotencyTests
     public void AddSubscriberThenAddPublisher_ProducesSameHostedServiceCountAsOppositeOrder()
     {
         var servicesA = new ServiceCollection();
-        servicesA.AddPublisher<MyItem>("test");
-        servicesA.AddSubscriber<MyItem>("test", "group");
+        servicesA.AddPublisher<MyItemPayload, MyItem>("test");
+        servicesA.AddSubscriber<MyItemPayload, MyItem>("test", "group");
 
         var servicesB = new ServiceCollection();
-        servicesB.AddSubscriber<MyItem>("test", "group");
-        servicesB.AddPublisher<MyItem>("test");
+        servicesB.AddSubscriber<MyItemPayload, MyItem>("test", "group");
+        servicesB.AddPublisher<MyItemPayload, MyItem>("test");
 
         Assert.Equal(CountHostedServices(servicesA), CountHostedServices(servicesB));
     }
@@ -105,9 +105,9 @@ public class RegistrationIdempotencyTests
     private static int CountHostedServices(IServiceCollection services) =>
         services.Count(d => d.ServiceType == typeof(IHostedService));
 
-    private sealed class NullConsumer : IMessageConsumer<MyItem>
+    private sealed class NullConsumer : IMessageConsumer<MyItemPayload, MyItem>
     {
-        public Task HandleAsync(Envelope<MyItem> envelope, CancellationToken cancellationToken)
+        public Task HandleAsync(Envelope<MyItemPayload, MyItem> envelope, CancellationToken cancellationToken)
             => Task.CompletedTask;
     }
 }

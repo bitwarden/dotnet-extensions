@@ -1,21 +1,20 @@
-using Bitwarden.Server.Sdk.MessageBroker;
 using Microsoft.Extensions.Hosting;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Hosts an <see cref="IMessageConsumer{T}"/> as a <see cref="BackgroundService"/>, driving its
-/// message-processing loop and settling each envelope automatically.
+/// Hosts an <see cref="IMessageConsumer{TPayload, TCeiling}"/> as a <see cref="BackgroundService"/>,
+/// driving its message-processing loop and settling each envelope automatically.
 /// </summary>
-internal sealed class ConsumerBackgroundService<T, TConsumer> : BackgroundService
-    where TConsumer : class, IMessageConsumer<T>
+internal sealed class ConsumerBackgroundService<TPayload, TCeiling, TConsumer> : BackgroundService
+    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
+    where TCeiling : Payload<TPayload>.ICeiling
+    where TConsumer : class, IMessageConsumer<TPayload, TCeiling>
 {
     private readonly TConsumer _consumer;
-    private readonly ISubscriber<T> _subscriber;
+    private readonly ISubscriber<TPayload, TCeiling> _subscriber;
 
-    /// <param name="consumer">The consumer to invoke for each message.</param>
-    /// <param name="subscriber">The subscriber to consume messages from.</param>
-    public ConsumerBackgroundService(TConsumer consumer, ISubscriber<T> subscriber)
+    public ConsumerBackgroundService(TConsumer consumer, ISubscriber<TPayload, TCeiling> subscriber)
     {
         _consumer = consumer;
         _subscriber = subscriber;

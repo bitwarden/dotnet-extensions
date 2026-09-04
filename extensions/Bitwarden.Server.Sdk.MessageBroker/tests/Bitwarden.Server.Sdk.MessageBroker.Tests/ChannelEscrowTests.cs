@@ -1,5 +1,4 @@
 using System.Buffers;
-using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -9,6 +8,19 @@ namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 [Collection("InMemory")]
 public class ChannelEscrowTests
 {
+    /// <summary>
+    /// Uses the topic's registered <see cref="IMessageSerializer"/> to produce the wire-format
+    /// bytes for a single-variant payload, so tests stay coupled to the real serializer's output
+    /// rather than encoding wire-format assumptions themselves.
+    /// </summary>
+    private static byte[] SerializeVariantWirePayload(IHost host, MyItem variant)
+    {
+        var serializer = host.Services.GetRequiredKeyedService<IMessageSerializer>("test");
+        var buffer = new ArrayBufferWriter<byte>();
+        serializer.SerializeVariants<MyItemPayload>([variant], buffer);
+        return buffer.WrittenMemory.ToArray();
+    }
+
     /// <summary>
     /// Verifies that messages buffered in the channel when the host stops are written to the
     /// primary escrow store if one is registered.
@@ -22,9 +34,9 @@ public class ChannelEscrowTests
         var host = new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddPublisher<MyItem>("test");
-                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
-                services.AddMessageConsumer<MyItem, BlockingConsumer>("test", "group");
+                services.AddPublisher<MyItemPayload, MyItem>("test");
+                services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
+                services.AddMessageConsumer<MyItemPayload, MyItem, BlockingConsumer>("test", "group");
                 services.AddSingleton<IMessageEscrowStore>(escrow);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -32,9 +44,9 @@ public class ChannelEscrowTests
 
         await host.StartAsync(TestContext.Current.CancellationToken);
 
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>("test");
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("test");
         for (var i = 0; i < messageCount; i++)
-            await publisher.PublishAsync(new MyItem(i), TestContext.Current.CancellationToken);
+            await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
 
         await host.StopAsync(TestContext.Current.CancellationToken);
 
@@ -55,9 +67,9 @@ public class ChannelEscrowTests
         var host1 = new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddPublisher<MyItem>("test");
-                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
-                services.AddMessageConsumer<MyItem, BlockingConsumer>("test", "group");
+                services.AddPublisher<MyItemPayload, MyItem>("test");
+                services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
+                services.AddMessageConsumer<MyItemPayload, MyItem, BlockingConsumer>("test", "group");
                 services.AddSingleton<IMessageEscrowStore>(escrow);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -65,9 +77,9 @@ public class ChannelEscrowTests
 
         await host1.StartAsync(TestContext.Current.CancellationToken);
 
-        var publisher = host1.Services.GetRequiredKeyedService<IPublisher<MyItem>>("test");
+        var publisher = host1.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("test");
         for (var i = 0; i < messageCount; i++)
-            await publisher.PublishAsync(new MyItem(i), TestContext.Current.CancellationToken);
+            await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
 
         await host1.StopAsync(TestContext.Current.CancellationToken);
 
@@ -79,8 +91,8 @@ public class ChannelEscrowTests
         var host2 = new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddPublisher<MyItem>("test");
-                services.AddMessageConsumer<MyItem, RecordingConsumer>("test", "group");
+                services.AddPublisher<MyItemPayload, MyItem>("test");
+                services.AddMessageConsumer<MyItemPayload, MyItem, RecordingConsumer>("test", "group");
                 services.AddSingleton(state);
                 services.AddSingleton<IMessageEscrowStore>(escrow);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
@@ -109,18 +121,18 @@ public class ChannelEscrowTests
         var host = new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddPublisher<MyItem>("test");
-                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
-                services.AddMessageConsumer<MyItem, BlockingConsumer>("test", "group");
+                services.AddPublisher<MyItemPayload, MyItem>("test");
+                services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
+                services.AddMessageConsumer<MyItemPayload, MyItem, BlockingConsumer>("test", "group");
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
             .Build();
 
         await host.StartAsync(TestContext.Current.CancellationToken);
 
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>("test");
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("test");
         for (var i = 0; i < messageCount; i++)
-            await publisher.PublishAsync(new MyItem(i), TestContext.Current.CancellationToken);
+            await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
 
         // Must complete without throwing even though there is no escrow store.
         await host.StopAsync(TestContext.Current.CancellationToken);
@@ -136,9 +148,9 @@ public class ChannelEscrowTests
         var host = new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddPublisher<MyItem>("test");
-                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
-                services.AddMessageConsumer<MyItem, BlockingConsumer>("test", "group");
+                services.AddPublisher<MyItemPayload, MyItem>("test");
+                services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
+                services.AddMessageConsumer<MyItemPayload, MyItem, BlockingConsumer>("test", "group");
                 services.AddSingleton<IMessageEscrowStore>(new ThrowingOnReadEscrowStore());
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -159,23 +171,23 @@ public class ChannelEscrowTests
         const string escrowKey = "test/group";
         var escrow = new InMemoryEscrowStore();
 
-        var validPayload = JsonSerializer.SerializeToUtf8Bytes(new MyItem(99));
-        await escrow.WriteAsync(escrowKey, [
-            new EscrowedMessage(Guid.NewGuid().ToString(), null, 1, "NOT_VALID_JSON"u8.ToArray()),
-            new EscrowedMessage(Guid.NewGuid().ToString(), null, 1, validPayload),
-        ], TestContext.Current.CancellationToken);
-
         var state = new RecordingState();
         var host = new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddPublisher<MyItem>("test");
-                services.AddMessageConsumer<MyItem, RecordingConsumer>("test", "group");
+                services.AddPublisher<MyItemPayload, MyItem>("test");
+                services.AddMessageConsumer<MyItemPayload, MyItem, RecordingConsumer>("test", "group");
                 services.AddSingleton(state);
                 services.AddSingleton<IMessageEscrowStore>(escrow);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
             .Build();
+
+        var validPayload = SerializeVariantWirePayload(host, new MyItem(99));
+        await escrow.WriteAsync(escrowKey, [
+            new EscrowedMessage(Guid.NewGuid().ToString(), null, 1, "NOT_VALID_JSON"u8.ToArray()),
+            new EscrowedMessage(Guid.NewGuid().ToString(), null, 1, validPayload),
+        ], TestContext.Current.CancellationToken);
 
         await host.StartAsync(TestContext.Current.CancellationToken);
         await state.Received.WaitAsync(TestContext.Current.CancellationToken);
@@ -194,23 +206,23 @@ public class ChannelEscrowTests
         const string escrowKey = "test/group";
         var escrow = new InMemoryEscrowStore();
 
-        var validPayload = JsonSerializer.SerializeToUtf8Bytes(new MyItem(77));
-        await escrow.WriteAsync(escrowKey, [
-            new EscrowedMessage(Guid.NewGuid().ToString(), null, 1, "null"u8.ToArray()),
-            new EscrowedMessage(Guid.NewGuid().ToString(), null, 1, validPayload),
-        ], TestContext.Current.CancellationToken);
-
         var state = new RecordingState();
         var host = new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddPublisher<MyItem>("test");
-                services.AddMessageConsumer<MyItem, RecordingConsumer>("test", "group");
+                services.AddPublisher<MyItemPayload, MyItem>("test");
+                services.AddMessageConsumer<MyItemPayload, MyItem, RecordingConsumer>("test", "group");
                 services.AddSingleton(state);
                 services.AddSingleton<IMessageEscrowStore>(escrow);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
             .Build();
+
+        var validPayload = SerializeVariantWirePayload(host, new MyItem(77));
+        await escrow.WriteAsync(escrowKey, [
+            new EscrowedMessage(Guid.NewGuid().ToString(), null, 1, "null"u8.ToArray()),
+            new EscrowedMessage(Guid.NewGuid().ToString(), null, 1, validPayload),
+        ], TestContext.Current.CancellationToken);
 
         await host.StartAsync(TestContext.Current.CancellationToken);
         await state.Received.WaitAsync(TestContext.Current.CancellationToken);
@@ -231,9 +243,9 @@ public class ChannelEscrowTests
         var host = new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddPublisher<MyItem>("test");
-                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
-                services.AddMessageConsumer<MyItem, BlockingConsumer>("test", "group");
+                services.AddPublisher<MyItemPayload, MyItem>("test");
+                services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
+                services.AddMessageConsumer<MyItemPayload, MyItem, BlockingConsumer>("test", "group");
                 services.AddSingleton<IMessageEscrowStore>(new ThrowingOnWriteEscrowStore());
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -241,9 +253,9 @@ public class ChannelEscrowTests
 
         await host.StartAsync(TestContext.Current.CancellationToken);
 
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>("test");
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("test");
         for (var i = 0; i < messageCount; i++)
-            await publisher.PublishAsync(new MyItem(i), TestContext.Current.CancellationToken);
+            await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
 
         // Must complete without throwing even though the store throws on WriteAsync.
         await host.StopAsync(TestContext.Current.CancellationToken);
@@ -264,8 +276,8 @@ public class ChannelEscrowTests
                 new Dictionary<string, string?> { { "RabbitUri", "amqp://guest:guest@localhost:1/" } }))
             .ConfigureServices(services =>
             {
-                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
-                services.AddMessageConsumer<MyItem, BlockingConsumer>("test", "group");
+                services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
+                services.AddMessageConsumer<MyItemPayload, MyItem, BlockingConsumer>("test", "group");
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
             .Build();
@@ -289,9 +301,9 @@ public class ChannelEscrowTests
                 // Register before AddPublisher so the TryAdd inside AddPublisher is a no-op.
                 services.AddKeyedSingleton<IMessageSerializer>("test",
                     (_, _) => new ThrowingOnSerializeSerializer());
-                services.AddPublisher<MyItem>("test");
-                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
-                services.AddMessageConsumer<MyItem, BlockingConsumer>("test", "group");
+                services.AddPublisher<MyItemPayload, MyItem>("test");
+                services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
+                services.AddMessageConsumer<MyItemPayload, MyItem, BlockingConsumer>("test", "group");
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
             .Build();
@@ -300,8 +312,8 @@ public class ChannelEscrowTests
 
         // ChannelPublisher writes the message directly to the channel without serializing;
         // serialization only happens in ChannelEscrowService.StopAsync when draining.
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>("test");
-        await publisher.PublishAsync(new MyItem(1), TestContext.Current.CancellationToken);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("test");
+        await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
 
         // StopAsync drains the channel, calls Serialize → throws → caught and logged.
         await host.StopAsync(TestContext.Current.CancellationToken);
@@ -338,9 +350,9 @@ public class ChannelEscrowTests
     /// Never yields any messages; the consumer loop blocks until cancellation, leaving all
     /// <see cref="ChannelTopic{T}"/> messages buffered for the escrow drain.
     /// </summary>
-    private sealed class NeverYieldingSubscriber : ISubscriber<MyItem>
+    private sealed class NeverYieldingSubscriber : ISubscriber<MyItemPayload, MyItem>
     {
-        public async IAsyncEnumerable<Envelope<MyItem>> SubscribeAsync(
+        public async IAsyncEnumerable<Envelope<MyItemPayload, MyItem>> SubscribeAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             try { await Task.Delay(Timeout.Infinite, cancellationToken); }
@@ -350,9 +362,9 @@ public class ChannelEscrowTests
     }
 
     /// <summary>Never processes messages; used alongside <see cref="NeverYieldingSubscriber"/>.</summary>
-    private sealed class BlockingConsumer : IMessageConsumer<MyItem>
+    private sealed class BlockingConsumer : IMessageConsumer<MyItemPayload, MyItem>
     {
-        public Task HandleAsync(Envelope<MyItem> envelope, CancellationToken cancellationToken)
+        public Task HandleAsync(Envelope<MyItemPayload, MyItem> envelope, CancellationToken cancellationToken)
             => Task.CompletedTask;
     }
 
@@ -362,11 +374,11 @@ public class ChannelEscrowTests
         public SemaphoreSlim Received { get; } = new(0, int.MaxValue);
     }
 
-    private sealed class RecordingConsumer(RecordingState state) : IMessageConsumer<MyItem>
+    private sealed class RecordingConsumer(RecordingState state) : IMessageConsumer<MyItemPayload, MyItem>
     {
-        public Task HandleAsync(Envelope<MyItem> envelope, CancellationToken cancellationToken)
+        public Task HandleAsync(Envelope<MyItemPayload, MyItem> envelope, CancellationToken cancellationToken)
         {
-            state.Ids.Add(envelope.Message.Id);
+            state.Ids.Add(envelope.Payload.Id);
             state.Received.Release();
             return Task.CompletedTask;
         }
@@ -390,12 +402,17 @@ public class ChannelEscrowTests
             throw new InvalidOperationException("simulated write failure");
     }
 
-    /// <summary>Always throws from <see cref="IMessageSerializer.Serialize{T}"/>.</summary>
+    /// <summary>Always throws from <see cref="IMessageSerializer.SerializeVariants"/>.</summary>
     private sealed class ThrowingOnSerializeSerializer : IMessageSerializer
     {
-        public void Serialize<T>(T message, IBufferWriter<byte> destination) =>
+        public void SerializeVariants<TPayload>(
+            IEnumerable<Payload<TPayload>.IVariant> variants,
+            IBufferWriter<byte> destination)
+            where TPayload : Payload<TPayload>, IPayloadVariants<TPayload> =>
             throw new InvalidOperationException("simulated serialization failure");
 
-        public T? Deserialize<T>(ReadOnlySpan<byte> source) => default;
+        public IReadOnlyList<Payload<TPayload>.IVariant> DeserializeVariants<TPayload>(
+            ReadOnlySpan<byte> source)
+            where TPayload : Payload<TPayload>, IPayloadVariants<TPayload> => [];
     }
 }

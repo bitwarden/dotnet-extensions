@@ -4,7 +4,9 @@ using Azure.Messaging.ServiceBus;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-internal sealed class AzureServiceBusSubscriber<T> : ISubscriber<T>, IAsyncDisposable
+internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>, IAsyncDisposable
+    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
+    where TCeiling : Payload<TPayload>.ICeiling
 {
     private readonly string _topicName;
     private readonly string _subscriptionName;
@@ -21,7 +23,7 @@ internal sealed class AzureServiceBusSubscriber<T> : ISubscriber<T>, IAsyncDispo
         _metrics = metrics;
     }
 
-    public async IAsyncEnumerable<Envelope<T>> SubscribeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await using var receiver = _client
             .CreateReceiver(_topicName, _subscriptionName, new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.PeekLock });
@@ -52,10 +54,10 @@ internal sealed class AzureServiceBusSubscriber<T> : ISubscriber<T>, IAsyncDispo
 
             foreach (var sbMessage in received)
             {
-                T? message;
+                IReadOnlyList<Payload<TPayload>.IVariant> variants;
                 try
                 {
-                    message = _serializer.Deserialize<T>(sbMessage.Body.ToArray());
+                    variants = _serializer.DeserializeVariants<TPayload>(sbMessage.Body.ToArray());
                 }
                 catch (Exception)
                 {
@@ -63,30 +65,48 @@ internal sealed class AzureServiceBusSubscriber<T> : ISubscriber<T>, IAsyncDispo
                     continue;
                 }
 
-                if (message is not null)
+                if (variants.Count == 0)
                 {
-                    _metrics.RecordConsume(_topicName);
-                    var traceId = sbMessage.ApplicationProperties.TryGetValue("traceparent", out var tp) ? tp as string : null;
-                    var activity = MessageBrokerActivitySource.StartConsumerActivity(_topicName, traceId);
-                    yield return new AzureServiceBusEnvelope(message, receiver, sbMessage, activity);
-                }
-                else
-                {
+                    // No variant on the wire was known to this subscriber.
                     await receiver.DeadLetterMessageAsync(sbMessage, cancellationToken: cancellationToken);
+                    continue;
                 }
+
+                var traceId = sbMessage.ApplicationProperties.TryGetValue("traceparent", out var tp) ? tp as string : null;
+                var activity = MessageBrokerActivitySource.StartConsumerActivity(_topicName, traceId);
+
+                AzureServiceBusEnvelope envelope;
+                try
+                {
+                    envelope = new AzureServiceBusEnvelope(variants, receiver, sbMessage, activity);
+                }
+                catch (InvalidOperationException)
+                {
+                    // Received variants cannot be resolved to TCeiling — dead-letter.
+                    activity?.Dispose();
+                    await receiver.DeadLetterMessageAsync(sbMessage, cancellationToken: cancellationToken);
+                    continue;
+                }
+
+                _metrics.RecordConsume(_topicName);
+                yield return envelope;
             }
         }
     }
 
     public ValueTask DisposeAsync() => _client.DisposeAsync();
 
-    private sealed class AzureServiceBusEnvelope : Envelope<T>
+    private sealed class AzureServiceBusEnvelope : Envelope<TPayload, TCeiling>
     {
         private readonly ServiceBusReceiver _receiver;
         private readonly ServiceBusReceivedMessage _sbMessage;
 
-        public AzureServiceBusEnvelope(T message, ServiceBusReceiver receiver, ServiceBusReceivedMessage sbMessage, Activity? activity)
-            : base(message, activity)
+        public AzureServiceBusEnvelope(
+            IReadOnlyList<Payload<TPayload>.IVariant> variants,
+            ServiceBusReceiver receiver,
+            ServiceBusReceivedMessage sbMessage,
+            Activity? activity)
+            : base(variants, activity)
         {
             _receiver = receiver;
             _sbMessage = sbMessage;

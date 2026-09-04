@@ -7,7 +7,9 @@ using RabbitMQ.Client.Events;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-internal sealed class RabbitSubscriber<T> : ISubscriber<T>
+internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>
+    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
+    where TCeiling : Payload<TPayload>.ICeiling
 {
     private readonly string _exchangeName;
     private readonly string _queueName;
@@ -24,20 +26,20 @@ internal sealed class RabbitSubscriber<T> : ISubscriber<T>
         _metrics = metrics;
     }
 
-    public async IAsyncEnumerable<Envelope<T>> SubscribeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var conn = await _connection.GetConnectionAsync(cancellationToken);
         await using var rabbitChannel = await conn.CreateChannelAsync(cancellationToken: cancellationToken);
 
-        var innerChannel = Channel.CreateUnbounded<(T message, ulong deliveryTag, string messageId, string? traceId, int deliveryCount)>();
+        var innerChannel = Channel.CreateUnbounded<RabbitEnvelope>();
 
         var consumer = new AsyncEventingBasicConsumer(rabbitChannel);
         consumer.ReceivedAsync += async (_, ea) =>
         {
-            T? message;
+            IReadOnlyList<Payload<TPayload>.IVariant> variants;
             try
             {
-                message = _serializer.Deserialize<T>(ea.Body.Span);
+                variants = _serializer.DeserializeVariants<TPayload>(ea.Body.Span);
             }
             catch (Exception)
             {
@@ -45,22 +47,40 @@ internal sealed class RabbitSubscriber<T> : ISubscriber<T>
                 return;
             }
 
-            if (message is not null)
+            if (variants.Count == 0)
             {
-                var messageId = ea.BasicProperties.MessageId ?? Guid.NewGuid().ToString();
-                var traceId = ea.BasicProperties.Headers?.TryGetValue("traceparent", out var tp) == true && tp is byte[] tpBytes
-                    ? Encoding.UTF8.GetString(tpBytes)
-                    : null;
-                // Quorum queues (Rabbit 3.12+) set x-delivery-count starting at 0; add 1 to
-                // match the 1-based DeliveryCount convention (first delivery = 1).
-                // Classic queues only expose a boolean redelivered flag, so we fall back to 1/2.
-                var deliveryCount = ea.BasicProperties.Headers?.TryGetValue("x-delivery-count", out var dc) == true && dc is long count
-                    ? (int)count + 1
-                    : ea.Redelivered ? 2 : 1;
-                await innerChannel.Writer.WriteAsync((message, ea.DeliveryTag, messageId, traceId, deliveryCount), CancellationToken.None);
-            }
-            else
+                // Every variant on the wire was unknown to this subscriber. Dead-letter so the
+                // broker does not retry into an unrecoverable state.
                 await rabbitChannel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false);
+                return;
+            }
+
+            var messageId = ea.BasicProperties.MessageId ?? Guid.NewGuid().ToString();
+            var traceId = ea.BasicProperties.Headers?.TryGetValue("traceparent", out var tp) == true && tp is byte[] tpBytes
+                ? Encoding.UTF8.GetString(tpBytes)
+                : null;
+            // Quorum queues (Rabbit 3.12+) set x-delivery-count starting at 0; add 1 to
+            // match the 1-based DeliveryCount convention (first delivery = 1).
+            // Classic queues only expose a boolean redelivered flag, so we fall back to 1/2.
+            var deliveryCount = ea.BasicProperties.Headers?.TryGetValue("x-delivery-count", out var dc) == true && dc is long count
+                ? (int)count + 1
+                : ea.Redelivered ? 2 : 1;
+            var activity = MessageBrokerActivitySource.StartConsumerActivity(_exchangeName, traceId);
+
+            RabbitEnvelope envelope;
+            try
+            {
+                envelope = new RabbitEnvelope(variants, ea.DeliveryTag, rabbitChannel, messageId, traceId, deliveryCount, activity);
+            }
+            catch (InvalidOperationException)
+            {
+                // Received variants cannot be resolved to TCeiling — dead-letter.
+                activity?.Dispose();
+                await rabbitChannel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false);
+                return;
+            }
+
+            await innerChannel.Writer.WriteAsync(envelope, CancellationToken.None);
         };
 
         // When the broker closes the channel unexpectedly, record the reason and complete the
@@ -81,24 +101,30 @@ internal sealed class RabbitSubscriber<T> : ISubscriber<T>
         await rabbitChannel.BasicQosAsync(prefetchSize: 0, prefetchCount: 1, global: false, cancellationToken: cancellationToken);
         await rabbitChannel.BasicConsumeAsync(_queueName, autoAck: false, consumer: consumer, cancellationToken: cancellationToken);
 
-        await foreach (var (message, deliveryTag, messageId, traceId, deliveryCount) in innerChannel.Reader.ReadAllAsync(cancellationToken))
+        await foreach (var envelope in innerChannel.Reader.ReadAllAsync(cancellationToken))
         {
             _metrics.RecordConsume(_exchangeName);
-            var activity = MessageBrokerActivitySource.StartConsumerActivity(_exchangeName, traceId);
-            yield return new RabbitEnvelope(message, deliveryTag, rabbitChannel, messageId, traceId, deliveryCount, activity);
+            yield return envelope;
         }
 
         if (brokerDisconnect is not null)
             throw new BrokerDisconnectedException(_exchangeName, brokerDisconnect);
     }
 
-    private sealed class RabbitEnvelope : Envelope<T>
+    private sealed class RabbitEnvelope : Envelope<TPayload, TCeiling>
     {
         private readonly ulong _deliveryTag;
         private readonly IChannel _channel;
 
-        public RabbitEnvelope(T message, ulong deliveryTag, IChannel channel, string messageId, string? traceId, int deliveryCount, Activity? activity)
-            : base(message, activity)
+        public RabbitEnvelope(
+            IReadOnlyList<Payload<TPayload>.IVariant> variants,
+            ulong deliveryTag,
+            IChannel channel,
+            string messageId,
+            string? traceId,
+            int deliveryCount,
+            Activity? activity)
+            : base(variants, activity)
         {
             _deliveryTag = deliveryTag;
             _channel = channel;

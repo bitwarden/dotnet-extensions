@@ -16,8 +16,8 @@ public class MessageConsumerTests
         var host = new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddPublisher<MyItem>("test");
-                services.AddMessageConsumer<MyItem, SignalingConsumer>("test", "test");
+                services.AddPublisher<MyItemPayload, MyItem>("test");
+                services.AddMessageConsumer<MyItemPayload, MyItem, SignalingConsumer>("test", "test");
                 services.AddSingleton(state);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -25,8 +25,8 @@ public class MessageConsumerTests
 
         await host.StartAsync(TestContext.Current.CancellationToken);
 
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>("test");
-        await publisher.PublishAsync(new MyItem(42), TestContext.Current.CancellationToken);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("test");
+        await publisher.Publish(new MyItem(42)).SendAsync(TestContext.Current.CancellationToken);
 
         await state.Received.WaitAsync(TestContext.Current.CancellationToken);
 
@@ -43,8 +43,8 @@ public class MessageConsumerTests
         var host = new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddPublisher<MyItem>("test");
-                services.AddMessageConsumer<MyItem, SignalingConsumer>("test", "test");
+                services.AddPublisher<MyItemPayload, MyItem>("test");
+                services.AddMessageConsumer<MyItemPayload, MyItem, SignalingConsumer>("test", "test");
                 services.AddSingleton(state);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -52,8 +52,8 @@ public class MessageConsumerTests
 
         await host.StartAsync(TestContext.Current.CancellationToken);
 
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>("test");
-        await publisher.PublishAsync(new MyItem(7), TestContext.Current.CancellationToken);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("test");
+        await publisher.Publish(new MyItem(7)).SendAsync(TestContext.Current.CancellationToken);
 
         // The first delivery throws → the base class calls RequeueAsync → message is re-queued.
         // The second delivery succeeds → the semaphore is released.
@@ -71,8 +71,8 @@ public class MessageConsumerTests
         var host = new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddPublisher<MyItem>("test");
-                services.AddMessageConsumer<MyItem, SignalingConsumer>("test", "test");
+                services.AddPublisher<MyItemPayload, MyItem>("test");
+                services.AddMessageConsumer<MyItemPayload, MyItem, SignalingConsumer>("test", "test");
                 services.AddSingleton(new ConsumerState());
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -103,8 +103,8 @@ public class MessageConsumerTests
                 new Dictionary<string, string?> { { "MaxDeliveryCount", "1" } }))
             .ConfigureServices(services =>
             {
-                services.AddPublisher<MyItem>("test");
-                services.AddMessageConsumer<MyItem, SignalingConsumer>("test", "test");
+                services.AddPublisher<MyItemPayload, MyItem>("test");
+                services.AddMessageConsumer<MyItemPayload, MyItem, SignalingConsumer>("test", "test");
                 services.AddSingleton(state);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -112,14 +112,14 @@ public class MessageConsumerTests
 
         await host.StartAsync(TestContext.Current.CancellationToken);
 
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>("test");
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("test");
 
         // First message: fails, gets discarded rather than re-queued.
-        await publisher.PublishAsync(new MyItem(42), TestContext.Current.CancellationToken);
+        await publisher.Publish(new MyItem(42)).SendAsync(TestContext.Current.CancellationToken);
         await Task.Delay(200, TestContext.Current.CancellationToken);
 
         // Second message: succeeds (AttemptCount is 2, so FailFirstDelivery no longer triggers).
-        await publisher.PublishAsync(new MyItem(99), TestContext.Current.CancellationToken);
+        await publisher.Publish(new MyItem(99)).SendAsync(TestContext.Current.CancellationToken);
         await state.Received.WaitAsync(TestContext.Current.CancellationToken);
 
         await host.StopAsync(TestContext.Current.CancellationToken);
@@ -135,7 +135,7 @@ public class MessageConsumerTests
     public async Task ConsumerContinuesWhenRequeueThrows()
     {
         // Feed envelopes into the consumer via a direct channel so we control the sequence.
-        var ch = Channel.CreateUnbounded<Envelope<MyItem>>();
+        var ch = Channel.CreateUnbounded<Envelope<MyItemPayload, MyItem>>();
         var state = new ConsumerState { FailFirstDelivery = true };
 
         var host = new HostBuilder()
@@ -143,9 +143,9 @@ public class MessageConsumerTests
             {
                 // Register the injecting subscriber before AddMessageConsumer so the TryAdd
                 // inside AddSubscriber leaves our registration in place.
-                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/test",
+                services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/test",
                     (_, _) => new ChannelBackedSubscriber(ch.Reader));
-                services.AddMessageConsumer<MyItem, SignalingConsumer>("test", "test");
+                services.AddMessageConsumer<MyItemPayload, MyItem, SignalingConsumer>("test", "test");
                 services.AddSingleton(state);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -177,16 +177,16 @@ public class MessageConsumerTests
     {
         // Complete the writer before the host starts so ReadAllAsync returns immediately,
         // exercising the normal-return path through ExecuteAsync.
-        var ch = Channel.CreateUnbounded<Envelope<MyItem>>();
+        var ch = Channel.CreateUnbounded<Envelope<MyItemPayload, MyItem>>();
         ch.Writer.Complete();
 
         var host = new HostBuilder()
             .ConfigureServices(services =>
             {
                 // Register before AddMessageConsumer so TryAdd for the subscriber is a no-op.
-                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/test",
+                services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/test",
                     (_, _) => new ChannelBackedSubscriber(ch.Reader));
-                services.AddMessageConsumer<MyItem, SignalingConsumer>("test", "test");
+                services.AddMessageConsumer<MyItemPayload, MyItem, SignalingConsumer>("test", "test");
                 services.AddSingleton(new ConsumerState());
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -209,16 +209,16 @@ public class MessageConsumerTests
     [Fact(Timeout = 60 * 1000)]
     public async Task FrameworkCompletesEnvelopeWhenHandlerDoesNotSettle()
     {
-        var ch = Channel.CreateUnbounded<Envelope<MyItem>>();
+        var ch = Channel.CreateUnbounded<Envelope<MyItemPayload, MyItem>>();
         var envelope = new TrackingEnvelope(new MyItem(1));
 
         var host = new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/test",
+                services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/test",
                     (_, _) => new ChannelBackedSubscriber(ch.Reader));
-                services.AddMessageConsumer<MyItem, ActionConsumer>("test", "test");
-                services.AddSingleton<Func<Envelope<MyItem>, CancellationToken, Task>>(
+                services.AddMessageConsumer<MyItemPayload, MyItem, ActionConsumer>("test", "test");
+                services.AddSingleton<Func<Envelope<MyItemPayload, MyItem>, CancellationToken, Task>>(
                     (_, _) => Task.CompletedTask);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -243,16 +243,16 @@ public class MessageConsumerTests
     [Fact(Timeout = 60 * 1000)]
     public async Task FrameworkSkipsCompleteWhenHandlerExplicitlyRequeues()
     {
-        var ch = Channel.CreateUnbounded<Envelope<MyItem>>();
+        var ch = Channel.CreateUnbounded<Envelope<MyItemPayload, MyItem>>();
         var envelope = new TrackingEnvelope(new MyItem(2));
 
         var host = new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/test",
+                services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/test",
                     (_, _) => new ChannelBackedSubscriber(ch.Reader));
-                services.AddMessageConsumer<MyItem, ActionConsumer>("test", "test");
-                services.AddSingleton<Func<Envelope<MyItem>, CancellationToken, Task>>(
+                services.AddMessageConsumer<MyItemPayload, MyItem, ActionConsumer>("test", "test");
+                services.AddSingleton<Func<Envelope<MyItemPayload, MyItem>, CancellationToken, Task>>(
                     (e, ct) => e.RequeueAsync(cancellationToken: ct));
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -277,16 +277,16 @@ public class MessageConsumerTests
     [Fact(Timeout = 60 * 1000)]
     public async Task FrameworkSkipsCompleteWhenHandlerDeadLetters()
     {
-        var ch = Channel.CreateUnbounded<Envelope<MyItem>>();
+        var ch = Channel.CreateUnbounded<Envelope<MyItemPayload, MyItem>>();
         var envelope = new TrackingEnvelope(new MyItem(3));
 
         var host = new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/test",
+                services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/test",
                     (_, _) => new ChannelBackedSubscriber(ch.Reader));
-                services.AddMessageConsumer<MyItem, ActionConsumer>("test", "test");
-                services.AddSingleton<Func<Envelope<MyItem>, CancellationToken, Task>>(
+                services.AddMessageConsumer<MyItemPayload, MyItem, ActionConsumer>("test", "test");
+                services.AddSingleton<Func<Envelope<MyItemPayload, MyItem>, CancellationToken, Task>>(
                     (e, ct) => e.DeadLetterAsync(cancellationToken: ct));
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -310,16 +310,16 @@ public class MessageConsumerTests
     [Fact(Timeout = 60 * 1000)]
     public async Task FrameworkRequeuesEnvelopeWhenHandlerThrows()
     {
-        var ch = Channel.CreateUnbounded<Envelope<MyItem>>();
+        var ch = Channel.CreateUnbounded<Envelope<MyItemPayload, MyItem>>();
         var envelope = new TrackingEnvelope(new MyItem(4));
 
         var host = new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddKeyedSingleton<ISubscriber<MyItem>>("test/test",
+                services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/test",
                     (_, _) => new ChannelBackedSubscriber(ch.Reader));
-                services.AddMessageConsumer<MyItem, ActionConsumer>("test", "test");
-                services.AddSingleton<Func<Envelope<MyItem>, CancellationToken, Task>>(
+                services.AddMessageConsumer<MyItemPayload, MyItem, ActionConsumer>("test", "test");
+                services.AddSingleton<Func<Envelope<MyItemPayload, MyItem>, CancellationToken, Task>>(
                     (_, _) => Task.FromException(new InvalidOperationException("simulated failure")));
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -343,31 +343,31 @@ public class MessageConsumerTests
         public SemaphoreSlim Received { get; } = new(0);
     }
 
-    private sealed class SignalingConsumer(ConsumerState state) : IMessageConsumer<MyItem>
+    private sealed class SignalingConsumer(ConsumerState state) : IMessageConsumer<MyItemPayload, MyItem>
     {
-        public Task HandleAsync(Envelope<MyItem> envelope, CancellationToken cancellationToken)
+        public Task HandleAsync(Envelope<MyItemPayload, MyItem> envelope, CancellationToken cancellationToken)
         {
             var attempt = Interlocked.Increment(ref state.AttemptCount);
             if (state.FailFirstDelivery && attempt == 1)
                 throw new InvalidOperationException("simulated first-delivery failure");
 
-            state.Ids.Add(envelope.Message.Id);
+            state.Ids.Add(envelope.Payload.Id);
             state.Received.Release();
             return Task.CompletedTask;
         }
     }
 
     /// <summary>Delivers envelopes from a <see cref="ChannelReader{T}"/> so tests can inject custom envelopes.</summary>
-    private sealed class ChannelBackedSubscriber : ISubscriber<MyItem>
+    private sealed class ChannelBackedSubscriber : ISubscriber<MyItemPayload, MyItem>
     {
-        private readonly ChannelReader<Envelope<MyItem>> _reader;
+        private readonly ChannelReader<Envelope<MyItemPayload, MyItem>> _reader;
 
-        public ChannelBackedSubscriber(ChannelReader<Envelope<MyItem>> reader)
+        public ChannelBackedSubscriber(ChannelReader<Envelope<MyItemPayload, MyItem>> reader)
         {
             _reader = reader;
         }
 
-        public IAsyncEnumerable<Envelope<MyItem>> SubscribeAsync(CancellationToken cancellationToken = default) =>
+        public IAsyncEnumerable<Envelope<MyItemPayload, MyItem>> SubscribeAsync(CancellationToken cancellationToken = default) =>
             _reader.ReadAllAsync(cancellationToken);
     }
 
@@ -375,16 +375,16 @@ public class MessageConsumerTests
     /// Drives a consumer via a delegate so settlement-guard tests can vary handler behaviour
     /// without defining a new consumer class per scenario.
     /// </summary>
-    private sealed class ActionConsumer : IMessageConsumer<MyItem>
+    private sealed class ActionConsumer : IMessageConsumer<MyItemPayload, MyItem>
     {
-        private readonly Func<Envelope<MyItem>, CancellationToken, Task> _handler;
+        private readonly Func<Envelope<MyItemPayload, MyItem>, CancellationToken, Task> _handler;
 
-        public ActionConsumer(Func<Envelope<MyItem>, CancellationToken, Task> handler)
+        public ActionConsumer(Func<Envelope<MyItemPayload, MyItem>, CancellationToken, Task> handler)
         {
             _handler = handler;
         }
 
-        public Task HandleAsync(Envelope<MyItem> envelope, CancellationToken cancellationToken)
+        public Task HandleAsync(Envelope<MyItemPayload, MyItem> envelope, CancellationToken cancellationToken)
             => _handler(envelope, cancellationToken);
     }
 
@@ -393,14 +393,14 @@ public class MessageConsumerTests
     /// settlement occurred via the expected method. Releases <see cref="Settled"/> on any
     /// settlement so the test can await it without a fixed delay.
     /// </summary>
-    private sealed class TrackingEnvelope : Envelope<MyItem>
+    private sealed class TrackingEnvelope : Envelope<MyItemPayload, MyItem>
     {
         public int CompleteCalls;
         public int RequeueCalls;
         public int DeadLetterCalls;
         public SemaphoreSlim Settled { get; } = new(0);
 
-        public TrackingEnvelope(MyItem message) : base(message) { }
+        public TrackingEnvelope(MyItem message) : base([message]) { }
         public override string MessageId => Guid.NewGuid().ToString();
         public override string? TraceId => null;
         public override int DeliveryCount => 1;
@@ -428,9 +428,9 @@ public class MessageConsumerTests
     }
 
     /// <summary>An envelope whose <see cref="Envelope{T}.RequeueAsync"/> always throws.</summary>
-    private sealed class ThrowingRequeueEnvelope : Envelope<MyItem>
+    private sealed class ThrowingRequeueEnvelope : Envelope<MyItemPayload, MyItem>
     {
-        public ThrowingRequeueEnvelope() : base(new MyItem(-1)) { }
+        public ThrowingRequeueEnvelope() : base([new MyItem(-1)]) { }
         public override string MessageId => "throwing-requeue";
         public override string? TraceId => null;
         public override int DeliveryCount => 1;
@@ -441,9 +441,9 @@ public class MessageConsumerTests
     }
 
     /// <summary>A well-behaved envelope that completes and requeues without side effects.</summary>
-    private sealed class GoodEnvelope : Envelope<MyItem>
+    private sealed class GoodEnvelope : Envelope<MyItemPayload, MyItem>
     {
-        public GoodEnvelope(MyItem message) : base(message) { }
+        public GoodEnvelope(MyItem message) : base([message]) { }
         public override string MessageId => Guid.NewGuid().ToString();
         public override string? TraceId => null;
         public override int DeliveryCount => 1;

@@ -109,8 +109,8 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
         await container.StartAsync(TestContext.Current.CancellationToken);
 
         var config = new Dictionary<string, string?> { { "RabbitUri", GetContainerUri(container) } };
-        var host = await BuildHostAsync(config, services => services.AddPublisher<MyItem>(TopicName));
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>(TopicName);
+        var host = await BuildHostAsync(config, services => services.AddPublisher<MyItemPayload, MyItem>(TopicName));
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
 
         // Connection is established; now stop the broker.
         await container.StopAsync(TestContext.Current.CancellationToken);
@@ -119,58 +119,7 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
         BrokerUnavailableException? ex = null;
         for (var i = 0; i < 20 && ex is null; i++)
         {
-            try { await publisher.PublishAsync(new MyItem(1), TestContext.Current.CancellationToken); }
-            catch (BrokerUnavailableException e) { ex = e; }
-            if (ex is null)
-                await Task.Delay(250, TestContext.Current.CancellationToken);
-        }
-
-        Assert.NotNull(ex);
-        Assert.Equal(TopicName, ex.TopicName);
-        Assert.IsAssignableFrom<OperationInterruptedException>(ex.InnerException);
-    }
-
-    [Fact(Timeout = 60 * 1000)]
-    public async Task PublishBatchThrowsBrokerUnavailableExceptionWhenBrokerIsDown()
-    {
-        var config = CreateBrokerDownConfig();
-        var host = await BuildHostAsync(config, services => services.AddPublisher<MyItem>(TopicName));
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>(TopicName);
-
-        var ex = await Assert.ThrowsAsync<BrokerUnavailableException>(
-            () => publisher.PublishBatchAsync([new MyItem(1)], TestContext.Current.CancellationToken));
-        Assert.Equal(TopicName, ex.TopicName);
-        Assert.NotNull(ex.InnerException);
-    }
-
-    /// <summary>
-    /// Verifies that <see cref="IPublisher{T}.PublishBatchAsync"/> surfaces
-    /// <see cref="BrokerUnavailableException"/> wrapping <see cref="OperationInterruptedException"/>
-    /// when the broker goes down after the connection was established, covering the
-    /// <c>catch (OperationInterruptedException)</c> branch in <c>RabbitPublisher.PublishBatchAsync</c>.
-    /// </summary>
-    [Fact(Timeout = 60 * 1000)]
-    public async Task PublishBatchThrowsBrokerUnavailableExceptionWhenBrokerGoesDown()
-    {
-        await using var container = new ContainerBuilder()
-            .WithImage("rabbitmq")
-            .WithPortBinding(5672, true)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))
-            .Build();
-        await container.StartAsync(TestContext.Current.CancellationToken);
-
-        var config = new Dictionary<string, string?> { { "RabbitUri", GetContainerUri(container) } };
-        var host = await BuildHostAsync(config, services => services.AddPublisher<MyItem>(TopicName));
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>(TopicName);
-
-        // Establish the connection, then stop the broker.
-        await container.StopAsync(TestContext.Current.CancellationToken);
-
-        // Retry until the client detects the dropped connection.
-        BrokerUnavailableException? ex = null;
-        for (var i = 0; i < 20 && ex is null; i++)
-        {
-            try { await publisher.PublishBatchAsync([new MyItem(1)], TestContext.Current.CancellationToken); }
+            try { await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken); }
             catch (BrokerUnavailableException e) { ex = e; }
             if (ex is null)
                 await Task.Delay(250, TestContext.Current.CancellationToken);
@@ -191,15 +140,15 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
     {
         var host = await BuildHostAsync(services =>
         {
-            services.AddPublisher<MyItem>(TopicName);
-            services.AddSubscriber<MyItem>(TopicName, SubscriptionName);
+            services.AddPublisher<MyItemPayload, MyItem>(TopicName);
+            services.AddSubscriber<MyItemPayload, MyItem>(TopicName, SubscriptionName);
         });
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>(TopicName);
-        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItem>>(SubscriptionKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
-        await publisher.PublishAsync(new MyItem(1), TestContext.Current.CancellationToken);
+        await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
 
-        Envelope<MyItem>? captured = null;
+        Envelope<MyItemPayload, MyItem>? captured = null;
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {
             captured = envelope;

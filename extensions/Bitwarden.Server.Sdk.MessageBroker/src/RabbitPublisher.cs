@@ -5,7 +5,9 @@ using RabbitMQ.Client.Exceptions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-internal sealed class RabbitPublisher<T> : IPublisher<T>, IAsyncDisposable
+internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, TCeiling>, IAsyncDisposable
+    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
+    where TCeiling : Payload<TPayload>.ICeiling
 {
     private readonly string _exchangeName;
     private readonly IMessageSerializer _serializer;
@@ -29,7 +31,9 @@ internal sealed class RabbitPublisher<T> : IPublisher<T>, IAsyncDisposable
         return await conn.CreateChannelAsync();
     }
 
-    public async Task PublishAsync(T message, CancellationToken cancellationToken = default)
+    protected internal override async Task SendAsync(
+        IReadOnlyList<Payload<TPayload>.IVariant> variants,
+        CancellationToken cancellationToken)
     {
         using var activity = MessageBrokerActivitySource.Source.StartActivity(
             $"{_exchangeName} publish", ActivityKind.Producer);
@@ -38,7 +42,7 @@ internal sealed class RabbitPublisher<T> : IPublisher<T>, IAsyncDisposable
         {
             var channel = await _channel;
             var buffer = new ArrayBufferWriter<byte>();
-            _serializer.Serialize(message, buffer);
+            _serializer.SerializeVariants<TPayload>(variants, buffer);
             var props = new BasicProperties
             {
                 MessageId = Guid.NewGuid().ToString(),
@@ -46,39 +50,6 @@ internal sealed class RabbitPublisher<T> : IPublisher<T>, IAsyncDisposable
             };
             await channel.BasicPublishAsync(_exchangeName, routingKey: "", mandatory: false,
                 props, buffer.WrittenMemory, cancellationToken);
-        }
-        catch (BrokerUnreachableException ex)
-        {
-            throw new BrokerUnavailableException(_exchangeName, ex);
-        }
-        catch (OperationInterruptedException ex)
-        {
-            throw new BrokerUnavailableException(_exchangeName, ex);
-        }
-    }
-
-    public async Task PublishBatchAsync(IEnumerable<T> messages, CancellationToken cancellationToken = default)
-    {
-        var messageList = messages.ToList();
-        using var activity = MessageBrokerActivitySource.Source.StartActivity(
-            $"{_exchangeName} publish", ActivityKind.Producer);
-        _metrics.RecordPublish(_exchangeName, messageList.Count);
-        try
-        {
-            var channel = await _channel;
-            var traceId = activity?.Id;
-            foreach (var message in messageList)
-            {
-                var buffer = new ArrayBufferWriter<byte>();
-                _serializer.Serialize(message, buffer);
-                await channel.BasicPublishAsync(_exchangeName, routingKey: "", mandatory: false,
-                    new BasicProperties
-                    {
-                        MessageId = Guid.NewGuid().ToString(),
-                        Headers = new Dictionary<string, object?> { ["traceparent"] = traceId },
-                    },
-                    buffer.WrittenMemory, cancellationToken);
-            }
         }
         catch (BrokerUnreachableException ex)
         {
