@@ -37,7 +37,7 @@ public interface IMessageEscrowStore
     ///     still in the channel.
     ///   </item>
     ///   <item>
-    ///     Each handler whose <see cref="Envelope{T}.RequeueAsync"/> finds the channel sealed
+    ///     Each handler whose <see cref="Envelope{TPayload, TCeiling}.RequeueAsync"/> finds the channel sealed
     ///     writes a single-message batch; this can happen once per straggler message, both
     ///     during host shutdown and outside it (any requeue after the writer is sealed).
     ///   </item>

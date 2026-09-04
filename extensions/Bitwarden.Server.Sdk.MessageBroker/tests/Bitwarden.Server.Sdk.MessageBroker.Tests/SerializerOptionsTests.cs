@@ -17,8 +17,8 @@ public class SerializerOptionsTests
         var host = new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddPublisher<MyItem>("test");
-                services.AddSubscriber<MyItem>("test", "test");
+                services.AddPublisher<MyItemPayload, MyItem>("test");
+                services.AddSubscriber<MyItemPayload, MyItem>("test", "test");
                 // Use snake_case so the serialized JSON uses "id" instead of "Id"
                 // (camelCase would also change it — snake_case makes the intent clearer).
                 services.Configure<MessageBrokerSerializerOptions>("test", opts =>
@@ -29,14 +29,14 @@ public class SerializerOptionsTests
 
         await host.StartAsync(TestContext.Current.CancellationToken);
 
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>("test");
-        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItem>>("test/test");
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("test");
+        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>("test/test");
 
-        await publisher.PublishAsync(new MyItem(42), TestContext.Current.CancellationToken);
+        await publisher.Publish(new MyItem(42)).SendAsync(TestContext.Current.CancellationToken);
 
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {
-            Assert.Equal(42, envelope.Message.Id);
+            Assert.Equal(42, envelope.Payload.Id);
             await envelope.CompleteAsync(TestContext.Current.CancellationToken);
             break;
         }
@@ -54,10 +54,10 @@ public class SerializerOptionsTests
         var host = new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddPublisher<MyItem>("topic-a");
-                services.AddSubscriber<MyItem>("topic-a", "topic-a");
-                services.AddPublisher<MyItem>("topic-b");
-                services.AddSubscriber<MyItem>("topic-b", "topic-b");
+                services.AddPublisher<MyItemPayload, MyItem>("topic-a");
+                services.AddSubscriber<MyItemPayload, MyItem>("topic-a", "topic-a");
+                services.AddPublisher<MyItemPayload, MyItem>("topic-b");
+                services.AddSubscriber<MyItemPayload, MyItem>("topic-b", "topic-b");
 
                 // Only topic-a gets the custom policy.
                 services.Configure<MessageBrokerSerializerOptions>("topic-a", opts =>
@@ -69,24 +69,24 @@ public class SerializerOptionsTests
 
         await host.StartAsync(TestContext.Current.CancellationToken);
 
-        var publisherA = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>("topic-a");
-        var subscriberA = host.Services.GetRequiredKeyedService<ISubscriber<MyItem>>("topic-a/topic-a");
-        var publisherB = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>("topic-b");
-        var subscriberB = host.Services.GetRequiredKeyedService<ISubscriber<MyItem>>("topic-b/topic-b");
+        var publisherA = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("topic-a");
+        var subscriberA = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>("topic-a/topic-a");
+        var publisherB = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("topic-b");
+        var subscriberB = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>("topic-b/topic-b");
 
-        await publisherA.PublishAsync(new MyItem(1), TestContext.Current.CancellationToken);
-        await publisherB.PublishAsync(new MyItem(2), TestContext.Current.CancellationToken);
+        await publisherA.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
+        await publisherB.Publish(new MyItem(2)).SendAsync(TestContext.Current.CancellationToken);
 
         await foreach (var envelope in subscriberA.SubscribeAsync(TestContext.Current.CancellationToken))
         {
-            Assert.Equal(1, envelope.Message.Id);
+            Assert.Equal(1, envelope.Payload.Id);
             await envelope.CompleteAsync(TestContext.Current.CancellationToken);
             break;
         }
 
         await foreach (var envelope in subscriberB.SubscribeAsync(TestContext.Current.CancellationToken))
         {
-            Assert.Equal(2, envelope.Message.Id);
+            Assert.Equal(2, envelope.Payload.Id);
             await envelope.CompleteAsync(TestContext.Current.CancellationToken);
             break;
         }
@@ -104,7 +104,7 @@ public class SerializerOptionsTests
     public void SerializerThrowsWhenTypeInfoResolverIsNull()
     {
         var services = new ServiceCollection();
-        services.AddPublisher<MyItem>("test");
+        services.AddPublisher<MyItemPayload, MyItem>("test");
         // Replace the options with a JsonSerializerOptions that has no TypeInfoResolver.
         services.Configure<MessageBrokerSerializerOptions>("test", opts =>
             opts.JsonSerializerOptions = new JsonSerializerOptions());
