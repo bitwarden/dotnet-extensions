@@ -88,7 +88,7 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
                     continue;
                 }
 
-                _metrics.RecordConsume(_topicName);
+                _metrics.RecordConsume(_topicName, envelope.ConsumedVariantWireName);
                 yield return envelope;
             }
         }

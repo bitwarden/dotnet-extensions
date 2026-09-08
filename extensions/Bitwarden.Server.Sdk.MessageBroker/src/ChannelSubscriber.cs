@@ -23,7 +23,7 @@ internal sealed class ChannelSubscriber<TPayload, TCeiling> : ISubscriber<TPaylo
     {
         await foreach (var item in _reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
         {
-            _metrics.RecordConsume(_topicName);
+            _metrics.RecordConsume(_topicName, item.ConsumedVariantWireName);
             yield return item;
         }
     }
