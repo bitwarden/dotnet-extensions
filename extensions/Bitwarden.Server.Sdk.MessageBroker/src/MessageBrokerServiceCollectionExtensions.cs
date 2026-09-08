@@ -16,6 +16,7 @@ public static class MessageBrokerServiceCollectionExtensions
     {
         // DI time enforcement of valid payload variant chain.
         ChainValidator<TPayload, TCeiling>.ThrowIfInvalid();
+        ClaimTopicForPayload<TPayload>(services, name);
         services.AddOptions();
         services.TryAddSingleton<MessageBrokerMetrics>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MessagingOptions>, MessagingOptionsValidator>());
@@ -68,6 +69,7 @@ public static class MessageBrokerServiceCollectionExtensions
     {
         // DI time enforcement of valid payload variant chain.
         ChainValidator<TPayload, TCeiling>.ThrowIfInvalid();
+        ClaimTopicForPayload<TPayload>(services, name);
         var subscriptionKey = $"{name}/{subscriptionName}";
 
         services.AddOptions();
@@ -196,6 +198,31 @@ public static class MessageBrokerServiceCollectionExtensions
 
     // Sentinel registered in DI to prevent duplicate IHostedService entries for the same ChannelTopic.
     private sealed record ChannelTopicLifetimeMarker(Type MessageType, string TopicName);
+
+    // Sentinel binding a topic name to the payload family it carries. The wire format has no
+    // payload-family discriminator, so registering two distinct payload families against the same
+    // topic name on Azure Service Bus or RabbitMQ produces silent misroutes: each subscriber
+    // decodes every message against its own TPayload regardless of which family the publisher sent.
+    // Enforced uniformly across backends so the invariant does not depend on the runtime transport
+    // configured by MessagingOptions.
+    private sealed record TopicPayloadClaim(string TopicName, Type PayloadType);
+
+    private static void ClaimTopicForPayload<TPayload>(IServiceCollection services, string name)
+    {
+        foreach (var descriptor in services)
+        {
+            if (descriptor.ServiceType != typeof(TopicPayloadClaim)) continue;
+            if (descriptor.ImplementationInstance is not TopicPayloadClaim claim) continue;
+            if (claim.TopicName != name) continue;
+            if (claim.PayloadType == typeof(TPayload)) return;
+            throw new InvalidOperationException(
+                $"Topic '{name}' is already registered for payload family '{claim.PayloadType.Name}'. " +
+                $"Cannot also register it for '{typeof(TPayload).Name}'. Each topic must map to a " +
+                "single payload family — the wire format carries no payload discriminator, so mixing " +
+                "families on one topic causes silent misroutes on external brokers.");
+        }
+        services.AddSingleton(new TopicPayloadClaim(name, typeof(TPayload)));
+    }
 
     private static void AddRabbitInfrastructure(IServiceCollection services)
     {
