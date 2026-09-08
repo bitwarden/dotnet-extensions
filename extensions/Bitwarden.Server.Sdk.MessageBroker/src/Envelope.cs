@@ -33,7 +33,7 @@ public abstract class Envelope<TPayload, TCeiling>
         foreach (var variant in variants)
             _variantsByType[variant.GetType()] = variant;
         _activity = activity;
-        Payload = ResolvePayload();
+        (Payload, ConsumedVariantWireName) = ResolvePayload();
     }
 
     /// <summary>
@@ -49,7 +49,15 @@ public abstract class Envelope<TPayload, TCeiling>
     /// </summary>
     public TCeiling Payload { get; }
 
-    private TCeiling ResolvePayload()
+    /// <summary>
+    /// Wire name of the highest received variant at or below the ceiling — the variant this
+    /// subscriber actually deserialized from before upcasting to <see cref="Payload"/>. Emitted as
+    /// the <c>messaging.variant.name</c> tag on the consume counter so operators can see which
+    /// wire variants are still in circulation.
+    /// </summary>
+    internal string ConsumedVariantWireName { get; }
+
+    private (TCeiling Payload, string WireName) ResolvePayload()
     {
         // Walk down the declared chain from TCeiling. The first position with a received variant
         // is the highest one at or below the ceiling; upcast that variant back up to TCeiling via
@@ -58,17 +66,27 @@ public abstract class Envelope<TPayload, TCeiling>
         {
             if (!_variantsByType.TryGetValue(cur, out var variant)) continue;
 
+            var wireName = LookupWireName(cur);
             var current = variant;
             while (current is not TCeiling && current is Payload<TPayload>.IPureUp step)
                 current = step.Upcast();
 
-            if (current is TCeiling reached) return reached;
+            if (current is TCeiling reached) return (reached, wireName);
         }
 
         throw new InvalidOperationException(
             $"No variant of type {typeof(TCeiling).Name} could be produced from the received payload. " +
             $"The received variants ({string.Join(", ", _variantsByType.Keys.Select(t => t.Name))}) " +
             "do not include the requested type and cannot be upcast to it.");
+    }
+
+    private static string LookupWireName(Type variantType)
+    {
+        foreach (var (type, name) in TPayload.Variants)
+            if (type == variantType) return name;
+        // Unreachable: variants that survived deserialization are drawn from TPayload.Variants.
+        throw new InvalidOperationException(
+            $"Received variant {variantType.Name} has no entry in {typeof(TPayload).Name}.Variants.");
     }
 
     /// <summary>A unique identifier for the message assigned by the publisher.</summary>

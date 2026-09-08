@@ -133,9 +133,17 @@ disagree with the variant list.
 | `Envelope.cs`                        | Selects the received variant, upcasts it to the consumer's ceiling                                          |
 | `SystemTextJsonMessageSerializer.cs` | Polymorphic array wire format with `$type` discriminator                                                    |
 
+## Observing the variant constellation
+
+Each consume emits a `messaging.client.consumed.messages` counter tick tagged with both
+`messaging.destination.name` and `messaging.variant.name`. The variant tag is the wire name of the
+highest received variant at or below the subscriber's ceiling — i.e. the variant the subscriber
+actually deserialized from, before any upcast to reach `TCeiling`. Aggregated across every service in
+the deployment, these tags describe the current constellation of variants actually being acted upon, so an
+operator can see when a variant has fallen out of use and is safe to remove from the chain.
+
 ## TODO
 
-- Consumed-variant metric for tracking constellation variant-dependency state.
 - Subscriber/publisher negotiation to ensure variant overlap.
 - Publisher shared-cache requirement for ensuring variant overlap with existing subscribers.
 - Required payload-specific health check definition to surface eventual-consistency health.

@@ -255,7 +255,7 @@ integrate with any OpenTelemetry-compatible pipeline.
 | Instrument                            | Type    | Description                                                                                             |
 | ------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
 | `messaging.client.published.messages` | Counter | Messages published, tagged with `messaging.destination.name`.                                           |
-| `messaging.client.consumed.messages`  | Counter | Messages delivered to a consumer, tagged with `messaging.destination.name`.                             |
+| `messaging.client.consumed.messages`  | Counter | Messages delivered to a consumer, tagged with `messaging.destination.name` and `messaging.variant.name` (wire name of the highest received variant at or below the subscriber's ceiling). |
 | `messaging.channel.queued.messages`   | Gauge   | Current number of messages buffered in the in-memory channel, tagged with `messaging.destination.name`. |
 
 ## Serialization

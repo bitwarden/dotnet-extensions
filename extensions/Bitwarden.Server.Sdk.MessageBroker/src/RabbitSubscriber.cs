@@ -103,7 +103,7 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
 
         await foreach (var envelope in innerChannel.Reader.ReadAllAsync(cancellationToken))
         {
-            _metrics.RecordConsume(_exchangeName);
+            _metrics.RecordConsume(_exchangeName, envelope.ConsumedVariantWireName);
             yield return envelope;
         }
 
