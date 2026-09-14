@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ZiggyCreatures.Caching.Fusion;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -25,6 +26,7 @@ public static class MessageBrokerServiceCollectionExtensions
         services.AddOptions();
         services.TryAddSingleton<MessageBrokerMetrics>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MessagingOptions>, MessagingOptionsValidator>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MessagingOptions>, PublisherCacheValidator>());
         services.AddOptions<MessagingOptions>().ValidateOnStart();
         AddRabbitInfrastructure(services);
         AddAzureServiceBusInfrastructure(services);
@@ -48,11 +50,13 @@ public static class MessageBrokerServiceCollectionExtensions
             var metrics = sp.GetRequiredService<MessageBrokerMetrics>();
             if (!string.IsNullOrEmpty(options.AzureServiceBusConnectionString))
             {
-                return new AzureServiceBusPublisher<TPayload, TCeiling>(sp.GetRequiredService<AzureServiceBusConnection>().Client, name, serializer, metrics);
+                var cache = sp.GetRequiredKeyedService<IFusionCache>(publisherKey);
+                return new AzureServiceBusPublisher<TPayload, TCeiling>(sp.GetRequiredService<AzureServiceBusConnection>().Client, name, serializer, metrics, cache);
             }
             if (!string.IsNullOrEmpty(options.RabbitUri))
             {
-                return new RabbitPublisher<TPayload, TCeiling>(sp.GetRequiredService<RabbitConnection>(), name, serializer, metrics);
+                var cache = sp.GetRequiredKeyedService<IFusionCache>(publisherKey);
+                return new RabbitPublisher<TPayload, TCeiling>(sp.GetRequiredService<RabbitConnection>(), name, serializer, metrics, cache);
             }
             return new ChannelPublisher<TPayload, TCeiling>(sp.GetRequiredKeyedService<ChannelTopic<TPayload, TCeiling>>(publisherKey), name, metrics,
                 options.MaxDeliveryCount, sp.GetRequiredService<ILogger<ChannelPublisher<TPayload, TCeiling>>>());
