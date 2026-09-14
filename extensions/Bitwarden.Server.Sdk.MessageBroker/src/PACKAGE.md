@@ -152,6 +152,25 @@ rabbitmqctl set_policy orders-subscriptions "^orders\." \
   --apply-to quorum_queues
 ```
 
+### Distributed cache dependency
+
+The Azure Service Bus and Rabbit backends require a shared `IFusionCache` backing
+(`Bitwarden.Server.Sdk.Caching`). Be sure to add with `services.AddBitwardenCaching()` during
+startup.
+
+The cache is resolved eagerly at publisher construction, so a host that has not configured Redis
+(or otherwise registered a non-keyed `IDistributedCache`) will fail on the first Publisher
+resolution rather than at first publish. In tests, register `services.AddDistributedMemoryCache()`
+to satisfy the dependency without a live cache. The in-memory channel backend is single-process
+so Publisher resolution succeeds even with none configured.
+
+**Deployment warning — not validated.** The cache exists for cross-process variant negotiation
+between publishers of the same topic. It **must** be backed by an out-of-process
+store (Redis or an equivalent shared `IDistributedCache`) in any multi-process deployment. Using
+an in-memory `IDistributedCache` (`AddDistributedMemoryCache`) satisfies DI and passes the startup
+validator, but each host gets its own private "shared" cache — variant negotiation silently no-ops
+and incompatible publishers and subscribers can co-exist.
+
 ## Defining a payload
 
 A payload is a family of variants forming a chain from the oldest known shape (**floor**) to the

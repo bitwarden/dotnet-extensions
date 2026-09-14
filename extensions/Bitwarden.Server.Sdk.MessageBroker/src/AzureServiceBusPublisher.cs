@@ -1,10 +1,11 @@
 using System.Buffers;
 using System.Diagnostics;
 using Azure.Messaging.ServiceBus;
+using ZiggyCreatures.Caching.Fusion;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-internal sealed class AzureServiceBusPublisher<TPayload, TCeiling> : Publisher<TPayload, TCeiling>, IAsyncDisposable
+internal sealed class AzureServiceBusPublisher<TPayload, TCeiling> : DistributedPublisher<TPayload, TCeiling>, IAsyncDisposable
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
 {
@@ -13,7 +14,8 @@ internal sealed class AzureServiceBusPublisher<TPayload, TCeiling> : Publisher<T
     private readonly IMessageSerializer _serializer;
     private readonly MessageBrokerMetrics _metrics;
 
-    public AzureServiceBusPublisher(ServiceBusClient client, string topicName, IMessageSerializer serializer, MessageBrokerMetrics metrics)
+    public AzureServiceBusPublisher(ServiceBusClient client, string topicName, IMessageSerializer serializer, MessageBrokerMetrics metrics, IFusionCache cache)
+        : base(cache)
     {
         _topicName = topicName;
         _sender = client.CreateSender(topicName);
