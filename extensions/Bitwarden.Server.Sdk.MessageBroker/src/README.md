@@ -142,10 +142,20 @@ actually deserialized from, before any upcast to reach `TCeiling`. Aggregated ac
 the deployment, these tags describe the current constellation of variants actually being acted upon, so an
 operator can see when a variant has fallen out of use and is safe to remove from the chain.
 
+## Publisher shared cache
+
+Cross-process publishers (Azure Service Bus, Rabbit) derive from `DistributedPublisher<TPayload,
+TCeiling>` and receive a keyed `IFusionCache` (keyed by topic name) at construction. The caller
+must register caching via `services.AddBitwardenCaching()`. `PublisherCacheValidator` runs at host start via `ValidateOnStart` and fails if a distributed backend is configured and no caching is registered. The cache is reserved for upcoming variant-overlap negotiation with the
+deployment constellation; no code path reads or writes it today.
+
+The in-memory channel backend derives from `Publisher<TPayload, TCeiling>` directly. It is
+single-process, needs no cross-process negotiation, and requires no distributed cache in the DI
+container.
+
 ## TODO
 
 - Subscriber/publisher negotiation to ensure variant overlap.
-- Publisher shared-cache requirement for ensuring variant overlap with existing subscribers.
 - Required payload-specific health check definition to surface eventual-consistency health.
 - Assisted upcasts performed subscriber-side
 

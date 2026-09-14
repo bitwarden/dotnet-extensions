@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using Bitwarden.Server.Sdk.Caching;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.Metrics.Testing;
@@ -43,6 +44,9 @@ public class MessagingOptionsValidationTests
     public void PassesWhenOnlyOneBackendIsConfigured()
     {
         var services = new ServiceCollection();
+        // AddBitwardenCaching satisfies PublisherCacheValidator; without it the validator would
+        // fail once RabbitUri is set on the options.
+        services.AddBitwardenCaching();
         services.AddPublisher<MyItemPayload, MyItem>("test");
         var provider = services.BuildServiceProvider();
 
@@ -125,6 +129,11 @@ public abstract class BehaviorTests : IAsyncLifetime
             .ConfigureServices(services =>
             {
                 services.AddMetrics();
+                // Cross-process publishers (ASB, Rabbit) resolve their shared cache eagerly at
+                // construction. Channel-backed tests don't require
+                // either but the extra registrations are harmless.
+                services.AddDistributedMemoryCache();
+                services.AddBitwardenCaching();
                 configure(services);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -141,6 +150,11 @@ public abstract class BehaviorTests : IAsyncLifetime
             .ConfigureServices(services =>
             {
                 services.AddMetrics();
+                // Cross-process publishers (ASB, Rabbit) resolve their shared cache eagerly at
+                // construction. Channel-backed tests don't require
+                // either but the extra registrations are harmless.
+                services.AddDistributedMemoryCache();
+                services.AddBitwardenCaching();
                 configure(services);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })

@@ -70,6 +70,24 @@ If neither connection string is set the package falls back to an in-memory chann
 for local development and testing but loses all messages on process restart. Only one backend may be
 configured at a time; setting both raises a validation error at startup.
 
+### Distributed cache dependency
+
+The Azure Service Bus and Rabbit backends require a shared `IFusionCache` backing
+(`Bitwarden.Server.Sdk.Caching`). Be sure to add with `services.AddBitwardenCaching()` during
+
+The cache is resolved eagerly at publisher construction, so a host that has not configured Redis
+(or otherwise registered a non-keyed `IDistributedCache`) will fail on the first Publisher
+resolution rather than at first publish. In tests, register `services.AddDistributedMemoryCache()`
+to satisfy the dependency without a live cache. The in-memory channel backend is single-process
+so Publisher resolution succeeds even with none configured.
+
+**Deployment warning — not validated.** The cache exists for cross-process variant negotiation
+between publishers of the same topic. It **must** be backed by an out-of-process
+store (Redis or an equivalent shared `IDistributedCache`) in any multi-process deployment. Using
+an in-memory `IDistributedCache` (`AddDistributedMemoryCache`) satisfies DI and passes the startup
+validator, but each host gets its own private "shared" cache — variant negotiation silently no-ops
+and incompatible publishers and subscribers can co-exist.
+
 ## Defining a payload
 
 A payload is a family of variants forming a chain from the oldest known shape (**floor**) to the
@@ -252,11 +270,11 @@ integrate with any OpenTelemetry-compatible pipeline.
 
 **Metrics** — meter name `Bitwarden.Server.Sdk.MessageBroker`:
 
-| Instrument                            | Type    | Description                                                                                             |
-| ------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
-| `messaging.client.published.messages` | Counter | Messages published, tagged with `messaging.destination.name`.                                           |
+| Instrument                            | Type    | Description                                                                                                                                                                               |
+| ------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `messaging.client.published.messages` | Counter | Messages published, tagged with `messaging.destination.name`.                                                                                                                             |
 | `messaging.client.consumed.messages`  | Counter | Messages delivered to a consumer, tagged with `messaging.destination.name` and `messaging.variant.name` (wire name of the highest received variant at or below the subscriber's ceiling). |
-| `messaging.channel.queued.messages`   | Gauge   | Current number of messages buffered in the in-memory channel, tagged with `messaging.destination.name`. |
+| `messaging.channel.queued.messages`   | Gauge   | Current number of messages buffered in the in-memory channel, tagged with `messaging.destination.name`.                                                                                   |
 
 ## Serialization
 

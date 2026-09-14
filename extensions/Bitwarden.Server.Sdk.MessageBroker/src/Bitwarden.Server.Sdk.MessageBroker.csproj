@@ -25,4 +25,8 @@
     <PackageReference Include="RabbitMQ.Client" Version="7.2.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Caching\src\Bitwarden.Server.Sdk.Caching.csproj" />
+  </ItemGroup>
+
 </Project>

@@ -1,3 +1,5 @@
+using ZiggyCreatures.Caching.Fusion;
+
 namespace Bitwarden.Server.Sdk.MessageBroker;
 
 /// <summary>
@@ -50,6 +52,30 @@ public abstract class Publisher<TPayload, TCeiling>
             Current = current;
             Publisher = publisher;
         }
+    }
+}
+
+
+/// <summary>
+/// Intermediate base for publisher backends that run across processes (Azure Service Bus, Rabbit)
+/// and therefore need a shared <see cref="IFusionCache"/> to negotiate variant overlap with the
+/// current deployment constellation. The single-process channel backend derives from
+/// <see cref="Publisher{TPayload, TCeiling}"/> directly and skips this dependency.
+/// </summary>
+internal abstract class DistributedPublisher<TPayload, TCeiling> : Publisher<TPayload, TCeiling>
+    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
+    where TCeiling : Payload<TPayload>.ICeiling
+{
+    /// <summary>
+    /// Cache shared with other publishers and subscribers of this topic, keyed at DI registration
+    /// time by the topic name. Resolved eagerly at construction so a misconfigured deployment
+    /// fails before any message is sent.
+    /// </summary>
+    protected IFusionCache Cache { get; }
+
+    protected DistributedPublisher(IFusionCache cache)
+    {
+        Cache = cache;
     }
 }
 
