@@ -37,7 +37,7 @@ public class AzureServiceBusNegotiationTransportTests
     public override async ValueTask InitializeAsync()
     {
         await using var client = new ServiceBusClient(_fixture.GetConnectionString());
-        await DrainSessionsAsync(client, "ctrl", "pub-" + ServiceName);
+        await DrainSessionsAsync(client, "ctrl", "request-" + ServiceName);
         await DrainSessionsAsync(client, "ctrl", "reply-" + ServiceName);
     }
 

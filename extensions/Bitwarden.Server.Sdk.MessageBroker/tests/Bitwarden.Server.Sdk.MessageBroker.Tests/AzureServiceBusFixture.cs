@@ -107,7 +107,7 @@ public class AzureServiceBusFixture : IAsyncLifetime
                         },
                         "Subscriptions": [
                           {
-                            "Name": "pub-negotiation",
+                            "Name": "request-negotiation",
                             "Properties": {
                               "DeadLetteringOnMessageExpiration": false,
                               "DefaultMessageTimeToLive": "PT1H",
