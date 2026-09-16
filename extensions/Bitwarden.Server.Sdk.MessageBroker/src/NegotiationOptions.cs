@@ -16,7 +16,7 @@ public sealed class NegotiationOptions
     /// <summary>
     /// <para>Required</para>
     /// Identifier for this service. Derives
-    /// <see cref="PublisherControlSubscriptionName"/> and <see cref="ReplySubscriptionName"/>,
+    /// <see cref="RequestSubscriptionName"/> and <see cref="ReplySubscriptionName"/>,
     /// and tags negotiation metrics.
     /// <para>
     /// Must be unique across the deployment and, for Azure Service Bus, the resulting subscription
@@ -64,8 +64,10 @@ public sealed class NegotiationOptions
     public TimeSpan AdmissionTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Derived <c>"pub-{ServiceName}"</c>. This service's publisher-role subscription on the
-    /// control topic.
+    /// <summary>
+    /// Derived <c>"request-{ServiceName}"</c>. Where this service receives incoming negotiation
+    /// requests (<see cref="Capability"/> from subscribers, <see cref="PublisherJoin"/> from
+    /// other publishers) that it must ack.
     /// <para>
     /// On Azure Service Bus, pre-provisioned session-enabled (session-id = data-topic) with a
     /// broker filter routing only the data-topics this service publishes. On RabbitMQ, declared
@@ -74,8 +76,8 @@ public sealed class NegotiationOptions
     /// </para>
     /// </summary>
     /// <exception cref="InvalidOperationException"><see cref="ServiceName"/> is not set.</exception>
-    public string PublisherControlSubscriptionName
-        => $"pub-{ServiceName ?? throw ServiceNameNotSet()}";
+    public string RequestSubscriptionName
+        => $"request-{ServiceName ?? throw ServiceNameNotSet()}";
 
     /// <summary>
     /// Derived <c>"reply-{ServiceName}"</c>. Where this service's instances read go/no go

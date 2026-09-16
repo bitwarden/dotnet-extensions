@@ -8,16 +8,16 @@ namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Azure Service Bus implementation of <see cref="INegotiationTransport"/>. Uses session-enabled
-/// subscriptions on the shared <see cref="NegotiationOptions.ControlTopicName"/> topic:
-/// publisher-control keys each session by data-topic name (satisfies single-active-consumer
+/// subscriptions on the shared <see cref="NegotiationOptions.ControlTopicName"/> topic: the
+/// request subscription keys each session by data-topic name (satisfies single-active-consumer
 /// per data-topic); the per-service reply subscription keys each session by requester instance
 /// identifier (routes each reply to the requester holding that session lock).
 /// <para>
 /// Requires the following pre-provisioned entities: the control topic; a session-enabled
-/// <see cref="NegotiationOptions.PublisherControlSubscriptionName"/> subscription with a SQL
-/// filter on the <c>data-topic</c> property matching this service's publish set; a
-/// session-enabled <see cref="NegotiationOptions.ReplySubscriptionName"/> subscription with a
-/// SQL filter on <c>To = '{ReplySubscriptionName}'</c>.
+/// <see cref="NegotiationOptions.RequestSubscriptionName"/> subscription with a SQL filter on
+/// the <c>data-topic</c> property matching this service's publish set; a session-enabled
+/// <see cref="NegotiationOptions.ReplySubscriptionName"/> subscription with a SQL filter on
+/// <c>To = '{ReplySubscriptionName}'</c>.
 /// </para>
 /// </summary>
 internal sealed class AzureServiceBusNegotiationTransport : INegotiationTransport, IAsyncDisposable
@@ -79,7 +79,7 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
             {
                 MessageId = messageId,
                 Subject = subject,
-                // SessionId partitions the pub-<service> subscription by data-topic so the
+                // SessionId partitions the request-<service> subscription by data-topic so the
                 // broker's session lock provides single-active-consumer semantics per topic,
                 // which is needed to ensure a single writer to the negotiation state cache.
                 SessionId = dataTopic,
@@ -167,7 +167,7 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
             {
                 receiver = await _client.AcceptNextSessionAsync(
                     _options.ControlTopicName,
-                    _options.PublisherControlSubscriptionName,
+                    _options.RequestSubscriptionName,
                     cancellationToken: cancellationToken);
             }
             catch (ServiceBusException ex) when (ex.Reason == ServiceBusFailureReason.ServiceTimeout)

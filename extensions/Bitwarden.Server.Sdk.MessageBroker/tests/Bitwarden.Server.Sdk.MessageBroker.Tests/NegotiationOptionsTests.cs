@@ -84,7 +84,7 @@ public class NegotiationOptionsTests
     public void SubscriptionNamesDeriveFromServiceName()
     {
         var options = new NegotiationOptions { ServiceName = "billing", ProcessDisplayName = "x" };
-        Assert.Equal("pub-billing", options.PublisherControlSubscriptionName);
+        Assert.Equal("request-billing", options.RequestSubscriptionName);
         Assert.Equal("reply-billing", options.ReplySubscriptionName);
     }
 
@@ -92,7 +92,7 @@ public class NegotiationOptionsTests
     public void SubscriptionNamesThrowWhenServiceNameNotSet()
     {
         var options = new NegotiationOptions { ProcessDisplayName = "x" };
-        Assert.Throws<InvalidOperationException>(() => options.PublisherControlSubscriptionName);
+        Assert.Throws<InvalidOperationException>(() => options.RequestSubscriptionName);
         Assert.Throws<InvalidOperationException>(() => options.ReplySubscriptionName);
     }
 
