@@ -7,7 +7,7 @@ using RabbitMQ.Client.Exceptions;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 
-public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTests.RabbitFixture>
+public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitFixture>
 {
     // Unique per test instance so each test declares its own exchange and queues.
     // Fresh names mean there are never stale messages to drain, eliminating InitializeAsync.
@@ -172,28 +172,4 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
 
     private static string GetContainerUri(IContainer container) =>
         $"amqp://guest:guest@{container.Hostname}:{container.GetMappedPublicPort(5672)}/";
-
-    public class RabbitFixture : IAsyncLifetime
-    {
-        private IContainer? _container;
-
-        public string GetUri() =>
-            $"amqp://guest:guest@{_container!.Hostname}:{_container.GetMappedPublicPort(5672)}/";
-
-        public async ValueTask InitializeAsync()
-        {
-            _container = new ContainerBuilder()
-                .WithImage("rabbitmq")
-                .WithPortBinding(5672, true)
-                .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))
-                .Build();
-
-            await _container.StartAsync(TestContext.Current.CancellationToken);
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            if (_container != null) await _container.DisposeAsync();
-        }
-    }
 }

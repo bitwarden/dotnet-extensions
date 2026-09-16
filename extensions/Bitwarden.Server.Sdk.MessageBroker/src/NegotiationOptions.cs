@@ -64,6 +64,18 @@ public sealed class NegotiationOptions
     public TimeSpan AdmissionTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
+    /// Data-topics this service publishes. On RabbitMQ, the library binds
+    /// <see cref="RequestSubscriptionName"/> to <see cref="ControlTopicName"/> once
+    /// per entry so this service's request queue receives only control messages for topics it
+    /// serves. On Azure Service Bus, the equivalent filter is applied via the pre-provisioned
+    /// subscription's SQL filter.
+    /// <para>
+    /// TODO: MDG This should be derived from the topics registered via <c>AddPublisher</c>
+    /// rather than duplicated here; the final shape lands with the publisher startup wiring.
+    /// </para>
+    /// </summary>
+    public HashSet<string> PublishedDataTopics { get; } = [];
+
     /// <summary>
     /// Derived <c>"request-{ServiceName}"</c>. Where this service receives incoming negotiation
     /// requests (<see cref="Capability"/> from subscribers, <see cref="PublisherJoin"/> from
@@ -71,8 +83,12 @@ public sealed class NegotiationOptions
     /// <para>
     /// On Azure Service Bus, pre-provisioned session-enabled (session-id = data-topic) with a
     /// broker filter routing only the data-topics this service publishes. On RabbitMQ, declared
-    /// by the library at startup with <c>x-single-active-consumer</c> and the corresponding
-    /// binding.
+    /// by the library at startup with <c>x-single-active-consumer</c> and one binding per
+    /// entry in <see cref="PublishedDataTopics"/>.
+    /// </para>
+    /// <para>
+    /// TODO: MDG ASB filter should be applied in-code. permissions to do so are part of the
+    /// pre-provisioning requirements.
     /// </para>
     /// </summary>
     /// <exception cref="InvalidOperationException"><see cref="ServiceName"/> is not set.</exception>
