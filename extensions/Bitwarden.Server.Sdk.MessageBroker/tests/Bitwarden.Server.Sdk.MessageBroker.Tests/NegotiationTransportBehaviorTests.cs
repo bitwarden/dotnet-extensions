@@ -9,7 +9,7 @@ public abstract class NegotiationTransportBehaviorTests : IAsyncLifetime
 {
     /// <summary>
     /// Service name used by these tests. Backend fixtures must pre-provision
-    /// <c>pub-{ServiceName}</c> and <c>reply-{ServiceName}</c> subscriptions.
+    /// <c>request-{ServiceName}</c> and <c>reply-{ServiceName}</c> subscriptions.
     /// </summary>
     protected virtual string ServiceName => "negotiation";
 
