@@ -1,3 +1,4 @@
+using Azure.Messaging.ServiceBus;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using DotNet.Testcontainers.Networks;
@@ -151,6 +152,52 @@ public class AzureServiceBusFixture : IAsyncLifetime
                                 }
                               }
                             ]
+                          },
+                          {
+                            "Name": "request-shortlock",
+                            "Properties": {
+                              "DeadLetteringOnMessageExpiration": false,
+                              "DefaultMessageTimeToLive": "PT1H",
+                              "ForwardDeadLetteredMessagesTo": "",
+                              "ForwardTo": "",
+                              "LockDuration": "PT5S",
+                              "MaxDeliveryCount": 10,
+                              "RequiresSession": true
+                            },
+                            "Rules": [
+                              {
+                                "Name": "$Default",
+                                "Properties": {
+                                  "FilterType": "Sql",
+                                  "SqlFilter": {
+                                    "SqlExpression": "[data-topic] IS NOT NULL"
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          {
+                            "Name": "reply-shortlock",
+                            "Properties": {
+                              "DeadLetteringOnMessageExpiration": false,
+                              "DefaultMessageTimeToLive": "PT1H",
+                              "ForwardDeadLetteredMessagesTo": "",
+                              "ForwardTo": "",
+                              "LockDuration": "PT5S",
+                              "MaxDeliveryCount": 10,
+                              "RequiresSession": true
+                            },
+                            "Rules": [
+                              {
+                                "Name": "$Default",
+                                "Properties": {
+                                  "FilterType": "Correlation",
+                                  "CorrelationFilter": {
+                                    "To": "reply-shortlock"
+                                  }
+                                }
+                              }
+                            ]
                           }
                         ]
                       }
@@ -185,5 +232,62 @@ public class AzureServiceBusFixture : IAsyncLifetime
         if (_sqlContainer != null) await _sqlContainer.DisposeAsync();
         if (_network != null) await _network.DisposeAsync();
         if (_configFile != null) File.Delete(_configFile);
+    }
+
+    /// <summary>
+    /// Drains any residual messages on a non-session subscription so a test starts from empty.
+    /// Uses <see cref="ServiceBusReceiveMode.ReceiveAndDelete"/> so messages are consumed
+    /// without needing to complete each one individually.
+    /// </summary>
+    public async Task DrainSubscriptionAsync(string topic, string subscription)
+    {
+        await using var client = new ServiceBusClient(GetConnectionString());
+        await using var receiver = client.CreateReceiver(topic, subscription,
+            new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.ReceiveAndDelete });
+        IReadOnlyList<ServiceBusReceivedMessage> batch;
+        do
+        {
+            batch = await receiver.ReceiveMessagesAsync(maxMessages: 100, maxWaitTime: TimeSpan.FromSeconds(1));
+        } while (batch.Count > 0);
+    }
+
+    /// <summary>
+    /// Drains any residual messages on a session-enabled subscription so a test starts from
+    /// empty. Session receivers must be acquired one at a time with a short cancellation so we
+    /// exit fast when nothing is left.
+    /// </summary>
+    public async Task DrainSessionsAsync(string topic, string subscription)
+    {
+        await using var client = new ServiceBusClient(GetConnectionString());
+        while (true)
+        {
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+            ServiceBusSessionReceiver receiver;
+            try
+            {
+                receiver = await client.AcceptNextSessionAsync(
+                    topic,
+                    subscription,
+                    new ServiceBusSessionReceiverOptions { ReceiveMode = ServiceBusReceiveMode.ReceiveAndDelete },
+                    timeoutCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (ServiceBusException ex) when (ex.Reason == ServiceBusFailureReason.ServiceTimeout)
+            {
+                break;
+            }
+
+            await using (receiver)
+            {
+                IReadOnlyList<ServiceBusReceivedMessage> batch;
+                do
+                {
+                    batch = await receiver.ReceiveMessagesAsync(maxMessages: 100, maxWaitTime: TimeSpan.FromSeconds(1));
+                } while (batch.Count > 0);
+            }
+        }
     }
 }

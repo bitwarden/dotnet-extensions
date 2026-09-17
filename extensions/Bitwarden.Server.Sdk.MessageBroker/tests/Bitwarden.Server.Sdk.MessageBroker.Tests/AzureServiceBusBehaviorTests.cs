@@ -113,21 +113,9 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
     // subscriptions before each test to prevent cross-test pollution.
     public override async ValueTask InitializeAsync()
     {
-        await using var client = new ServiceBusClient(_fixture.GetConnectionString());
-        await DrainAsync(client, TopicName, SubscriptionName);
-        await DrainAsync(client, TopicName, "pm");
-        await DrainAsync(client, TopicName, "sm");
-    }
-
-    private static async Task DrainAsync(ServiceBusClient client, string topic, string subscription)
-    {
-        await using var receiver = client.CreateReceiver(topic, subscription,
-            new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.ReceiveAndDelete });
-        IReadOnlyList<ServiceBusReceivedMessage> batch;
-        do
-        {
-            batch = await receiver.ReceiveMessagesAsync(maxMessages: 100, maxWaitTime: TimeSpan.FromSeconds(1));
-        } while (batch.Count > 0);
+        await _fixture.DrainSubscriptionAsync(TopicName, SubscriptionName);
+        await _fixture.DrainSubscriptionAsync(TopicName, "pm");
+        await _fixture.DrainSubscriptionAsync(TopicName, "sm");
     }
 }
 
