@@ -4,14 +4,14 @@ using ZiggyCreatures.Caching.Fusion;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 
-public class NegotiationActorTests
+public class NegotiationListenerTests
 {
     private const string Topic = "topic";
 
     [Fact]
     public async Task CapabilityAdmittedAndUpsertedWhenAllPublishersOverlap()
     {
-        await using var harness = StartActor();
+        await using var harness = StartListener();
         await harness.State.UpsertPublisherAsync(Topic, Pub("pub-1", "v1", "v2"), TestContext.Current.CancellationToken);
         await harness.State.UpsertPublisherAsync(Topic, Pub("pub-2", "v2", "v3"), TestContext.Current.CancellationToken);
 
@@ -26,7 +26,7 @@ public class NegotiationActorTests
     [Fact]
     public async Task CapabilityRejectedWithOffendersAndNotCachedWhenAnyPublisherLacksOverlap()
     {
-        await using var harness = StartActor();
+        await using var harness = StartListener();
         await harness.State.UpsertPublisherAsync(Topic, Pub("pub-ok", "v1"), TestContext.Current.CancellationToken);
         await harness.State.UpsertPublisherAsync(Topic, Pub("pub-blocker", "v99"), TestContext.Current.CancellationToken);
 
@@ -41,7 +41,7 @@ public class NegotiationActorTests
     [Fact]
     public async Task CapabilityShortCircuitsRepeatWithSameWireNames()
     {
-        await using var harness = StartActor();
+        await using var harness = StartListener();
         Assert.True((await harness.Sender.SendCapabilityAsync(Cap("sub-1", "v1"), TestContext.Current.CancellationToken)).Go);
 
         // Insert a blocker AFTER the first admission. A repeat send with unchanged wire-names
@@ -57,7 +57,7 @@ public class NegotiationActorTests
     [Fact]
     public async Task CapabilityReadmitsWhenWireNamesChanged()
     {
-        await using var harness = StartActor();
+        await using var harness = StartListener();
         Assert.True((await harness.Sender.SendCapabilityAsync(Cap("sub-1", "v1"), TestContext.Current.CancellationToken)).Go);
         await harness.State.UpsertPublisherAsync(Topic, Pub("blocker", "v1"), TestContext.Current.CancellationToken);
 
@@ -72,7 +72,7 @@ public class NegotiationActorTests
     [Fact]
     public async Task JoinAdmittedAndUpsertedWhenSubscribersOverlap()
     {
-        await using var harness = StartActor();
+        await using var harness = StartListener();
         await harness.State.UpsertSubscriberAsync(Topic, Cap("sub-1", "v1", "v2"), TestContext.Current.CancellationToken);
 
         var ack = await harness.Sender.SendJoinAsync(Pub("pub-1", "v2"), TestContext.Current.CancellationToken);
@@ -85,7 +85,7 @@ public class NegotiationActorTests
     [Fact]
     public async Task JoinRejectedByOffendingSubscribers()
     {
-        await using var harness = StartActor();
+        await using var harness = StartListener();
         await harness.State.UpsertSubscriberAsync(Topic, Cap("sub-old", "v1"), TestContext.Current.CancellationToken);
 
         var ack = await harness.Sender.SendJoinAsync(Pub("pub-1", "v99"), TestContext.Current.CancellationToken);
@@ -96,16 +96,17 @@ public class NegotiationActorTests
         Assert.Empty(cached);
     }
 
-    private static ActorHarness StartActor()
+    private static ListenerHarness StartListener()
     {
         var broker = new InMemoryNegotiationBroker();
         var cache = new FusionCache(new FusionCacheOptions());
         var options = Options.Create(new NegotiationOptions { ServiceName = "svc", ProcessDisplayName = "test" });
         var state = new FusionCacheNegotiationState(cache, options);
-        var actor = new NegotiationActor(new InMemoryNegotiationTransport(broker, dataTopic: Topic), state);
-        actor.StartAsync(TestContext.Current.CancellationToken).GetAwaiter().GetResult();
+        var listener = new NegotiationListener(new InMemoryNegotiationTransport(broker, dataTopic: Topic), state);
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var runTask = Task.Run(() => listener.RunAsync(cts.Token), CancellationToken.None);
         var sender = new InMemoryNegotiationTransport(broker, dataTopic: "sender-ignored");
-        return new ActorHarness(sender, state, actor, cache);
+        return new ListenerHarness(sender, state, cts, runTask, cache);
     }
 
     private static Capability Cap(string id, params string[] wireNames)
@@ -121,10 +122,11 @@ public class NegotiationActorTests
         return list;
     }
 
-    private sealed class ActorHarness(
+    private sealed class ListenerHarness(
         INegotiationTransport sender,
         INegotiationState state,
-        NegotiationActor actor,
+        CancellationTokenSource cts,
+        Task runTask,
         FusionCache cache) : IAsyncDisposable
     {
         public INegotiationTransport Sender { get; } = sender;
@@ -132,8 +134,9 @@ public class NegotiationActorTests
 
         public async ValueTask DisposeAsync()
         {
-            await actor.StopAsync(CancellationToken.None);
-            actor.Dispose();
+            await cts.CancelAsync();
+            try { await runTask; } catch (OperationCanceledException) { /* expected */ }
+            cts.Dispose();
             cache.Dispose();
         }
     }

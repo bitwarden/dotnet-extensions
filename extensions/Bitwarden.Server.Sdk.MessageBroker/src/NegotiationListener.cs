@@ -1,42 +1,45 @@
-using Microsoft.Extensions.Hosting;
-
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Handles negotiation requests delivered by an <see cref="INegotiationTransport"/>, running
-/// the admission code path shared by both message types: a subscriber's <see cref="Capability"/>
-/// is admitted against every cached publisher for the same data-topic; a booting publisher's
-/// <see cref="PublisherJoin"/> is admitted against every cached subscriber. In both cases
-/// admission passes when the requester's wire-name set overlaps every counterparty's set;
-/// otherwise a no-go reply lists the incompatible parties.
+/// Consumes and answers incoming negotiation requests delivered by an
+/// <see cref="INegotiationTransport"/>: a subscriber's <see cref="Capability"/> is admitted
+/// against every cached publisher for the same data-topic; a booting publisher's
+/// <see cref="PublisherJoin"/> is admitted against every cached subscriber. Admission passes
+/// when the requester's wire-name set overlaps every counterparty's set; otherwise a no-go
+/// reply lists the incompatible parties.
 /// <para>
-/// The actor relies on the transport to enforce single-active-consumer semantics per
-/// data-topic: no explicit locking here. If two instances of this actor process the same
+/// The listener relies on the transport to enforce single-active-consumer semantics per
+/// data-topic: no explicit locking here. If two instances of this listener process the same
 /// data-topic concurrently, the last cache write wins and admission decisions can race.
 /// </para>
+/// <para>
+/// Lifetime is managed by <see cref="NegotiationListenerCoordinator"/>, which starts each
+/// listener via <see cref="RunAsync"/> in a background task and drives shutdown via
+/// cancellation.
+/// </para>
 /// </summary>
-internal sealed class NegotiationActor : BackgroundService
+internal sealed class NegotiationListener
 {
     private readonly INegotiationTransport _transport;
     private readonly INegotiationState _state;
 
-    public NegotiationActor(INegotiationTransport transport, INegotiationState state)
+    public NegotiationListener(INegotiationTransport transport, INegotiationState state)
     {
         _transport = transport;
         _state = state;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    public async Task RunAsync(CancellationToken cancellationToken)
     {
-        await foreach (var request in _transport.ReceiveRequestsAsync(stoppingToken))
+        await foreach (var request in _transport.ReceiveRequestsAsync(cancellationToken))
         {
             switch (request)
             {
                 case CapabilityRequest cap:
-                    await HandleCapabilityAsync(cap, stoppingToken);
+                    await HandleCapabilityAsync(cap, cancellationToken);
                     break;
                 case JoinRequest join:
-                    await HandleJoinAsync(join, stoppingToken);
+                    await HandleJoinAsync(join, cancellationToken);
                     break;
             }
         }
