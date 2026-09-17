@@ -80,6 +80,28 @@ internal sealed class FusionCacheNegotiationState(
         }
     }
 
+    public async Task<PublisherJoin?> TryGetPublisherAsync(
+        string dataTopic,
+        string instanceId,
+        CancellationToken cancellationToken = default)
+    {
+        var entry = await _cache.TryGetAsync<PublisherJoin>(
+            PublisherKey(dataTopic, instanceId),
+            token: cancellationToken);
+        return entry.HasValue ? entry.Value : null;
+    }
+
+    public async Task<Capability?> TryGetSubscriberAsync(
+        string dataTopic,
+        string instanceId,
+        CancellationToken cancellationToken = default)
+    {
+        var entry = await _cache.TryGetAsync<Capability>(
+            SubscriberKey(dataTopic, instanceId),
+            token: cancellationToken);
+        return entry.HasValue ? entry.Value : null;
+    }
+
     public async Task UpsertPublisherAsync(
         string dataTopic,
         PublisherJoin join,
