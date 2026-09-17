@@ -87,6 +87,46 @@ public class FusionCacheNegotiationStateTests
     }
 
     [Fact]
+    public async Task TryGetPublisherReturnsNullWhenAbsent()
+    {
+        var (state, _) = Build();
+
+        Assert.Null(await state.TryGetPublisherAsync("user", "missing", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task TryGetSubscriberReturnsNullWhenAbsent()
+    {
+        var (state, _) = Build();
+
+        Assert.Null(await state.TryGetSubscriberAsync("user", "missing", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task TryGetPublisherReturnsUpsertedEntry()
+    {
+        var (state, _) = Build();
+        await state.UpsertPublisherAsync("user", PublisherFor("p1", "v1", "v2"), TestContext.Current.CancellationToken);
+
+        var found = await state.TryGetPublisherAsync("user", "p1", TestContext.Current.CancellationToken);
+
+        Assert.NotNull(found);
+        Assert.True(found.WireNames.SetEquals(["v1", "v2"]));
+    }
+
+    [Fact]
+    public async Task TryGetSubscriberReturnsUpsertedEntry()
+    {
+        var (state, _) = Build();
+        await state.UpsertSubscriberAsync("user", CapabilityFor("s1", "v1"), TestContext.Current.CancellationToken);
+
+        var found = await state.TryGetSubscriberAsync("user", "s1", TestContext.Current.CancellationToken);
+
+        Assert.NotNull(found);
+        Assert.Equal("s1", found.InstanceId);
+    }
+
+    [Fact]
     public async Task PublishersAndSubscribersAreReturnedIndependently()
     {
         var (state, _) = Build();
