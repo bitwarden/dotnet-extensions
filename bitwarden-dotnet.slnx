@@ -55,11 +55,17 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.HealthChecks/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.HealthChecks/tests/Bitwarden.Server.Sdk.HealthChecks.Tests/Bitwarden.Server.Sdk.HealthChecks.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.RestrictedDependencies/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.RestrictedDependencies/src/Bitwarden.Server.Sdk.RestrictedDependencies.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.RestrictedDependencies/analyzers/">
     <Project Path="extensions/Bitwarden.Server.Sdk.RestrictedDependencies/analyzers/Bitwarden.Server.Sdk.RestrictedDependencies.Analyzers/Bitwarden.Server.Sdk.RestrictedDependencies.Analyzers.csproj" />
   </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.RestrictedDependencies/contracts/">
     <Project Path="extensions/Bitwarden.Server.Sdk.RestrictedDependencies/contracts/Bitwarden.Server.Sdk.RestrictedDependencies.Contracts/Bitwarden.Server.Sdk.RestrictedDependencies.Contracts.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.RestrictedDependencies/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.RestrictedDependencies/tests/Bitwarden.Server.Sdk.RestrictedDependencies.Tests/Bitwarden.Server.Sdk.RestrictedDependencies.Tests.csproj" />
   </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.WebEssentials/">
     <Project Path="extensions/Bitwarden.Server.Sdk.WebEssentials/src/Bitwarden.Server.Sdk.WebEssentials.csproj" />
