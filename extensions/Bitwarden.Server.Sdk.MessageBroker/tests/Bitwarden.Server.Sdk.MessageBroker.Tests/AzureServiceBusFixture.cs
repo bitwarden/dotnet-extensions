@@ -237,13 +237,18 @@ public class AzureServiceBusFixture : IAsyncLifetime
     /// <summary>
     /// Drains any residual messages on a non-session subscription so a test starts from empty.
     /// Uses <see cref="ServiceBusReceiveMode.ReceiveAndDelete"/> so messages are consumed
-    /// without needing to complete each one individually.
+    /// without needing to complete each one individually. Pass
+    /// <see cref="SubQueue.DeadLetter"/> to drain a subscription's dead-letter queue instead.
     /// </summary>
-    public async Task DrainSubscriptionAsync(string topic, string subscription)
+    public async Task DrainSubscriptionAsync(string topic, string subscription, SubQueue subQueue = SubQueue.None)
     {
         await using var client = new ServiceBusClient(GetConnectionString());
         await using var receiver = client.CreateReceiver(topic, subscription,
-            new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.ReceiveAndDelete });
+            new ServiceBusReceiverOptions
+            {
+                ReceiveMode = ServiceBusReceiveMode.ReceiveAndDelete,
+                SubQueue = subQueue,
+            });
         IReadOnlyList<ServiceBusReceivedMessage> batch;
         do
         {

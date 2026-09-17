@@ -230,18 +230,8 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
         {
             return msg.Subject switch
             {
-                CapabilitySubject => new CapabilityRequest
-                {
-                    Capability = JsonSerializer.Deserialize(msg.Body.ToArray(), NegotiationJsonContext.Default.Capability)
-                        ?? throw new JsonException("null capability body"),
-                    Replier = (ack, ct) => SendReplyAsync(msg, ack, ct),
-                },
-                JoinSubject => new JoinRequest
-                {
-                    Join = JsonSerializer.Deserialize(msg.Body.ToArray(), NegotiationJsonContext.Default.PublisherJoin)
-                        ?? throw new JsonException("null join body"),
-                    Replier = (ack, ct) => SendReplyAsync(msg, ack, ct),
-                },
+                CapabilitySubject => BuildCapabilityRequest(msg),
+                JoinSubject => BuildJoinRequest(msg),
                 _ => null,
             };
         }
@@ -249,6 +239,26 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
         {
             return null;
         }
+    }
+
+    private CapabilityRequest? BuildCapabilityRequest(ServiceBusReceivedMessage msg)
+    {
+        var capability = JsonSerializer.Deserialize(msg.Body.ToArray(), NegotiationJsonContext.Default.Capability);
+        // data-topic property is used as the filter downstream. We want to be sure it matches
+        // the routing used to hit this transport
+        return capability is not null && capability.DataTopic == _dataTopic
+            ? new CapabilityRequest { Capability = capability, Replier = (ack, ct) => SendReplyAsync(msg, ack, ct) }
+            : null;
+    }
+
+    private JoinRequest? BuildJoinRequest(ServiceBusReceivedMessage msg)
+    {
+        var join = JsonSerializer.Deserialize(msg.Body.ToArray(), NegotiationJsonContext.Default.PublisherJoin);
+        // data-topic property is used as the filter downstream. We want to be sure it matches
+        // the routing used to hit this transport
+        return join is not null && join.DataTopic == _dataTopic
+            ? new JoinRequest { Join = join, Replier = (ack, ct) => SendReplyAsync(msg, ack, ct) }
+            : null;
     }
 
     private Task SendReplyAsync(ServiceBusReceivedMessage original, NegotiationAck ack, CancellationToken cancellationToken)
