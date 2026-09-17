@@ -24,6 +24,25 @@ internal interface INegotiationState
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Direct lookup of a single publisher by instance identifier. Returns <c>null</c> if the
+    /// entry does not exist or has expired. Preferred over <see cref="GetPublishersAsync"/> for
+    /// per-instance short-circuits since it skips the manifest walk.
+    /// </summary>
+    Task<PublisherJoin?> TryGetPublisherAsync(
+        string dataTopic,
+        string instanceId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Direct lookup of a single subscriber by instance identifier. Same semantics as
+    /// <see cref="TryGetPublisherAsync"/>.
+    /// </summary>
+    Task<Capability?> TryGetSubscriberAsync(
+        string dataTopic,
+        string instanceId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Writes a publisher's cache entry with a fresh TTL
     /// </summary>
     Task UpsertPublisherAsync(
