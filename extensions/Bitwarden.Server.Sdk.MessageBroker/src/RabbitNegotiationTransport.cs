@@ -11,9 +11,8 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// RabbitMQ implementation of <see cref="INegotiationTransport"/>. Declares on first use:
 /// a direct exchange named <see cref="NegotiationOptions.ControlTopicName"/>, and a classic queue
 /// <see cref="NegotiationOptions.RequestSubscriptionName"/> with
-/// <c>x-single-active-consumer=true</c> bound to each entry in
-/// <see cref="NegotiationOptions.PublishedDataTopics"/>. Replies flow through the per-connection
-/// <c>amq.rabbitmq.reply-to</c> pseudo-queue.
+/// <c>x-single-active-consumer=true</c> bound to each entry in <c>publishedDataTopics</c>.
+/// Replies flow through the per-connection <c>amq.rabbitmq.reply-to</c> pseudo-queue.
 /// </summary>
 internal sealed class RabbitNegotiationTransport : INegotiationTransport, IAsyncDisposable
 {
@@ -23,6 +22,7 @@ internal sealed class RabbitNegotiationTransport : INegotiationTransport, IAsync
 
     private readonly NegotiationOptions _options;
     private readonly RabbitConnection _connection;
+    private readonly IReadOnlyCollection<string> _publishedDataTopics;
     private readonly SemaphoreSlim _initLock = new(1, 1);
     private IChannel? _channel;
 
@@ -32,10 +32,12 @@ internal sealed class RabbitNegotiationTransport : INegotiationTransport, IAsync
 
     public RabbitNegotiationTransport(
         RabbitConnection connection,
-        IOptions<NegotiationOptions> negotiationOptions)
+        IOptions<NegotiationOptions> negotiationOptions,
+        IReadOnlyCollection<string> publishedDataTopics)
     {
         _connection = connection;
         _options = negotiationOptions.Value;
+        _publishedDataTopics = publishedDataTopics;
     }
 
     public Task<NegotiationAck> SendCapabilityAsync(Capability capability, CancellationToken cancellationToken = default)
@@ -170,7 +172,7 @@ internal sealed class RabbitNegotiationTransport : INegotiationTransport, IAsync
                     autoDelete: false,
                     arguments: new Dictionary<string, object?> { ["x-single-active-consumer"] = true },
                     cancellationToken: cancellationToken);
-                foreach (var dataTopic in _options.PublishedDataTopics)
+                foreach (var dataTopic in _publishedDataTopics)
                 {
                     await channel.QueueBindAsync(
                         _options.RequestSubscriptionName,

@@ -55,6 +55,8 @@ public static class MessageBrokerServiceCollectionExtensions
         });
 
         services.AddSingleton(new BrokerTopologyDeclaration(name));
+        services.AddSingleton(new PublisherRoleMarker(name));
+        AddNegotiationListenerCoordinator(services);
 
         return services;
     }
@@ -250,5 +252,19 @@ public static class MessageBrokerServiceCollectionExtensions
     private static void AddAzureServiceBusInfrastructure(IServiceCollection services)
     {
         services.TryAddSingleton<AzureServiceBusConnection>();
+    }
+
+    private static void AddNegotiationListenerCoordinator(IServiceCollection services)
+    {
+        if (services.Any(d => d.ServiceType == typeof(NegotiationListenerCoordinator)))
+            return;
+        // Validator is registered but NOT wired to ValidateOnStart — NegotiationOptions is only
+        // materialized when a distributed backend spawns a transport, so validation naturally
+        // scopes to that path and doesn't fire for channel-backend deployments.
+        services.AddOptions<NegotiationOptions>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NegotiationOptions>, NegotiationOptionsValidator>());
+        services.TryAddSingleton<INegotiationState, FusionCacheNegotiationState>();
+        services.AddSingleton<NegotiationListenerCoordinator>();
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<NegotiationListenerCoordinator>());
     }
 }

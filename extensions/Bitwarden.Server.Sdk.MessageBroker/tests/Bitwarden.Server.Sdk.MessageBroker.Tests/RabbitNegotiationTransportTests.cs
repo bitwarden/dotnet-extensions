@@ -29,14 +29,13 @@ public class RabbitNegotiationTransportTests
             Id = Guid.NewGuid(),
             AdmissionTimeout = TimeSpan.FromSeconds(15),
         };
-        // Bind every data-topic the behavior tests exercise so a single "service" acts as
-        // both publisher and subscriber for them.
-        negotiation.PublishedDataTopics.Add("topic");
 
         var connection = new RabbitConnection(msgOpts, []);
         await connection.StartAsync(TestContext.Current.CancellationToken);
         _connections.Add(connection);
-        return new RabbitNegotiationTransport(connection, Options.Create(negotiation));
+        // Bind every data-topic the behavior tests exercise so a single "service" acts as
+        // both publisher and subscriber for them.
+        return new RabbitNegotiationTransport(connection, Options.Create(negotiation), ["topic"]);
     }
 
     public override async ValueTask DisposeAsync()
