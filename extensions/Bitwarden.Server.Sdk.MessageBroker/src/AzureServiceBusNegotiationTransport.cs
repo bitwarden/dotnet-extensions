@@ -7,11 +7,15 @@ using Microsoft.Extensions.Options;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Azure Service Bus implementation of <see cref="INegotiationTransport"/>. Uses session-enabled
-/// subscriptions on the shared <see cref="NegotiationOptions.ControlTopicName"/> topic: the
-/// request subscription keys each session by data-topic name (satisfies single-active-consumer
-/// per data-topic); the per-service reply subscription keys each session by requester instance
-/// identifier (routes each reply to the requester holding that session lock).
+/// Azure Service Bus implementation of <see cref="INegotiationTransport"/>. Each instance is
+/// bound to one data-topic at construction. Concurrency across data-topics for one service
+/// is achieved by constructing one transport per data-topic.
+/// <para>
+/// Uses session-enabled subscriptions on the shared <see cref="NegotiationOptions.ControlTopicName"/>
+/// topic. The request subscription's session-id is the bound data-topic name — the broker's
+/// session lock enforces single-active-consumer semantics per data-topic. The reply subscription's
+/// session-id is this instance's identifier so each running process holds its own reply session.
+/// </para>
 /// <para>
 /// Requires the following pre-provisioned entities: the control topic; a session-enabled
 /// <see cref="NegotiationOptions.RequestSubscriptionName"/> subscription with a SQL filter on
@@ -25,8 +29,10 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
     private const string DataTopicPropertyName = "data-topic";
     private const string CapabilitySubject = "capability";
     private const string JoinSubject = "join";
+    private static readonly TimeSpan SacRetryDelay = TimeSpan.FromSeconds(2);
 
     private readonly NegotiationOptions _options;
+    private readonly string _dataTopic;
     private readonly ServiceBusClient _client;
     private readonly ServiceBusSender _sender;
 
@@ -37,9 +43,11 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
 
     public AzureServiceBusNegotiationTransport(
         IOptions<MessagingOptions> messagingOptions,
-        IOptions<NegotiationOptions> negotiationOptions)
+        IOptions<NegotiationOptions> negotiationOptions,
+        string dataTopic)
     {
         _options = negotiationOptions.Value;
+        _dataTopic = dataTopic;
         var connectionString = messagingOptions.Value.AzureServiceBusConnectionString
             ?? throw new InvalidOperationException(
                 $"{nameof(MessagingOptions.AzureServiceBusConnectionString)} is not configured.");
@@ -165,13 +173,20 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
             ServiceBusSessionReceiver receiver;
             try
             {
-                receiver = await _client.AcceptNextSessionAsync(
+                // If another instance of the same service already holds the SAC role for this topic,
+                // the broker throws either SessionCannotBeLocked (immediate) or ServiceTimeout
+                // (after the client's TryTimeout).
+                // Either way we sleep briefly and retry so we take over once the holder shuts down or dies.
+                receiver = await _client.AcceptSessionAsync(
                     _options.ControlTopicName,
                     _options.RequestSubscriptionName,
+                    sessionId: _dataTopic,
                     cancellationToken: cancellationToken);
             }
-            catch (ServiceBusException ex) when (ex.Reason == ServiceBusFailureReason.ServiceTimeout)
+            catch (ServiceBusException ex) when (ex.Reason is ServiceBusFailureReason.SessionCannotBeLocked
+                                                            or ServiceBusFailureReason.ServiceTimeout)
             {
+                await Task.Delay(SacRetryDelay, cancellationToken);
                 continue;
             }
 
@@ -179,8 +194,21 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    var msg = await receiver.ReceiveMessageAsync(cancellationToken: cancellationToken);
-                    if (msg is null) break;
+                    ServiceBusReceivedMessage? msg;
+                    try
+                    {
+                        // The SDK auto-renews our session lock during a blocked ReceiveMessageAsync,
+                        // so no explicit renewal is needed. A null return is a long-poll timeout —
+                        // stay on the session rather than releasing (we are the active consumer).
+                        msg = await receiver.ReceiveMessageAsync(cancellationToken: cancellationToken);
+                    }
+                    catch (ServiceBusException ex) when (ex.Reason == ServiceBusFailureReason.SessionLockLost)
+                    {
+                        // Broker lost our lock (network partition, renewal miss). Exit the inner
+                        // loop and reacquire from scratch via the outer AcceptSessionAsync.
+                        break;
+                    }
+                    if (msg is null) continue;
 
                     var request = BuildRequest(msg);
                     if (request is null)
