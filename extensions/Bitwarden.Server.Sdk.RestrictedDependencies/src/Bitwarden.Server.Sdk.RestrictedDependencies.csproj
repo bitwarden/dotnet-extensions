@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>true</IsPackable>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <!-- netstandard2.0 predates the AOT analyzers, which is what IsAotCompatible switches on. -->
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Description>Roslyn analyzer that budgets the use of types marked [RestrictedDependency]: every existing use is recorded in a committed baseline, new uses are build errors, and the baseline may only shrink. Ships the baseline document format so a repository can regenerate and diff its own baselines.</Description>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <PreReleaseVersionLabel>beta</PreReleaseVersionLabel>
+    <PreReleaseVersionIteration>1</PreReleaseVersionIteration>
+    <VersionSuffix Condition="'$(VersionSuffix)' == '' AND '$(IsPreRelease)' == 'true'">$(PreReleaseVersionLabel).$(PreReleaseVersionIteration)</VersionSuffix>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="PolySharp" Version="1.16.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.RestrictedDependencies.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\contracts\Bitwarden.Server.Sdk.RestrictedDependencies.Contracts\Bitwarden.Server.Sdk.RestrictedDependencies.Contracts.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\analyzers\Bitwarden.Server.Sdk.RestrictedDependencies.Analyzers\Bitwarden.Server.Sdk.RestrictedDependencies.Analyzers.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\contracts\Bitwarden.Server.Sdk.RestrictedDependencies.Contracts\bin\$(Configuration)\netstandard2.0\Bitwarden.Server.Sdk.RestrictedDependencies.Contracts.dll" Pack="true" PackagePath="lib/netstandard2.0;analyzers/dotnet/cs" Visible="false" />
+    <None Include="..\contracts\Bitwarden.Server.Sdk.RestrictedDependencies.Contracts\bin\$(Configuration)\netstandard2.0\Bitwarden.Server.Sdk.RestrictedDependencies.Contracts.xml" Pack="true" PackagePath="lib/netstandard2.0" Visible="false" />
+    <None Include="..\analyzers\Bitwarden.Server.Sdk.RestrictedDependencies.Analyzers\bin\$(Configuration)\netstandard2.0\Bitwarden.Server.Sdk.RestrictedDependencies.Analyzers.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="build\**" Pack="true" PackagePath="build/" />
+  </ItemGroup>
+
+</Project>
