@@ -23,13 +23,16 @@ public class AzureServiceBusNegotiationTransportTests
         => Task.FromResult(CreateTransport(processDisplayName));
 
     // Session-enabled subscriptions on the shared emulator carry state between sequential
-    // tests. Drain all scopes this class touches in parallel — every test pays this on entry.
+    // tests. Drain all scopes this class touches — request/reply sessions plus the request
+    // subscription's dead-letter queue (dead-letter tests would otherwise see prior tests'
+    // residue) — in parallel; every test pays this on entry.
     public override async ValueTask InitializeAsync() =>
         await Task.WhenAll(
             _fixture.DrainSessionsAsync(ControlTopic, "request-" + ServiceName),
             _fixture.DrainSessionsAsync(ControlTopic, "reply-" + ServiceName),
             _fixture.DrainSessionsAsync(ControlTopic, "request-" + ShortLockServiceName),
-            _fixture.DrainSessionsAsync(ControlTopic, "reply-" + ShortLockServiceName));
+            _fixture.DrainSessionsAsync(ControlTopic, "reply-" + ShortLockServiceName),
+            _fixture.DrainSubscriptionAsync(ControlTopic, "request-" + ServiceName, SubQueue.DeadLetter));
 
     [Fact(Timeout = 90 * 1000)]
     public async Task ReplyAfterTimeoutLoopStaysAlive()
@@ -115,6 +118,51 @@ public class AzureServiceBusNegotiationTransportTests
         var dlqMessage = await dlqReceiver.ReceiveMessageAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
         Assert.NotNull(dlqMessage);
         Assert.Equal("this is not json", dlqMessage.Body.ToString());
+
+        await receiveCts.CancelAsync();
+        try { await receiveTask; } catch (OperationCanceledException) { }
+    }
+
+    [Fact(Timeout = 60 * 1000)]
+    public async Task PayloadDataTopicMismatchIsDeadLettered()
+    {
+        await using var receiver = (IAsyncDisposable)CreateTransport("receiver");
+        var receiverTransport = (INegotiationTransport)receiver;
+
+        using var receiveCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var receiveTask = Task.Run(async () =>
+        {
+            await foreach (var _ in receiverTransport.ReceiveRequestsAsync(receiveCts.Token)) { }
+        }, TestContext.Current.CancellationToken);
+
+        // Route to session=DataTopic (matches our binding) but claim a different topic in the payload.
+        await using (var client = new ServiceBusClient(_fixture.GetConnectionString()))
+        await using (var sender = client.CreateSender(ControlTopic))
+        {
+            var capability = new Capability { DataTopic = "other-topic", InstanceId = "sub-liar", WireNames = ["v1"] };
+            var msg = new ServiceBusMessage(JsonSerializer.SerializeToUtf8Bytes(
+                capability, NegotiationJsonContext.Default.Capability))
+            {
+                MessageId = Guid.NewGuid().ToString(),
+                Subject = "capability",
+                SessionId = DataTopic,
+                ReplyTo = "reply-" + ServiceName,
+                ReplyToSessionId = "sub-liar",
+            };
+            msg.ApplicationProperties["data-topic"] = DataTopic;
+            await sender.SendMessageAsync(msg, TestContext.Current.CancellationToken);
+        }
+
+        await using var dlqClient = new ServiceBusClient(_fixture.GetConnectionString());
+        await using var dlqReceiver = dlqClient.CreateReceiver(
+            ControlTopic,
+            "request-" + ServiceName,
+            new ServiceBusReceiverOptions { SubQueue = SubQueue.DeadLetter });
+
+        var dlqMessage = await dlqReceiver.ReceiveMessageAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+        Assert.NotNull(dlqMessage);
+        var recovered = JsonSerializer.Deserialize(dlqMessage.Body.ToArray(), NegotiationJsonContext.Default.Capability);
+        Assert.Equal("other-topic", recovered!.DataTopic);
 
         await receiveCts.CancelAsync();
         try { await receiveTask; } catch (OperationCanceledException) { }
