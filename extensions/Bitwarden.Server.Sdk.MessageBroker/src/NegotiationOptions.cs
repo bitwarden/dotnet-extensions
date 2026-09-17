@@ -68,14 +68,11 @@ public sealed class NegotiationOptions
     /// requests (<see cref="Capability"/> from subscribers, <see cref="PublisherJoin"/> from
     /// other publishers) that it must ack.
     /// <para>
-    /// On Azure Service Bus, pre-provisioned session-enabled (session-id = data-topic) with a
-    /// broker filter routing only the data-topics this service publishes. On RabbitMQ, declared
-    /// by the library at startup with <c>x-single-active-consumer</c> and one binding per
-    /// data-topic registered via <c>AddPublisher</c>.
-    /// </para>
-    /// <para>
-    /// TODO: MDG ASB filter should be applied in-code. permissions to do so are part of the
-    /// pre-provisioning requirements.
+    /// On Azure Service Bus, the subscription itself must be pre-provisioned session-enabled
+    /// (session-id = data-topic). At startup the library reconciles one SQL rule per
+    /// data-topic registered via <c>AddPublisher</c>, requiring Data Owner rights scoped to
+    /// this subscription. On RabbitMQ, declared by the library at startup with
+    /// <c>x-single-active-consumer</c> and one binding per data-topic.
     /// </para>
     /// </summary>
     /// <exception cref="InvalidOperationException"><see cref="ServiceName"/> is not set.</exception>

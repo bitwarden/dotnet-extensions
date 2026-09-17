@@ -1,3 +1,4 @@
+using Azure.Messaging.ServiceBus.Administration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
@@ -45,14 +46,30 @@ internal sealed class NegotiationListenerCoordinator : IHostedService
 
     internal int ListenerCount => _running?.Count ?? 0;
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
+        await ReconcileAsbRulesIfNeededAsync(cancellationToken);
         var pairs = BuildPairs();
         _listenerStopSignal = new CancellationTokenSource();
         _running = [.. pairs.Select(p => (
             RunTask: p.Listener.RunAsync(_listenerStopSignal.Token),
             p.Transport))];
-        return Task.CompletedTask;
+    }
+
+    private async Task ReconcileAsbRulesIfNeededAsync(CancellationToken cancellationToken)
+    {
+        var topics = _markers.Select(m => m.TopicName).Distinct().ToArray();
+        var messaging = _messagingOptions.Value;
+        if (topics.Length == 0 || string.IsNullOrEmpty(messaging.AzureServiceBusConnectionString))
+            return;
+
+        var admin = new ServiceBusAdministrationClient(messaging.AzureServiceBusConnectionString);
+        await AzureServiceBusRuleReconciler.ReconcileAsync(
+            admin,
+            _negotiationOptions.Value.ControlTopicName,
+            _negotiationOptions.Value.RequestSubscriptionName,
+            topics,
+            cancellationToken);
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
