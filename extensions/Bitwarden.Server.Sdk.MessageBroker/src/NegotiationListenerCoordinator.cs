@@ -1,15 +1,15 @@
 using Azure.Messaging.ServiceBus.Administration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using ZiggyCreatures.Caching.Fusion;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// DI marker registered once per <c>AddPublisher</c> call. Enumerating these is the source of
-/// truth for "topics this service publishes" — the listener coordinator, the Rabbit transport's
-/// per-topic queue bindings, and the ASB per-topic rule reconciliation all read from this set.
+/// truth for the topics this service publishes.
 /// </summary>
-internal sealed record PublisherRoleMarker(string TopicName);
+internal sealed record PublisherRoleMarker(string TopicName, IReadOnlySet<string> WireNames);
 
 /// <summary>
 /// Hosted service that spins up <see cref="NegotiationListener"/> instances for the negotiation
@@ -25,6 +25,10 @@ internal sealed record PublisherRoleMarker(string TopicName);
 /// </summary>
 internal sealed class NegotiationListenerCoordinator : IHostedService
 {
+    // Well-known cache key for the negotiation state. Callers must have registered an
+    // IFusionCache under this key (AddBitwardenCaching's AnyKey registration satisfies this).
+    internal const string NegotiationCacheKey = "bwsn::negotiation";
+
     private readonly IEnumerable<PublisherRoleMarker> _markers;
     private readonly IOptions<MessagingOptions> _messagingOptions;
     private readonly IOptions<NegotiationOptions> _negotiationOptions;
@@ -61,6 +65,12 @@ internal sealed class NegotiationListenerCoordinator : IHostedService
         var topics = _markers.Select(m => m.TopicName).Distinct().ToArray();
         var messaging = _messagingOptions.Value;
         if (topics.Length == 0 || string.IsNullOrEmpty(messaging.AzureServiceBusConnectionString))
+            return;
+
+        // The ASB emulator does not expose the management REST API that
+        // ServiceBusAdministrationClient talks to; skip reconciliation when the caller has
+        // opted into the emulator via the SDK's own connection-string flag.
+        if (messaging.AzureServiceBusConnectionString.Contains("UseDevelopmentEmulator=true", StringComparison.OrdinalIgnoreCase))
             return;
 
         var admin = new ServiceBusAdministrationClient(messaging.AzureServiceBusConnectionString);
@@ -107,23 +117,28 @@ internal sealed class NegotiationListenerCoordinator : IHostedService
             return [];
         }
 
-        // Lazy state resolution: only distributed backends need it, so the in-memory channel
-        // branch above avoids pulling in FusionCache when the caller hasn't configured one.
-        var state = _services.GetRequiredService<INegotiationState>();
+        // State is constructed here, not injected. The only legitimate consumer is the
+        // SAC-holding listener, and there is no scenario in which any other class should read
+        // or write it.
+        var inner = new FusionCacheNegotiationState(
+            _services.GetRequiredKeyedService<IFusionCache>(NegotiationCacheKey),
+            _negotiationOptions);
 
         if (!string.IsNullOrEmpty(messaging.AzureServiceBusConnectionString))
         {
-            // ASB works per topic
+            // ASB works per topic. Each listener holds SAC for its single data-topic
+            // so the state handed to it is scoped to the topic
             return [.. topics.Select(topic =>
             {
                 var transport = new AzureServiceBusNegotiationTransport(_messagingOptions, _negotiationOptions, topic);
-                return (new NegotiationListener(transport, state), (IAsyncDisposable)transport);
+                var scoped = new TopicScopedNegotiationState(inner, topic);
+                return (new NegotiationListener(transport, scoped), (IAsyncDisposable)transport);
             })];
         }
 
-        // Rabbit one transport across all topics and one listener to drive it.
+        // Rabbit: one transport and one listener across all topics.
         var rabbitConnection = _services.GetRequiredService<RabbitConnection>();
         var rabbitTransport = new RabbitNegotiationTransport(rabbitConnection, _negotiationOptions, topics);
-        return [(new NegotiationListener(rabbitTransport, state), rabbitTransport)];
+        return [(new NegotiationListener(rabbitTransport, inner), rabbitTransport)];
     }
 }
