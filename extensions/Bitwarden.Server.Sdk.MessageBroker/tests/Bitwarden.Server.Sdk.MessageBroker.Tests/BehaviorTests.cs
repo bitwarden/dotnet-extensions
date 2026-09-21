@@ -136,6 +136,7 @@ public abstract class BehaviorTests : IAsyncLifetime
                 services.AddBitwardenCaching();
                 configure(services);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
+                services.Configure<NegotiationOptions>(o => o.ServiceName = "negotiation");
             })
             .Build();
         await host.StartAsync(TestContext.Current.CancellationToken);
@@ -157,6 +158,7 @@ public abstract class BehaviorTests : IAsyncLifetime
                 services.AddBitwardenCaching();
                 configure(services);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
+                services.Configure<NegotiationOptions>(o => o.ServiceName = "negotiation");
             })
             .Build();
         await host.StartAsync(TestContext.Current.CancellationToken);
@@ -418,16 +420,16 @@ public abstract class BehaviorTests : IAsyncLifetime
         Task.FromResult<(Dictionary<string, string?>, Func<Task>)?>(null);
 
     [Fact(Timeout = 60 * 1000)]
-    public async Task PublishThrowsBrokerUnavailableExceptionWhenBrokerIsDown()
+    public async Task HostStartupThrowsBrokerUnavailableExceptionWhenBrokerIsDown()
     {
         var config = CreateBrokerDownConfig();
         Assert.SkipWhen(config is null, "This backend cannot be configured to fail on publish (e.g., in-memory channel).");
 
-        var host = await BuildHostAsync(config, services => services.AddPublisher<MyItemPayload, MyItem>(TopicName));
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
-
+        // Negotiation runs at host startup and needs to reach the broker to send the
+        // PublisherJoin. When the broker is down, the deploy-time gate fires here and the
+        // process fails to start.
         var ex = await Assert.ThrowsAsync<BrokerUnavailableException>(
-            () => publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken));
+            () => BuildHostAsync(config, services => services.AddPublisher<MyItemPayload, MyItem>(TopicName)));
 
         Assert.Equal(TopicName, ex.TopicName);
         Assert.NotNull(ex.InnerException);

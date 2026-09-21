@@ -56,13 +56,13 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
     protected override Dictionary<string, string?> CreateBrokerDownConfig() =>
         new() { { "AzureServiceBusConnectionString", UnreachableConnectionString } };
 
-    // ASB connects lazily: ReceiveMessagesAsync fails with ServiceBusException when the
-    // endpoint is unreachable, which is mapped to BrokerDisconnectedException. No separate
-    // "stop" step is needed — the failure occurs on the first receive attempt.
+    // The subscribe-when-broker-goes-down test needs a real broker to start with (so host
+    // startup and the negotiation join succeed) that can then be dropped mid-stream. The ASB
+    // emulator container can't be gracefully stopped mid-test in this harness, so skip. A
+    // production-facing droppable-ASB fixture would enable this coverage.
     protected override Task<(Dictionary<string, string?>, Func<Task>)?>
         TrySetupDroppableBrokerAsync() =>
-        Task.FromResult<(Dictionary<string, string?>, Func<Task>)?>(
-            (CreateBrokerDownConfig()!, () => Task.CompletedTask));
+        Task.FromResult<(Dictionary<string, string?>, Func<Task>)?>(null);
 
     [Fact(Timeout = 60 * 1000)]
     public async Task OversizedMessageThrows()

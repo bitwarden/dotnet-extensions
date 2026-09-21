@@ -54,8 +54,11 @@ public static class MessageBrokerServiceCollectionExtensions
         });
 
         services.AddSingleton(new RabbitTopologyDeclaration(name));
-        services.AddSingleton(new PublisherRoleMarker(name));
+        services.AddSingleton(new PublisherRoleMarker(
+            name,
+            TPayload.Variants.Select(v => v.WireName).ToHashSet()));
         AddNegotiationListenerCoordinator(services);
+        AddPublisherJoinRequester(services);
 
         return services;
     }
@@ -247,9 +250,19 @@ public static class MessageBrokerServiceCollectionExtensions
         // scopes to that path and doesn't fire for channel-backend deployments.
         services.AddOptions<NegotiationOptions>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NegotiationOptions>, NegotiationOptionsValidator>());
-        services.TryAddSingleton<INegotiationState, FusionCacheNegotiationState>();
         services.AddSingleton<NegotiationListenerCoordinator>();
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<NegotiationListenerCoordinator>());
+    }
+
+    private static void AddPublisherJoinRequester(IServiceCollection services)
+    {
+        if (services.Any(d => d.ServiceType == typeof(PublisherJoinRequester)))
+            return;
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NegotiationOptions>, PublisherNegotiationOptionsValidator>());
+        // Registered AFTER AddNegotiationListenerCoordinator so hosted-service startup order
+        // guarantees the local listener is running before we send our PublisherJoin request.
+        services.AddSingleton<PublisherJoinRequester>();
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<PublisherJoinRequester>());
     }
 
 }
