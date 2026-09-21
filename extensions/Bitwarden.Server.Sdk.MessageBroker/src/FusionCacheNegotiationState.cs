@@ -13,6 +13,12 @@ namespace Bitwarden.Server.Sdk.MessageBroker;
 /// no enumeration primitive. The manifest itself does not expire — reads prune out identifiers
 /// whose per-instance entry has expired, bounding its growth.
 /// </para>
+/// <para>
+/// Multi-topic by shape: callers pass a data-topic on every method. The RabbitMQ listener uses
+/// this directly (one SAC-elected consumer per service handles every published topic). The
+/// Azure Service Bus listener holds SAC per topic and must not read or write another topic's
+/// state; it wraps this instance in <see cref="TopicScopedNegotiationState"/>.
+/// </para>
 /// </summary>
 internal sealed class FusionCacheNegotiationState(
     IFusionCache cache,

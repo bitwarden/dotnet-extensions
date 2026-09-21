@@ -63,7 +63,7 @@ public static class MessageBrokerServiceCollectionExtensions
         });
 
         services.AddSingleton(new BrokerTopologyDeclaration(name, TPayload.WireName));
-        services.AddSingleton(new PublisherRoleMarker(name, TPayload.WireName));
+        services.AddSingleton(new PublisherRoleMarker(name, TPayload.WireName, TPayload.Variants.Select(v => v.WireName).ToHashSet()));
         AddNegotiationListenerCoordinator(services);
 
         return services;
