@@ -24,6 +24,8 @@ internal sealed class RabbitNegotiationTransport : INegotiationTransport, IAsync
     private const string DirectReplyToQueueName = "amq.rabbitmq.reply-to";
     private const string CapabilityType = "capability";
     private const string JoinType = "join";
+    private const string SubscriberLeaveType = "subscriber-leave";
+    private const string PublisherLeaveType = "publisher-leave";
 
     private readonly NegotiationOptions _options;
     private readonly RabbitConnection _connection;
@@ -93,6 +95,39 @@ internal sealed class RabbitNegotiationTransport : INegotiationTransport, IAsync
             JoinType,
             cancellationToken);
 
+    public Task SendPublisherLeaveAsync(PublisherLeave leave, CancellationToken cancellationToken = default)
+        => SendFireAndForgetAsync(
+            leave.DataTopic,
+            JsonSerializer.SerializeToUtf8Bytes(leave, NegotiationJsonContext.Default.PublisherLeave),
+            PublisherLeaveType,
+            cancellationToken);
+
+    public Task SendSubscriberLeaveAsync(SubscriberLeave leave, CancellationToken cancellationToken = default)
+        => SendFireAndForgetAsync(
+            leave.DataTopic,
+            JsonSerializer.SerializeToUtf8Bytes(leave, NegotiationJsonContext.Default.SubscriberLeave),
+            SubscriberLeaveType,
+            cancellationToken);
+
+    private async Task SendFireAndForgetAsync(
+        string dataTopic,
+        byte[] body,
+        string type,
+        CancellationToken cancellationToken)
+    {
+        var channel = await EnsureAsync(cancellationToken);
+
+        // No MessageId + no ReplyTo — the listener sees no reply address and skips replying.
+        var props = new BasicProperties { Type = type };
+        await channel.BasicPublishAsync(
+            _options.ControlTopicName,
+            routingKey: dataTopic,
+            mandatory: false,
+            props,
+            body,
+            cancellationToken);
+    }
+
     private async Task<NegotiationAck> SendAndAwaitAsync(
         string dataTopic,
         byte[] body,
@@ -132,12 +167,12 @@ internal sealed class RabbitNegotiationTransport : INegotiationTransport, IAsync
         }
     }
 
-    public async IAsyncEnumerable<INegotiationRequest> ReceiveRequestsAsync(
+    public async IAsyncEnumerable<INegotiationInbound> ReceiveRequestsAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var channel = await EnsureAsync(cancellationToken);
 
-        var inbox = System.Threading.Channels.Channel.CreateUnbounded<(INegotiationRequest Request, ulong DeliveryTag)>();
+        var inbox = System.Threading.Channels.Channel.CreateUnbounded<(INegotiationInbound Request, ulong DeliveryTag)>();
 
         var consumer = new AsyncEventingBasicConsumer(channel);
         consumer.ReceivedAsync += async (_, ea) =>
@@ -263,7 +298,7 @@ internal sealed class RabbitNegotiationTransport : INegotiationTransport, IAsync
         return Task.CompletedTask;
     }
 
-    private INegotiationRequest? BuildRequest(BasicDeliverEventArgs ea, IChannel channel)
+    private INegotiationInbound? BuildRequest(BasicDeliverEventArgs ea, IChannel channel)
     {
         // Copy properties needed by the replier before returning from the consumer callback so
         // the reply closure does not capture the delivery event args past their lifetime.
@@ -287,6 +322,16 @@ internal sealed class RabbitNegotiationTransport : INegotiationTransport, IAsync
                     Join = JsonSerializer.Deserialize(ea.Body.Span, NegotiationJsonContext.Default.PublisherJoin)
                         ?? throw new JsonException("null join body"),
                     Replier = Replier,
+                },
+                PublisherLeaveType => new PublisherLeaveNotification
+                {
+                    Leave = JsonSerializer.Deserialize(ea.Body.Span, NegotiationJsonContext.Default.PublisherLeave)
+                        ?? throw new JsonException("null publisher-leave body"),
+                },
+                SubscriberLeaveType => new SubscriberLeaveNotification
+                {
+                    Leave = JsonSerializer.Deserialize(ea.Body.Span, NegotiationJsonContext.Default.SubscriberLeave)
+                        ?? throw new JsonException("null subscriber-leave body"),
                 },
                 _ => null,
             };

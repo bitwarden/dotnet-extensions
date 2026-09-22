@@ -157,6 +157,25 @@ public class SubscriberCapabilityRequesterTests
         await harness.Requester.StopAsync(TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task StopAsyncSendsSubscriberLeaveForEachAdmittedMarker()
+    {
+        await using var harness = TestHarness.Build(reply: _ => new NegotiationAck { Go = true });
+        harness.RegisterSubscriber(Topic, "sub");
+
+        var requester = harness.Requester;
+        await requester.StartAsync(TestContext.Current.CancellationToken);
+        await requester.StopAsync(TestContext.Current.CancellationToken);
+
+        // Await the leave-observed signal — leaves are fire-and-forget from the sender's side,
+        // so the listener-side observation may not land before StopAsync returns.
+        await harness.WaitForLeavesAsync(count: 1);
+
+        var leave = Assert.Single(harness.ObservedSubscriberLeaves);
+        Assert.Equal(Topic, leave.DataTopic);
+        Assert.Equal(harness.NegotiationOptions.InstanceId, leave.InstanceId);
+    }
+
     /// <summary>
     /// Wires a real <see cref="SubscriberJoinRequester"/> against an in-memory
     /// <see cref="INegotiationTransport"/> so tests drive <see cref="SubscriberJoinRequester.StartAsync"/>
@@ -171,6 +190,7 @@ public class SubscriberCapabilityRequesterTests
         private Task? _listenerRunTask;
         private readonly CapturingLoggerProvider _loggerProvider = new();
         private int _observedCapabilityCount;
+        private readonly List<SubscriberLeave> _observedSubscriberLeaves = [];
         private ServiceProvider? _provider;
 
         private TestHarness(
@@ -213,18 +233,24 @@ public class SubscriberCapabilityRequesterTests
                 {
                     await foreach (var request in listenerTransport.ReceiveRequestsAsync(cts.Token))
                     {
-                        if (request is CapabilityRequest cr)
+                        switch (request)
                         {
-                            Interlocked.Increment(ref harness._observedCapabilityCount);
-                            NegotiationAck ack;
-                            try { ack = reply(cr.Capability); }
-                            catch
-                            {
-                                // Simulate a listener-side failure by leaving the reply pending;
-                                // the requester's AdmissionTimeout will then fire.
-                                continue;
-                            }
-                            await cr.ReplyAsync(ack, cts.Token);
+                            case CapabilityRequest cr:
+                                Interlocked.Increment(ref harness._observedCapabilityCount);
+                                NegotiationAck ack;
+                                try { ack = reply(cr.Capability); }
+                                catch
+                                {
+                                    // Simulate a listener-side failure by leaving the reply pending;
+                                    // the requester's AdmissionTimeout will then fire.
+                                    continue;
+                                }
+                                await cr.ReplyAsync(ack, cts.Token);
+                                break;
+                            case SubscriberLeaveNotification sln:
+                                lock (harness._observedSubscriberLeaves)
+                                    harness._observedSubscriberLeaves.Add(sln.Leave);
+                                break;
                         }
                     }
                 }
@@ -259,6 +285,25 @@ public class SubscriberCapabilityRequesterTests
         }
 
         public int ObservedCapabilityCount => Volatile.Read(ref _observedCapabilityCount);
+
+        public IReadOnlyList<SubscriberLeave> ObservedSubscriberLeaves
+        {
+            get { lock (_observedSubscriberLeaves) return [.. _observedSubscriberLeaves]; }
+        }
+
+        public NegotiationOptions NegotiationOptions
+            => _provider!.GetRequiredService<Microsoft.Extensions.Options.IOptions<NegotiationOptions>>().Value;
+
+        public async Task WaitForLeavesAsync(int count)
+        {
+            var deadline = DateTime.UtcNow + TestTimeout;
+            while (ObservedSubscriberLeaves.Count < count)
+            {
+                if (DateTime.UtcNow > deadline)
+                    throw new TimeoutException($"Expected at least {count} subscriber leaves, observed {ObservedSubscriberLeaves.Count}");
+                await Task.Delay(10);
+            }
+        }
 
         public async Task WaitForCapabilitiesAsync(int count)
         {

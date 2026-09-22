@@ -112,6 +112,25 @@ public class PublisherJoinRequesterTests
         await harness.Requester.StopAsync(TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task StopAsyncSendsPublisherLeaveForEachAdmittedMarker()
+    {
+        await using var harness = TestHarness.Build(reply: _ => new NegotiationAck { Go = true });
+        harness.RegisterPublisher(Topic);
+
+        var requester = harness.Requester;
+        await requester.StartAsync(TestContext.Current.CancellationToken);
+        await requester.StopAsync(TestContext.Current.CancellationToken);
+
+        // Await the leave-observed signal — leaves are fire-and-forget from the sender's side,
+        // so the listener-side observation may not land before StopAsync returns.
+        await harness.WaitForLeavesAsync(count: 1);
+
+        var leave = Assert.Single(harness.ObservedPublisherLeaves);
+        Assert.Equal(Topic, leave.DataTopic);
+        Assert.Equal(harness.NegotiationOptions.InstanceId, leave.InstanceId);
+    }
+
     /// <summary>
     /// Wires a real <see cref="PublisherJoinRequester"/> against an in-memory
     /// <see cref="INegotiationTransport"/> so tests drive <see cref="PublisherJoinRequester.StartAsync"/>
@@ -126,6 +145,7 @@ public class PublisherJoinRequesterTests
         private Task? _listenerRunTask;
         private readonly CapturingLoggerProvider _loggerProvider = new();
         private int _observedJoinCount;
+        private readonly List<PublisherLeave> _observedPublisherLeaves = [];
         private ServiceProvider? _provider;
 
         private TestHarness(
@@ -171,18 +191,24 @@ public class PublisherJoinRequesterTests
                 {
                     await foreach (var request in listenerTransport.ReceiveRequestsAsync(cts.Token))
                     {
-                        if (request is JoinRequest jr)
+                        switch (request)
                         {
-                            Interlocked.Increment(ref harness._observedJoinCount);
-                            NegotiationAck ack;
-                            try { ack = reply(jr.Join); }
-                            catch
-                            {
-                                // Simulate a listener-side failure by leaving the reply pending;
-                                // the requester's AdmissionTimeout will then fire.
-                                continue;
-                            }
-                            await jr.ReplyAsync(ack, cts.Token);
+                            case JoinRequest jr:
+                                Interlocked.Increment(ref harness._observedJoinCount);
+                                NegotiationAck ack;
+                                try { ack = reply(jr.Join); }
+                                catch
+                                {
+                                    // Simulate a listener-side failure by leaving the reply pending;
+                                    // the requester's AdmissionTimeout will then fire.
+                                    continue;
+                                }
+                                await jr.ReplyAsync(ack, cts.Token);
+                                break;
+                            case PublisherLeaveNotification pln:
+                                lock (harness._observedPublisherLeaves)
+                                    harness._observedPublisherLeaves.Add(pln.Leave);
+                                break;
                         }
                     }
                 }
@@ -217,6 +243,25 @@ public class PublisherJoinRequesterTests
         }
 
         public int ObservedJoinCount => Volatile.Read(ref _observedJoinCount);
+
+        public IReadOnlyList<PublisherLeave> ObservedPublisherLeaves
+        {
+            get { lock (_observedPublisherLeaves) return [.. _observedPublisherLeaves]; }
+        }
+
+        public NegotiationOptions NegotiationOptions
+            => _provider!.GetRequiredService<Microsoft.Extensions.Options.IOptions<NegotiationOptions>>().Value;
+
+        public async Task WaitForLeavesAsync(int count)
+        {
+            var deadline = DateTime.UtcNow + TestTimeout;
+            while (ObservedPublisherLeaves.Count < count)
+            {
+                if (DateTime.UtcNow > deadline)
+                    throw new TimeoutException($"Expected at least {count} publisher leaves, observed {ObservedPublisherLeaves.Count}");
+                await Task.Delay(10);
+            }
+        }
 
         public async Task WaitForJoinsAsync(int count)
         {
