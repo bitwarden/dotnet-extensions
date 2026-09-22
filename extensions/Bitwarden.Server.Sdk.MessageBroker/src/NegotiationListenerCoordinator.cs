@@ -138,7 +138,7 @@ internal sealed class NegotiationListenerCoordinator : IHostedService
 
         // Rabbit: one transport and one listener across all topics.
         var rabbitConnection = _services.GetRequiredService<RabbitConnection>();
-        var rabbitTransport = new RabbitNegotiationTransport(rabbitConnection, _negotiationOptions, topics);
+        var rabbitTransport = RabbitNegotiationTransport.ForListener(rabbitConnection, _negotiationOptions, topics);
         return [(new NegotiationListener(rabbitTransport, inner), rabbitTransport)];
     }
 }
