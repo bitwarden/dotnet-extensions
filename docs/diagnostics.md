@@ -346,6 +346,8 @@ The diagnostic is deliberately reported **without a source location**, because o
 
 > A global `[SuppressMessage]` (assembly or module scope) naming BW0012 silences every BW0012, including the one about itself, because global suppressions reach location-less diagnostics too. A consuming repository should scan its production source for global suppressions of these ids.
 
+> Pragmas inside a compiler-generated syntax tree — source generator output, or any file an `.editorconfig` marks `generated_code = true` — are not scanned, so a `#pragma warning disable` there is not reported as BW0012. This costs nothing for the error ids, which stay `NotConfigurable` regardless; it only matters for BW0011, the one id a pragma could otherwise be shown to have silenced. No source generator emits `[RestrictedDependencyException]` today, so the gap is theoretical until a hand-written file is marked `generated_code = true`.
+
 ### Example
 
 ```csharp
