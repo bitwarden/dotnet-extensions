@@ -152,7 +152,8 @@ public class NegotiationListenerTests
         var cache = new FusionCache(new FusionCacheOptions());
         var options = Options.Create(new NegotiationOptions { ServiceName = "svc", ProcessDisplayName = "test" });
         var state = new FusionCacheNegotiationState(cache, options);
-        var listener = new NegotiationListener(new InMemoryNegotiationTransport(broker, dataTopic: Topic), state);
+        var metrics = new NegotiationMetrics(TestMeterFactory.Instance);
+        var listener = new NegotiationListener(new InMemoryNegotiationTransport(broker, dataTopic: Topic), state, metrics);
         var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var runTask = Task.Run(() => listener.RunAsync(cts.Token), CancellationToken.None);
         var sender = new InMemoryNegotiationTransport(broker, dataTopic: "sender-ignored");

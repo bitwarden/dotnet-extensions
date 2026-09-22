@@ -22,11 +22,13 @@ internal sealed class NegotiationListener
 {
     private readonly INegotiationTransport _transport;
     private readonly INegotiationState _state;
+    private readonly NegotiationMetrics _metrics;
 
-    public NegotiationListener(INegotiationTransport transport, INegotiationState state)
+    public NegotiationListener(INegotiationTransport transport, INegotiationState state, NegotiationMetrics metrics)
     {
         _transport = transport;
         _state = state;
+        _metrics = metrics;
     }
 
     public async Task RunAsync(CancellationToken cancellationToken)
@@ -59,6 +61,7 @@ internal sealed class NegotiationListener
         if (existing is not null && existing.WireNames.SetEquals(capability.WireNames))
         {
             await _state.UpsertSubscriberAsync(capability.DataTopic, capability, cancellationToken);
+            _metrics.RecordCapabilityAdmission(capability.DataTopic, go: true);
             await request.ReplyAsync(new NegotiationAck { Go = true }, cancellationToken);
             return;
         }
@@ -78,11 +81,13 @@ internal sealed class NegotiationListener
 
         if (offenders.Count > 0)
         {
+            _metrics.RecordCapabilityAdmission(capability.DataTopic, go: false);
             await request.ReplyAsync(new NegotiationAck { Go = false, Offenders = offenders }, cancellationToken);
             return;
         }
 
         await _state.UpsertSubscriberAsync(capability.DataTopic, capability, cancellationToken);
+        _metrics.RecordCapabilityAdmission(capability.DataTopic, go: true);
         await request.ReplyAsync(new NegotiationAck { Go = true }, cancellationToken);
     }
 
@@ -94,6 +99,7 @@ internal sealed class NegotiationListener
         if (existing is not null && existing.WireNames.SetEquals(join.WireNames))
         {
             await _state.UpsertPublisherAsync(join.DataTopic, join, cancellationToken);
+            _metrics.RecordJoinAdmission(join.DataTopic, go: true);
             await request.ReplyAsync(new NegotiationAck { Go = true }, cancellationToken);
             return;
         }
@@ -113,11 +119,13 @@ internal sealed class NegotiationListener
 
         if (offenders.Count > 0)
         {
+            _metrics.RecordJoinAdmission(join.DataTopic, go: false);
             await request.ReplyAsync(new NegotiationAck { Go = false, Offenders = offenders }, cancellationToken);
             return;
         }
 
         await _state.UpsertPublisherAsync(join.DataTopic, join, cancellationToken);
+        _metrics.RecordJoinAdmission(join.DataTopic, go: true);
         await request.ReplyAsync(new NegotiationAck { Go = true }, cancellationToken);
     }
 }

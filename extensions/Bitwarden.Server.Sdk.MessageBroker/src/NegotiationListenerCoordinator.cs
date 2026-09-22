@@ -33,6 +33,7 @@ internal sealed class NegotiationListenerCoordinator : IHostedService
     private readonly IOptions<MessagingOptions> _messagingOptions;
     private readonly IOptions<NegotiationOptions> _negotiationOptions;
     private readonly IServiceProvider _services;
+    private readonly NegotiationMetrics _metrics;
     private CancellationTokenSource? _listenerStopSignal;
     private List<(Task RunTask, IAsyncDisposable Transport)>? _running;
 
@@ -40,12 +41,14 @@ internal sealed class NegotiationListenerCoordinator : IHostedService
         IEnumerable<PublisherRoleMarker> markers,
         IOptions<MessagingOptions> messagingOptions,
         IOptions<NegotiationOptions> negotiationOptions,
-        IServiceProvider services)
+        IServiceProvider services,
+        NegotiationMetrics metrics)
     {
         _markers = markers;
         _messagingOptions = messagingOptions;
         _negotiationOptions = negotiationOptions;
         _services = services;
+        _metrics = metrics;
     }
 
     internal int ListenerCount => _running?.Count ?? 0;
@@ -53,6 +56,7 @@ internal sealed class NegotiationListenerCoordinator : IHostedService
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         await ReconcileAsbRulesIfNeededAsync(cancellationToken);
+        _metrics.RegisterPublisherTopics(_markers.Select(m => m.TopicName).Distinct());
         var pairs = BuildPairs();
         _listenerStopSignal = new CancellationTokenSource();
         _running = [.. pairs.Select(p => (
@@ -132,13 +136,13 @@ internal sealed class NegotiationListenerCoordinator : IHostedService
             {
                 var transport = new AzureServiceBusNegotiationTransport(_messagingOptions, _negotiationOptions, topic);
                 var scoped = new TopicScopedNegotiationState(inner, topic);
-                return (new NegotiationListener(transport, scoped), (IAsyncDisposable)transport);
+                return (new NegotiationListener(transport, scoped, _metrics), (IAsyncDisposable)transport);
             })];
         }
 
         // Rabbit: one transport and one listener across all topics.
         var rabbitConnection = _services.GetRequiredService<RabbitConnection>();
         var rabbitTransport = RabbitNegotiationTransport.ForListener(rabbitConnection, _negotiationOptions, topics);
-        return [(new NegotiationListener(rabbitTransport, inner), rabbitTransport)];
+        return [(new NegotiationListener(rabbitTransport, inner, _metrics), rabbitTransport)];
     }
 }

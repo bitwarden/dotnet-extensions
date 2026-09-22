@@ -271,6 +271,7 @@ public static class MessageBrokerServiceCollectionExtensions
         // scopes to that path and doesn't fire for channel-backend deployments.
         services.AddOptions<NegotiationOptions>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NegotiationOptions>, NegotiationOptionsValidator>());
+        services.TryAddSingleton<NegotiationMetrics>();
         services.AddSingleton<NegotiationListenerCoordinator>();
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<NegotiationListenerCoordinator>());
     }
@@ -309,6 +310,10 @@ public static class MessageBrokerServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NegotiationOptions>, NegotiationOptionsValidator>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NegotiationOptions>, NegotiationRoleOptionsValidator>());
         services.TryAddSingleton(TimeProvider.System);
+        // Subscriber-only services never call AddPublisher (which drags in the coordinator), so
+        // register the metrics singleton here too. TryAdd makes it a no-op when the coordinator's
+        // registration already ran.
+        services.TryAddSingleton<NegotiationMetrics>();
         // Factory that closes over messaging + negotiation options and picks a transport per
         // backend. Registered as a DI service so tests can swap it for an in-memory transport
         // and drive SubscriberJoinRequester end-to-end without a real broker.

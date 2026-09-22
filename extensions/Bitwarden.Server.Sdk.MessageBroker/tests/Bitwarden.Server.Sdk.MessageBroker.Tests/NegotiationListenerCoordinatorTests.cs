@@ -46,7 +46,8 @@ public class NegotiationListenerCoordinatorTests
             markers,
             Options.Create(messaging),
             Options.Create(new NegotiationOptions { ServiceName = "svc", ProcessDisplayName = "test" }),
-            new UnusedServiceProvider());
+            new UnusedServiceProvider(),
+            new NegotiationMetrics(TestMeterFactory.Instance));
 
     // Never touched — the skip-negotiation branches short-circuit before lazy state resolution.
     // If a future coordinator change violates that, the test fails loudly.

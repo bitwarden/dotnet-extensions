@@ -64,6 +64,7 @@ internal sealed class SubscriberJoinRequester : BackgroundService
     private readonly IOptions<NegotiationOptions> _negotiationOptions;
     private readonly SubscriberNegotiationSenderFactory _senderFactory;
     private readonly TimeProvider _timeProvider;
+    private readonly NegotiationMetrics _metrics;
     private readonly ILogger<SubscriberJoinRequester> _logger;
 
     // Populated in StartAsync when the distributed-backend + markers guard passes; ExecuteAsync
@@ -77,6 +78,7 @@ internal sealed class SubscriberJoinRequester : BackgroundService
         IOptions<NegotiationOptions> negotiationOptions,
         SubscriberNegotiationSenderFactory senderFactory,
         TimeProvider timeProvider,
+        NegotiationMetrics metrics,
         ILogger<SubscriberJoinRequester> logger)
     {
         _markers = markers;
@@ -84,6 +86,7 @@ internal sealed class SubscriberJoinRequester : BackgroundService
         _negotiationOptions = negotiationOptions;
         _senderFactory = senderFactory;
         _timeProvider = timeProvider;
+        _metrics = metrics;
         _logger = logger;
     }
 
@@ -110,6 +113,11 @@ internal sealed class SubscriberJoinRequester : BackgroundService
 
         var negotiation = _negotiationOptions.Value;
         var topics = markers.Select(m => m.TopicName).ToArray();
+
+        // Register the topics this instance subscribes to with the metrics gauge before
+        // sending admission requests. Even a marker whose admission ultimately fails represents
+        // a deployment intent worth surfacing until the process exits.
+        _metrics.RegisterSubscriberTopics(topics);
 
         // One transport handles sending across all topics — send-side is data-topic-agnostic
         // (the outgoing message's DataTopic carries the routing), and the per-InstanceId reply
