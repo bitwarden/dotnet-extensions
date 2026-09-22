@@ -211,6 +211,10 @@ public class SubscriberCapabilityRequesterTests
                 new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
             _services.AddDistributedMemoryCache();
             _services.AddBitwardenCaching();
+            // Registers IMeterFactory so NegotiationMetrics can resolve. Production callers
+            // typically get this from Host.CreateApplicationBuilder; bare ServiceCollection tests
+            // must add it explicitly.
+            _services.AddMetrics();
             if (configureDistributedBackend)
                 _services.Configure<MessagingOptions>(o => o.RabbitUri = "amqp://test-does-not-connect");
             _services.Configure<NegotiationOptions>(o =>
