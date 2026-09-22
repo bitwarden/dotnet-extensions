@@ -35,7 +35,7 @@ public class RabbitNegotiationTransportTests
         _connections.Add(connection);
         // Bind every data-topic the behavior tests exercise so a single "service" acts as
         // both publisher and subscriber for them.
-        return new RabbitNegotiationTransport(connection, Options.Create(negotiation), ["topic"]);
+        return RabbitNegotiationTransport.ForListener(connection, Options.Create(negotiation), ["topic"]);
     }
 
     public override async ValueTask DisposeAsync()
