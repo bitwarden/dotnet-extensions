@@ -29,6 +29,8 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
     private const string DataTopicPropertyName = "data-topic";
     private const string CapabilitySubject = "capability";
     private const string JoinSubject = "join";
+    private const string SubscriberLeaveSubject = "subscriber-leave";
+    private const string PublisherLeaveSubject = "publisher-leave";
     private static readonly TimeSpan SacRetryDelay = TimeSpan.FromSeconds(2);
 
     private readonly NegotiationOptions _options;
@@ -68,6 +70,38 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
             JsonSerializer.SerializeToUtf8Bytes(join, NegotiationJsonContext.Default.PublisherJoin),
             JoinSubject,
             cancellationToken);
+
+    public Task SendPublisherLeaveAsync(PublisherLeave leave, CancellationToken cancellationToken = default)
+        => SendFireAndForgetAsync(
+            leave.DataTopic,
+            JsonSerializer.SerializeToUtf8Bytes(leave, NegotiationJsonContext.Default.PublisherLeave),
+            PublisherLeaveSubject,
+            cancellationToken);
+
+    public Task SendSubscriberLeaveAsync(SubscriberLeave leave, CancellationToken cancellationToken = default)
+        => SendFireAndForgetAsync(
+            leave.DataTopic,
+            JsonSerializer.SerializeToUtf8Bytes(leave, NegotiationJsonContext.Default.SubscriberLeave),
+            SubscriberLeaveSubject,
+            cancellationToken);
+
+    private Task SendFireAndForgetAsync(
+        string dataTopic,
+        byte[] body,
+        string subject,
+        CancellationToken cancellationToken)
+    {
+        var msg = new ServiceBusMessage(body)
+        {
+            Subject = subject,
+            // SessionId partitions the request subscription by data-topic so the SAC holder for
+            // this topic receives the leave.
+            SessionId = dataTopic,
+            // No MessageId + no ReplyTo — the listener sees no reply address and skips replying.
+        };
+        msg.ApplicationProperties[DataTopicPropertyName] = dataTopic;
+        return _sender.SendMessageAsync(msg, cancellationToken);
+    }
 
     private async Task<NegotiationAck> SendAndAwaitAsync(
         string dataTopic,
@@ -165,7 +199,7 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
         }
     }
 
-    public async IAsyncEnumerable<INegotiationRequest> ReceiveRequestsAsync(
+    public async IAsyncEnumerable<INegotiationInbound> ReceiveRequestsAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         while (!cancellationToken.IsCancellationRequested)
@@ -224,7 +258,7 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
         }
     }
 
-    private INegotiationRequest? BuildRequest(ServiceBusReceivedMessage msg)
+    private INegotiationInbound? BuildRequest(ServiceBusReceivedMessage msg)
     {
         try
         {
@@ -232,6 +266,8 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
             {
                 CapabilitySubject => BuildCapabilityRequest(msg),
                 JoinSubject => BuildJoinRequest(msg),
+                PublisherLeaveSubject => BuildPublisherLeaveNotification(msg),
+                SubscriberLeaveSubject => BuildSubscriberLeaveNotification(msg),
                 _ => null,
             };
         }
@@ -258,6 +294,22 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
         // the routing used to hit this transport
         return join is not null && join.DataTopic == _dataTopic
             ? new JoinRequest { Join = join, Replier = (ack, ct) => SendReplyAsync(msg, ack, ct) }
+            : null;
+    }
+
+    private PublisherLeaveNotification? BuildPublisherLeaveNotification(ServiceBusReceivedMessage msg)
+    {
+        var leave = JsonSerializer.Deserialize(msg.Body.ToArray(), NegotiationJsonContext.Default.PublisherLeave);
+        return leave is not null && leave.DataTopic == _dataTopic
+            ? new PublisherLeaveNotification { Leave = leave }
+            : null;
+    }
+
+    private SubscriberLeaveNotification? BuildSubscriberLeaveNotification(ServiceBusReceivedMessage msg)
+    {
+        var leave = JsonSerializer.Deserialize(msg.Body.ToArray(), NegotiationJsonContext.Default.SubscriberLeave);
+        return leave is not null && leave.DataTopic == _dataTopic
+            ? new SubscriberLeaveNotification { Leave = leave }
             : null;
     }
 

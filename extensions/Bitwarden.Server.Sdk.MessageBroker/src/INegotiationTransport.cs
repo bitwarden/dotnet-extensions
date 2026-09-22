@@ -21,9 +21,28 @@ internal interface INegotiationTransport
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Streams incoming control-plane requests for the publisher-service subscription. Each
-    /// request must be replied to via <see cref="INegotiationRequest.ReplyAsync"/>.
+    /// Publishes a publisher's clean-shutdown leave and returns once the message has left the
+    /// outbound pipe.
     /// </summary>
-    IAsyncEnumerable<INegotiationRequest> ReceiveRequestsAsync(
+    Task SendPublisherLeaveAsync(
+        PublisherLeave leave,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Publishes a subscriber's clean-shutdown leave. Same fire-and-forget semantics as
+    /// <see cref="SendPublisherLeaveAsync"/>.
+    /// </summary>
+    Task SendSubscriberLeaveAsync(
+        SubscriberLeave leave,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Streams inbound control-plane messages for the publisher-service subscription: admission
+    /// requests (<see cref="CapabilityRequest"/>, <see cref="JoinRequest"/>) that must be replied
+    /// to via <see cref="INegotiationRequest.ReplyAsync"/>, and fire-and-forget leave
+    /// notifications (<see cref="PublisherLeaveNotification"/>,
+    /// <see cref="SubscriberLeaveNotification"/>) that are processed and dropped.
+    /// </summary>
+    IAsyncEnumerable<INegotiationInbound> ReceiveRequestsAsync(
         CancellationToken cancellationToken = default);
 }

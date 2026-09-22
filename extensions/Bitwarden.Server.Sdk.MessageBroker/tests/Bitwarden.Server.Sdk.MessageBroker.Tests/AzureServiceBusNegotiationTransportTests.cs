@@ -49,8 +49,9 @@ public class AzureServiceBusNegotiationTransportTests
         {
             ready.TrySetResult();
             var handled = 0;
-            await foreach (var request in publisherTransport.ReceiveRequestsAsync(publisherCts.Token))
+            await foreach (var inbound in publisherTransport.ReceiveRequestsAsync(publisherCts.Token))
             {
+                if (inbound is not INegotiationRequest request) continue;
                 // First request: delay past the subscriber's AdmissionTimeout so the reply
                 // arrives after _pendingReplies has already been cleaned up.
                 if (handled == 0)
@@ -184,9 +185,10 @@ public class AzureServiceBusNegotiationTransportTests
         {
             try
             {
-                await foreach (var request in ((INegotiationTransport)transport).ReceiveRequestsAsync(receiveCts.Token))
+                await foreach (var inbound in ((INegotiationTransport)transport).ReceiveRequestsAsync(receiveCts.Token))
                 {
-                    received.TrySetResult(request);
+                    if (inbound is INegotiationRequest request)
+                        received.TrySetResult(request);
                 }
             }
             catch (OperationCanceledException) { }
@@ -251,8 +253,9 @@ public class AzureServiceBusNegotiationTransportTests
         {
             ready.TrySetResult();
             var handled = 0;
-            await foreach (var request in publisherTransport.ReceiveRequestsAsync(publisherCts.Token))
+            await foreach (var inbound in publisherTransport.ReceiveRequestsAsync(publisherCts.Token))
             {
+                if (inbound is not INegotiationRequest request) continue;
                 await request.ReplyAsync(new NegotiationAck { Go = true }, publisherCts.Token);
                 if (++handled >= 2) break;
             }

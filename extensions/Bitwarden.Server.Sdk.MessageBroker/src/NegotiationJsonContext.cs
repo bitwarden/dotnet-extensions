@@ -8,5 +8,7 @@ namespace Bitwarden.Server.Sdk.MessageBroker;
 /// </summary>
 [JsonSerializable(typeof(Capability))]
 [JsonSerializable(typeof(PublisherJoin))]
+[JsonSerializable(typeof(PublisherLeave))]
+[JsonSerializable(typeof(SubscriberLeave))]
 [JsonSerializable(typeof(NegotiationAck))]
 internal partial class NegotiationJsonContext : JsonSerializerContext;
