@@ -31,10 +31,9 @@ internal delegate INegotiationTransport PublisherNegotiationSenderFactory(string
 /// and continue; the cache entry's TTL is the correctness backstop.
 /// </para>
 /// <para>
-/// On graceful shutdown the sender is disposed and the heartbeat loop unwinds. TODO MDG: Clean-shutdown
-/// removal of this instance's cache entry is deferred to a follow-up commit that adds a
-/// control-plane leave message; until then, TTL expiration handles both crash and clean-exit
-/// paths.
+/// On graceful shutdown the service fires a <see cref="PublisherLeave"/> per admitted marker so
+/// the SAC-holding listener removes this instance's cache entry immediately, then disposes the
+/// sender. Failures are swallowed and logged.
 /// </para>
 /// <para>
 /// Runs AFTER <see cref="NegotiationListenerCoordinator"/> in registration order so the local
@@ -179,7 +178,35 @@ internal sealed class PublisherJoinRequester : BackgroundService
         var sender = Interlocked.Exchange(ref _sender, null);
         if (sender is null) return;
 
+        // Race the leaves in parallel so shutdown latency does not scale with marker count.
+        var instanceId = _negotiationOptions.Value.InstanceId;
+        var leaves = _admittedMarkers.Select(marker =>
+            SendLeaveAsync(marker, sender, instanceId, cancellationToken));
+        await Task.WhenAll(leaves);
+
         await ((IAsyncDisposable)sender).DisposeAsync();
+    }
+
+    private async Task SendLeaveAsync(
+        PublisherRoleMarker marker,
+        INegotiationTransport sender,
+        string instanceId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await sender.SendPublisherLeaveAsync(
+                new PublisherLeave { DataTopic = marker.TopicName, InstanceId = instanceId },
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Best-effort publisher leave for data-topic '{DataTopic}' failed on shutdown; " +
+                "the cache entry will expire at TTL.",
+                marker.TopicName);
+        }
     }
 
     private static async Task RequestJoinAsync(

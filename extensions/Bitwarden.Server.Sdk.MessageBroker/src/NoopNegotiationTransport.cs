@@ -5,16 +5,13 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 internal sealed class NoopNegotiationTransport : INegotiationTransport
 {
-    private static NegotiationAck _nogo = new()
+    private static NegotiationAck _go = new()
     {
-        Go = false,
-        Offenders = [new NegotiationIncompatibility
-        {
-            InstanceId = "noop",
-            WireNames = new()
-        }]
+        Go = true,
     };
-    public IAsyncEnumerable<INegotiationRequest> ReceiveRequestsAsync(CancellationToken cancellationToken = default) => AsyncEnumerable.Empty<INegotiationRequest>();
-    public Task<NegotiationAck> SendCapabilityAsync(Capability capability, CancellationToken cancellationToken = default) => Task.FromResult(_nogo);
-    public Task<NegotiationAck> SendJoinAsync(PublisherJoin join, CancellationToken cancellationToken = default) => Task.FromResult(_nogo);
+    public IAsyncEnumerable<INegotiationInbound> ReceiveRequestsAsync(CancellationToken cancellationToken = default) => AsyncEnumerable.Empty<INegotiationInbound>();
+    public Task<NegotiationAck> SendCapabilityAsync(Capability capability, CancellationToken cancellationToken = default) => Task.FromResult(_go);
+    public Task<NegotiationAck> SendJoinAsync(PublisherJoin join, CancellationToken cancellationToken = default) => Task.FromResult(_go);
+    public Task SendPublisherLeaveAsync(PublisherLeave leave, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task SendSubscriberLeaveAsync(SubscriberLeave leave, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }

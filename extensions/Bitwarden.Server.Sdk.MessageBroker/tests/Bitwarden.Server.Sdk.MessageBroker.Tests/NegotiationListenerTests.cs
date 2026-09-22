@@ -96,6 +96,56 @@ public class NegotiationListenerTests
         Assert.Empty(cached);
     }
 
+    [Fact]
+    public async Task PublisherLeaveRemovesTheInstanceFromCache()
+    {
+        await using var harness = StartListener();
+        await harness.State.UpsertPublisherAsync(Topic, Pub("pub-1", "v1"), TestContext.Current.CancellationToken);
+        await harness.State.UpsertPublisherAsync(Topic, Pub("pub-2", "v1"), TestContext.Current.CancellationToken);
+
+        await harness.Sender.SendPublisherLeaveAsync(
+            new PublisherLeave { DataTopic = Topic, InstanceId = "pub-1" },
+            TestContext.Current.CancellationToken);
+
+        // Leave is fire-and-forget so give the listener a moment to process before asserting.
+        await WaitUntilAsync(
+            async () => (await harness.State.TryGetPublisherAsync(Topic, "pub-1", TestContext.Current.CancellationToken)) is null,
+            TimeSpan.FromSeconds(5));
+
+        Assert.Null(await harness.State.TryGetPublisherAsync(Topic, "pub-1", TestContext.Current.CancellationToken));
+        Assert.NotNull(await harness.State.TryGetPublisherAsync(Topic, "pub-2", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task SubscriberLeaveRemovesTheInstanceFromCache()
+    {
+        await using var harness = StartListener();
+        await harness.State.UpsertSubscriberAsync(Topic, Cap("sub-1", "v1"), TestContext.Current.CancellationToken);
+        await harness.State.UpsertSubscriberAsync(Topic, Cap("sub-2", "v1"), TestContext.Current.CancellationToken);
+
+        await harness.Sender.SendSubscriberLeaveAsync(
+            new SubscriberLeave { DataTopic = Topic, InstanceId = "sub-1" },
+            TestContext.Current.CancellationToken);
+
+        await WaitUntilAsync(
+            async () => (await harness.State.TryGetSubscriberAsync(Topic, "sub-1", TestContext.Current.CancellationToken)) is null,
+            TimeSpan.FromSeconds(5));
+
+        Assert.Null(await harness.State.TryGetSubscriberAsync(Topic, "sub-1", TestContext.Current.CancellationToken));
+        Assert.NotNull(await harness.State.TryGetSubscriberAsync(Topic, "sub-2", TestContext.Current.CancellationToken));
+    }
+
+    private static async Task WaitUntilAsync(Func<Task<bool>> predicate, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (await predicate()) return;
+            await Task.Delay(10);
+        }
+        throw new TimeoutException($"Condition not met within {timeout}");
+    }
+
     private static ListenerHarness StartListener()
     {
         var broker = new InMemoryNegotiationBroker();

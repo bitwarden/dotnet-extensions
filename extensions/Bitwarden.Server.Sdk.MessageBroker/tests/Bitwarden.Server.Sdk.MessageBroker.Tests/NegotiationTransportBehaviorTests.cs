@@ -39,8 +39,9 @@ public abstract class NegotiationTransportBehaviorTests : IAsyncLifetime
         var publisherTask = Task.Run(async () =>
         {
             ready.TrySetResult();
-            await foreach (var request in publisherTransport.ReceiveRequestsAsync(publisherCts.Token))
+            await foreach (var inbound in publisherTransport.ReceiveRequestsAsync(publisherCts.Token))
             {
+                if (inbound is not INegotiationRequest request) continue;
                 received = request;
                 await request.ReplyAsync(new NegotiationAck { Go = true }, publisherCts.Token);
                 break;
@@ -76,8 +77,9 @@ public abstract class NegotiationTransportBehaviorTests : IAsyncLifetime
         var activeTask = Task.Run(async () =>
         {
             ready.TrySetResult();
-            await foreach (var request in activeTransport.ReceiveRequestsAsync(activeCts.Token))
+            await foreach (var inbound in activeTransport.ReceiveRequestsAsync(activeCts.Token))
             {
+                if (inbound is not INegotiationRequest request) continue;
                 received = request;
                 await request.ReplyAsync(
                     new NegotiationAck
@@ -133,9 +135,10 @@ public abstract class NegotiationTransportBehaviorTests : IAsyncLifetime
         {
             ready.TrySetResult();
             var handled = 0;
-            await foreach (var request in publisherTransport.ReceiveRequestsAsync(publisherCts.Token))
+            await foreach (var inbound in publisherTransport.ReceiveRequestsAsync(publisherCts.Token))
             {
-                var incoming = ((CapabilityRequest)request).Capability;
+                if (inbound is not CapabilityRequest request) continue;
+                var incoming = request.Capability;
                 await request.ReplyAsync(
                     new NegotiationAck
                     {

@@ -1,11 +1,21 @@
 namespace Bitwarden.Server.Sdk.MessageBroker;
 
 /// <summary>
-/// An incoming negotiation request to be answered. Discriminate with pattern matching between
-/// <see cref="CapabilityRequest"/> and <see cref="JoinRequest"/> to determine which side of the
-/// admission check to run.
+/// Umbrella marker for anything the transport yields off the control plane. Two shapes:
+/// <see cref="INegotiationRequest"/> for admission traffic (subscriber capability, publisher
+/// join) that must be answered with a <see cref="NegotiationAck"/>; and the fire-and-forget
+/// notification records (<see cref="PublisherLeaveNotification"/>,
+/// <see cref="SubscriberLeaveNotification"/>) that the listener processes and drops without
+/// replying. Discriminate with pattern matching to decide which side to run.
 /// </summary>
-internal interface INegotiationRequest
+internal interface INegotiationInbound { }
+
+/// <summary>
+/// An admission request that expects a go/no-go reply. Only the two admission types
+/// (<see cref="CapabilityRequest"/>, <see cref="JoinRequest"/>) implement this; leave
+/// notifications deliberately do not, because there is nothing the sender is waiting on.
+/// </summary>
+internal interface INegotiationRequest : INegotiationInbound
 {
     /// <summary>Sends the go/no-go reply back to the requester.</summary>
     Task ReplyAsync(NegotiationAck ack, CancellationToken cancellationToken = default);
@@ -31,4 +41,22 @@ internal sealed record JoinRequest : INegotiationRequest
 
     public Task ReplyAsync(NegotiationAck ack, CancellationToken cancellationToken = default)
         => Replier(ack, cancellationToken);
+}
+
+/// <summary>
+/// A publisher's <see cref="PublisherLeave"/> arriving on the control plane. Fire-and-forget:
+/// no replier because the sender never waits for an ack.
+/// </summary>
+internal sealed record PublisherLeaveNotification : INegotiationInbound
+{
+    public required PublisherLeave Leave { get; init; }
+}
+
+/// <summary>
+/// A subscriber's <see cref="SubscriberLeave"/> arriving on the control plane. Fire-and-forget:
+/// no replier because the sender never waits for an ack.
+/// </summary>
+internal sealed record SubscriberLeaveNotification : INegotiationInbound
+{
+    public required SubscriberLeave Leave { get; init; }
 }

@@ -73,8 +73,9 @@ public class RabbitNegotiationTransportTests
         var receiveTask = Task.Run(async () =>
         {
             ready.TrySetResult();
-            await foreach (var request in negotiationTransport.ReceiveRequestsAsync(receiveCts.Token))
+            await foreach (var inbound in negotiationTransport.ReceiveRequestsAsync(receiveCts.Token))
             {
+                if (inbound is not INegotiationRequest request) continue;
                 await request.ReplyAsync(new NegotiationAck { Go = true }, receiveCts.Token);
                 break;
             }

@@ -41,6 +41,12 @@ internal sealed class NegotiationListener
                 case JoinRequest join:
                     await HandleJoinAsync(join, cancellationToken);
                     break;
+                case PublisherLeaveNotification pln:
+                    await _state.RemovePublisherAsync(pln.Leave.DataTopic, pln.Leave.InstanceId, cancellationToken);
+                    break;
+                case SubscriberLeaveNotification sln:
+                    await _state.RemoveSubscriberAsync(sln.Leave.DataTopic, sln.Leave.InstanceId, cancellationToken);
+                    break;
             }
         }
     }
