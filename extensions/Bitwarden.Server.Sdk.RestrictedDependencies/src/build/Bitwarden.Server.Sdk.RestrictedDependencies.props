@@ -1,0 +1,14 @@
+<Project>
+
+  <!--
+      What the analyzer reads out of the build. RestrictedDependencyAnalysis gates it: a project
+      that does not set it is skipped before any symbol is looked at.
+  -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="RestrictedDependencyAnalysis" />
+    <CompilerVisibleProperty Include="RepoRoot" />
+    <CompilerVisibleProperty Include="RestrictedDependencyUpdateCommand" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="RestrictedDependencyBaseline" />
+  </ItemGroup>
+
+</Project>
