@@ -130,6 +130,11 @@ public static class MessageBrokerServiceCollectionExtensions
 
         services.AddSingleton(new RabbitTopologyDeclaration(name, $"{name}.{subscriptionName}"));
 
+        services.AddSingleton(new SubscriberRoleMarker(
+            name,
+            TPayload.Variants.Select(v => v.WireName).ToHashSet()));
+        AddSubscriberCapabilityRequester(services);
+
         return services;
     }
 
@@ -258,11 +263,22 @@ public static class MessageBrokerServiceCollectionExtensions
     {
         if (services.Any(d => d.ServiceType == typeof(PublisherJoinRequester)))
             return;
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NegotiationOptions>, PublisherNegotiationOptionsValidator>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NegotiationOptions>, NegotiationRoleOptionsValidator>());
         // Registered AFTER AddNegotiationListenerCoordinator so hosted-service startup order
         // guarantees the local listener is running before we send our PublisherJoin request.
         services.AddSingleton<PublisherJoinRequester>();
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<PublisherJoinRequester>());
+    }
+
+    private static void AddSubscriberCapabilityRequester(IServiceCollection services)
+    {
+        if (services.Any(d => d.ServiceType == typeof(SubscriberJoinRequester)))
+            return;
+        services.AddOptions<NegotiationOptions>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NegotiationOptions>, NegotiationOptionsValidator>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NegotiationOptions>, NegotiationRoleOptionsValidator>());
+        services.AddSingleton<SubscriberJoinRequester>();
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<SubscriberJoinRequester>());
     }
 
 }

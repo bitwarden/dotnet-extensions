@@ -262,30 +262,26 @@ public class ChannelEscrowTests
     }
 
     /// <summary>
-    /// Verifies that <see cref="ChannelEscrowService{T}"/> is a no-op when an external broker
-    /// (Rabbit or ASB) is configured — StartAsync and StopAsync both return immediately without
-    /// draining the in-memory channel.
+    /// Verifies that <see cref="ChannelConsumerValidationService"/> is a no-op when an external
+    /// broker (Rabbit or ASB) is configured — its channel-only "AddMessageConsumer vs.
+    /// AddSubscriber" check should not fire, since that mismatch is only meaningful for the
+    /// in-memory channel backend.
     /// </summary>
     [Fact(Timeout = 60 * 1000)]
-    public async Task EscrowServiceSkipsWhenExternalBackendIsConfigured()
+    public async Task ChannelConsumerValidationServiceSkipsWhenExternalBackendIsConfigured()
     {
-        // Use an unreachable URI so the RabbitConnection fails in the background without
-        // throwing from StartAsync (resilient startup).
-        var host = new HostBuilder()
-            .ConfigureAppConfiguration(c => c.AddInMemoryCollection(
-                new Dictionary<string, string?> { { "RabbitUri", "amqp://guest:guest@localhost:1/" } }))
-            .ConfigureServices(services =>
+        var validator = new ChannelConsumerValidationService(
+            Microsoft.Extensions.Options.Options.Create(new MessagingOptions
             {
-                services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());
-                services.AddMessageConsumer<MyItemPayload, MyItem, BlockingConsumer>("test", "group");
-                services.AddOptions<MessagingOptions>().BindConfiguration("");
-            })
-            .Build();
+                RabbitUri = "amqp://guest:guest@localhost:1/",
+            }),
+            // Subscribers without matching consumers would normally fail — but the external
+            // backend short-circuit runs first, so this input never gets inspected.
+            subscribers: [new ChannelSubscriberDescriptor(typeof(MyItemPayload), "test/group")],
+            consumers: []);
 
-        // Both ChannelEscrowService and ChannelConsumerValidationService must return early
-        // when an external backend is configured.
-        await host.StartAsync(TestContext.Current.CancellationToken);
-        await host.StopAsync(TestContext.Current.CancellationToken);
+        await validator.StartAsync(TestContext.Current.CancellationToken);
+        await validator.StopAsync(TestContext.Current.CancellationToken);
     }
 
     /// <summary>
