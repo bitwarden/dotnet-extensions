@@ -230,8 +230,19 @@ internal sealed class CompilationCoordinator
             context.ReportDiagnostic,
             DiagnosticSuppressionScanner.OnSymbol(((ILocalFunctionOperation)context.Operation).Symbol, _repoRoot));
 
-    public void OnSyntaxTree(SyntaxTreeAnalysisContext context) =>
+    public void OnSyntaxTree(SyntaxTreeAnalysisContext context)
+    {
+        // Every source generator opens its output with a blanket #pragma warning disable, so
+        // scanning generated trees would fail any project using [GeneratedRegex] or the like.
+        // Nothing is lost: a pragma cannot suppress the error-severity rules, and the only warning,
+        // BW0011, sits on an exception attribute no generator writes.
+        if (context.IsGeneratedCode)
+        {
+            return;
+        }
+
         Report(context.ReportDiagnostic, DiagnosticSuppressionScanner.OnSyntaxTree(context.Tree, _repoRoot, context.CancellationToken));
+    }
 
     public void OnCompilationEnd(CompilationAnalysisContext context)
     {
