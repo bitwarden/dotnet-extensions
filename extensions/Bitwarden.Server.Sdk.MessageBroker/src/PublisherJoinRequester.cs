@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -17,11 +18,23 @@ internal delegate INegotiationTransport PublisherNegotiationSenderFactory(string
 /// requesting admission to the publisher fleet and awaits the ack. Admission is decided on
 /// the receive side by <see cref="NegotiationListener"/> — whichever instance currently
 /// holds the SAC role for the topic. This class is the request side of that handshake and
-/// never inspects <c>INegotiationState</c> directly: only the SAC holder may read it, and
-/// the send side has no lock.
+/// never inspects <c>INegotiationState</c> for admission decisions: only the SAC holder may
+/// read it, and the send side has no lock.
 /// <para>
 /// Any failure — no-go reply, ack timeout, transport error — throws. Host startup fails,
 /// the process exits non-zero. This is the deploy-time gate the design doc calls for.
+/// </para>
+/// <para>
+/// After a successful startup admission the service keeps its sender alive and republishes
+/// each <see cref="PublisherJoin"/> every <see cref="NegotiationOptions.HeartbeatInterval"/>
+/// so the fleet cache does not expire this instance's entry. Heartbeat failures log a warning
+/// and continue; the cache entry's TTL is the correctness backstop.
+/// </para>
+/// <para>
+/// On graceful shutdown the sender is disposed and the heartbeat loop unwinds. TODO MDG: Clean-shutdown
+/// removal of this instance's cache entry is deferred to a follow-up commit that adds a
+/// control-plane leave message; until then, TTL expiration handles both crash and clean-exit
+/// paths.
 /// </para>
 /// <para>
 /// Runs AFTER <see cref="NegotiationListenerCoordinator"/> in registration order so the local
@@ -34,26 +47,37 @@ internal delegate INegotiationTransport PublisherNegotiationSenderFactory(string
 /// on the publisher side.
 /// </para>
 /// </summary>
-internal sealed class PublisherJoinRequester : IHostedService
+internal sealed class PublisherJoinRequester : BackgroundService
 {
     private readonly IEnumerable<PublisherRoleMarker> _markers;
     private readonly IOptions<MessagingOptions> _messagingOptions;
     private readonly IOptions<NegotiationOptions> _negotiationOptions;
     private readonly PublisherNegotiationSenderFactory _senderFactory;
+    private readonly TimeProvider _timeProvider;
+    private readonly ILogger<PublisherJoinRequester> _logger;
+
+    // Populated in StartAsync when the distributed-backend + markers guard passes; ExecuteAsync
+    // and StopAsync rely on the same non-null check to know whether initial admission ran.
+    private INegotiationTransport? _sender;
+    private List<PublisherRoleMarker> _admittedMarkers = [];
 
     public PublisherJoinRequester(
         IEnumerable<PublisherRoleMarker> markers,
         IOptions<MessagingOptions> messagingOptions,
         IOptions<NegotiationOptions> negotiationOptions,
-        PublisherNegotiationSenderFactory senderFactory)
+        PublisherNegotiationSenderFactory senderFactory,
+        TimeProvider timeProvider,
+        ILogger<PublisherJoinRequester> logger)
     {
         _markers = markers;
         _messagingOptions = messagingOptions;
         _negotiationOptions = negotiationOptions;
         _senderFactory = senderFactory;
+        _timeProvider = timeProvider;
+        _logger = logger;
     }
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public override async Task StartAsync(CancellationToken cancellationToken)
     {
         var messaging = _messagingOptions.Value;
         var markers = _markers.ToList();
@@ -61,6 +85,7 @@ internal sealed class PublisherJoinRequester : IHostedService
             || (string.IsNullOrEmpty(messaging.AzureServiceBusConnectionString)
                 && string.IsNullOrEmpty(messaging.RabbitUri)))
         {
+            // Nothing to do. Skip base.StartAsync so ExecuteAsync never runs.
             return;
         }
 
@@ -78,13 +103,84 @@ internal sealed class PublisherJoinRequester : IHostedService
             foreach (var marker in markers)
                 await RequestJoinAsync(marker, sender, negotiation, cancellationToken);
         }
-        finally
+        catch
         {
+            // Startup admission failed; the host will not come up, so drop the sender rather
+            // than leaving it live for a heartbeat loop that will never run.
             await ((IAsyncDisposable)sender).DisposeAsync();
+            throw;
+        }
+
+        _sender = sender;
+        _admittedMarkers = markers;
+        await base.StartAsync(cancellationToken);
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        // Capture the sender into a local so the heartbeat tasks hold a stable reference for
+        // this ExecuteAsync's lifetime. base.StopAsync usually awaits us to completion before
+        // StopAsync nulls _sender and disposes, but under a host-shutdown-token cancellation it
+        // returns via Task.WhenAny early, so _sender can be nulled while our tasks are still
+        // running. The per-marker catch-all swallows the resulting ObjectDisposedException.
+        var sender = _sender;
+        if (sender is null || _admittedMarkers.Count == 0) return;
+
+        var negotiation = _negotiationOptions.Value;
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(negotiation.HeartbeatInterval, _timeProvider, stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            var heartbeats = _admittedMarkers.Select(marker =>
+                SendHeartbeatAsync(marker, sender, negotiation, stoppingToken));
+            await Task.WhenAll(heartbeats);
         }
     }
 
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    private async Task SendHeartbeatAsync(
+        PublisherRoleMarker marker,
+        INegotiationTransport sender,
+        NegotiationOptions negotiation,
+        CancellationToken stoppingToken)
+    {
+        try
+        {
+            await RequestJoinAsync(marker, sender, negotiation, stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Loop returns on next iteration's cancellation check.
+        }
+        catch (Exception ex)
+        {
+            // Heartbeat is best-effort; the cache entry's TTL is the correctness backstop.
+            // Swallowing here keeps the loop alive across transient blips (e.g., broker restart)
+            // so the next tick has a chance to recover the entry.
+            _logger.LogWarning(
+                ex,
+                "Publisher heartbeat for data-topic '{DataTopic}' failed. " +
+                "The cache entry will expire at TTL if this persists.",
+                marker.TopicName);
+        }
+    }
+
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        // Cancels the stopping token and waits for ExecuteAsync to unwind.
+        await base.StopAsync(cancellationToken);
+
+        var sender = Interlocked.Exchange(ref _sender, null);
+        if (sender is null) return;
+
+        await ((IAsyncDisposable)sender).DisposeAsync();
+    }
 
     private static async Task RequestJoinAsync(
         PublisherRoleMarker marker,
@@ -114,11 +210,9 @@ internal sealed class PublisherJoinRequester : IHostedService
         {
             // AdmissionTimeout fired (the listener didn't reply in time), not the outer
             // host-shutdown token.
-            throw new InvalidOperationException(
-                $"Publisher join request for data-topic '{marker.TopicName}' timed out after " +
-                $"{negotiation.AdmissionTimeout} without a reply. Aborting startup.");
+            throw new NegotiationTimeoutException(marker.TopicName, negotiation.AdmissionTimeout);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException and not InvalidOperationException)
+        catch (Exception ex) when (ex is not OperationCanceledException and not NegotiationTimeoutException)
         {
             // Broker unreachable or other transport-level failure. Wrap so the caller sees a
             // consistent typed exception matching what publish would throw for the same topic.
@@ -127,10 +221,9 @@ internal sealed class PublisherJoinRequester : IHostedService
 
         if (!ack.Go)
         {
-            var offenders = string.Join(", ", ack.Offenders.Select(o => o.InstanceId));
-            throw new InvalidOperationException(
-                $"Publisher join for data-topic '{marker.TopicName}' rejected by fleet " +
-                $"(offending subscribers: {offenders}). Aborting startup.");
+            throw new NegotiationRejectedException(
+                marker.TopicName,
+                [.. ack.Offenders.Select(o => o.InstanceId)]);
         }
     }
 }

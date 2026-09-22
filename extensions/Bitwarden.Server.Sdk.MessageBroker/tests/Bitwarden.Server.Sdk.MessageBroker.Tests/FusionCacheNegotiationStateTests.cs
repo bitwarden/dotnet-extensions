@@ -14,6 +14,9 @@ public class FusionCacheNegotiationStateTests
             ServiceName = "billing",
             ProcessDisplayName = "test",
             HeartbeatInterval = heartbeat ?? TimeSpan.FromMinutes(5),
+            // Pin to a tight factor so expiration-timing tests keep working regardless of the
+            // production default. The state's behavior does not care about the factor's value.
+            TtlPaddingFactor = 1.2,
         });
         return (new FusionCacheNegotiationState(cache, options), cache);
     }

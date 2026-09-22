@@ -280,6 +280,7 @@ public static class MessageBrokerServiceCollectionExtensions
         if (services.Any(d => d.ServiceType == typeof(PublisherJoinRequester)))
             return;
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NegotiationOptions>, NegotiationRoleOptionsValidator>());
+        services.TryAddSingleton(TimeProvider.System);
         // Factory that closes over messaging + negotiation options and picks a transport per
         // backend. Registered as a DI service so tests can swap it for an in-memory transport
         // and drive PublisherJoinRequester end-to-end without a real broker.
@@ -307,6 +308,7 @@ public static class MessageBrokerServiceCollectionExtensions
         services.AddOptions<NegotiationOptions>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NegotiationOptions>, NegotiationOptionsValidator>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NegotiationOptions>, NegotiationRoleOptionsValidator>());
+        services.TryAddSingleton(TimeProvider.System);
         // Factory that closes over messaging + negotiation options and picks a transport per
         // backend. Registered as a DI service so tests can swap it for an in-memory transport
         // and drive SubscriberJoinRequester end-to-end without a real broker.

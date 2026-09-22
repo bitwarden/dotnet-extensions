@@ -41,34 +41,54 @@ internal delegate INegotiationTransport SubscriberNegotiationSenderFactory(strin
 /// and lets startup continue.
 /// </para>
 /// <para>
+/// After a successful startup admission the service keeps its sender alive and republishes
+/// each <see cref="Capability"/> every <see cref="NegotiationOptions.HeartbeatInterval"/> so
+/// the fleet cache does not expire this instance's entry. Heartbeat failures log a warning
+/// and continue; the cache entry's TTL is the correctness backstop.
+/// </para>
+/// <para>
+/// On graceful shutdown the sender is disposed and the heartbeat loop unwinds. TODO MDG: Clean-shutdown
+/// removal of this instance's cache entry is deferred to a follow-up commit that adds a
+/// control-plane leave message; until then, TTL expiration handles both crash and clean-exit
+/// paths.
+/// </para>
+/// <para>
 /// The channel backend skips negotiation entirely (one assembly version, no skew), and a
 /// service with no <see cref="SubscriberRoleMarker"/>s (publisher-only) has nothing to
 /// request on the subscriber side.
 /// </para>
 /// </summary>
-internal sealed class SubscriberJoinRequester : IHostedService
+internal sealed class SubscriberJoinRequester : BackgroundService
 {
     private readonly IEnumerable<SubscriberRoleMarker> _markers;
     private readonly IOptions<MessagingOptions> _messagingOptions;
     private readonly IOptions<NegotiationOptions> _negotiationOptions;
     private readonly SubscriberNegotiationSenderFactory _senderFactory;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<SubscriberJoinRequester> _logger;
+
+    // Populated in StartAsync when the distributed-backend + markers guard passes; ExecuteAsync
+    // and StopAsync rely on the same non-null check to know whether initial admission ran.
+    private INegotiationTransport? _sender;
+    private List<SubscriberRoleMarker> _admittedMarkers = [];
 
     public SubscriberJoinRequester(
         IEnumerable<SubscriberRoleMarker> markers,
         IOptions<MessagingOptions> messagingOptions,
         IOptions<NegotiationOptions> negotiationOptions,
         SubscriberNegotiationSenderFactory senderFactory,
+        TimeProvider timeProvider,
         ILogger<SubscriberJoinRequester> logger)
     {
         _markers = markers;
         _messagingOptions = messagingOptions;
         _negotiationOptions = negotiationOptions;
         _senderFactory = senderFactory;
+        _timeProvider = timeProvider;
         _logger = logger;
     }
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public override async Task StartAsync(CancellationToken cancellationToken)
     {
         var messaging = _messagingOptions.Value;
         // A single AddSubscriber<TPayload>(topic, subscriptionName) call registers one marker;
@@ -85,6 +105,7 @@ internal sealed class SubscriberJoinRequester : IHostedService
             || (string.IsNullOrEmpty(messaging.AzureServiceBusConnectionString)
                 && string.IsNullOrEmpty(messaging.RabbitUri)))
         {
+            // Nothing to do. Skip base.StartAsync so ExecuteAsync never runs.
             return;
         }
 
@@ -100,15 +121,107 @@ internal sealed class SubscriberJoinRequester : IHostedService
             foreach (var marker in markers)
                 await RequestCapabilityAsync(marker, sender, negotiation, cancellationToken);
         }
-        finally
+        catch
         {
+            // Startup admission failed; the host will not come up, so drop the sender rather
+            // than leaving it live for a heartbeat loop that will never run.
             await ((IAsyncDisposable)sender).DisposeAsync();
+            throw;
+        }
+
+        _sender = sender;
+        _admittedMarkers = markers;
+        await base.StartAsync(cancellationToken);
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        // Capture the sender into a local so the heartbeat tasks hold a stable reference for
+        // this ExecuteAsync's lifetime. base.StopAsync usually awaits us to completion before
+        // StopAsync nulls _sender and disposes, but under a host-shutdown-token cancellation it
+        // returns via Task.WhenAny early, so _sender can be nulled while our tasks are still
+        // running. The per-marker catch-all swallows the resulting ObjectDisposedException.
+        var sender = _sender;
+        if (sender is null || _admittedMarkers.Count == 0) return;
+
+        var negotiation = _negotiationOptions.Value;
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(negotiation.HeartbeatInterval, _timeProvider, stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            var heartbeats = _admittedMarkers.Select(marker =>
+                SendHeartbeatAsync(marker, sender, negotiation, stoppingToken));
+            await Task.WhenAll(heartbeats);
         }
     }
 
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    private async Task SendHeartbeatAsync(
+        SubscriberRoleMarker marker,
+        INegotiationTransport sender,
+        NegotiationOptions negotiation,
+        CancellationToken stoppingToken)
+    {
+        try
+        {
+            await SendCapabilityAsync(marker, sender, negotiation, stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Loop returns on next iteration's cancellation check.
+        }
+        catch (Exception ex)
+        {
+            // Heartbeat is best-effort; the cache entry's TTL is the correctness backstop.
+            // Swallowing here keeps the loop alive across transient blips (e.g., broker restart)
+            // so the next tick has a chance to recover the entry. The ProceedOnAdmissionTimeout
+            // flag is only about the startup gate; here every failure mode is soft regardless.
+            _logger.LogWarning(
+                ex,
+                "Subscriber heartbeat for data-topic '{DataTopic}' failed. " +
+                "The cache entry will expire at TTL if this persists.",
+                marker.TopicName);
+        }
+    }
+
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        // Cancels the stopping token and waits for ExecuteAsync to unwind.
+        await base.StopAsync(cancellationToken);
+
+        var sender = Interlocked.Exchange(ref _sender, null);
+        if (sender is null) return;
+
+        await ((IAsyncDisposable)sender).DisposeAsync();
+    }
 
     private async Task RequestCapabilityAsync(
+        SubscriberRoleMarker marker,
+        INegotiationTransport sender,
+        NegotiationOptions negotiation,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await SendCapabilityAsync(marker, sender, negotiation, cancellationToken);
+        }
+        catch (NegotiationTimeoutException) when (marker.ProceedOnAdmissionTimeout)
+        {
+            _logger.LogError(
+                "Subscriber capability request for data-topic '{DataTopic}' timed out after {AdmissionTimeout} " +
+                "without a reply. Proceeding anyway (ProceedOnAdmissionTimeout was set); this subscriber " +
+                "will start without confirmed publisher compatibility.",
+                marker.TopicName, negotiation.AdmissionTimeout);
+        }
+    }
+
+    private static async Task SendCapabilityAsync(
         SubscriberRoleMarker marker,
         INegotiationTransport sender,
         NegotiationOptions negotiation,
@@ -135,21 +248,11 @@ internal sealed class SubscriberJoinRequester : IHostedService
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             // AdmissionTimeout fired (no publisher listener replied in time), not the outer
-            // host-shutdown token.
-            if (marker.ProceedOnAdmissionTimeout)
-            {
-                _logger.LogError(
-                    "Subscriber capability request for data-topic '{DataTopic}' timed out after {AdmissionTimeout} " +
-                    "without a reply. Proceeding anyway (ProceedOnAdmissionTimeout was set); this subscriber " +
-                    "will start without confirmed publisher compatibility.",
-                    marker.TopicName, negotiation.AdmissionTimeout);
-                return;
-            }
-            throw new InvalidOperationException(
-                $"Subscriber capability request for data-topic '{marker.TopicName}' timed out after " +
-                $"{negotiation.AdmissionTimeout} without a reply. Aborting startup.");
+            // host-shutdown token. RequestCapabilityAsync softens this into a logged error when
+            // the marker opts in; otherwise it propagates and fails startup.
+            throw new NegotiationTimeoutException(marker.TopicName, negotiation.AdmissionTimeout);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException and not InvalidOperationException)
+        catch (Exception ex) when (ex is not OperationCanceledException and not NegotiationTimeoutException)
         {
             // Broker unreachable or other transport-level failure. Wrap so the caller sees a
             // consistent typed exception matching what publish would throw for the same topic.
@@ -160,10 +263,9 @@ internal sealed class SubscriberJoinRequester : IHostedService
 
         if (!ack.Go)
         {
-            var offenders = string.Join(", ", ack.Offenders.Select(o => o.InstanceId));
-            throw new InvalidOperationException(
-                $"Subscriber capability for data-topic '{marker.TopicName}' rejected by fleet " +
-                $"(offending publishers: {offenders}). Aborting startup.");
+            throw new NegotiationRejectedException(
+                marker.TopicName,
+                [.. ack.Offenders.Select(o => o.InstanceId)]);
         }
     }
 }

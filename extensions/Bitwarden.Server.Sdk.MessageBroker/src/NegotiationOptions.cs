@@ -49,13 +49,13 @@ public sealed class NegotiationOptions
     public string ControlTopicName { get; set; } = "ctrl";
 
     /// <summary>Capability republish interval. Defaults to five minutes.</summary>
-    public TimeSpan HeartbeatInterval { get; set; } = TimeSpan.FromMinutes(5);
+    public TimeSpan HeartbeatInterval { get; set; } = TimeSpan.FromSeconds(90);
 
     /// <summary>
     /// Multiplier applied to <see cref="HeartbeatInterval"/> for the cache entry TTL. Must be
-    /// greater than 1.0. Defaults to 1.2 (one heartbeat's grace).
+    /// greater than 1.0. Defaults to 5.5.
     /// </summary>
-    public double TtlPaddingFactor { get; set; } = 1.2;
+    public double TtlPaddingFactor { get; set; } = 5.5;
 
     /// <summary>
     /// Startup admission timeout: the requester exits non-zero after this window without a
