@@ -71,8 +71,22 @@ public static class MessageBrokerServiceCollectionExtensions
     /// while multiple instances sharing the same subscription name compete for each message
     /// (pub/sub fan-out with per-group competing consumers). The resolved service key is
     /// <c>name/subscriptionName</c>.
+    /// <para>
+    /// Set <paramref name="proceedOnAdmissionTimeout"/> to opt this subscriber into graceful
+    /// degradation: if the publisher fleet does not respond to the startup capability request
+    /// within <see cref="NegotiationOptions.AdmissionTimeout"/>, the requester logs an error
+    /// and lets the host start anyway instead of failing. Broker-unreachable and explicit no-go
+    /// responses still hard-fail. Multiple registrations for the same topic combine with
+    /// strictest wins: a topic only softens if every registration opts in, since silently
+    /// starting a hard-requiring subscriber without confirmed compatibility is undefined
+    /// behavior.
+    /// </para>
     /// </remarks>
-    public static IServiceCollection AddSubscriber<TPayload, TCeiling>(this IServiceCollection services, string name, string subscriptionName)
+    public static IServiceCollection AddSubscriber<TPayload, TCeiling>(
+        this IServiceCollection services,
+        string name,
+        string subscriptionName,
+        bool proceedOnAdmissionTimeout = false)
         where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
         where TCeiling : Payload<TPayload>.ICeiling
     {
@@ -132,7 +146,8 @@ public static class MessageBrokerServiceCollectionExtensions
 
         services.AddSingleton(new SubscriberRoleMarker(
             name,
-            TPayload.Variants.Select(v => v.WireName).ToHashSet()));
+            TPayload.Variants.Select(v => v.WireName).ToHashSet(),
+            proceedOnAdmissionTimeout));
         AddSubscriberCapabilityRequester(services);
 
         return services;
@@ -160,14 +175,15 @@ public static class MessageBrokerServiceCollectionExtensions
     public static IServiceCollection AddMessageConsumer<TPayload, TCeiling, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TConsumer>(
         this IServiceCollection services,
         string name,
-        string subscriptionName)
+        string subscriptionName,
+        bool proceedOnAdmissionTimeout = false)
         where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
         where TCeiling : Payload<TPayload>.ICeiling
         where TConsumer : class, IMessageConsumer<TPayload, TCeiling>
     {
         var subscriptionKey = $"{name}/{subscriptionName}";
 
-        services.AddSubscriber<TPayload, TCeiling>(name, subscriptionName);
+        services.AddSubscriber<TPayload, TCeiling>(name, subscriptionName, proceedOnAdmissionTimeout);
 
         // Register ChannelEscrowRegistration so ChannelTopic resolves it via
         // IEnumerable<ChannelEscrowRegistration<T>> and wires up startup recovery and shutdown
@@ -277,6 +293,21 @@ public static class MessageBrokerServiceCollectionExtensions
         services.AddOptions<NegotiationOptions>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NegotiationOptions>, NegotiationOptionsValidator>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NegotiationOptions>, NegotiationRoleOptionsValidator>());
+        // Factory that closes over messaging + negotiation options and picks a transport per
+        // backend. Registered as a DI service so tests can swap it for an in-memory transport
+        // and drive SubscriberJoinRequester end-to-end without a real broker.
+        services.TryAddSingleton<SubscriberNegotiationSenderFactory>(sp => topics =>
+        {
+            var msgOpts = sp.GetRequiredService<IOptions<MessagingOptions>>();
+            var negOpts = sp.GetRequiredService<IOptions<NegotiationOptions>>();
+            var messaging = msgOpts.Value;
+            if (!string.IsNullOrEmpty(messaging.AzureServiceBusConnectionString))
+                return new AzureServiceBusNegotiationTransport(msgOpts, negOpts, topics[0]);
+            // Rabbit: send-only. Empty binding set skips queue-binding declarations — the
+            // subscriber doesn't own the request queue, and replies flow through the
+            // connection-scoped amq.rabbitmq.reply-to pseudo-queue.
+            return new RabbitNegotiationTransport(sp.GetRequiredService<RabbitConnection>(), negOpts, []);
+        });
         services.AddSingleton<SubscriberJoinRequester>();
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<SubscriberJoinRequester>());
     }
