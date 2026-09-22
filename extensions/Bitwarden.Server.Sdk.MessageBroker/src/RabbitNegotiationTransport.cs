@@ -11,8 +11,13 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// RabbitMQ implementation of <see cref="INegotiationTransport"/>. Declares on first use:
 /// a direct exchange named <see cref="NegotiationOptions.ControlTopicName"/>, and a classic queue
 /// <see cref="NegotiationOptions.RequestSubscriptionName"/> with
-/// <c>x-single-active-consumer=true</c> bound to each entry in <c>publishedDataTopics</c>.
+/// <c>x-single-active-consumer=true</c> bound to each entry in <c>_topicsToBind</c>.
 /// Replies flow through the per-connection <c>amq.rabbitmq.reply-to</c> pseudo-queue.
+/// <para>
+/// Construct via <see cref="ForListener"/>, <see cref="ForPublisherSender"/>, or
+/// <see cref="ForSubscriberSender"/> — the factory name pins the role and prevents the
+/// send-only vs listener choice from being expressed as an argument value at the call site.
+/// </para>
 /// </summary>
 internal sealed class RabbitNegotiationTransport : INegotiationTransport, IAsyncDisposable
 {
@@ -22,7 +27,7 @@ internal sealed class RabbitNegotiationTransport : INegotiationTransport, IAsync
 
     private readonly NegotiationOptions _options;
     private readonly RabbitConnection _connection;
-    private readonly IReadOnlyCollection<string> _publishedDataTopics;
+    private readonly IReadOnlyCollection<string> _topicsToBind;
     private readonly SemaphoreSlim _initLock = new(1, 1);
     private IChannel? _channel;
 
@@ -30,15 +35,49 @@ internal sealed class RabbitNegotiationTransport : INegotiationTransport, IAsync
     // request. The server echoes it back as CorrelationId on the reply.
     private readonly ConcurrentDictionary<string, TaskCompletionSource<NegotiationAck>> _pendingReplies = new();
 
-    public RabbitNegotiationTransport(
+    private RabbitNegotiationTransport(
         RabbitConnection connection,
         IOptions<NegotiationOptions> negotiationOptions,
-        IReadOnlyCollection<string> publishedDataTopics)
+        IReadOnlyCollection<string> topicsToBind)
     {
         _connection = connection;
         _options = negotiationOptions.Value;
-        _publishedDataTopics = publishedDataTopics;
+        _topicsToBind = topicsToBind;
     }
+
+    /// <summary>
+    /// Listener role. Binds the request queue for every topic this service serves so incoming
+    /// negotiation requests route to us, and consumes them via
+    /// <see cref="ReceiveRequestsAsync"/>.
+    /// </summary>
+    public static RabbitNegotiationTransport ForListener(
+        RabbitConnection connection,
+        IOptions<NegotiationOptions> negotiationOptions,
+        IReadOnlyCollection<string> topics)
+        => new(connection, negotiationOptions, topics);
+
+    /// <summary>
+    /// Publisher send side. Pre-declares queue bindings for the given topics so a race between
+    /// the requester's publish and the listener's fire-and-forget setup can't leave the
+    /// message unrouted (Rabbit publishes are <c>mandatory: false</c>, so an unrouted message
+    /// is silently dropped and the requester times out on the reply). <c>QueueBind</c> is
+    /// idempotent, so declaring it from both sides is safe.
+    /// </summary>
+    public static RabbitNegotiationTransport ForPublisherSender(
+        RabbitConnection connection,
+        IOptions<NegotiationOptions> negotiationOptions,
+        IReadOnlyCollection<string> topicsToPreBind)
+        => new(connection, negotiationOptions, topicsToPreBind);
+
+    /// <summary>
+    /// Subscriber send side. Declares no bindings — subscribers don't own the request queue,
+    /// and replies flow through the connection-scoped <c>amq.rabbitmq.reply-to</c>
+    /// pseudo-queue.
+    /// </summary>
+    public static RabbitNegotiationTransport ForSubscriberSender(
+        RabbitConnection connection,
+        IOptions<NegotiationOptions> negotiationOptions)
+        => new(connection, negotiationOptions, []);
 
     public Task<NegotiationAck> SendCapabilityAsync(Capability capability, CancellationToken cancellationToken = default)
         => SendAndAwaitAsync(
@@ -172,7 +211,7 @@ internal sealed class RabbitNegotiationTransport : INegotiationTransport, IAsync
                     autoDelete: false,
                     arguments: new Dictionary<string, object?> { ["x-single-active-consumer"] = true },
                     cancellationToken: cancellationToken);
-                foreach (var dataTopic in _publishedDataTopics)
+                foreach (var dataTopic in _topicsToBind)
                 {
                     await channel.QueueBindAsync(
                         _options.RequestSubscriptionName,

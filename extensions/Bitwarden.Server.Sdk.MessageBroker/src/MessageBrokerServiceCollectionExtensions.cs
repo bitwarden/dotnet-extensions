@@ -280,6 +280,20 @@ public static class MessageBrokerServiceCollectionExtensions
         if (services.Any(d => d.ServiceType == typeof(PublisherJoinRequester)))
             return;
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NegotiationOptions>, NegotiationRoleOptionsValidator>());
+        // Factory that closes over messaging + negotiation options and picks a transport per
+        // backend. Registered as a DI service so tests can swap it for an in-memory transport
+        // and drive PublisherJoinRequester end-to-end without a real broker.
+        services.TryAddSingleton<PublisherNegotiationSenderFactory>(sp => topics =>
+        {
+            var msgOpts = sp.GetRequiredService<IOptions<MessagingOptions>>();
+            var negOpts = sp.GetRequiredService<IOptions<NegotiationOptions>>();
+            var messaging = msgOpts.Value;
+            if (!string.IsNullOrEmpty(messaging.AzureServiceBusConnectionString))
+                return new AzureServiceBusNegotiationTransport(msgOpts, negOpts, topics[0]);
+            if (!string.IsNullOrEmpty(messaging.RabbitUri))
+                return RabbitNegotiationTransport.ForPublisherSender(sp.GetRequiredService<RabbitConnection>(), negOpts, topics);
+            return new NoopNegotiationTransport();
+        });
         // Registered AFTER AddNegotiationListenerCoordinator so hosted-service startup order
         // guarantees the local listener is running before we send our PublisherJoin request.
         services.AddSingleton<PublisherJoinRequester>();
@@ -303,10 +317,7 @@ public static class MessageBrokerServiceCollectionExtensions
             var messaging = msgOpts.Value;
             if (!string.IsNullOrEmpty(messaging.AzureServiceBusConnectionString))
                 return new AzureServiceBusNegotiationTransport(msgOpts, negOpts, topics[0]);
-            // Rabbit: send-only. Empty binding set skips queue-binding declarations — the
-            // subscriber doesn't own the request queue, and replies flow through the
-            // connection-scoped amq.rabbitmq.reply-to pseudo-queue.
-            return new RabbitNegotiationTransport(sp.GetRequiredService<RabbitConnection>(), negOpts, []);
+            return RabbitNegotiationTransport.ForSubscriberSender(sp.GetRequiredService<RabbitConnection>(), negOpts);
         });
         services.AddSingleton<SubscriberJoinRequester>();
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<SubscriberJoinRequester>());
