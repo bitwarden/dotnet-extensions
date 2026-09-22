@@ -35,7 +35,7 @@ Then mark a type. The attributes are generated into every analyzed compilation, 
 ```csharp
 [RestrictedDependency(AllowExistingUses = true, AllowNewUses = false,
     Tracking = "PM-43148", Owner = "@my-team",
-    SealMembers = true, AllowedPaths = ["src/Core/Services/Implementations/UserService.cs"])]
+    SealMembers = true, AllowedPaths = new[] { "src/Core/Services/Implementations/UserService.cs" })]
 public interface IUserService
 {
     [RestrictedDependency(Replacement = "IHasPremiumAccessQuery.HasPremiumAccessAsync")]
