@@ -1,11 +1,13 @@
 using Bitwarden.Server.Sdk.Caching;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 
 public class PublisherJoinRequesterTests
 {
     private const string Topic = "topic";
+    private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(5);
 
     [Fact]
     public async Task JoinRequestSucceedsWhenListenerRepliesGo()
@@ -27,10 +29,11 @@ public class PublisherJoinRequesterTests
         });
         harness.RegisterPublisher(Topic);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var ex = await Assert.ThrowsAsync<NegotiationRejectedException>(() =>
             harness.Requester.StartAsync(TestContext.Current.CancellationToken));
 
-        Assert.Contains("downstream-blocker", ex.Message);
+        Assert.Equal(Topic, ex.DataTopic);
+        Assert.Contains("downstream-blocker", ex.OffenderInstanceIds);
     }
 
     [Fact]
@@ -40,10 +43,73 @@ public class PublisherJoinRequesterTests
         await using var harness = TestHarness.BuildWithoutListener();
         harness.RegisterPublisher(Topic);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var ex = await Assert.ThrowsAsync<NegotiationTimeoutException>(() =>
             harness.Requester.StartAsync(TestContext.Current.CancellationToken));
 
-        Assert.Contains("timed out", ex.Message);
+        Assert.Equal(Topic, ex.DataTopic);
+    }
+
+    [Fact]
+    public async Task HeartbeatRepublishesJoinAtEveryInterval()
+    {
+        // Verifies the ExecuteAsync loop wakes on each HeartbeatInterval tick and re-sends the
+        // PublisherJoin so the SAC-holding listener refreshes this instance's cache entry.
+        await using var harness = TestHarness.Build(reply: _ => new NegotiationAck { Go = true });
+        harness.RegisterPublisher(Topic);
+        // Short real-time interval so the test can observe multiple beats within a few hundred
+        // milliseconds. FakeTimeProvider would race with ExecuteAsync's first entry into
+        // Task.Delay; real time avoids that ordering hazard.
+        harness.ConfigureNegotiation(o => o.HeartbeatInterval = TimeSpan.FromMilliseconds(50));
+
+        await harness.Requester.StartAsync(TestContext.Current.CancellationToken);
+
+        await harness.WaitForJoinsAsync(count: 3);
+        await harness.Requester.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task HeartbeatFailureLogsWarningAndKeepsLoopAlive()
+    {
+        // Ack the first (startup) request as Go; make every subsequent request time out by
+        // dropping the reply. The loop must swallow, log, and continue so the next tick has a
+        // chance to recover.
+        var callCount = 0;
+        await using var harness = TestHarness.Build(
+            reply: _ =>
+            {
+                var n = Interlocked.Increment(ref callCount);
+                if (n == 1) return new NegotiationAck { Go = true };
+                throw new InvalidOperationException($"simulated heartbeat failure #{n}");
+            });
+        harness.RegisterPublisher(Topic);
+        harness.ConfigureNegotiation(o =>
+        {
+            o.HeartbeatInterval = TimeSpan.FromMilliseconds(50);
+            // Short admission timeout so failing heartbeat sends unblock quickly.
+            o.AdmissionTimeout = TimeSpan.FromMilliseconds(100);
+        });
+
+        await harness.Requester.StartAsync(TestContext.Current.CancellationToken);
+        // Warnings only land after each failing heartbeat's admission timeout fires; wait for
+        // at least two of those cycles to be sure the loop survived the first failure and made
+        // it to a second attempt.
+        await harness.WaitForWarningsAsync(count: 2);
+
+        Assert.All(harness.LoggedWarnings, w => Assert.Contains(Topic, w));
+
+        await harness.Requester.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task StopAsyncIsSafeWhenStartWasSkippedForChannelBackend()
+    {
+        // No RabbitUri / ASB connection string configured → StartAsync short-circuits without
+        // touching the sender or state. StopAsync must be a no-op regardless.
+        await using var harness = TestHarness.BuildForChannelBackend();
+        harness.RegisterPublisher(Topic);
+
+        await harness.Requester.StartAsync(TestContext.Current.CancellationToken);
+        await harness.Requester.StopAsync(TestContext.Current.CancellationToken);
     }
 
     /// <summary>
@@ -57,28 +123,34 @@ public class PublisherJoinRequesterTests
         private readonly ServiceCollection _services = new();
         private readonly InMemoryNegotiationBroker _broker;
         private readonly CancellationTokenSource? _listenerCts;
-        private readonly Task? _listenerRunTask;
+        private Task? _listenerRunTask;
+        private readonly CapturingLoggerProvider _loggerProvider = new();
+        private int _observedJoinCount;
         private ServiceProvider? _provider;
 
         private TestHarness(
             InMemoryNegotiationBroker broker,
             CancellationTokenSource? listenerCts,
-            Task? listenerRunTask)
+            bool configureDistributedBackend = true)
         {
             _broker = broker;
             _listenerCts = listenerCts;
-            _listenerRunTask = listenerRunTask;
 
             // Bare-bones config for the requester's DI path: a distributed backend must appear
             // configured so StartAsync doesn't short-circuit, and NegotiationOptions must have
             // ServiceName + a short AdmissionTimeout. The actual RabbitUri value is never
             // dialed — the sender factory below returns an in-memory transport.
-            _services.AddLogging();
+            _services.AddLogging(b => b.AddProvider(_loggerProvider));
             // PublisherCacheValidator requires AddBitwardenCaching whenever a distributed
-            // backend is configured, even though this test never resolves the cache.
+            // backend is configured. Registered unconditionally so the shutdown-remove path
+            // has the negotiation cache available too. AddBitwardenCaching pulls IConfiguration
+            // via its options-configuration types, so wire an empty one for tests.
+            _services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(
+                new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
             _services.AddDistributedMemoryCache();
             _services.AddBitwardenCaching();
-            _services.Configure<MessagingOptions>(o => o.RabbitUri = "amqp://test-does-not-connect");
+            if (configureDistributedBackend)
+                _services.Configure<MessagingOptions>(o => o.RabbitUri = "amqp://test-does-not-connect");
             _services.Configure<NegotiationOptions>(o =>
             {
                 o.ServiceName = "svc";
@@ -92,25 +164,43 @@ public class PublisherJoinRequesterTests
             var broker = new InMemoryNegotiationBroker();
             var listenerTransport = new InMemoryNegotiationTransport(broker, dataTopic: Topic);
             var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-            var runTask = Task.Run(async () =>
+            var harness = new TestHarness(broker, cts);
+            harness._listenerRunTask = Task.Run(async () =>
             {
                 try
                 {
                     await foreach (var request in listenerTransport.ReceiveRequestsAsync(cts.Token))
                     {
                         if (request is JoinRequest jr)
-                            await jr.ReplyAsync(reply(jr.Join), cts.Token);
+                        {
+                            Interlocked.Increment(ref harness._observedJoinCount);
+                            NegotiationAck ack;
+                            try { ack = reply(jr.Join); }
+                            catch
+                            {
+                                // Simulate a listener-side failure by leaving the reply pending;
+                                // the requester's AdmissionTimeout will then fire.
+                                continue;
+                            }
+                            await jr.ReplyAsync(ack, cts.Token);
+                        }
                     }
                 }
                 catch (OperationCanceledException) { }
             });
-            return new TestHarness(broker, cts, runTask);
+            return harness;
         }
 
-        public static TestHarness BuildWithoutListener() => new(new InMemoryNegotiationBroker(), null, null);
+        public static TestHarness BuildWithoutListener() => new(new InMemoryNegotiationBroker(), null);
+
+        public static TestHarness BuildForChannelBackend()
+            => new(new InMemoryNegotiationBroker(), null, configureDistributedBackend: false);
 
         public void RegisterPublisher(string topic)
             => _services.AddPublisher<MyItemPayload, MyItem>(topic);
+
+        public void ConfigureNegotiation(Action<NegotiationOptions> configure)
+            => _services.Configure(configure);
 
         public PublisherJoinRequester Requester
         {
@@ -126,6 +216,34 @@ public class PublisherJoinRequesterTests
             }
         }
 
+        public int ObservedJoinCount => Volatile.Read(ref _observedJoinCount);
+
+        public async Task WaitForJoinsAsync(int count)
+        {
+            var deadline = DateTime.UtcNow + TestTimeout;
+            while (ObservedJoinCount < count)
+            {
+                if (DateTime.UtcNow > deadline)
+                    throw new TimeoutException($"Expected at least {count} joins, observed {ObservedJoinCount}");
+                await Task.Delay(10);
+            }
+        }
+
+        public async Task WaitForWarningsAsync(int count)
+        {
+            var deadline = DateTime.UtcNow + TestTimeout;
+            while (LoggedWarnings.Count() < count)
+            {
+                if (DateTime.UtcNow > deadline)
+                    throw new TimeoutException($"Expected at least {count} warnings, observed {LoggedWarnings.Count()}");
+                await Task.Delay(10);
+            }
+        }
+
+        public IEnumerable<string> LoggedWarnings => _loggerProvider.Entries
+            .Where(e => e.Level == LogLevel.Warning)
+            .Select(e => e.Message);
+
         public async ValueTask DisposeAsync()
         {
             if (_listenerCts is not null)
@@ -138,6 +256,23 @@ public class PublisherJoinRequesterTests
                 _listenerCts.Dispose();
             }
             if (_provider is not null) await _provider.DisposeAsync();
+        }
+    }
+
+    private sealed class CapturingLoggerProvider : ILoggerProvider
+    {
+        public List<(LogLevel Level, string Message)> Entries { get; } = [];
+        public ILogger CreateLogger(string categoryName) => new CapturingLogger(Entries);
+        public void Dispose() { }
+
+        private sealed class CapturingLogger(List<(LogLevel, string)> sink) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+            public bool IsEnabled(LogLevel logLevel) => true;
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            {
+                lock (sink) sink.Add((logLevel, formatter(state, exception)));
+            }
         }
     }
 }

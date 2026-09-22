@@ -1,3 +1,4 @@
+using Bitwarden.Server.Sdk.Caching;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -6,6 +7,7 @@ namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 public class SubscriberCapabilityRequesterTests
 {
     private const string Topic = "topic";
+    private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(5);
 
     [Fact]
     public async Task CapabilityRequestSucceedsWhenListenerRepliesGo()
@@ -27,10 +29,11 @@ public class SubscriberCapabilityRequesterTests
         });
         harness.RegisterSubscriber(Topic, "sub");
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var ex = await Assert.ThrowsAsync<NegotiationRejectedException>(() =>
             harness.Requester.StartAsync(TestContext.Current.CancellationToken));
 
-        Assert.Contains("incompatible-pub", ex.Message);
+        Assert.Equal(Topic, ex.DataTopic);
+        Assert.Contains("incompatible-pub", ex.OffenderInstanceIds);
     }
 
     [Fact]
@@ -40,10 +43,10 @@ public class SubscriberCapabilityRequesterTests
         await using var harness = TestHarness.BuildWithoutListener();
         harness.RegisterSubscriber(Topic, "sub");
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var ex = await Assert.ThrowsAsync<NegotiationTimeoutException>(() =>
             harness.Requester.StartAsync(TestContext.Current.CancellationToken));
 
-        Assert.Contains("timed out", ex.Message);
+        Assert.Equal(Topic, ex.DataTopic);
     }
 
     [Fact]
@@ -74,7 +77,7 @@ public class SubscriberCapabilityRequesterTests
         });
         harness.RegisterSubscriber(Topic, "sub", proceedOnAdmissionTimeout: true);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<NegotiationRejectedException>(() =>
             harness.Requester.StartAsync(TestContext.Current.CancellationToken));
     }
 
@@ -89,10 +92,69 @@ public class SubscriberCapabilityRequesterTests
         harness.RegisterSubscriber(Topic, "sub-a", proceedOnAdmissionTimeout: true);
         harness.RegisterSubscriber(Topic, "sub-b", proceedOnAdmissionTimeout: false);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var ex = await Assert.ThrowsAsync<NegotiationTimeoutException>(() =>
             harness.Requester.StartAsync(TestContext.Current.CancellationToken));
 
-        Assert.Contains("timed out", ex.Message);
+        Assert.Equal(Topic, ex.DataTopic);
+    }
+
+    [Fact]
+    public async Task HeartbeatRepublishesCapabilityAtEveryInterval()
+    {
+        // Verifies the ExecuteAsync loop wakes on each HeartbeatInterval tick and re-sends the
+        // Capability so the SAC-holding listener refreshes this instance's cache entry.
+        await using var harness = TestHarness.Build(reply: _ => new NegotiationAck { Go = true });
+        harness.RegisterSubscriber(Topic, "sub");
+        harness.ConfigureNegotiation(o => o.HeartbeatInterval = TimeSpan.FromMilliseconds(50));
+
+        await harness.Requester.StartAsync(TestContext.Current.CancellationToken);
+        await harness.WaitForCapabilitiesAsync(count: 3);
+        await harness.Requester.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task HeartbeatFailureLogsWarningAndKeepsLoopAlive()
+    {
+        // Ack the first (startup) request as Go; drop every subsequent request so the heartbeat
+        // send times out. The loop must swallow, log, and continue so the next tick has a
+        // chance to recover. ProceedOnAdmissionTimeout is irrelevant on the heartbeat path —
+        // every failure mode is soft regardless.
+        var callCount = 0;
+        await using var harness = TestHarness.Build(
+            reply: _ =>
+            {
+                var n = Interlocked.Increment(ref callCount);
+                if (n == 1) return new NegotiationAck { Go = true };
+                throw new InvalidOperationException($"simulated heartbeat failure #{n}");
+            });
+        harness.RegisterSubscriber(Topic, "sub");
+        harness.ConfigureNegotiation(o =>
+        {
+            o.HeartbeatInterval = TimeSpan.FromMilliseconds(50);
+            o.AdmissionTimeout = TimeSpan.FromMilliseconds(100);
+        });
+
+        await harness.Requester.StartAsync(TestContext.Current.CancellationToken);
+        // Warnings only land after each failing heartbeat's admission timeout fires; wait for
+        // at least two of those cycles to be sure the loop survived the first failure and made
+        // it to a second attempt.
+        await harness.WaitForWarningsAsync(count: 2);
+
+        Assert.All(harness.LoggedWarnings, w => Assert.Contains(Topic, w));
+
+        await harness.Requester.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task StopAsyncIsSafeWhenStartWasSkippedForChannelBackend()
+    {
+        // No RabbitUri / ASB connection string configured → StartAsync short-circuits without
+        // touching the sender or state. StopAsync must be a no-op regardless.
+        await using var harness = TestHarness.BuildForChannelBackend();
+        harness.RegisterSubscriber(Topic, "sub");
+
+        await harness.Requester.StartAsync(TestContext.Current.CancellationToken);
+        await harness.Requester.StopAsync(TestContext.Current.CancellationToken);
     }
 
     /// <summary>
@@ -106,25 +168,31 @@ public class SubscriberCapabilityRequesterTests
         private readonly ServiceCollection _services = new();
         private readonly InMemoryNegotiationBroker _broker;
         private readonly CancellationTokenSource? _listenerCts;
-        private readonly Task? _listenerRunTask;
+        private Task? _listenerRunTask;
         private readonly CapturingLoggerProvider _loggerProvider = new();
+        private int _observedCapabilityCount;
         private ServiceProvider? _provider;
 
         private TestHarness(
             InMemoryNegotiationBroker broker,
             CancellationTokenSource? listenerCts,
-            Task? listenerRunTask)
+            bool configureDistributedBackend = true)
         {
             _broker = broker;
             _listenerCts = listenerCts;
-            _listenerRunTask = listenerRunTask;
 
             // Bare-bones config for the requester's DI path: a distributed backend must appear
             // configured so StartAsync doesn't short-circuit, and NegotiationOptions must have
             // ServiceName + a short AdmissionTimeout for tests. The actual RabbitUri value is
             // never dialed — the sender factory below returns an in-memory transport.
             _services.AddLogging(b => b.AddProvider(_loggerProvider));
-            _services.Configure<MessagingOptions>(o => o.RabbitUri = "amqp://test-does-not-connect");
+            // AddBitwardenCaching pulls IConfiguration via its options-configuration types.
+            _services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(
+                new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
+            _services.AddDistributedMemoryCache();
+            _services.AddBitwardenCaching();
+            if (configureDistributedBackend)
+                _services.Configure<MessagingOptions>(o => o.RabbitUri = "amqp://test-does-not-connect");
             _services.Configure<NegotiationOptions>(o =>
             {
                 o.ServiceName = "svc";
@@ -138,25 +206,43 @@ public class SubscriberCapabilityRequesterTests
             var broker = new InMemoryNegotiationBroker();
             var listenerTransport = new InMemoryNegotiationTransport(broker, dataTopic: Topic);
             var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-            var runTask = Task.Run(async () =>
+            var harness = new TestHarness(broker, cts);
+            harness._listenerRunTask = Task.Run(async () =>
             {
                 try
                 {
                     await foreach (var request in listenerTransport.ReceiveRequestsAsync(cts.Token))
                     {
                         if (request is CapabilityRequest cr)
-                            await cr.ReplyAsync(reply(cr.Capability), cts.Token);
+                        {
+                            Interlocked.Increment(ref harness._observedCapabilityCount);
+                            NegotiationAck ack;
+                            try { ack = reply(cr.Capability); }
+                            catch
+                            {
+                                // Simulate a listener-side failure by leaving the reply pending;
+                                // the requester's AdmissionTimeout will then fire.
+                                continue;
+                            }
+                            await cr.ReplyAsync(ack, cts.Token);
+                        }
                     }
                 }
                 catch (OperationCanceledException) { }
             });
-            return new TestHarness(broker, cts, runTask);
+            return harness;
         }
 
-        public static TestHarness BuildWithoutListener() => new(new InMemoryNegotiationBroker(), null, null);
+        public static TestHarness BuildWithoutListener() => new(new InMemoryNegotiationBroker(), null);
+
+        public static TestHarness BuildForChannelBackend()
+            => new(new InMemoryNegotiationBroker(), null, configureDistributedBackend: false);
 
         public void RegisterSubscriber(string topic, string subscription, bool proceedOnAdmissionTimeout = false)
             => _services.AddSubscriber<MyItemPayload, MyItem>(topic, subscription, proceedOnAdmissionTimeout);
+
+        public void ConfigureNegotiation(Action<NegotiationOptions> configure)
+            => _services.Configure(configure);
 
         public SubscriberJoinRequester Requester
         {
@@ -172,8 +258,36 @@ public class SubscriberCapabilityRequesterTests
             }
         }
 
+        public int ObservedCapabilityCount => Volatile.Read(ref _observedCapabilityCount);
+
+        public async Task WaitForCapabilitiesAsync(int count)
+        {
+            var deadline = DateTime.UtcNow + TestTimeout;
+            while (ObservedCapabilityCount < count)
+            {
+                if (DateTime.UtcNow > deadline)
+                    throw new TimeoutException($"Expected at least {count} capabilities, observed {ObservedCapabilityCount}");
+                await Task.Delay(10);
+            }
+        }
+
+        public async Task WaitForWarningsAsync(int count)
+        {
+            var deadline = DateTime.UtcNow + TestTimeout;
+            while (LoggedWarnings.Count() < count)
+            {
+                if (DateTime.UtcNow > deadline)
+                    throw new TimeoutException($"Expected at least {count} warnings, observed {LoggedWarnings.Count()}");
+                await Task.Delay(10);
+            }
+        }
+
         public IEnumerable<string> LoggedErrors => _loggerProvider.Entries
             .Where(e => e.Level == LogLevel.Error)
+            .Select(e => e.Message);
+
+        public IEnumerable<string> LoggedWarnings => _loggerProvider.Entries
+            .Where(e => e.Level == LogLevel.Warning)
             .Select(e => e.Message);
 
         public async ValueTask DisposeAsync()
@@ -202,7 +316,9 @@ public class SubscriberCapabilityRequesterTests
             public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
             public bool IsEnabled(LogLevel logLevel) => true;
             public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-                => sink.Add((logLevel, formatter(state, exception)));
+            {
+                lock (sink) sink.Add((logLevel, formatter(state, exception)));
+            }
         }
     }
 }
