@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using ZiggyCreatures.Caching.Fusion;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -41,13 +40,11 @@ public static class MessageBrokerServiceCollectionExtensions
             var metrics = sp.GetRequiredService<MessageBrokerMetrics>();
             if (!string.IsNullOrEmpty(options.AzureServiceBusConnectionString))
             {
-                var cache = sp.GetRequiredKeyedService<IFusionCache>((string)key!);
-                return new AzureServiceBusPublisher<TPayload, TCeiling>(options.AzureServiceBusConnectionString, name, serializer, metrics, cache);
+                return new AzureServiceBusPublisher<TPayload, TCeiling>(options.AzureServiceBusConnectionString, name, serializer, metrics);
             }
             if (!string.IsNullOrEmpty(options.RabbitUri))
             {
-                var cache = sp.GetRequiredKeyedService<IFusionCache>((string)key!);
-                return new RabbitPublisher<TPayload, TCeiling>(sp.GetRequiredService<RabbitConnection>(), name, serializer, metrics, cache);
+                return new RabbitPublisher<TPayload, TCeiling>(sp.GetRequiredService<RabbitConnection>(), name, serializer, metrics);
             }
             return new ChannelPublisher<TPayload, TCeiling>(sp.GetRequiredKeyedService<ChannelTopic<TPayload, TCeiling>>(key), name, metrics,
                 options.MaxDeliveryCount, sp.GetRequiredService<ILogger<ChannelPublisher<TPayload, TCeiling>>>());

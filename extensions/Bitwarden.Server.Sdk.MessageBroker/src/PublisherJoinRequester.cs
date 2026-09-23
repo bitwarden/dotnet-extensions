@@ -106,7 +106,7 @@ internal sealed class PublisherJoinRequester : BackgroundService
         {
             // Startup admission failed; the host will not come up, so drop the sender rather
             // than leaving it live for a heartbeat loop that will never run.
-            await ((IAsyncDisposable)sender).DisposeAsync();
+            await sender.DisposeAsync();
             throw;
         }
 
@@ -184,7 +184,7 @@ internal sealed class PublisherJoinRequester : BackgroundService
             SendLeaveAsync(marker, sender, instanceId, cancellationToken));
         await Task.WhenAll(leaves);
 
-        await ((IAsyncDisposable)sender).DisposeAsync();
+        await sender.DisposeAsync();
     }
 
     private async Task SendLeaveAsync(
