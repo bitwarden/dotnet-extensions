@@ -7,14 +7,20 @@ using Microsoft.Extensions.Options;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Azure Service Bus implementation of <see cref="INegotiationTransport"/>. Each instance is
-/// bound to one data-topic at construction. Concurrency across data-topics for one service
-/// is achieved by constructing one transport per data-topic.
+/// Azure Service Bus implementation of <see cref="INegotiationTransport"/>.
 /// <para>
 /// Uses session-enabled subscriptions on the shared <see cref="NegotiationOptions.ControlTopicName"/>
 /// topic. The request subscription's session-id is the bound data-topic name — the broker's
 /// session lock enforces single-active-consumer semantics per data-topic. The reply subscription's
 /// session-id is this instance's identifier so each running process holds its own reply session.
+/// </para>
+/// <para>
+/// Construct via <see cref="ForListener"/> or <see cref="ForSender"/> — the factory name pins
+/// the role and keeps the send-only vs listener choice out of argument values. A listener
+/// instance is bound to one data-topic (concurrency across data-topics comes from constructing
+/// one listener per topic); a sender instance is data-topic-agnostic because the outgoing
+/// message carries its own data-topic on <c>SessionId</c> and the reply loop keys off the
+/// per-process instance id.
 /// </para>
 /// <para>
 /// Requires the following pre-provisioned entities: the control topic; a session-enabled
@@ -34,7 +40,10 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
     private static readonly TimeSpan SacRetryDelay = TimeSpan.FromSeconds(2);
 
     private readonly NegotiationOptions _options;
-    private readonly string _dataTopic;
+    // Non-null only for the listener role: the data-topic whose SAC session this transport holds.
+    // Sender-role instances leave this null; ReceiveRequestsAsync requires it and throws if called
+    // on a sender.
+    private readonly string? _dataTopic;
     private readonly ServiceBusClient _client;
     private readonly ServiceBusSender _sender;
 
@@ -43,10 +52,10 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
     private readonly SemaphoreSlim _replyInitLock = new(1, 1);
     private Task? _replyLoopTask;
 
-    public AzureServiceBusNegotiationTransport(
+    private AzureServiceBusNegotiationTransport(
         IOptions<MessagingOptions> messagingOptions,
         IOptions<NegotiationOptions> negotiationOptions,
-        string dataTopic)
+        string? dataTopic)
     {
         _options = negotiationOptions.Value;
         _dataTopic = dataTopic;
@@ -56,6 +65,28 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
         _client = new ServiceBusClient(connectionString);
         _sender = _client.CreateSender(_options.ControlTopicName);
     }
+
+    /// <summary>
+    /// Listener role. Binds this transport to <paramref name="dataTopic"/>; the SAC-holding
+    /// listener consumes requests for that topic via <see cref="ReceiveRequestsAsync"/>.
+    /// </summary>
+    public static AzureServiceBusNegotiationTransport ForListener(
+        IOptions<MessagingOptions> messagingOptions,
+        IOptions<NegotiationOptions> negotiationOptions,
+        string dataTopic)
+        => new(messagingOptions, negotiationOptions, dataTopic);
+
+    /// <summary>
+    /// Send-only role — used by both publisher and subscriber requesters. Sending is
+    /// data-topic-agnostic (the outgoing message carries its own data-topic on
+    /// <c>SessionId</c>) and the reply loop keys off <see cref="NegotiationOptions.InstanceId"/>,
+    /// so no per-topic binding is required at construction. <see cref="ReceiveRequestsAsync"/>
+    /// is not valid on a sender instance.
+    /// </summary>
+    public static AzureServiceBusNegotiationTransport ForSender(
+        IOptions<MessagingOptions> messagingOptions,
+        IOptions<NegotiationOptions> negotiationOptions)
+        => new(messagingOptions, negotiationOptions, dataTopic: null);
 
     public Task<NegotiationAck> SendCapabilityAsync(Capability capability, CancellationToken cancellationToken = default)
         => SendAndAwaitAsync(
@@ -202,6 +233,11 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
     public async IAsyncEnumerable<INegotiationInbound> ReceiveRequestsAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        var dataTopic = _dataTopic
+            ?? throw new InvalidOperationException(
+                $"{nameof(ReceiveRequestsAsync)} is not valid on a sender-role transport. " +
+                $"Construct via {nameof(ForListener)} to bind a data-topic before calling.");
+
         while (!cancellationToken.IsCancellationRequested)
         {
             ServiceBusSessionReceiver receiver;
@@ -214,7 +250,7 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
                 receiver = await _client.AcceptSessionAsync(
                     _options.ControlTopicName,
                     _options.RequestSubscriptionName,
-                    sessionId: _dataTopic,
+                    sessionId: dataTopic,
                     cancellationToken: cancellationToken);
             }
             catch (ServiceBusException ex) when (ex.Reason is ServiceBusFailureReason.SessionCannotBeLocked
@@ -244,7 +280,7 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
                     }
                     if (msg is null) continue;
 
-                    var request = BuildRequest(msg);
+                    var request = BuildRequest(msg, dataTopic);
                     if (request is null)
                     {
                         await receiver.DeadLetterMessageAsync(msg, cancellationToken: cancellationToken);
@@ -252,22 +288,27 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
                     }
 
                     yield return request;
-                    await receiver.CompleteMessageAsync(msg, cancellationToken);
+                    // Settle with CancellationToken.None: if the listener is cancelling between
+                    // handler completion and this call, we still want the message removed since
+                    // the reply has already been sent and the state cache has already been updated.
+                    // Aborting here would cause the broker to redeliver a message that we have
+                    // already processed to completion.
+                    await receiver.CompleteMessageAsync(msg, CancellationToken.None);
                 }
             }
         }
     }
 
-    private INegotiationInbound? BuildRequest(ServiceBusReceivedMessage msg)
+    private INegotiationInbound? BuildRequest(ServiceBusReceivedMessage msg, string dataTopic)
     {
         try
         {
             return msg.Subject switch
             {
-                CapabilitySubject => BuildCapabilityRequest(msg),
-                JoinSubject => BuildJoinRequest(msg),
-                PublisherLeaveSubject => BuildPublisherLeaveNotification(msg),
-                SubscriberLeaveSubject => BuildSubscriberLeaveNotification(msg),
+                CapabilitySubject => BuildCapabilityRequest(msg, dataTopic),
+                JoinSubject => BuildJoinRequest(msg, dataTopic),
+                PublisherLeaveSubject => BuildPublisherLeaveNotification(msg, dataTopic),
+                SubscriberLeaveSubject => BuildSubscriberLeaveNotification(msg, dataTopic),
                 _ => null,
             };
         }
@@ -277,38 +318,38 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
         }
     }
 
-    private CapabilityRequest? BuildCapabilityRequest(ServiceBusReceivedMessage msg)
+    private CapabilityRequest? BuildCapabilityRequest(ServiceBusReceivedMessage msg, string dataTopic)
     {
         var capability = JsonSerializer.Deserialize(msg.Body.ToArray(), NegotiationJsonContext.Default.Capability);
         // data-topic property is used as the filter downstream. We want to be sure it matches
         // the routing used to hit this transport
-        return capability is not null && capability.DataTopic == _dataTopic
+        return capability is not null && capability.DataTopic == dataTopic
             ? new CapabilityRequest { Capability = capability, Replier = (ack, ct) => SendReplyAsync(msg, ack, ct) }
             : null;
     }
 
-    private JoinRequest? BuildJoinRequest(ServiceBusReceivedMessage msg)
+    private JoinRequest? BuildJoinRequest(ServiceBusReceivedMessage msg, string dataTopic)
     {
         var join = JsonSerializer.Deserialize(msg.Body.ToArray(), NegotiationJsonContext.Default.PublisherJoin);
         // data-topic property is used as the filter downstream. We want to be sure it matches
         // the routing used to hit this transport
-        return join is not null && join.DataTopic == _dataTopic
+        return join is not null && join.DataTopic == dataTopic
             ? new JoinRequest { Join = join, Replier = (ack, ct) => SendReplyAsync(msg, ack, ct) }
             : null;
     }
 
-    private PublisherLeaveNotification? BuildPublisherLeaveNotification(ServiceBusReceivedMessage msg)
+    private PublisherLeaveNotification? BuildPublisherLeaveNotification(ServiceBusReceivedMessage msg, string dataTopic)
     {
         var leave = JsonSerializer.Deserialize(msg.Body.ToArray(), NegotiationJsonContext.Default.PublisherLeave);
-        return leave is not null && leave.DataTopic == _dataTopic
+        return leave is not null && leave.DataTopic == dataTopic
             ? new PublisherLeaveNotification { Leave = leave }
             : null;
     }
 
-    private SubscriberLeaveNotification? BuildSubscriberLeaveNotification(ServiceBusReceivedMessage msg)
+    private SubscriberLeaveNotification? BuildSubscriberLeaveNotification(ServiceBusReceivedMessage msg, string dataTopic)
     {
         var leave = JsonSerializer.Deserialize(msg.Body.ToArray(), NegotiationJsonContext.Default.SubscriberLeave);
-        return leave is not null && leave.DataTopic == _dataTopic
+        return leave is not null && leave.DataTopic == dataTopic
             ? new SubscriberLeaveNotification { Leave = leave }
             : null;
     }
