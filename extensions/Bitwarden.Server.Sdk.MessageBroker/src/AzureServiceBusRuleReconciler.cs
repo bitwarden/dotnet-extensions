@@ -70,6 +70,10 @@ internal static class AzureServiceBusRuleReconciler
 
     private static string NameToTopic(string ruleName) => ruleName[RuleNamePrefix.Length..];
 
-    private static SqlRuleFilter DesiredFilter(string dataTopic) =>
-        new($"[{DataTopicPropertyName}] = '{dataTopic}'");
+    private static SqlRuleFilter DesiredFilter(string dataTopic)
+    {
+        var filter = new SqlRuleFilter($"[{DataTopicPropertyName}] = @topic");
+        filter.Parameters.Add("@topic", dataTopic);
+        return filter;
+    }
 }
