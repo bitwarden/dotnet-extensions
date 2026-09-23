@@ -8,14 +8,12 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// DI marker registered once per <c>AddSubscriber</c> call. Enumerating these is the source of
 /// truth for the topics this service subscribes to.
 /// <para>
-/// <see cref="ProceedOnAdmissionTimeout"/> lets a caller opt this registration into graceful
-/// degradation: if no publisher listener replies within <see cref="NegotiationOptions.AdmissionTimeout"/>,
-/// the requester logs an error and lets startup continue instead of failing the host. Suits
-/// subscribers that can operate without a live publisher — for example, an eventual-consistency
-/// consumer that will catch up when publishers come back. When multiple registrations exist for
-/// the same topic, the strictest flag wins: the topic only softens if every registration opts in.
-/// Soft-failing a hard-requiring subscriber is undefined behavior; hard-failing a soft-declared
-/// one is merely annoying.
+/// <see cref="ProceedOnAdmissionTimeout"/> opts this registration into graceful degradation: on
+/// ack timeout, log an error and let startup continue instead of failing the host. Suits
+/// subscribers that can operate without a live publisher — an eventual-consistency consumer
+/// that will catch up when publishers come back, for example. When multiple registrations exist
+/// for the same topic, the strictest flag wins — a topic softens only if every registration
+/// opts in, since softening a hard-requiring subscriber violates its invariant.
 /// </para>
 /// </summary>
 internal sealed record SubscriberRoleMarker(
@@ -31,30 +29,22 @@ internal sealed record SubscriberRoleMarker(
 internal delegate INegotiationTransport SubscriberNegotiationSenderFactory(string[] topics);
 
 /// <summary>
-/// Hosted service that runs at host startup and, for each data-topic this service subscribes
-/// to (as recorded by <see cref="SubscriberRoleMarker"/>), sends a <see cref="Capability"/>
-/// requesting admission from the topic's publisher fleet and awaits the ack.
-/// <para>
-/// Any failure — no-go reply, ack timeout, transport error — throws. Host startup fails,
-/// the process exits non-zero. A marker with
-/// <see cref="SubscriberRoleMarker.ProceedOnAdmissionTimeout"/> set instead logs the timeout
-/// and lets startup continue.
-/// </para>
-/// <para>
-/// After a successful startup admission the service keeps its sender alive and republishes
-/// each <see cref="Capability"/> every <see cref="NegotiationOptions.HeartbeatInterval"/> so
-/// the fleet cache does not expire this instance's entry. Heartbeat failures log a warning
-/// and continue; the cache entry's TTL is the correctness backstop.
-/// </para>
-/// <para>
-/// On graceful shutdown the service fires a <see cref="SubscriberLeave"/> per admitted marker
-/// so the SAC-holding listener removes this instance's cache entry immediately, then disposes
-/// the sender. Failures are swallowed and logged.
-/// </para>
+/// Hosted service that runs the subscriber side of version negotiation:
+/// <list type="bullet">
+/// <item><description>At startup, sends a <see cref="Capability"/> per
+/// <see cref="SubscriberRoleMarker"/> and awaits the ack. No-go and transport errors throw and
+/// fail host startup; ack timeout throws unless
+/// <see cref="SubscriberRoleMarker.ProceedOnAdmissionTimeout"/> is set, in which case it logs
+/// and lets startup continue.</description></item>
+/// <item><description>While running, republishes each capability every
+/// <see cref="NegotiationOptions.HeartbeatInterval"/> so the fleet cache entry stays alive.
+/// Heartbeat failures log a warning; the cache entry's TTL is the correctness backstop.</description></item>
+/// <item><description>On graceful shutdown, fires a <see cref="SubscriberLeave"/> per admitted
+/// marker so the cache entry drops immediately, then disposes the sender.</description></item>
+/// </list>
 /// <para>
 /// The channel backend skips negotiation entirely (one assembly version, no skew), and a
-/// service with no <see cref="SubscriberRoleMarker"/>s (publisher-only) has nothing to
-/// request on the subscriber side.
+/// service with no <see cref="SubscriberRoleMarker"/>s (publisher-only) has nothing to do here.
 /// </para>
 /// </summary>
 internal sealed class SubscriberJoinRequester : BackgroundService

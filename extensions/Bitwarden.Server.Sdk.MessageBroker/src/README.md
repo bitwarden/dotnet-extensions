@@ -142,22 +142,130 @@ actually deserialized from, before any upcast to reach `TCeiling`. Aggregated ac
 the deployment, these tags describe the current constellation of variants actually being acted upon, so an
 operator can see when a variant has fallen out of use and is safe to remove from the chain.
 
-## Publisher shared cache
+## Cross-process cache dependency
 
-Cross-process publishers (Azure Service Bus, Rabbit) derive from `DistributedPublisher<TPayload,
-TCeiling>` and receive a keyed `IFusionCache` (keyed by topic name) at construction. The caller
-must register caching via `services.AddBitwardenCaching()`. `PublisherCacheValidator` runs at host start via `ValidateOnStart` and fails if a distributed backend is configured and no caching is registered. The cache is reserved for upcoming variant-overlap negotiation with the
-deployment constellation; no code path reads or writes it today.
+The Azure Service Bus and Rabbit backends require a shared `IFusionCache` that the negotiation
+listener uses to hold the fleet-state snapshot. The library resolves it with an internal keyed
+lookup that `services.AddBitwardenCaching()`'s `AnyKey` registration transparently satisfies —
+callers just make that one call. `PublisherCacheValidator` runs at host start via
+`ValidateOnStart` and fails with a clear message if a distributed backend is configured and this
+call is missing. The cache is only read and written by the active `NegotiationListener` on the
+SAC-locked instance for each topic; booting publishers and subscribers reach it only indirectly
+via the admission handshake — see [Version negotiation](#version-negotiation) below.
 
-The in-memory channel backend derives from `Publisher<TPayload, TCeiling>` directly. It is
-single-process, needs no cross-process negotiation, and requires no distributed cache in the DI
-container.
+The in-memory channel backend is single-process, needs no cross-process negotiation, and requires
+no distributed cache.
+
+## Version negotiation
+
+Cross-process backends run a deploy-time admission handshake before any process starts publishing
+or consuming. The invariant: at any moment, every live publisher and every live subscriber for a
+given data-topic share at least one wire-name in their variant chains. If a booting instance would
+break that invariant, it exits non-zero and the deployment fails.
+
+Admission fires at host startup and re-fires every `HeartbeatInterval` to refresh the fleet
+cache entry.
+
+### Publish-after-admission guarantee
+
+The guarantee lives in `IHost` startup ordering. `AddPublisher` registers
+`NegotiationListenerCoordinator` and `PublisherJoinRequester` as `IHostedService`s before any
+consumer-side hosted service (`AddMessageConsumer`'s `ConsumerBackgroundService`, for example).
+`Host.StartAsync` runs hosted services in registration order and does not return until each one's
+`StartAsync` completes. A failed admission
+(`NegotiationRejectedException`/`NegotiationTimeoutException`/`BrokerUnavailableException`) fails
+the host, so application code that would `Publish` or iterate a subscriber never runs.
+
+Two opt-outs:
+
+- **`proceedOnAdmissionTimeout: true`** on `AddSubscriber` softens the acknowledgement-timeout path — the
+  subscriber starts and iterates without confirmed publisher compatibility. Explicit no-go and
+  broker-outage failures still hard-fail startup.
+- **Direct construction outside an `IHost`** (unit tests, custom hosting) skips the requester
+  entirely. Use the in-memory channel backend for those scenarios; it does not run negotiation.
+
+### Subscriber-first boot
+
+A tolerant subscriber (`proceedOnAdmissionTimeout: true`) that starts before any publisher
+queues its `Capability` on the control topic (session id = data-topic on Azure Service Bus,
+request queue on RabbitMQ) and continues past its own `AdmissionTimeout`. When a publisher
+eventually boots, its coordinator starts the listener before its own `PublisherJoin` requester
+runs; the listener drains the queued Capability, upserts the subscriber into the fleet cache,
+then processes the publisher's Join against it. The pre-existing subscriber is the baseline
+the incoming publisher must comply with — if wire-names don't overlap, the publisher fails
+startup.
+
+### Coordination
+
+Both backends use broker-native mutual exclusion. Only one instance of a given publisher-service
+holds the "active consumer" role for a given data-topic at a time; that instance processes every
+admission decision for the topic, writes the cache, and replies to the requester. Failover on
+shutdown or crash is transparent — the broker hands the role to the next candidate.
+
+- **Azure Service Bus** — session-enabled subscription with session id equal to the data-topic
+  name. The broker's session lock is per `(subscription × session)`, giving one active consumer
+  per `(publisher-service × data-topic)`.
+- **RabbitMQ** — queue declared with `x-single-active-consumer=true`. Scope is per-queue (per
+  publisher-service), so one instance of the service handles admissions for every topic that
+  service publishes.
+
+### Topology per backend
+
+One namespace-wide control topic `ctrl` (or the configured `NegotiationOptions.ControlTopicName`)
+carries every negotiation message. Data-topic routing rides on per-message metadata — an ASB
+message property, a Rabbit routing key.
+
+- **Azure Service Bus** — one session-enabled subscription per publisher-service named
+  `request-{ServiceName}` receives inbound `Capability` / `PublisherJoin` / leave messages
+  filtered by data-topic; one session-enabled `reply-{ServiceName}` subscription receives
+  admission acknowledgements routed by instance identifier. Both subscriptions must exist before the process
+  starts. `AzureServiceBusRuleReconciler` maintains the SQL filter rules on
+  `request-{ServiceName}` at startup so the rule set matches the topics this service publishes.
+- **RabbitMQ** — the library declares a `{ControlTopicName}` direct exchange and a per-service
+  `request-{ServiceName}` classic queue (with `x-single-active-consumer=true`) on first use.
+  Replies use the connection-scoped `amq.rabbitmq.reply-to` pseudo-queue, so no reply
+  subscription is needed.
+
+### Wire messages
+
+| Message           | Direction              | Reply-expected | Purpose                                                                                        |
+| ----------------- | ---------------------- | -------------- | ---------------------------------------------------------------------------------------------- |
+| `Capability`      | subscriber → publisher | Yes            | "Here are the wire-names I can decode for topic X — admit me?"                                 |
+| `PublisherJoin`   | new publisher → active | Yes            | "Here are the wire-names I can produce for topic X — admit me?"                                |
+| `NegotiationAck`  | active → requester     | —              | Go / no-go, with an offender list on no-go.                                                    |
+| `PublisherLeave`  | publisher → active     | No             | Clean-shutdown withdrawal; the active listener removes the instance's cache entry immediately. |
+| `SubscriberLeave` | subscriber → active    | No             | Same, for a subscriber.                                                                        |
+
+The two leave messages are fire-and-forget — the sender returns as soon as the outbound publish
+completes, does not await an acknowledgement, and disposes the transport. Crash-path removal falls back to
+TTL expiration.
+
+### Key source files
+
+| File                                                                       | Purpose                                                                                                      |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `NegotiationOptions.cs`                                                    | Configuration surface — `ServiceName`, `ProcessDisplayName`, heartbeat/TTL/timeout tuning.                   |
+| `Capability.cs` / `PublisherJoin.cs`                                       | Admission-request wire types.                                                                                |
+| `PublisherLeave.cs` / `SubscriberLeave.cs`                                 | Clean-shutdown-withdrawal wire types.                                                                        |
+| `NegotiationAck.cs`                                                        | Admission reply carrying go/no-go and offender list.                                                         |
+| `INegotiationTransport.cs`                                                 | Per-backend send + receive contract.                                                                         |
+| `AzureServiceBusNegotiationTransport.cs` / `RabbitNegotiationTransport.cs` | Backend implementations.                                                                                     |
+| `NegotiationListener.cs`                                                   | Runs on the single-active-consumer instance; performs admission checks and cache updates.                    |
+| `NegotiationListenerCoordinator.cs`                                        | Hosted service that owns listener lifecycle and reconciles ASB filter rules at startup.                      |
+| `PublisherJoinRequester.cs` / `SubscriberJoinRequester.cs`                 | `BackgroundService`s that send join/capability at startup, run heartbeat loops, and fire leaves at shutdown. |
+| `FusionCacheNegotiationState.cs`                                           | Fleet-state cache backing, per-instance keys under `negotiation/{topic}/{role}/{instanceId}`.                |
+| `NegotiationMetrics.cs`                                                    | Admissions counter and topics-served gauge (see [Observability](#observability)).                            |
 
 ## TODO
 
-- Subscriber/publisher negotiation to ensure variant overlap.
 - Required payload-specific health check definition to surface eventual-consistency health.
 - Assisted upcasts performed subscriber-side
+- Managed-identity auth for Azure Service Bus. `AzureServiceBusPublisher`, `AzureServiceBusSubscriber`,
+  `AzureServiceBusNegotiationTransport`, and `NegotiationListenerCoordinator` all call
+  `new ServiceBusClient(connectionString)` / `new ServiceBusAdministrationClient(connectionString)`,
+  which in `Azure.Messaging.ServiceBus` 7.x only accepts SAS-based strings. Enabling MI requires
+  a `TokenCredential`-based construction path (fully-qualified namespace + credential) and would
+  restore the finer-grained per-subscription authorization RBAC allows.
 
 ## Running tests
 

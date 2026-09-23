@@ -72,21 +72,152 @@ configured at a time; setting both raises a validation error at startup.
 
 ### Distributed cache dependency
 
-The Azure Service Bus and Rabbit backends require a shared `IFusionCache` backing
-(`Bitwarden.Server.Sdk.Caching`). Be sure to add with `services.AddBitwardenCaching()` during
+The Azure Service Bus and Rabbit backends require a shared `IFusionCache` for version
+negotiation. Register it with `services.AddBitwardenCaching()` (from `Bitwarden.Server.Sdk.Caching`);
+`PublisherCacheValidator` runs at host start via `ValidateOnStart` and fails with a clear message
+if a distributed backend is configured and this call is missing. In tests, add
+`services.AddDistributedMemoryCache()` to satisfy the underlying `IDistributedCache` dependency
+without a live cache.
 
-The cache is resolved eagerly at publisher construction, so a host that has not configured Redis
-(or otherwise registered a non-keyed `IDistributedCache`) will fail on the first Publisher
-resolution rather than at first publish. In tests, register `services.AddDistributedMemoryCache()`
-to satisfy the dependency without a live cache. The in-memory channel backend is single-process
-so Publisher resolution succeeds even with none configured.
+The in-memory channel backend is single-process, needs no version negotiation, and does not
+require caching.
 
-**Deployment warning — not validated.** The cache exists for cross-process variant negotiation
-between publishers of the same topic. It **must** be backed by an out-of-process
-store (Redis or an equivalent shared `IDistributedCache`) in any multi-process deployment. Using
-an in-memory `IDistributedCache` (`AddDistributedMemoryCache`) satisfies DI and passes the startup
-validator, but each host gets its own private "shared" cache — variant negotiation silently no-ops
-and incompatible publishers and subscribers can co-exist.
+**Deployment warning — not validated.** The cache backs cross-process version negotiation (see
+[Version negotiation](#version-negotiation)). It **must** be backed by an out-of-process store
+(Redis or an equivalent shared `IDistributedCache`) in any multi-process deployment. Using an
+in-memory `IDistributedCache` (`AddDistributedMemoryCache`) satisfies DI and passes the startup
+validator, but each host gets its own private "shared" cache — admission decisions silently see
+an empty fleet and incompatible publishers and subscribers can co-exist.
+
+## Version negotiation
+
+The Azure Service Bus and Rabbit backends run a deploy-time admission handshake at host startup.
+On failure, publishers and subscribers throw `NegotiationRejectedException` (wire-name
+incompatibility) or `NegotiationTimeoutException` (no reply within `AdmissionTimeout`); either
+exception fails the host. See [Version negotiation][readme-version-negotiation] in the package
+README for how the handshake works; this section covers what to configure and provision.
+
+### Configuration
+
+Set `ServiceName` at minimum. Everything else has usable defaults.
+
+```csharp
+services.Configure<NegotiationOptions>(o =>
+{
+    o.ServiceName = "billing";      // required — must be unique across the deployment
+    // o.ProcessDisplayName = "billing-pod-abc";  // defaults to Environment.MachineName
+    // o.HeartbeatInterval = TimeSpan.FromSeconds(90);
+    // o.TtlPaddingFactor = 5.5;    // cache TTL = HeartbeatInterval × factor
+    // o.AdmissionTimeout = TimeSpan.FromSeconds(30);
+});
+```
+
+`ServiceName` must be unique per service across the messaging namespace. It derives the
+per-service control-plane entity names (`request-{ServiceName}`, `reply-{ServiceName}`) and
+tags every negotiation metric. Collisions are not validated and silently break negotiation for
+both colliding services. `ProcessDisplayName` defaults to the machine name and appears in
+operator-visible instance identifiers and log messages.
+
+Subscribers that can tolerate starting without a live publisher can opt into a soft timeout:
+
+```csharp
+services.AddSubscriber<OrderPayload, OrderPayload.V2>(
+    "orders",
+    subscriptionName: "notifications",
+    proceedOnAdmissionTimeout: true);
+```
+
+With the flag set, an acknowledgement timeout logs an error and lets startup continue. Explicit no-go and
+broker-outage failures still hard-fail startup.
+
+### Deployment provisioning
+
+#### Azure Service Bus
+
+Requires **Standard** tier or higher (Basic does not support topics or sessions). All entities
+must be pre-provisioned — the library declares none of them.
+
+For every data-topic used, pre-provision:
+
+- A **topic** with the data-topic name.
+- One **subscription** per subscribing group — the `subscriptionName` passed to
+  `AddSubscriber` / `AddMessageConsumer` names the group. Consumers within a group compete for
+  messages; distinct groups fan out. Typically one group per subscribing service (set
+  `subscriptionName` to `ServiceName`), but a service may register multiple groups on one
+  topic if it needs distinct processing paths. Data-plane subscriptions are **not**
+  session-enabled.
+
+Control-plane entities:
+
+| Entity                                | Kind                          | Session-enabled | Notes                                                                                                               |
+| ------------------------------------- | ----------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `{ControlTopicName}` (default `ctrl`) | Topic                         | —               | One per messaging namespace, shared by every service.                                                               |
+| `request-{ServiceName}`               | Subscription on control topic | **Yes**         | One per publisher-service. The library installs SQL filter rules to filter only data-topics handled by the service. |
+| `reply-{ServiceName}`                 | Subscription on control topic | **Yes**         | One per messaging-participating service (publisher or subscriber).                                                  |
+
+The library sets no message-level TTL, so pre-provision each control-plane subscription with a
+`DefaultMessageTimeToLive` to prevent orphaned messages from accumulating:
+
+- `request-{ServiceName}` — roughly 2× `HeartbeatInterval` (about 3 minutes at defaults). Long
+  enough for the subscriber-first-boot case; if TTL drops an initial `Capability` before a
+  publisher-service exists, the next heartbeat retries.
+- `reply-{ServiceName}` — roughly 2× `AdmissionTimeout` (about 60 seconds at defaults). Replies
+  beyond that window are useless — the requester has already succeeded, timed out, or died.
+
+`AzureServiceBusConnectionString` is passed directly to `new ServiceBusClient(string)`, which
+today accepts a SAS-based connection string:
+
+```
+Endpoint=sb://{namespace}.servicebus.windows.net/;SharedAccessKeyName={policy};SharedAccessKey={key}
+```
+
+For local development against the ASB emulator, use:
+
+```
+Endpoint=sb://localhost:{port};SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey={key};UseDevelopmentEmulator=true
+```
+
+`UseDevelopmentEmulator=true` also skips SQL rule reconciliation, since the emulator does not
+expose the management REST API.
+
+SAS rights required on the policy backing the connection string:
+
+| Right  | Scope                                              | Applies to  | Why                                                                                                                     |
+| ------ | -------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Send   | Each data-plane topic the service publishes to     | Publishers  | Publish data-plane messages.                                                                                            |
+| Listen | Each data-plane topic the service subscribes to    | Subscribers | Receive data-plane messages (rights inherit to subscriptions).                                                          |
+| Send   | `{ControlTopicName}` topic                         | Both        | Send admission requests, replies, and leaves.                                                                           |
+| Listen | `{ControlTopicName}` topic                         | Both        | Receive `request-{ServiceName}` traffic (publishers) and `reply-{ServiceName}` acknowledgements (all).                  |
+| Manage | `{ControlTopicName}` topic                         | Publishers  | `AzureServiceBusRuleReconciler` adds/removes SQL filter rules on `request-{ServiceName}` for each published data-topic. |
+
+SAS policies scope at namespace or topic level (not per-subscription), so `Manage` on
+`{ControlTopicName}` grants rule-management authority over every subscription on the control
+topic. Deployments that need finer-grained control on the control-plane subscription set would
+require managed-identity auth, which this library does not yet wire up.
+
+#### RabbitMQ
+
+Requires **RabbitMQ 3.12+** — data-plane queues are quorum queues using the `x-delivery-count`
+header introduced in that release for `DeliveryCount` tracking.
+
+The library declares all exchanges and queues on first use, so nothing needs pre-provisioning.
+`RabbitUri` accepts a standard AMQP URI (use `amqps://` for TLS):
+
+```
+amqp://{user}:{password}@{host}:{port}/{vhost}
+```
+
+The user in the URI needs `configure`, `write`, and `read` covering every entity the library
+declares:
+
+- Per-data-topic exchange, named after the topic.
+- Per-subscribing-group queue, named `{topic}.{subscriptionName}` — one per group registered
+  via `AddSubscriber` / `AddMessageConsumer` on that topic.
+- `{ControlTopicName}` (default `ctrl`).
+- `request-{ServiceName}`.
+
+The `write` permission must additionally cover `amq.rabbitmq.reply-to`, the pseudo-queue used
+for admission replies.
 
 ## Defining a payload
 
@@ -156,6 +287,7 @@ an older subscriber needs. See the [package README][readme-payload-versioning] f
 catalog and assisted-downcast walkthrough.
 
 [readme-payload-versioning]: https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/README.md#payload-versioning
+[readme-version-negotiation]: https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/README.md#version-negotiation
 
 ## Consuming
 
@@ -270,11 +402,13 @@ integrate with any OpenTelemetry-compatible pipeline.
 
 **Metrics** — meter name `Bitwarden.Server.Sdk.MessageBroker`:
 
-| Instrument                            | Type    | Description                                                                                                                                                                               |
-| ------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `messaging.client.published.messages` | Counter | Messages published, tagged with `messaging.destination.name`.                                                                                                                             |
-| `messaging.client.consumed.messages`  | Counter | Messages delivered to a consumer, tagged with `messaging.destination.name` and `messaging.variant.name` (wire name of the highest received variant at or below the subscriber's ceiling). |
-| `messaging.channel.queued.messages`   | Gauge   | Current number of messages buffered in the in-memory channel, tagged with `messaging.destination.name`.                                                                                   |
+| Instrument                            | Type    | Description                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `messaging.client.published.messages` | Counter | Messages published, tagged with `messaging.destination.name`.                                                                                                                                                                                                                                                                                                    |
+| `messaging.client.consumed.messages`  | Counter | Messages delivered to a consumer, tagged with `messaging.destination.name` and `messaging.variant.name` (wire name of the highest received variant at or below the subscriber's ceiling).                                                                                                                                                                        |
+| `messaging.channel.queued.messages`   | Gauge   | Current number of messages buffered in the in-memory channel, tagged with `messaging.destination.name`.                                                                                                                                                                                                                                                          |
+| `messaging.negotiation.admissions`    | Counter | Admission decisions processed by this instance's negotiation listener, tagged with `messaging.destination.name`, `messaging.negotiation.role` (`publisher`/`subscriber`), and `messaging.negotiation.result` (`go`/`nogo`). The `nogo` slice is the primary alerting signal — any hit indicates a deploying instance was rejected for wire-name incompatibility. |
+| `messaging.negotiation.topics_served` | Gauge   | Value 1 for each data-topic this instance publishes to or subscribes from, tagged with `messaging.destination.name` and `messaging.negotiation.role`. Answers "what does this pod serve?" at scrape time.                                                                                                                                                        |
 
 ## Serialization
 

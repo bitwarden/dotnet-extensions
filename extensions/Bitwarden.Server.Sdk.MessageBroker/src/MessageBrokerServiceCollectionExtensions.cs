@@ -54,6 +54,12 @@ public static class MessageBrokerServiceCollectionExtensions
         services.AddSingleton(new PublisherRoleMarker(
             name,
             TPayload.Variants.Select(v => v.WireName).ToHashSet()));
+        // Order matters: the coordinator (listener) must be registered before the join
+        // requester so IHost.StartAsync brings the listener up first, and both must be
+        // registered before AddMessageConsumer's ConsumerBackgroundService so admission
+        // completes before any consumer-side hosted service can iterate a subscription.
+        // The Publisher<T> and ISubscriber<T> types themselves do not gate on admission
+        // state — that guarantee is provided entirely by hosted-service startup ordering.
         AddNegotiationListenerCoordinator(services);
         AddPublisherJoinRequester(services);
 
@@ -145,6 +151,10 @@ public static class MessageBrokerServiceCollectionExtensions
             name,
             TPayload.Variants.Select(v => v.WireName).ToHashSet(),
             proceedOnAdmissionTimeout));
+        // Registered before AddMessageConsumer's ConsumerBackgroundService so the requester's
+        // StartAsync completes admission before the consumer's hosted service begins iterating
+        // the subscription. See the AddPublisher registration-order comment for the full
+        // publish-after-admission guarantee rationale.
         AddSubscriberCapabilityRequester(services);
 
         return services;
