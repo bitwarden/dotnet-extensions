@@ -166,15 +166,25 @@ break that invariant, it exits non-zero and the deployment fails.
 Admission fires at host startup and re-fires every `HeartbeatInterval` to refresh the fleet
 cache entry.
 
-### Publish-after-admission guarantee
+### Publish-after-admission and subscribe-after-admission guarantee
 
-The guarantee lives in `IHost` startup ordering. `AddPublisher` registers
-`NegotiationListenerCoordinator` and `PublisherJoinRequester` as `IHostedService`s before any
-consumer-side hosted service (`AddMessageConsumer`'s `ConsumerBackgroundService`, for example).
-`Host.StartAsync` runs hosted services in registration order and does not return until each one's
-`StartAsync` completes. A failed admission
+The guarantee lives in the `IHostedLifecycleService` phase order that `IHost.StartAsync`
+implements: every service's `StartingAsync` completes before any service's `StartAsync` runs.
+`NegotiationListenerCoordinator`, `PublisherJoinRequester`, and `SubscriberJoinRequester` all
+implement `IHostedLifecycleService` and do their admission handshake in `StartingAsync`. Any
+`BackgroundService` — `AddMessageConsumer`'s `ConsumerBackgroundService`, Kestrel, or a
+user-registered `AddHostedService<T>` — starts running its `ExecuteAsync` in the later
+`StartAsync` phase, so the caller's `services.Add…` order does not affect the ordering.
+
+Within the `StartingAsync` phase itself, services still run in registration order; the coordinator
+listener needs to be up before the join requester on the same host sends its request. This is
+handled inside `AddPublisher`, which registers `NegotiationListenerCoordinator` ahead of
+`PublisherJoinRequester`.
+
+A failed admission
 (`NegotiationRejectedException`/`NegotiationTimeoutException`/`BrokerUnavailableException`) fails
-the host, so application code that would `Publish` or iterate a subscriber never runs.
+the host in `StartingAsync`, so application code that would `Publish` or iterate a subscriber
+never runs.
 
 Two opt-outs:
 

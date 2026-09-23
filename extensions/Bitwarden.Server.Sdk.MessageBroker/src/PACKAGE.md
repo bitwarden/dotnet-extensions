@@ -91,10 +91,10 @@ an empty fleet and incompatible publishers and subscribers can co-exist.
 
 ## Version negotiation
 
-The Azure Service Bus and Rabbit backends run a deploy-time admission handshake at host startup.
-On failure, publishers and subscribers throw `NegotiationRejectedException` (wire-name
-incompatibility) or `NegotiationTimeoutException` (no reply within `AdmissionTimeout`); either
-exception fails the host. See [Version negotiation][readme-version-negotiation] in the package
+The Azure Service Bus and Rabbit backends run a deploy-time admission handshake at startup,
+before any messaging actions occur, publishers and subscribers throw `NegotiationRejectedException`
+(wire-name incompatibility) or `NegotiationTimeoutException` (no reply within `AdmissionTimeout`);
+either exception fails the host. See [Version negotiation][readme-version-negotiation] in the package
 README for how the handshake works; this section covers what to configure and provision.
 
 ### Configuration
@@ -182,13 +182,13 @@ expose the management REST API.
 
 SAS rights required on the policy backing the connection string:
 
-| Right  | Scope                                              | Applies to  | Why                                                                                                                     |
-| ------ | -------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Send   | Each data-plane topic the service publishes to     | Publishers  | Publish data-plane messages.                                                                                            |
-| Listen | Each data-plane topic the service subscribes to    | Subscribers | Receive data-plane messages (rights inherit to subscriptions).                                                          |
-| Send   | `{ControlTopicName}` topic                         | Both        | Send admission requests, replies, and leaves.                                                                           |
-| Listen | `{ControlTopicName}` topic                         | Both        | Receive `request-{ServiceName}` traffic (publishers) and `reply-{ServiceName}` acknowledgements (all).                  |
-| Manage | `{ControlTopicName}` topic                         | Publishers  | `AzureServiceBusRuleReconciler` adds/removes SQL filter rules on `request-{ServiceName}` for each published data-topic. |
+| Right  | Scope                                           | Applies to  | Why                                                                                                                     |
+| ------ | ----------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Send   | Each data-plane topic the service publishes to  | Publishers  | Publish data-plane messages.                                                                                            |
+| Listen | Each data-plane topic the service subscribes to | Subscribers | Receive data-plane messages (rights inherit to subscriptions).                                                          |
+| Send   | `{ControlTopicName}` topic                      | Both        | Send admission requests, replies, and leaves.                                                                           |
+| Listen | `{ControlTopicName}` topic                      | Both        | Receive `request-{ServiceName}` traffic (publishers) and `reply-{ServiceName}` acknowledgements (all).                  |
+| Manage | `{ControlTopicName}` topic                      | Publishers  | `AzureServiceBusRuleReconciler` adds/removes SQL filter rules on `request-{ServiceName}` for each published data-topic. |
 
 SAS policies scope at namespace or topic level (not per-subscription), so `Manage` on
 `{ControlTopicName}` grants rule-management authority over every subscription on the control

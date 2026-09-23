@@ -22,8 +22,15 @@ internal sealed record PublisherRoleMarker(string TopicName, IReadOnlySet<string
 /// <item><description>In-process channel — negotiation skipped entirely (one assembly version, no skew).</description></item>
 /// </list>
 /// The coordinator owns listener and transport life cycles.
+/// <para>
+/// Implements <see cref="IHostedLifecycleService"/> so listener startup runs in the
+/// <c>StartingAsync</c> phase, which the host guarantees completes before any hosted
+/// <c>StartAsync</c>. This is what enforces publish-after-admission and subscribe-after-admission
+/// regardless of the order the caller registered publishers, subscribers, or their own
+/// <c>IHostedService</c>s.
+/// </para>
 /// </summary>
-internal sealed class NegotiationListenerCoordinator : IHostedService
+internal sealed class NegotiationListenerCoordinator : IHostedLifecycleService
 {
     // Well-known cache key for the negotiation state. Callers must have registered an
     // IFusionCache under this key (AddBitwardenCaching's AnyKey registration satisfies this).
@@ -53,7 +60,12 @@ internal sealed class NegotiationListenerCoordinator : IHostedService
 
     internal int ListenerCount => _running?.Count ?? 0;
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    // Listener startup runs in StartingAsync so it completes before any hosted service's
+    // StartAsync — including any BackgroundService whose ExecuteAsync would begin iterating a
+    // subscription or publish loop. The join requesters also run their admission in
+    // StartingAsync, and within-phase ordering is by registration; the listener is registered
+    // first inside AddPublisher, so it lands before the requesters that need it up.
+    public async Task StartingAsync(CancellationToken cancellationToken)
     {
         await ReconcileAsbRulesIfNeededAsync(cancellationToken);
         _metrics.RegisterPublisherTopics(_markers.Select(m => m.TopicName).Distinct());
@@ -63,6 +75,11 @@ internal sealed class NegotiationListenerCoordinator : IHostedService
             RunTask: p.Listener.RunAsync(_listenerStopSignal.Token),
             p.Transport))];
     }
+
+    public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StartedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StoppingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StoppedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     private async Task ReconcileAsbRulesIfNeededAsync(CancellationToken cancellationToken)
     {

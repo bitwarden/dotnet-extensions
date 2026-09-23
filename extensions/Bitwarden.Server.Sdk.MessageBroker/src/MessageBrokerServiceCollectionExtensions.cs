@@ -54,12 +54,11 @@ public static class MessageBrokerServiceCollectionExtensions
         services.AddSingleton(new PublisherRoleMarker(
             name,
             TPayload.Variants.Select(v => v.WireName).ToHashSet()));
-        // Order matters: the coordinator (listener) must be registered before the join
-        // requester so IHost.StartAsync brings the listener up first, and both must be
-        // registered before AddMessageConsumer's ConsumerBackgroundService so admission
-        // completes before any consumer-side hosted service can iterate a subscription.
-        // The Publisher<T> and ISubscriber<T> types themselves do not gate on admission
-        // state — that guarantee is provided entirely by hosted-service startup ordering.
+        // Coordinator and requester both run their startup work in the IHostedLifecycleService
+        // StartingAsync phase, which the host completes for every service before invoking any
+        // StartAsync. However, within the StartingAsync phase itself the host still runs services
+        // in registration order, so the coordinator (which brings up the local listener) is registered
+        // here first, ahead of the join requester that will send the PublisherJoin.
         AddNegotiationListenerCoordinator(services);
         AddPublisherJoinRequester(services);
 
@@ -151,10 +150,6 @@ public static class MessageBrokerServiceCollectionExtensions
             name,
             TPayload.Variants.Select(v => v.WireName).ToHashSet(),
             proceedOnAdmissionTimeout));
-        // Registered before AddMessageConsumer's ConsumerBackgroundService so the requester's
-        // StartAsync completes admission before the consumer's hosted service begins iterating
-        // the subscription. See the AddPublisher registration-order comment for the full
-        // publish-after-admission guarantee rationale.
         AddSubscriberCapabilityRequester(services);
 
         return services;
@@ -303,8 +298,10 @@ public static class MessageBrokerServiceCollectionExtensions
                 return RabbitNegotiationTransport.ForPublisherSender(sp.GetRequiredService<RabbitConnection>(), negOpts, topics);
             return new NoopNegotiationTransport();
         });
-        // Registered AFTER AddNegotiationListenerCoordinator so hosted-service startup order
-        // guarantees the local listener is running before we send our PublisherJoin request.
+        // Callers of this helper must register AddNegotiationListenerCoordinator first — see the
+        // ordered call in AddPublisher. Within the StartingAsync phase the host still walks
+        // services in registration order, so the listener needs to be brought up before this
+        // requester sends its first PublisherJoin.
         services.AddSingleton<PublisherJoinRequester>();
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<PublisherJoinRequester>());
     }
