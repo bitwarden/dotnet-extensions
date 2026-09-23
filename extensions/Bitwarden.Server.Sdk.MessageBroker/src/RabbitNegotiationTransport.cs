@@ -19,7 +19,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// send-only vs listener choice from being expressed as an argument value at the call site.
 /// </para>
 /// </summary>
-internal sealed class RabbitNegotiationTransport : INegotiationTransport, IAsyncDisposable
+internal sealed class RabbitNegotiationTransport : INegotiationTransport
 {
     private const string DirectReplyToQueueName = "amq.rabbitmq.reply-to";
     private const string CapabilityType = "capability";

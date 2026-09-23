@@ -1,11 +1,10 @@
 using System.Buffers;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
-using ZiggyCreatures.Caching.Fusion;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-internal sealed class RabbitPublisher<TPayload, TCeiling> : DistributedPublisher<TPayload, TCeiling>, IAsyncDisposable
+internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, TCeiling>, IAsyncDisposable
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
 {
@@ -14,8 +13,7 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : DistributedPublisher
     private readonly MessageBrokerMetrics _metrics;
     private readonly Task<IChannel> _channel;
 
-    public RabbitPublisher(RabbitConnection connection, string exchangeName, IMessageSerializer serializer, MessageBrokerMetrics metrics, IFusionCache cache)
-        : base(cache)
+    public RabbitPublisher(RabbitConnection connection, string exchangeName, IMessageSerializer serializer, MessageBrokerMetrics metrics)
     {
         _exchangeName = exchangeName;
         _serializer = serializer;

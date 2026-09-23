@@ -55,7 +55,7 @@ internal sealed class InMemoryNegotiationBroker
 /// based on the message's <c>DataTopic</c>; receives drain the queue for this transport's own
 /// data-topic.
 /// </summary>
-internal sealed class InMemoryNegotiationTransport : INegotiationTransport, IAsyncDisposable
+internal sealed class InMemoryNegotiationTransport : INegotiationTransport
 {
     private readonly InMemoryNegotiationBroker _broker;
     private readonly string _dataTopic;
