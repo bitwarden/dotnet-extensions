@@ -13,37 +13,27 @@ namespace Microsoft.Extensions.DependencyInjection;
 internal delegate INegotiationTransport PublisherNegotiationSenderFactory(string[] topics);
 
 /// <summary>
-/// Hosted service that runs at host startup and, for each data-topic this service publishes
-/// (as recorded by <see cref="PublisherRoleMarker"/>), sends a <see cref="PublisherJoin"/>
-/// requesting admission to the publisher fleet and awaits the ack. Admission is decided on
-/// the receive side by <see cref="NegotiationListener"/> — whichever instance currently
-/// holds the SAC role for the topic. This class is the request side of that handshake and
-/// never inspects <c>INegotiationState</c> for admission decisions: only the SAC holder may
-/// read it, and the send side has no lock.
+/// Hosted service that runs the publisher side of version negotiation:
+/// <list type="bullet">
+/// <item><description>At startup, sends a <see cref="PublisherJoin"/> per
+/// <see cref="PublisherRoleMarker"/> and awaits the ack. Any failure — no-go, timeout, transport
+/// error — throws and fails host startup.</description></item>
+/// <item><description>While running, republishes each join every
+/// <see cref="NegotiationOptions.HeartbeatInterval"/> so the fleet cache entry stays alive.
+/// Heartbeat failures log a warning; the cache entry's TTL is the correctness backstop.</description></item>
+/// <item><description>On graceful shutdown, fires a <see cref="PublisherLeave"/> per admitted
+/// marker so the cache entry drops immediately, then disposes the sender.</description></item>
+/// </list>
 /// <para>
-/// Any failure — no-go reply, ack timeout, transport error — throws. Host startup fails,
-/// the process exits non-zero. This is the deploy-time gate the design doc calls for.
-/// </para>
-/// <para>
-/// After a successful startup admission the service keeps its sender alive and republishes
-/// each <see cref="PublisherJoin"/> every <see cref="NegotiationOptions.HeartbeatInterval"/>
-/// so the fleet cache does not expire this instance's entry. Heartbeat failures log a warning
-/// and continue; the cache entry's TTL is the correctness backstop.
-/// </para>
-/// <para>
-/// On graceful shutdown the service fires a <see cref="PublisherLeave"/> per admitted marker so
-/// the SAC-holding listener removes this instance's cache entry immediately, then disposes the
-/// sender. Failures are swallowed and logged.
-/// </para>
-/// <para>
-/// Runs AFTER <see cref="NegotiationListenerCoordinator"/> in registration order so the local
-/// listener is up before we send. Same-process (single-instance deployment) and cross-process
-/// (multi-instance) both flow through the broker's SAC-selected active consumer.
+/// Registered after <see cref="NegotiationListenerCoordinator"/> so the local listener is up
+/// before this service sends its first request. Admission decisions are made by whichever
+/// instance holds the broker-native single-active-consumer role for the topic; this class never
+/// touches <see cref="INegotiationState"/>.
 /// </para>
 /// <para>
 /// The channel backend skips negotiation entirely (one assembly version, no skew), and a
-/// service with no <see cref="PublisherRoleMarker"/>s (subscriber-only) has nothing to request
-/// on the publisher side.
+/// service with no <see cref="PublisherRoleMarker"/>s (subscriber-only) has nothing to do
+/// here.
 /// </para>
 /// </summary>
 internal sealed class PublisherJoinRequester : BackgroundService

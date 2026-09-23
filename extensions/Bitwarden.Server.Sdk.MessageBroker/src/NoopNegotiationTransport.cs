@@ -2,9 +2,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Fallback transport that satisfies <see cref="INegotiationTransport"/> when no distributed
-/// backend is configured. Wired into the send-factory as a defensive default so a caller who
-/// bypasses the sender-factory's own no-backend guard still gets a well-typed transport
-/// instead of a null.
+/// backend is configured.
 /// </summary>
 internal sealed class NoopNegotiationTransport : INegotiationTransport
 {

@@ -1,11 +1,11 @@
 namespace Bitwarden.Server.Sdk.MessageBroker;
 
 /// <summary>
-/// Thrown at host startup when the fleet's active consumer replies to a
-/// no-go <see cref="PublisherJoin"/> or <see cref="Capability"/>. The
-/// host fails to start. Unlike <see cref="NegotiationTimeoutException"/>, this outcome is
-/// never softened by <c>proceedOnAdmissionTimeout</c>: a real wire-name incompatibility is
-/// always a deploy-time gate failure.
+/// Thrown at host startup when the fleet's active consumer replies no-go to a
+/// <see cref="PublisherJoin"/> or <see cref="Capability"/> — the requester's wire-name set does
+/// not overlap at least one live counterparty. The host fails to start.
+/// <c>proceedOnAdmissionTimeout</c> does not soften this outcome; the flag only affects the
+/// timeout path covered by <see cref="NegotiationTimeoutException"/>.
 /// </summary>
 public sealed class NegotiationRejectedException : Exception
 {

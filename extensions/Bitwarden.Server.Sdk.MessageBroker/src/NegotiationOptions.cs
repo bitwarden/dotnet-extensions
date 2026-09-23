@@ -1,27 +1,16 @@
 namespace Bitwarden.Server.Sdk.MessageBroker;
 
 /// <summary>
-/// Options for message-plane version negotiation. Distributed backends exchange
-/// <see cref="Capability"/> and <see cref="PublisherJoin"/> messages on a broker-wide
-/// control topic to verify compatibility at deploy time.
-/// <para>
-/// Names carried here identify entities on that control topic. On Azure Service Bus those
-/// entities must be pre-provisioned. On RabbitMQ the library declares them at startup,
-/// given <c>configure</c> permission on the name pattern. The in-memory channel backend
-/// skips negotiation entirely.
-/// </para>
+/// Options for message-plane version negotiation. See the <c>Version negotiation</c> section of
+/// the package documentation for provisioning and permissions.
 /// </summary>
 public sealed class NegotiationOptions
 {
     /// <summary>
-    /// <para>Required</para>
-    /// Identifier for this service. Derives
-    /// <see cref="RequestSubscriptionName"/> and <see cref="ReplySubscriptionName"/>,
-    /// and tags negotiation metrics.
-    /// <para>
-    /// Must be unique across the deployment and, for Azure Service Bus, the resulting subscription
-    /// names must match deployed infrastructure.
-    /// </para>
+    /// <para>Required.</para>
+    /// Identifier for this service. Derives <see cref="RequestSubscriptionName"/> and
+    /// <see cref="ReplySubscriptionName"/> and tags negotiation metrics. Must be unique per
+    /// messaging namespace.
     /// </summary>
     public string? ServiceName { get; set; }
 
@@ -42,18 +31,16 @@ public sealed class NegotiationOptions
     /// </summary>
     public Guid? Id { get; set; }
 
-    /// <summary>
-    /// Namespace-wide control topic name. Defaults to <c>"ctrl"</c>. Pre-provisioned on Azure
-    /// Service Bus; declared by the library at startup on RabbitMQ.
-    /// </summary>
+    /// <summary>Namespace-wide control topic name. Defaults to <c>"ctrl"</c>.</summary>
     public string ControlTopicName { get; set; } = "ctrl";
 
-    /// <summary>Capability republish interval. Defaults to five minutes.</summary>
+    /// <summary>Capability republish interval. Defaults to ninety seconds.</summary>
     public TimeSpan HeartbeatInterval { get; set; } = TimeSpan.FromSeconds(90);
 
     /// <summary>
     /// Multiplier applied to <see cref="HeartbeatInterval"/> for the cache entry TTL. Must be
-    /// greater than 1.0. Defaults to 5.5.
+    /// greater than 1.0. Defaults to 5.5, so an instance survives up to four consecutive missed
+    /// heartbeats before the fleet considers it gone.
     /// </summary>
     public double TtlPaddingFactor { get; set; } = 5.5;
 
@@ -64,29 +51,17 @@ public sealed class NegotiationOptions
     public TimeSpan AdmissionTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Derived <c>"request-{ServiceName}"</c>. Where this service receives incoming negotiation
-    /// requests (<see cref="Capability"/> from subscribers, <see cref="PublisherJoin"/> from
-    /// other publishers) that it must ack.
-    /// <para>
-    /// On Azure Service Bus, the subscription itself must be pre-provisioned session-enabled
-    /// (session-id = data-topic). At startup the library reconciles one SQL rule per
-    /// data-topic registered via <c>AddPublisher</c>, requiring Data Owner rights scoped to
-    /// this subscription. On RabbitMQ, declared by the library at startup with
-    /// <c>x-single-active-consumer</c> and one binding per data-topic.
-    /// </para>
+    /// Derived <c>"request-{ServiceName}"</c>. Subscription name this service consumes admission
+    /// requests from.
     /// </summary>
     /// <exception cref="InvalidOperationException"><see cref="ServiceName"/> is not set.</exception>
     public string RequestSubscriptionName
         => $"request-{ServiceName ?? throw ServiceNameNotSet()}";
 
     /// <summary>
-    /// Derived <c>"reply-{ServiceName}"</c>. Where this service's instances read go/no go
-    /// replies.
-    /// <para>
-    /// On Azure Service Bus, pre-provisioned session-enabled (session-id = instance identifier).
-    /// Unused on RabbitMQ, which uses the per-connection <c>amq.rabbitmq.reply-to</c>
+    /// Derived <c>"reply-{ServiceName}"</c>. Subscription name this service consumes admission
+    /// replies from. Unused on RabbitMQ, which uses the per-connection <c>amq.rabbitmq.reply-to</c>
     /// pseudo-queue.
-    /// </para>
     /// </summary>
     /// <exception cref="InvalidOperationException"><see cref="ServiceName"/> is not set.</exception>
     public string ReplySubscriptionName
