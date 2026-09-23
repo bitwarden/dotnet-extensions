@@ -151,7 +151,7 @@ internal sealed class NegotiationListenerCoordinator : IHostedLifecycleService
             // so the state handed to it is scoped to the topic
             return [.. topics.Select(topic =>
             {
-                var transport = new AzureServiceBusNegotiationTransport(_messagingOptions, _negotiationOptions, topic);
+                var transport = AzureServiceBusNegotiationTransport.ForListener(_messagingOptions, _negotiationOptions, topic);
                 var scoped = new TopicScopedNegotiationState(inner, topic);
                 return (new NegotiationListener(transport, scoped, _metrics), transport);
             })];

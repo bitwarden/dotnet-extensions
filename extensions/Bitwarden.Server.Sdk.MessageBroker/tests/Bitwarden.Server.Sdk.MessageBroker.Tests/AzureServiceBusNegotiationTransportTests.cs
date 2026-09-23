@@ -299,7 +299,7 @@ public class AzureServiceBusNegotiationTransportTests
             Id = Guid.NewGuid(),
             AdmissionTimeout = admissionTimeout ?? TimeSpan.FromSeconds(15),
         });
-        return new AzureServiceBusNegotiationTransport(msgOpts, negotiationOpts, dataTopic);
+        return AzureServiceBusNegotiationTransport.ForListener(msgOpts, negotiationOpts, dataTopic);
     }
 
     private static ServiceBusMessage BuildCapabilityMessage(string instanceId)
