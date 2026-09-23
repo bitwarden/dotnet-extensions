@@ -14,9 +14,9 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <para>
 /// Not wired to <c>ValidateOnStart</c> here — the validator only fires once
 /// <see cref="NegotiationOptions"/> is materialized (which happens inside
-/// <see cref="PublisherJoinRequester.StartAsync"/>,
-/// <see cref="SubscriberJoinRequester.StartAsync"/>, and
-/// <see cref="NegotiationListenerCoordinator.StartAsync"/> for distributed backends).
+/// <see cref="PublisherJoinRequester.StartingAsync"/>,
+/// <see cref="SubscriberJoinRequester.StartingAsync"/>, and
+/// <see cref="NegotiationListenerCoordinator.StartingAsync"/> for distributed backends).
 /// Channel-backend deployments never touch these options, so they never trip the validator.
 /// </para>
 /// </summary>

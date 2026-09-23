@@ -43,11 +43,20 @@ internal delegate INegotiationTransport SubscriberNegotiationSenderFactory(strin
 /// marker so the cache entry drops immediately, then disposes the sender.</description></item>
 /// </list>
 /// <para>
+/// Implements <see cref="IHostedLifecycleService"/> so admission runs in the
+/// <c>StartingAsync</c> phase, which the host completes for every service before invoking any
+/// <c>StartAsync</c>. That guarantee holds regardless of caller registration order: any
+/// downstream <see cref="BackgroundService"/> — including
+/// <see cref="ConsumerBackgroundService{TPayload, TCeiling, TConsumer}"/>, ASP.NET's Kestrel
+/// host, or a user-registered <c>IHostedService</c> that iterates a subscription — begins its
+/// <c>ExecuteAsync</c> only after subscription admission is settled.
+/// </para>
+/// <para>
 /// The channel backend skips negotiation entirely (one assembly version, no skew), and a
 /// service with no <see cref="SubscriberRoleMarker"/>s (publisher-only) has nothing to do here.
 /// </para>
 /// </summary>
-internal sealed class SubscriberJoinRequester : BackgroundService
+internal sealed class SubscriberJoinRequester : BackgroundService, IHostedLifecycleService
 {
     private readonly IEnumerable<SubscriberRoleMarker> _markers;
     private readonly IOptions<MessagingOptions> _messagingOptions;
@@ -57,8 +66,9 @@ internal sealed class SubscriberJoinRequester : BackgroundService
     private readonly NegotiationMetrics _metrics;
     private readonly ILogger<SubscriberJoinRequester> _logger;
 
-    // Populated in StartAsync when the distributed-backend + markers guard passes; ExecuteAsync
-    // and StopAsync rely on the same non-null check to know whether initial admission ran.
+    // Populated in StartingAsync when the distributed-backend + markers guard passes;
+    // ExecuteAsync and StopAsync rely on the same non-null check to know whether initial
+    // admission ran.
     private INegotiationTransport? _sender;
     private List<SubscriberRoleMarker> _admittedMarkers = [];
 
@@ -80,7 +90,7 @@ internal sealed class SubscriberJoinRequester : BackgroundService
         _logger = logger;
     }
 
-    public override async Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartingAsync(CancellationToken cancellationToken)
     {
         var messaging = _messagingOptions.Value;
         // A single AddSubscriber<TPayload>(topic, subscriptionName) call registers one marker;
@@ -97,7 +107,7 @@ internal sealed class SubscriberJoinRequester : BackgroundService
             || (string.IsNullOrEmpty(messaging.AzureServiceBusConnectionString)
                 && string.IsNullOrEmpty(messaging.RabbitUri)))
         {
-            // Nothing to do. Skip base.StartAsync so ExecuteAsync never runs.
+            // Nothing to do; leave _sender null so ExecuteAsync short-circuits.
             return;
         }
 
@@ -128,8 +138,11 @@ internal sealed class SubscriberJoinRequester : BackgroundService
 
         _sender = sender;
         _admittedMarkers = markers;
-        await base.StartAsync(cancellationToken);
     }
+
+    public Task StartedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StoppingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StoppedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
