@@ -25,10 +25,14 @@ internal delegate INegotiationTransport PublisherNegotiationSenderFactory(string
 /// marker so the cache entry drops immediately, then disposes the sender.</description></item>
 /// </list>
 /// <para>
-/// Registered after <see cref="NegotiationListenerCoordinator"/> so the local listener is up
-/// before this service sends its first request. Admission decisions are made by whichever
-/// instance holds the broker-native single-active-consumer role for the topic; this class never
-/// touches <see cref="INegotiationState"/>.
+/// Implements <see cref="IHostedLifecycleService"/> so admission runs in the
+/// <c>StartingAsync</c> phase, which the host completes for every service before invoking any
+/// <c>StartAsync</c>. That guarantee holds regardless of caller registration order: any
+/// downstream <see cref="BackgroundService"/> (e.g., a consumer loop or a user-registered
+/// hosted service) begins its <c>ExecuteAsync</c> only after publish admission is settled.
+/// Admission decisions are made by whichever instance holds the broker-native
+/// single-active-consumer role for the topic; this class never touches
+/// <see cref="INegotiationState"/>.
 /// </para>
 /// <para>
 /// The channel backend skips negotiation entirely (one assembly version, no skew), and a
@@ -36,7 +40,7 @@ internal delegate INegotiationTransport PublisherNegotiationSenderFactory(string
 /// here.
 /// </para>
 /// </summary>
-internal sealed class PublisherJoinRequester : BackgroundService
+internal sealed class PublisherJoinRequester : BackgroundService, IHostedLifecycleService
 {
     private readonly IEnumerable<PublisherRoleMarker> _markers;
     private readonly IOptions<MessagingOptions> _messagingOptions;
@@ -45,8 +49,9 @@ internal sealed class PublisherJoinRequester : BackgroundService
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<PublisherJoinRequester> _logger;
 
-    // Populated in StartAsync when the distributed-backend + markers guard passes; ExecuteAsync
-    // and StopAsync rely on the same non-null check to know whether initial admission ran.
+    // Populated in StartingAsync when the distributed-backend + markers guard passes;
+    // ExecuteAsync and StopAsync rely on the same non-null check to know whether initial
+    // admission ran.
     private INegotiationTransport? _sender;
     private List<PublisherRoleMarker> _admittedMarkers = [];
 
@@ -66,7 +71,7 @@ internal sealed class PublisherJoinRequester : BackgroundService
         _logger = logger;
     }
 
-    public override async Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartingAsync(CancellationToken cancellationToken)
     {
         var messaging = _messagingOptions.Value;
         var markers = _markers.ToList();
@@ -74,7 +79,7 @@ internal sealed class PublisherJoinRequester : BackgroundService
             || (string.IsNullOrEmpty(messaging.AzureServiceBusConnectionString)
                 && string.IsNullOrEmpty(messaging.RabbitUri)))
         {
-            // Nothing to do. Skip base.StartAsync so ExecuteAsync never runs.
+            // Nothing to do; leave _sender null so ExecuteAsync short-circuits.
             return;
         }
 
@@ -102,8 +107,11 @@ internal sealed class PublisherJoinRequester : BackgroundService
 
         _sender = sender;
         _admittedMarkers = markers;
-        await base.StartAsync(cancellationToken);
     }
+
+    public Task StartedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StoppingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StoppedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

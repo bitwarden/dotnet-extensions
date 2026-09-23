@@ -20,7 +20,7 @@ public class NegotiationListenerCoordinatorTests
             markers: [new PublisherRoleMarker("topic", new HashSet<string> { "v1" })],
             messaging: new MessagingOptions());
 
-        await coordinator.StartAsync(TestContext.Current.CancellationToken);
+        await coordinator.StartingAsync(TestContext.Current.CancellationToken);
         Assert.Equal(0, coordinator.ListenerCount);
         await coordinator.StopAsync(TestContext.Current.CancellationToken);
     }
@@ -34,7 +34,7 @@ public class NegotiationListenerCoordinatorTests
             markers: [],
             messaging: new MessagingOptions { RabbitUri = "amqp://example" });
 
-        await coordinator.StartAsync(TestContext.Current.CancellationToken);
+        await coordinator.StartingAsync(TestContext.Current.CancellationToken);
         Assert.Equal(0, coordinator.ListenerCount);
         await coordinator.StopAsync(TestContext.Current.CancellationToken);
     }

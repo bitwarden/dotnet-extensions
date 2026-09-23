@@ -15,8 +15,8 @@ public class PublisherJoinRequesterTests
         await using var harness = TestHarness.Build(reply: _ => new NegotiationAck { Go = true });
         harness.RegisterPublisher(Topic);
 
-        // StartAsync completes without throwing = fleet admitted the requester.
-        await harness.Requester.StartAsync(TestContext.Current.CancellationToken);
+        // StartingAsync completes without throwing = fleet admitted the requester.
+        await harness.Requester.StartingAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public class PublisherJoinRequesterTests
         harness.RegisterPublisher(Topic);
 
         var ex = await Assert.ThrowsAsync<NegotiationRejectedException>(() =>
-            harness.Requester.StartAsync(TestContext.Current.CancellationToken));
+            harness.Requester.StartingAsync(TestContext.Current.CancellationToken));
 
         Assert.Equal(Topic, ex.DataTopic);
         Assert.Contains("downstream-blocker", ex.OffenderInstanceIds);
@@ -44,7 +44,7 @@ public class PublisherJoinRequesterTests
         harness.RegisterPublisher(Topic);
 
         var ex = await Assert.ThrowsAsync<NegotiationTimeoutException>(() =>
-            harness.Requester.StartAsync(TestContext.Current.CancellationToken));
+            harness.Requester.StartingAsync(TestContext.Current.CancellationToken));
 
         Assert.Equal(Topic, ex.DataTopic);
     }
@@ -61,10 +61,12 @@ public class PublisherJoinRequesterTests
         // Task.Delay; real time avoids that ordering hazard.
         harness.ConfigureNegotiation(o => o.HeartbeatInterval = TimeSpan.FromMilliseconds(50));
 
-        await harness.Requester.StartAsync(TestContext.Current.CancellationToken);
+        var requester = harness.Requester;
+        await requester.StartingAsync(TestContext.Current.CancellationToken);
+        await requester.StartAsync(TestContext.Current.CancellationToken);
 
         await harness.WaitForJoinsAsync(count: 3);
-        await harness.Requester.StopAsync(TestContext.Current.CancellationToken);
+        await requester.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -89,7 +91,9 @@ public class PublisherJoinRequesterTests
             o.AdmissionTimeout = TimeSpan.FromMilliseconds(100);
         });
 
-        await harness.Requester.StartAsync(TestContext.Current.CancellationToken);
+        var requester = harness.Requester;
+        await requester.StartingAsync(TestContext.Current.CancellationToken);
+        await requester.StartAsync(TestContext.Current.CancellationToken);
         // Warnings only land after each failing heartbeat's admission timeout fires; wait for
         // at least two of those cycles to be sure the loop survived the first failure and made
         // it to a second attempt.
@@ -97,18 +101,18 @@ public class PublisherJoinRequesterTests
 
         Assert.All(harness.LoggedWarnings, w => Assert.Contains(Topic, w));
 
-        await harness.Requester.StopAsync(TestContext.Current.CancellationToken);
+        await requester.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
     public async Task StopAsyncIsSafeWhenStartWasSkippedForChannelBackend()
     {
-        // No RabbitUri / ASB connection string configured → StartAsync short-circuits without
+        // No RabbitUri / ASB connection string configured → StartingAsync short-circuits without
         // touching the sender or state. StopAsync must be a no-op regardless.
         await using var harness = TestHarness.BuildForChannelBackend();
         harness.RegisterPublisher(Topic);
 
-        await harness.Requester.StartAsync(TestContext.Current.CancellationToken);
+        await harness.Requester.StartingAsync(TestContext.Current.CancellationToken);
         await harness.Requester.StopAsync(TestContext.Current.CancellationToken);
     }
 
@@ -119,7 +123,7 @@ public class PublisherJoinRequesterTests
         harness.RegisterPublisher(Topic);
 
         var requester = harness.Requester;
-        await requester.StartAsync(TestContext.Current.CancellationToken);
+        await requester.StartingAsync(TestContext.Current.CancellationToken);
         await requester.StopAsync(TestContext.Current.CancellationToken);
 
         // Await the leave-observed signal — leaves are fire-and-forget from the sender's side,
@@ -133,9 +137,10 @@ public class PublisherJoinRequesterTests
 
     /// <summary>
     /// Wires a real <see cref="PublisherJoinRequester"/> against an in-memory
-    /// <see cref="INegotiationTransport"/> so tests drive <see cref="PublisherJoinRequester.StartAsync"/>
-    /// end-to-end without a real broker. Registrations go through the real <c>AddPublisher</c>
-    /// so the production DI + marker path is exercised.
+    /// <see cref="INegotiationTransport"/> so tests drive
+    /// <see cref="PublisherJoinRequester.StartingAsync"/> end-to-end without a real broker.
+    /// Registrations go through the real <c>AddPublisher</c> so the production DI + marker path
+    /// is exercised.
     /// </summary>
     private sealed class TestHarness : IAsyncDisposable
     {
@@ -157,8 +162,8 @@ public class PublisherJoinRequesterTests
             _listenerCts = listenerCts;
 
             // Bare-bones config for the requester's DI path: a distributed backend must appear
-            // configured so StartAsync doesn't short-circuit, and NegotiationOptions must have
-            // ServiceName + a short AdmissionTimeout. The actual RabbitUri value is never
+            // configured so StartingAsync doesn't short-circuit, and NegotiationOptions must
+            // have ServiceName + a short AdmissionTimeout. The actual RabbitUri value is never
             // dialed — the sender factory below returns an in-memory transport.
             _services.AddLogging(b => b.AddProvider(_loggerProvider));
             // PublisherCacheValidator requires AddBitwardenCaching whenever a distributed

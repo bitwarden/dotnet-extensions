@@ -15,8 +15,8 @@ public class SubscriberCapabilityRequesterTests
         await using var harness = TestHarness.Build(reply: _ => new NegotiationAck { Go = true });
         harness.RegisterSubscriber(Topic, "sub");
 
-        // StartAsync completes without throwing = fleet admitted the subscriber.
-        await harness.Requester.StartAsync(TestContext.Current.CancellationToken);
+        // StartingAsync completes without throwing = fleet admitted the subscriber.
+        await harness.Requester.StartingAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public class SubscriberCapabilityRequesterTests
         harness.RegisterSubscriber(Topic, "sub");
 
         var ex = await Assert.ThrowsAsync<NegotiationRejectedException>(() =>
-            harness.Requester.StartAsync(TestContext.Current.CancellationToken));
+            harness.Requester.StartingAsync(TestContext.Current.CancellationToken));
 
         Assert.Equal(Topic, ex.DataTopic);
         Assert.Contains("incompatible-pub", ex.OffenderInstanceIds);
@@ -44,7 +44,7 @@ public class SubscriberCapabilityRequesterTests
         harness.RegisterSubscriber(Topic, "sub");
 
         var ex = await Assert.ThrowsAsync<NegotiationTimeoutException>(() =>
-            harness.Requester.StartAsync(TestContext.Current.CancellationToken));
+            harness.Requester.StartingAsync(TestContext.Current.CancellationToken));
 
         Assert.Equal(Topic, ex.DataTopic);
     }
@@ -57,7 +57,7 @@ public class SubscriberCapabilityRequesterTests
         await using var harness = TestHarness.BuildWithoutListener();
         harness.RegisterSubscriber(Topic, "sub", proceedOnAdmissionTimeout: true);
 
-        await harness.Requester.StartAsync(TestContext.Current.CancellationToken);
+        await harness.Requester.StartingAsync(TestContext.Current.CancellationToken);
 
         var errors = harness.LoggedErrors.ToList();
         Assert.Single(errors);
@@ -78,7 +78,7 @@ public class SubscriberCapabilityRequesterTests
         harness.RegisterSubscriber(Topic, "sub", proceedOnAdmissionTimeout: true);
 
         await Assert.ThrowsAsync<NegotiationRejectedException>(() =>
-            harness.Requester.StartAsync(TestContext.Current.CancellationToken));
+            harness.Requester.StartingAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -86,14 +86,14 @@ public class SubscriberCapabilityRequesterTests
     {
         // Two AddSubscriber calls for the same topic disagree on the flag: one opts into
         // graceful degradation, the other doesn't. Strictest wins — the topic must hard-fail
-        // on timeout regardless of the soft opt-in. Drives the real StartAsync path so the
+        // on timeout regardless of the soft opt-in. Drives the real StartingAsync path so the
         // production dedupe rule is under test.
         await using var harness = TestHarness.BuildWithoutListener();
         harness.RegisterSubscriber(Topic, "sub-a", proceedOnAdmissionTimeout: true);
         harness.RegisterSubscriber(Topic, "sub-b", proceedOnAdmissionTimeout: false);
 
         var ex = await Assert.ThrowsAsync<NegotiationTimeoutException>(() =>
-            harness.Requester.StartAsync(TestContext.Current.CancellationToken));
+            harness.Requester.StartingAsync(TestContext.Current.CancellationToken));
 
         Assert.Equal(Topic, ex.DataTopic);
     }
@@ -107,9 +107,11 @@ public class SubscriberCapabilityRequesterTests
         harness.RegisterSubscriber(Topic, "sub");
         harness.ConfigureNegotiation(o => o.HeartbeatInterval = TimeSpan.FromMilliseconds(50));
 
-        await harness.Requester.StartAsync(TestContext.Current.CancellationToken);
+        var requester = harness.Requester;
+        await requester.StartingAsync(TestContext.Current.CancellationToken);
+        await requester.StartAsync(TestContext.Current.CancellationToken);
         await harness.WaitForCapabilitiesAsync(count: 3);
-        await harness.Requester.StopAsync(TestContext.Current.CancellationToken);
+        await requester.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -134,7 +136,9 @@ public class SubscriberCapabilityRequesterTests
             o.AdmissionTimeout = TimeSpan.FromMilliseconds(100);
         });
 
-        await harness.Requester.StartAsync(TestContext.Current.CancellationToken);
+        var requester = harness.Requester;
+        await requester.StartingAsync(TestContext.Current.CancellationToken);
+        await requester.StartAsync(TestContext.Current.CancellationToken);
         // Warnings only land after each failing heartbeat's admission timeout fires; wait for
         // at least two of those cycles to be sure the loop survived the first failure and made
         // it to a second attempt.
@@ -142,18 +146,18 @@ public class SubscriberCapabilityRequesterTests
 
         Assert.All(harness.LoggedWarnings, w => Assert.Contains(Topic, w));
 
-        await harness.Requester.StopAsync(TestContext.Current.CancellationToken);
+        await requester.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
     public async Task StopAsyncIsSafeWhenStartWasSkippedForChannelBackend()
     {
-        // No RabbitUri / ASB connection string configured → StartAsync short-circuits without
-        // touching the sender or state. StopAsync must be a no-op regardless.
+        // No RabbitUri / ASB connection string configured → StartingAsync short-circuits
+        // without touching the sender or state. StopAsync must be a no-op regardless.
         await using var harness = TestHarness.BuildForChannelBackend();
         harness.RegisterSubscriber(Topic, "sub");
 
-        await harness.Requester.StartAsync(TestContext.Current.CancellationToken);
+        await harness.Requester.StartingAsync(TestContext.Current.CancellationToken);
         await harness.Requester.StopAsync(TestContext.Current.CancellationToken);
     }
 
@@ -164,7 +168,7 @@ public class SubscriberCapabilityRequesterTests
         harness.RegisterSubscriber(Topic, "sub");
 
         var requester = harness.Requester;
-        await requester.StartAsync(TestContext.Current.CancellationToken);
+        await requester.StartingAsync(TestContext.Current.CancellationToken);
         await requester.StopAsync(TestContext.Current.CancellationToken);
 
         // Await the leave-observed signal — leaves are fire-and-forget from the sender's side,
@@ -178,9 +182,10 @@ public class SubscriberCapabilityRequesterTests
 
     /// <summary>
     /// Wires a real <see cref="SubscriberJoinRequester"/> against an in-memory
-    /// <see cref="INegotiationTransport"/> so tests drive <see cref="SubscriberJoinRequester.StartAsync"/>
-    /// end-to-end without a real broker. Registrations go through the real <c>AddSubscriber</c>
-    /// so the production DI + marker + dedupe path is exercised.
+    /// <see cref="INegotiationTransport"/> so tests drive
+    /// <see cref="SubscriberJoinRequester.StartingAsync"/> end-to-end without a real broker.
+    /// Registrations go through the real <c>AddSubscriber</c> so the production DI + marker +
+    /// dedupe path is exercised.
     /// </summary>
     private sealed class TestHarness : IAsyncDisposable
     {
@@ -202,9 +207,9 @@ public class SubscriberCapabilityRequesterTests
             _listenerCts = listenerCts;
 
             // Bare-bones config for the requester's DI path: a distributed backend must appear
-            // configured so StartAsync doesn't short-circuit, and NegotiationOptions must have
-            // ServiceName + a short AdmissionTimeout for tests. The actual RabbitUri value is
-            // never dialed — the sender factory below returns an in-memory transport.
+            // configured so StartingAsync doesn't short-circuit, and NegotiationOptions must
+            // have ServiceName + a short AdmissionTimeout for tests. The actual RabbitUri value
+            // is never dialed — the sender factory below returns an in-memory transport.
             _services.AddLogging(b => b.AddProvider(_loggerProvider));
             // AddBitwardenCaching pulls IConfiguration via its options-configuration types.
             _services.AddSingleton<Microsoft.Extensions.Configuration.IConfiguration>(
