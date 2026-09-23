@@ -24,7 +24,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <c>To = '{ReplySubscriptionName}'</c>.
 /// </para>
 /// </summary>
-internal sealed class AzureServiceBusNegotiationTransport : INegotiationTransport, IAsyncDisposable
+internal sealed class AzureServiceBusNegotiationTransport : INegotiationTransport
 {
     private const string DataTopicPropertyName = "data-topic";
     private const string CapabilitySubject = "capability";

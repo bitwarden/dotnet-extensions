@@ -35,7 +35,7 @@ internal sealed class NegotiationListenerCoordinator : IHostedService
     private readonly IServiceProvider _services;
     private readonly NegotiationMetrics _metrics;
     private CancellationTokenSource? _listenerStopSignal;
-    private List<(Task RunTask, IAsyncDisposable Transport)>? _running;
+    private List<(Task RunTask, INegotiationTransport Transport)>? _running;
 
     public NegotiationListenerCoordinator(
         IEnumerable<PublisherRoleMarker> markers,
@@ -107,7 +107,7 @@ internal sealed class NegotiationListenerCoordinator : IHostedService
         stopSignal.Dispose();
     }
 
-    private List<(NegotiationListener Listener, IAsyncDisposable Transport)> BuildPairs()
+    private List<(NegotiationListener Listener, INegotiationTransport Transport)> BuildPairs()
     {
         var topics = _markers.Select(m => m.TopicName).Distinct().ToArray();
         var messaging = _messagingOptions.Value;
@@ -136,7 +136,7 @@ internal sealed class NegotiationListenerCoordinator : IHostedService
             {
                 var transport = new AzureServiceBusNegotiationTransport(_messagingOptions, _negotiationOptions, topic);
                 var scoped = new TopicScopedNegotiationState(inner, topic);
-                return (new NegotiationListener(transport, scoped, _metrics), (IAsyncDisposable)transport);
+                return (new NegotiationListener(transport, scoped, _metrics), transport);
             })];
         }
 

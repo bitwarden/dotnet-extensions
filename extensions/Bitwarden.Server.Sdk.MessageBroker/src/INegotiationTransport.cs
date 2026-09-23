@@ -7,8 +7,12 @@ namespace Bitwarden.Server.Sdk.MessageBroker;
 /// process's enumeration yields a request at any moment. Implementations must uphold this
 /// contract; callers may rely on it for serializing admission decisions.
 /// </para>
+/// <para>
+/// Extends <see cref="IAsyncDisposable"/> because callers hold transports through the
+/// interface and need to dispose broker connections without knowing the concrete type.
+/// </para>
 /// </summary>
-internal interface INegotiationTransport
+internal interface INegotiationTransport : IAsyncDisposable
 {
     /// <summary>Sends a subscriber's capability and awaits the go/no-go reply.</summary>
     Task<NegotiationAck> SendCapabilityAsync(

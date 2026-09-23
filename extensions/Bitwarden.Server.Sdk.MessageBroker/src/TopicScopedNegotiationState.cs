@@ -20,8 +20,8 @@ namespace Bitwarden.Server.Sdk.MessageBroker;
 /// </summary>
 internal sealed class TopicScopedNegotiationState : INegotiationState
 {
-    public INegotiationState InnerState { get; }
-    public string BoundTopic { get; }
+    private INegotiationState InnerState { get; }
+    private string BoundTopic { get; }
 
     public TopicScopedNegotiationState(INegotiationState innerState, string boundTopic)
     {
