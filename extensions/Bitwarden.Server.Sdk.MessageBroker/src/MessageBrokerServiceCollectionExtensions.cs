@@ -347,7 +347,7 @@ public static class MessageBrokerServiceCollectionExtensions
             var negOpts = sp.GetRequiredService<IOptions<NegotiationOptions>>();
             var messaging = msgOpts.Value;
             if (!string.IsNullOrEmpty(messaging.AzureServiceBusConnectionString))
-                return new AzureServiceBusNegotiationTransport(msgOpts, negOpts, topics[0]);
+                return AzureServiceBusNegotiationTransport.ForSender(msgOpts, negOpts);
             if (!string.IsNullOrEmpty(messaging.RabbitUri))
                 return RabbitNegotiationTransport.ForPublisherSender(sp.GetRequiredService<RabbitConnection>(), negOpts, topics);
             return new NoopNegotiationTransport();
@@ -381,7 +381,7 @@ public static class MessageBrokerServiceCollectionExtensions
             var negOpts = sp.GetRequiredService<IOptions<NegotiationOptions>>();
             var messaging = msgOpts.Value;
             if (!string.IsNullOrEmpty(messaging.AzureServiceBusConnectionString))
-                return new AzureServiceBusNegotiationTransport(msgOpts, negOpts, topics[0]);
+                return AzureServiceBusNegotiationTransport.ForSender(msgOpts, negOpts);
             return RabbitNegotiationTransport.ForSubscriberSender(sp.GetRequiredService<RabbitConnection>(), negOpts);
         });
         services.AddSingleton<SubscriberJoinRequester>();
