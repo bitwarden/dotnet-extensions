@@ -5,12 +5,12 @@ using Microsoft.Extensions.Options;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Builds the outbound <see cref="INegotiationTransport"/> the publisher requester uses to
+/// Builds the outbound <see cref="INegotiationSender"/> the publisher requester uses to
 /// send its <see cref="PublisherJoin"/>. Registered in DI so tests can substitute an
 /// in-memory transport and drive <see cref="PublisherJoinRequester"/> end-to-end without a
 /// real broker.
 /// </summary>
-internal delegate INegotiationTransport PublisherNegotiationSenderFactory(string[] topics);
+internal delegate INegotiationSender PublisherNegotiationSenderFactory(string[] topics);
 
 /// <summary>
 /// Hosted service that runs the publisher side of version negotiation:
@@ -52,7 +52,7 @@ internal sealed class PublisherJoinRequester : BackgroundService, IHostedLifecyc
     // Populated in StartingAsync when the distributed-backend + markers guard passes;
     // ExecuteAsync and StopAsync rely on the same non-null check to know whether initial
     // admission ran.
-    private INegotiationTransport? _sender;
+    private INegotiationSender? _sender;
     private List<PublisherRoleMarker> _admittedMarkers = [];
 
     public PublisherJoinRequester(
@@ -86,11 +86,8 @@ internal sealed class PublisherJoinRequester : BackgroundService, IHostedLifecyc
         var negotiation = _negotiationOptions.Value;
         var topics = markers.Select(m => m.TopicName).Distinct().ToArray();
 
-        // One transport handles sending across all topics — send-side is data-topic-agnostic
-        // (the outgoing message's DataTopic carries the routing), and the per-InstanceId reply
-        // loop can only exist once per process anyway. For ASB the factory supplies a bound
-        // data-topic for construction; the receive path is untouched here since we never call
-        // ReceiveRequestsAsync.
+        // One sender handles all topics — the outgoing message's DataTopic carries the routing,
+        // and the reply loop is per-transport.
         var sender = _senderFactory(topics);
         try
         {
@@ -143,7 +140,7 @@ internal sealed class PublisherJoinRequester : BackgroundService, IHostedLifecyc
 
     private async Task SendHeartbeatAsync(
         PublisherRoleMarker marker,
-        INegotiationTransport sender,
+        INegotiationSender sender,
         NegotiationOptions negotiation,
         CancellationToken stoppingToken)
     {
@@ -187,7 +184,7 @@ internal sealed class PublisherJoinRequester : BackgroundService, IHostedLifecyc
 
     private async Task SendLeaveAsync(
         PublisherRoleMarker marker,
-        INegotiationTransport sender,
+        INegotiationSender sender,
         string instanceId,
         CancellationToken cancellationToken)
     {
@@ -209,7 +206,7 @@ internal sealed class PublisherJoinRequester : BackgroundService, IHostedLifecyc
 
     private static async Task RequestJoinAsync(
         PublisherRoleMarker marker,
-        INegotiationTransport sender,
+        INegotiationSender sender,
         NegotiationOptions negotiation,
         CancellationToken cancellationToken)
     {
