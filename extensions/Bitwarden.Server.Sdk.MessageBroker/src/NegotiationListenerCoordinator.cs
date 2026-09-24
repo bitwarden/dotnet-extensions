@@ -113,15 +113,23 @@ internal sealed class NegotiationListenerCoordinator : IHostedLifecycleService
 
         // Signal every listener to exit, wait for their run loops to unwind, then dispose the
         // transports (closing underlying broker connections/channels) with nothing consuming.
+        // Collect faults from run tasks and disposals so a single failure doesn't skip the rest
+        // of the transports — leaking those would leak the underlying broker connections.
         await stopSignal.CancelAsync();
+        List<Exception>? errors = null;
         foreach (var (task, _) in running)
         {
             try { await task; }
             catch (OperationCanceledException) { /* expected */ }
+            catch (Exception ex) { (errors ??= []).Add(ex); }
         }
         foreach (var (_, transport) in running)
-            await transport.DisposeAsync();
+        {
+            try { await transport.DisposeAsync(); }
+            catch (Exception ex) { (errors ??= []).Add(ex); }
+        }
         stopSignal.Dispose();
+        if (errors is not null) throw new AggregateException(errors);
     }
 
     private List<(NegotiationListener Listener, INegotiationListener Transport)> BuildPairs()
