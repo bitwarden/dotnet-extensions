@@ -11,8 +11,10 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <para>
 /// Uses session-enabled subscriptions on the shared <see cref="NegotiationOptions.ControlTopicName"/>
 /// topic. The request subscription's session-id is the bound data-topic name — the broker's
-/// session lock enforces single-active-consumer semantics per data-topic. The reply subscription's
-/// session-id is this instance's identifier so each running process holds its own reply session.
+/// session lock enforces single-active-consumer semantics per data-topic. Each sender-role
+/// transport picks its own reply session-id at construction so a process that spawns multiple
+/// transports (e.g. one for the publisher requester and one for the subscriber requester) does
+/// not have them race for the same reply session lock.
 /// </para>
 /// <para>
 /// Construct via <see cref="ForListener"/> or <see cref="ForSender"/> — the factory name pins
@@ -44,6 +46,11 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
     // Sender-role instances leave this null; ReceiveRequestsAsync requires it and throws if called
     // on a sender.
     private readonly string? _dataTopic;
+    // Per-transport session id for the reply loop. Two sender-role transports in the same
+    // process (publisher + subscriber) each get their own so they don't collide on the reply
+    // subscription's session lock. Also flows out on ReplyToSessionId so the listener echoes
+    // its ack back to this transport's session.
+    private readonly string _replySessionId = Guid.NewGuid().ToString();
     private readonly ServiceBusClient _client;
     private readonly ServiceBusSender _sender;
 
@@ -157,7 +164,7 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
                 // which is needed to ensure a single writer to the negotiation state cache.
                 SessionId = dataTopic,
                 ReplyTo = _options.ReplySubscriptionName,
-                ReplyToSessionId = _options.InstanceId,
+                ReplyToSessionId = _replySessionId,
             };
             msg.ApplicationProperties[DataTopicPropertyName] = dataTopic;
 
@@ -185,7 +192,7 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
             var receiver = await _client.AcceptSessionAsync(
                 _options.ControlTopicName,
                 _options.ReplySubscriptionName,
-                _options.InstanceId,
+                _replySessionId,
                 cancellationToken: cancellationToken);
 
             _replyLoopTask = Task.Run(() => ReplyLoopAsync(receiver, _replyLoopShutdown.Token), CancellationToken.None);
