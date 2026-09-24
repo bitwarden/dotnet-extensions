@@ -23,11 +23,11 @@ internal sealed record SubscriberRoleMarker(
     bool ProceedOnAdmissionTimeout = false);
 
 /// <summary>
-/// Builds the outbound <see cref="INegotiationTransport"/> the subscriber requester uses to
+/// Builds the outbound <see cref="INegotiationSender"/> the subscriber requester uses to
 /// send its <see cref="Capability"/>. Registered in DI so tests can substitute an in-memory
 /// transport and drive <see cref="SubscriberJoinRequester"/> end-to-end without a real broker.
 /// </summary>
-internal delegate INegotiationTransport SubscriberNegotiationSenderFactory(string[] topics);
+internal delegate INegotiationSender SubscriberNegotiationSenderFactory(string[] topics);
 
 /// <summary>
 /// Hosted service that runs the subscriber side of version negotiation:
@@ -70,7 +70,7 @@ internal sealed class SubscriberJoinRequester : BackgroundService, IHostedLifecy
     // Populated in StartingAsync when the distributed-backend + markers guard passes;
     // ExecuteAsync and StopAsync rely on the same non-null check to know whether initial
     // admission ran.
-    private INegotiationTransport? _sender;
+    private INegotiationSender? _sender;
     private List<SubscriberRoleMarker> _admittedMarkers = [];
 
     public SubscriberJoinRequester(
@@ -175,7 +175,7 @@ internal sealed class SubscriberJoinRequester : BackgroundService, IHostedLifecy
 
     private async Task SendHeartbeatAsync(
         SubscriberRoleMarker marker,
-        INegotiationTransport sender,
+        INegotiationSender sender,
         NegotiationOptions negotiation,
         CancellationToken stoppingToken)
     {
@@ -220,7 +220,7 @@ internal sealed class SubscriberJoinRequester : BackgroundService, IHostedLifecy
 
     private async Task SendLeaveAsync(
         SubscriberRoleMarker marker,
-        INegotiationTransport sender,
+        INegotiationSender sender,
         string instanceId,
         CancellationToken cancellationToken)
     {
@@ -242,7 +242,7 @@ internal sealed class SubscriberJoinRequester : BackgroundService, IHostedLifecy
 
     private async Task RequestCapabilityAsync(
         SubscriberRoleMarker marker,
-        INegotiationTransport sender,
+        INegotiationSender sender,
         NegotiationOptions negotiation,
         CancellationToken cancellationToken)
     {
@@ -262,7 +262,7 @@ internal sealed class SubscriberJoinRequester : BackgroundService, IHostedLifecy
 
     private static async Task SendCapabilityAsync(
         SubscriberRoleMarker marker,
-        INegotiationTransport sender,
+        INegotiationSender sender,
         NegotiationOptions negotiation,
         CancellationToken cancellationToken)
     {

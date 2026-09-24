@@ -1,16 +1,16 @@
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Consumes and answers incoming negotiation requests delivered by an
-/// <see cref="INegotiationTransport"/>: a subscriber's <see cref="Capability"/> is admitted
-/// against every cached publisher for the same data-topic; a booting publisher's
+/// Consumes and answers incoming negotiation requests pulled from an
+/// <see cref="INegotiationListener"/> transport: a subscriber's <see cref="Capability"/> is
+/// admitted against every cached publisher for the same data-topic; a booting publisher's
 /// <see cref="PublisherJoin"/> is admitted against every cached subscriber. Admission passes
 /// when the requester's wire-name set overlaps every counterparty's set; otherwise a no-go
 /// reply lists the incompatible parties.
 /// <para>
-/// The listener relies on the transport to enforce single-active-consumer semantics per
-/// data-topic: no explicit locking here. If two instances of this listener process the same
-/// data-topic concurrently, the last cache write wins and admission decisions can race.
+/// Relies on the transport to enforce single-active-consumer semantics per data-topic: no
+/// explicit locking here. If two instances of this class process the same data-topic
+/// concurrently, the last cache write wins and admission decisions can race.
 /// </para>
 /// <para>
 /// Lifetime is managed by <see cref="NegotiationListenerCoordinator"/>, which starts each
@@ -20,11 +20,11 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 internal sealed class NegotiationListener
 {
-    private readonly INegotiationTransport _transport;
+    private readonly INegotiationListener _transport;
     private readonly INegotiationState _state;
     private readonly NegotiationMetrics _metrics;
 
-    public NegotiationListener(INegotiationTransport transport, INegotiationState state, NegotiationMetrics metrics)
+    public NegotiationListener(INegotiationListener transport, INegotiationState state, NegotiationMetrics metrics)
     {
         _transport = transport;
         _state = state;
