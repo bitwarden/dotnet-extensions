@@ -182,12 +182,15 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
 
     private async Task EnsureReplyLoopAsync(CancellationToken cancellationToken)
     {
-        if (_replyLoopTask is not null) return;
+        // A completed task means the loop exited (transient ServiceBusException, session lock
+        // loss, etc.). Treat that as "no loop running" and re-establish so future sends aren't
+        // stuck waiting AdmissionTimeout for replies that will never arrive.
+        if (_replyLoopTask is { IsCompleted: false }) return;
 
         await _replyInitLock.WaitAsync(cancellationToken);
         try
         {
-            if (_replyLoopTask is not null) return;
+            if (_replyLoopTask is { IsCompleted: false }) return;
 
             var receiver = await _client.AcceptSessionAsync(
                 _options.ControlTopicName,
