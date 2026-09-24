@@ -31,7 +31,7 @@ public class RabbitNegotiationTransportTests
         };
 
         var connection = new RabbitConnection(msgOpts, []);
-        await connection.StartAsync(TestContext.Current.CancellationToken);
+        await connection.StartingAsync(TestContext.Current.CancellationToken);
         _connections.Add(connection);
         // Bind every data-topic the behavior tests exercise so a single "service" acts as
         // both publisher and subscriber for them.
