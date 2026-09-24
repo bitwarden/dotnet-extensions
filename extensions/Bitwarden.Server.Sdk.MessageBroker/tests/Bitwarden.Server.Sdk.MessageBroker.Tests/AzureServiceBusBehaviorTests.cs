@@ -110,13 +110,13 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
     }
 
     // ASB subscriptions are persistent and accumulate messages across tests. Drain all
-    // subscriptions before each test to prevent cross-test pollution.
-    public override async ValueTask InitializeAsync()
-    {
-        await _fixture.DrainSubscriptionAsync(TopicName, SubscriptionName);
-        await _fixture.DrainSubscriptionAsync(TopicName, "pm");
-        await _fixture.DrainSubscriptionAsync(TopicName, "sm");
-    }
+    // subscriptions before each test to prevent cross-test pollution. Drains run in parallel
+    // because each subscription has an independent receiver and the empty-wait dominates.
+    public override async ValueTask InitializeAsync() =>
+        await Task.WhenAll(
+            _fixture.DrainSubscriptionAsync(TopicName, SubscriptionName),
+            _fixture.DrainSubscriptionAsync(TopicName, "pm"),
+            _fixture.DrainSubscriptionAsync(TopicName, "sm"));
 }
 
 public sealed record OversizedVariant(string Data) : OversizedPayload.ISole;

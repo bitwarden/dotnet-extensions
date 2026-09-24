@@ -16,6 +16,7 @@ public class AzureServiceBusFixture : IAsyncLifetime
     private IContainer? _sqlContainer;
     private IContainer? _emulatorContainer;
     private string? _configFile;
+    private ServiceBusClient? _sharedClient;
 
     private const string SqlPassword = "Password!123";
     private const string SqlAlias = "sqledge";
@@ -25,6 +26,10 @@ public class AzureServiceBusFixture : IAsyncLifetime
         var port = _emulatorContainer!.GetMappedPublicPort(5672);
         return $"Endpoint=sb://localhost:{port};SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;";
     }
+
+    // Long-lived client shared by drain helpers. Creating a fresh ServiceBusClient per drain call
+    // costs a TCP+AMQP handshake; the emulator opens roughly one connection per drain per test.
+    private ServiceBusClient SharedClient => _sharedClient ??= new ServiceBusClient(GetConnectionString());
 
     public async ValueTask InitializeAsync()
     {
@@ -228,6 +233,7 @@ public class AzureServiceBusFixture : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
+        if (_sharedClient != null) await _sharedClient.DisposeAsync();
         if (_emulatorContainer != null) await _emulatorContainer.DisposeAsync();
         if (_sqlContainer != null) await _sqlContainer.DisposeAsync();
         if (_network != null) await _network.DisposeAsync();
@@ -240,19 +246,23 @@ public class AzureServiceBusFixture : IAsyncLifetime
     /// without needing to complete each one individually. Pass
     /// <see cref="SubQueue.DeadLetter"/> to drain a subscription's dead-letter queue instead.
     /// </summary>
+    /// <remarks>
+    /// The trailing empty-batch check waits <c>maxWaitTime</c> against an emulator running on
+    /// localhost; 250 ms is comfortably above observed emulator response latency.
+    /// </remarks>
     public async Task DrainSubscriptionAsync(string topic, string subscription, SubQueue subQueue = SubQueue.None)
     {
-        await using var client = new ServiceBusClient(GetConnectionString());
-        await using var receiver = client.CreateReceiver(topic, subscription,
+        await using var receiver = SharedClient.CreateReceiver(topic, subscription,
             new ServiceBusReceiverOptions
             {
                 ReceiveMode = ServiceBusReceiveMode.ReceiveAndDelete,
                 SubQueue = subQueue,
+                PrefetchCount = 100,
             });
         IReadOnlyList<ServiceBusReceivedMessage> batch;
         do
         {
-            batch = await receiver.ReceiveMessagesAsync(maxMessages: 100, maxWaitTime: TimeSpan.FromSeconds(1));
+            batch = await receiver.ReceiveMessagesAsync(maxMessages: 100, maxWaitTime: TimeSpan.FromMilliseconds(250));
         } while (batch.Count > 0);
     }
 
