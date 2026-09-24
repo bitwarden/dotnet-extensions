@@ -42,7 +42,7 @@ internal sealed class NegotiationListenerCoordinator : IHostedLifecycleService
     private readonly IServiceProvider _services;
     private readonly NegotiationMetrics _metrics;
     private CancellationTokenSource? _listenerStopSignal;
-    private List<(Task RunTask, INegotiationTransport Transport)>? _running;
+    private List<(Task RunTask, INegotiationListener Transport)>? _running;
 
     public NegotiationListenerCoordinator(
         IEnumerable<PublisherRoleMarker> markers,
@@ -124,7 +124,7 @@ internal sealed class NegotiationListenerCoordinator : IHostedLifecycleService
         stopSignal.Dispose();
     }
 
-    private List<(NegotiationListener Listener, INegotiationTransport Transport)> BuildPairs()
+    private List<(NegotiationListener Listener, INegotiationListener Transport)> BuildPairs()
     {
         var topics = _markers.Select(m => m.TopicName).Distinct().ToArray();
         var messaging = _messagingOptions.Value;

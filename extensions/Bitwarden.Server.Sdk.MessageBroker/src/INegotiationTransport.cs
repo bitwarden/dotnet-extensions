@@ -1,18 +1,10 @@
 namespace Bitwarden.Server.Sdk.MessageBroker;
 
 /// <summary>
-/// Sends and receives control-plane messages for message-plane version negotiation.
-/// <para>
-/// <see cref="ReceiveRequestsAsync"/> is single-active-consumer across the service: at most one
-/// process's enumeration yields a request at any moment. Implementations must uphold this
-/// contract; callers may rely on it for serializing admission decisions.
-/// </para>
-/// <para>
-/// Extends <see cref="IAsyncDisposable"/> because callers hold transports through the
-/// interface and need to dispose broker connections without knowing the concrete type.
-/// </para>
+/// Sends control-plane messages for message-plane version negotiation. Used by the publisher and
+/// subscriber join requesters; the listener side does not need this surface.
 /// </summary>
-internal interface INegotiationTransport : IAsyncDisposable
+internal interface INegotiationSender : IAsyncDisposable
 {
     /// <summary>Sends a subscriber's capability and awaits the go/no-go reply.</summary>
     Task<NegotiationAck> SendCapabilityAsync(
@@ -39,7 +31,20 @@ internal interface INegotiationTransport : IAsyncDisposable
     Task SendSubscriberLeaveAsync(
         SubscriberLeave leave,
         CancellationToken cancellationToken = default);
+}
 
+/// <summary>
+/// Receives control-plane messages for message-plane version negotiation. Used by
+/// <see cref="Microsoft.Extensions.DependencyInjection.NegotiationListener"/>; requesters do not
+/// need this surface.
+/// <para>
+/// <see cref="ReceiveRequestsAsync"/> is single-active-consumer across the service: at most one
+/// process's enumeration yields a request at any moment. Implementations must uphold this
+/// contract; callers may rely on it for serializing admission decisions.
+/// </para>
+/// </summary>
+internal interface INegotiationListener : IAsyncDisposable
+{
     /// <summary>
     /// Streams inbound control-plane messages for the publisher-service subscription: admission
     /// requests (<see cref="CapabilityRequest"/>, <see cref="JoinRequest"/>) that must be replied
@@ -49,4 +54,14 @@ internal interface INegotiationTransport : IAsyncDisposable
     /// </summary>
     IAsyncEnumerable<INegotiationInbound> ReceiveRequestsAsync(
         CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Combined interface for transports that can play both roles on one instance. Test doubles and
+/// backend transports that expose both halves implement this; production consumers depend on
+/// the narrower <see cref="INegotiationSender"/> or <see cref="INegotiationListener"/> so a
+/// send-only or receive-only implementation stays typeable.
+/// </summary>
+internal interface INegotiationTransport : INegotiationSender, INegotiationListener
+{
 }
