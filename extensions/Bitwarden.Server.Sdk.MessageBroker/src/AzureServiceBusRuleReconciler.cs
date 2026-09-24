@@ -1,3 +1,4 @@
+using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -43,11 +44,23 @@ internal static class AzureServiceBusRuleReconciler
 
         var (toAdd, toRemove) = ComputeDiff(current, dataTopics);
 
+        // Reconciliation runs in every pod's StartingAsync, so concurrent boots (rolling deploys,
+        // multiple replicas coming up together) will race on the same add/remove operations.
+        // Swallow the expected idempotency failures so the losing pod still starts.
         foreach (var name in toRemove)
-            await admin.DeleteRuleAsync(topic, subscription, name, cancellationToken);
+        {
+            try { await admin.DeleteRuleAsync(topic, subscription, name, cancellationToken); }
+            catch (ServiceBusException ex) when (ex.Reason == ServiceBusFailureReason.MessagingEntityNotFound) { }
+        }
         foreach (var name in toAdd)
-            await admin.CreateRuleAsync(topic, subscription,
-                new CreateRuleOptions(name, DesiredFilter(NameToTopic(name))), cancellationToken);
+        {
+            try
+            {
+                await admin.CreateRuleAsync(topic, subscription,
+                    new CreateRuleOptions(name, DesiredFilter(NameToTopic(name))), cancellationToken);
+            }
+            catch (ServiceBusException ex) when (ex.Reason == ServiceBusFailureReason.MessagingEntityAlreadyExists) { }
+        }
     }
 
     /// <summary>
