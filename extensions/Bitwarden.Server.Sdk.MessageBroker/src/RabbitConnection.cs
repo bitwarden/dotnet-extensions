@@ -15,8 +15,13 @@ internal sealed record RabbitTopologyDeclaration(string ExchangeName, string? Qu
 /// Manages the shared Rabbit <see cref="IConnection"/> for the lifetime of the host: creates it,
 /// declares all exchanges and queues registered via <c>AddPublisher</c> / <c>AddSubscriber</c>
 /// during startup, then signals publishers and subscribers that the connection is ready.
+/// <para>
+/// Implements <see cref="IHostedLifecycleService"/> and runs its setup in
+/// <see cref="StartingAsync"/> so the connection is ready before the negotiation coordinator
+/// and join requesters — which also run in the StartingAsync phase — try to use it.
+/// </para>
 /// </summary>
-internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
+internal sealed class RabbitConnection : IHostedLifecycleService, IAsyncDisposable
 {
     private readonly IOptions<MessagingOptions> _options;
     private readonly IEnumerable<RabbitTopologyDeclaration> _declarations;
@@ -33,7 +38,12 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
     public Task<IConnection> GetConnectionAsync(CancellationToken cancellationToken = default) =>
         _tcs.Task.WaitAsync(cancellationToken);
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StartedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StoppingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StoppedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public async Task StartingAsync(CancellationToken cancellationToken)
     {
         var uri = _options.Value.RabbitUri;
         if (string.IsNullOrEmpty(uri))
@@ -76,7 +86,7 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
         {
             // Fault the TCS so publishers and subscribers that are awaiting the connection
             // fail immediately rather than hanging indefinitely. Do not rethrow — letting
-            // StartAsync complete without throwing allows the host to start even when the
+            // StartingAsync complete without throwing allows the host to start even when the
             // broker is temporarily unavailable; the first publish/subscribe will surface
             // the exception via BrokerUnavailableException.
             // TODO: Add a retry mechanism. The one-shot TaskCompletionSource means a transient
