@@ -105,13 +105,13 @@ public class LaunchDarklyFeatureServiceTests
     }
 
     [Fact]
-    public void IsEnabled_MultipleCalls_BuildsContextOnce()
+    public void IsEnabled_MultipleCalls_BuildsContextEachTime()
     {
         _ = _sut.IsEnabled("feature-one");
         _ = _sut.IsEnabled("feature-one");
 
-        // Use the access of the HttpContext as the indicator that it was only built from once
-        _contextBuilder.Received(1).Build();
+        // Caching the context is the responsibility of the IContextBuilder implementation
+        _contextBuilder.Received(2).Build();
     }
 
     [Theory]
