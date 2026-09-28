@@ -24,6 +24,17 @@
     <PackageReference Include="xunit.v3.mtp-v2" Version="[3.2.2]" />
   </ItemGroup>
 
+  <!--
+    Testcontainers 4.7.0 pulls in SSH.NET 2024.2.0 transitively, which carries two known high
+    severity advisories. This is a test-only dependency on a maintenance release branch, so the
+    advisories are suppressed here rather than taking a dependency bump. `main` instead pins
+    SSH.NET to 2026.0.0 directly; drop this suppression if that pin is ever backported.
+  -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-mggc-4xg6-vcxf" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-q939-rpr3-3284" />
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
