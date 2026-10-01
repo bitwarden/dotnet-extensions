@@ -65,6 +65,9 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.MessageBroker/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.MessageBroker/tests/Bitwarden.Server.Sdk.MessageBroker.Tests/Bitwarden.Server.Sdk.MessageBroker.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.RestrictedDependencies/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.RestrictedDependencies/src/Bitwarden.Server.Sdk.RestrictedDependencies.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.RestrictedDependencies/contracts/">
     <Project Path="extensions/Bitwarden.Server.Sdk.RestrictedDependencies/contracts/Bitwarden.Server.Sdk.RestrictedDependencies.Contracts/Bitwarden.Server.Sdk.RestrictedDependencies.Contracts.csproj" />
   </Folder>
