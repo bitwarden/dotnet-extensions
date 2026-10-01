@@ -66,6 +66,7 @@
   </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.RestrictedDependencies/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.RestrictedDependencies/tests/Bitwarden.Server.Sdk.RestrictedDependencies.Tests/Bitwarden.Server.Sdk.RestrictedDependencies.Tests.csproj" />
+    <Project Path="extensions/Bitwarden.Server.Sdk.RestrictedDependencies/tests/Bitwarden.Server.Sdk.RestrictedDependencies.Analyzers.Tests/Bitwarden.Server.Sdk.RestrictedDependencies.Analyzers.Tests.csproj" />
   </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.WebEssentials/">
     <Project Path="extensions/Bitwarden.Server.Sdk.WebEssentials/src/Bitwarden.Server.Sdk.WebEssentials.csproj" />
