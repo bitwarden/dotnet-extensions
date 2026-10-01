@@ -46,8 +46,7 @@ public static class MessageBrokerServiceCollectionExtensions
                 options.MaxDeliveryCount, sp.GetRequiredService<ILogger<ChannelPublisher<T>>>());
         });
 
-        // Register an exchange declaration so the hosted service creates it before traffic starts.
-        services.AddSingleton(new RabbitTopologyDeclaration(name));
+        services.AddSingleton(new BrokerTopologyDeclaration(name));
 
         return services;
     }
@@ -115,8 +114,7 @@ public static class MessageBrokerServiceCollectionExtensions
         // channel subscribers without a corresponding consumer.
         services.AddSingleton(new ChannelSubscriberDescriptor(typeof(T), subscriptionKey));
 
-        // Register an exchange+queue declaration so the hosted service creates the topology before traffic starts.
-        services.AddSingleton(new RabbitTopologyDeclaration(name, $"{name}.{subscriptionName}"));
+        services.AddSingleton(new BrokerTopologyDeclaration(name, subscriptionName));
 
         return services;
     }

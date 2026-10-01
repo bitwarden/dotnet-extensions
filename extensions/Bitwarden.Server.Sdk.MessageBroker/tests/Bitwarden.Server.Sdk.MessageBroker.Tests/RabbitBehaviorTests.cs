@@ -2,6 +2,7 @@ using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
 
@@ -26,6 +27,46 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
 
     protected override Dictionary<string, string?> CreateConfig() =>
         new() { { "RabbitUri", _fixture.GetUri() } };
+
+    // Declares the exchanges, queues and bindings that AddPublisher / AddSubscriber register in
+    // DI as BrokerTopologyDeclaration records. Connection failures are swallowed so the
+    // "broker is down" tests still exercise their intended error paths.
+    protected override async Task PreStartAsync(IHost host, CancellationToken cancellationToken)
+    {
+        var declarations = host.Services.GetServices<BrokerTopologyDeclaration>().ToList();
+        if (declarations.Count == 0)
+            return;
+
+        var uri = host.Services.GetRequiredService<IOptions<MessagingOptions>>().Value.RabbitUri;
+        if (string.IsNullOrEmpty(uri))
+            return;
+
+        try
+        {
+            var factory = new ConnectionFactory { Uri = new Uri(uri) };
+            await using var conn = await factory.CreateConnectionAsync(cancellationToken);
+            await using var channel = await conn.CreateChannelAsync(cancellationToken: cancellationToken);
+            foreach (var decl in declarations)
+            {
+                await channel.ExchangeDeclareAsync(decl.TopicName, ExchangeType.Fanout, durable: true,
+                    cancellationToken: cancellationToken);
+                if (decl.SubscriptionName is not null)
+                {
+                    var queueName = $"{decl.TopicName}.{decl.SubscriptionName}";
+                    await channel.QueueDeclareAsync(queueName, durable: true, exclusive: false,
+                        autoDelete: false,
+                        arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum" },
+                        cancellationToken: cancellationToken);
+                    await channel.QueueBindAsync(queueName, decl.TopicName, routingKey: "",
+                        cancellationToken: cancellationToken);
+                }
+            }
+        }
+        catch (BrokerUnreachableException)
+        {
+            // Expected for CreateBrokerDownConfig() tests; nothing to declare.
+        }
+    }
 
     // Rabbit has no per-message lock; unacked messages are only requeued when the channel closes
     // (or after the broker's consumer acknowledgement timeout, which defaults to 30 minutes).

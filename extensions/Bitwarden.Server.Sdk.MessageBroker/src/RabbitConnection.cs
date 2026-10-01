@@ -5,28 +5,18 @@ using RabbitMQ.Client;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Describes a single piece of Rabbit topology to declare at startup.
-/// An exchange-only entry (no queue) is registered by <c>AddPublisher</c>;
-/// an exchange+queue entry is registered by <c>AddSubscriber</c>.
-/// </summary>
-internal sealed record RabbitTopologyDeclaration(string ExchangeName, string? QueueName = null);
-
-/// <summary>
-/// Manages the shared Rabbit <see cref="IConnection"/> for the lifetime of the host: creates it,
-/// declares all exchanges and queues registered via <c>AddPublisher</c> / <c>AddSubscriber</c>
-/// during startup, then signals publishers and subscribers that the connection is ready.
+/// Manages the shared Rabbit <see cref="IConnection"/> for the lifetime of the host. The connection
+/// is opened at startup and signalled to publishers and subscribers when ready.
 /// </summary>
 internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
 {
     private readonly IOptions<MessagingOptions> _options;
-    private readonly IEnumerable<RabbitTopologyDeclaration> _declarations;
     private readonly TaskCompletionSource<IConnection> _tcs =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    public RabbitConnection(IOptions<MessagingOptions> options, IEnumerable<RabbitTopologyDeclaration> declarations)
+    public RabbitConnection(IOptions<MessagingOptions> options)
     {
         _options = options;
-        _declarations = declarations;
     }
 
     /// <summary>Returns the shared connection, waiting until startup has initialized it.</summary>
@@ -43,52 +33,7 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
         {
             var factory = new ConnectionFactory { Uri = new Uri(uri) };
             var conn = await factory.CreateConnectionAsync(cancellationToken);
-            try
-            {
-                await using var channel = await conn.CreateChannelAsync(cancellationToken: cancellationToken);
-
-                foreach (var decl in _declarations)
-                {
-                    await channel.ExchangeDeclareAsync(decl.ExchangeName, ExchangeType.Fanout, durable: true,
-                        cancellationToken: cancellationToken);
-
-                    if (decl.QueueName is not null)
-                    {
-                        // Declare a dead-letter exchange and queue for messages that exceed
-                        // the delivery limit or are explicitly dead-lettered by the consumer.
-                        var dlxName = $"{decl.QueueName}.dlx";
-                        var dlqName = $"{decl.QueueName}.dlq";
-                        await channel.ExchangeDeclareAsync(dlxName, ExchangeType.Fanout, durable: true,
-                            cancellationToken: cancellationToken);
-                        await channel.QueueDeclareAsync(dlqName, durable: true, exclusive: false,
-                            autoDelete: false,
-                            arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum" },
-                            cancellationToken: cancellationToken);
-                        await channel.QueueBindAsync(dlqName, dlxName, routingKey: "",
-                            cancellationToken: cancellationToken);
-
-                        await channel.QueueDeclareAsync(decl.QueueName, durable: true, exclusive: false,
-                            autoDelete: false,
-                            arguments: new Dictionary<string, object?>
-                            {
-                                ["x-queue-type"] = "quorum",
-                                ["x-dead-letter-exchange"] = dlxName,
-                                ["x-delivery-limit"] = (long)_options.Value.MaxDeliveryCount,
-                            },
-                            cancellationToken: cancellationToken);
-                        await channel.QueueBindAsync(decl.QueueName, decl.ExchangeName, routingKey: "",
-                            cancellationToken: cancellationToken);
-                    }
-                }
-
-                _tcs.TrySetResult(conn);
-            }
-            catch
-            {
-                // Topology declaration failed; dispose the connection we opened so it is not leaked.
-                await conn.DisposeAsync();
-                throw;
-            }
+            _tcs.TrySetResult(conn);
         }
         catch (Exception ex)
         {

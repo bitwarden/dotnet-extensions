@@ -223,6 +223,15 @@ public class AzureServiceBusFixture : IAsyncLifetime
 
         await _sqlContainer.StartAsync(TestContext.Current.CancellationToken);
 
+        // Topology must be declared via this JSON config because the Azure Service Bus emulator
+        // does not expose an HTTP management endpoint — the container only publishes port 5672
+        // (AMQP). ServiceBusAdministrationClient defaults to the standard HTTPS management URL
+        // derived from the endpoint host and does not honor UseDevelopmentEmulator=true for URL
+        // selection, so runtime admin-API provisioning (which would let the ASB tests mirror the
+        // Rabbit PreStartAsync pattern) connects to localhost:80 and fails. Revisit if a future
+        // emulator image exposes the admin HTTP endpoint, or if the SDK adds a dedicated
+        // emulator-aware admin client constructor — at that point we could drop this JSON and
+        // declare topology per-test from BrokerTopologyDeclaration records.
         _configFile = Path.Combine(Path.GetTempPath(), $"sb-emulator-{Guid.NewGuid():N}.json");
         await File.WriteAllTextAsync(_configFile, """
             {

@@ -113,21 +113,7 @@ public abstract class BehaviorTests : IAsyncLifetime
             services.AddSubscriber<MyItem>(TopicName, subscriptionName ?? SubscriptionName);
         });
 
-    protected async Task<IHost> BuildHostAsync(Action<IServiceCollection> configure)
-    {
-        var host = new HostBuilder()
-            .ConfigureAppConfiguration(config => config.AddInMemoryCollection(CreateConfig()))
-            .ConfigureServices(services =>
-            {
-                services.AddMetrics();
-                configure(services);
-                services.AddOptions<MessagingOptions>().BindConfiguration("");
-            })
-            .Build();
-        await host.StartAsync(TestContext.Current.CancellationToken);
-        _instances.Add(host);
-        return host;
-    }
+    protected async Task<IHost> BuildHostAsync(Action<IServiceCollection> configure) => await BuildHostAsync(CreateConfig(), configure);
 
     protected async Task<IHost> BuildHostAsync(Dictionary<string, string?> config, Action<IServiceCollection> configure)
     {
@@ -140,10 +126,19 @@ public abstract class BehaviorTests : IAsyncLifetime
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
             .Build();
+        await PreStartAsync(host, TestContext.Current.CancellationToken);
         await host.StartAsync(TestContext.Current.CancellationToken);
         _instances.Add(host);
         return host;
     }
+
+    /// <summary>
+    /// Runs after the host is built but before <see cref="IHost.StartAsync"/>. Backends can override
+    /// to declare broker topology (exchanges, queues, subscriptions) before publishers and
+    /// subscribers connect. The default is a no-op.
+    /// </summary>
+    protected virtual Task PreStartAsync(IHost host, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
 
     /// <summary>
     /// Runs before each test. Override to drain stale messages from persistent broker
