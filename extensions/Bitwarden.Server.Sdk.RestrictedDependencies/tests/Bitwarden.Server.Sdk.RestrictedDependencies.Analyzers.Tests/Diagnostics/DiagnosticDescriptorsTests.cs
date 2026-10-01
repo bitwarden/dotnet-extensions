@@ -51,6 +51,19 @@ public class DiagnosticDescriptorsTests
             descriptor => Assert.Contains(WellKnownDiagnosticTags.NotConfigurable, descriptor.CustomTags));
     }
 
+    /// <summary>
+    /// A seed list with the channel left off is not a tool, so the run stays enforcing and says so
+    /// through BW0015 (see <c>CompilationCoordinatorTests</c>). What this pins is the channel
+    /// itself: nothing reaches BW0017 until the compilation options turn it on.
+    /// </summary>
+    [Fact]
+    public async Task Observation_IsOffByDefault_UntilAToolEnablesIt()
+    {
+        var diagnostics = await ToolHost.RunAsync(observe: true, enableObservations: false);
+
+        Assert.Empty(diagnostics.Where(d => d.Id == DiagnosticDescriptors.Observation.Id));
+    }
+
     [Fact]
     public void PublicIds_MatchTheDescriptors()
     {
