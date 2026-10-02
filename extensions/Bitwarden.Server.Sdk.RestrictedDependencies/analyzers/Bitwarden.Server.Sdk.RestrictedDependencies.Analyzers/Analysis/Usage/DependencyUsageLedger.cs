@@ -19,13 +19,13 @@ internal sealed class DependencyUsageLedger
     /// Records one use that counts against the baseline.
     /// </summary>
     public void Add(DependencyUsageKey key, RestrictedTypeModel model, ISymbol? member, ISymbol subject, string file, Location location) =>
-        _counted.GetOrAdd(key, _ => new DependencyUsageRecord(model, member, subject, file)).Add(location);
+        _counted.GetOrAdd(key, _ => new DependencyUsageRecord(model, member, file)).Add(location, subject);
 
     /// <summary>
     /// Records one use that a valid exception covers. These are never written to a baseline.
     /// </summary>
     public void AddExcepted(DependencyUsageKey key, RestrictedTypeModel model, ISymbol? member, ISymbol subject, string file, Location location) =>
-        _excepted.GetOrAdd(key, _ => new DependencyUsageRecord(model, member, subject, file)).Add(location);
+        _excepted.GetOrAdd(key, _ => new DependencyUsageRecord(model, member, file)).Add(location, subject);
 
     /// <summary>
     /// Counted uses in key order, so compilation-end diagnostics come out the same way on every run.

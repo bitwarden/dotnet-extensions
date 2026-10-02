@@ -6,23 +6,21 @@ namespace Bitwarden.Server.Sdk.RestrictedDependencies.Analyzers.Analysis.Usage;
 
 /// <summary>
 /// What one site key accumulated. Analyzer callbacks run concurrently, so every read and write of
-/// the location list is taken under the same lock.
+/// the use list is taken under the same lock.
 /// </summary>
 internal sealed class DependencyUsageRecord
 {
-    private readonly List<Location> _locations = [];
+    private readonly List<(Location Location, ISymbol Subject)> _uses = [];
 
-    public DependencyUsageRecord(RestrictedTypeModel model, ISymbol? member, ISymbol subject, string file)
+    public DependencyUsageRecord(RestrictedTypeModel model, ISymbol? member, string file)
     {
         Model = model;
         Member = member;
-        Subject = subject;
         File = file;
     }
 
     public RestrictedTypeModel Model { get; }
     public ISymbol? Member { get; }
-    public ISymbol Subject { get; }
     public string File { get; }
 
     /// <summary>
@@ -35,29 +33,33 @@ internal sealed class DependencyUsageRecord
     {
         get
         {
-            lock (_locations)
+            lock (_uses)
             {
-                return _locations.Count;
+                return _uses.Count;
             }
         }
     }
 
-    public ImmutableArray<Location> Locations
+    /// <summary>
+    /// Every use with the symbol it reached the restricted type through. Uses with different
+    /// subjects share a key, so a diagnostic for one use must name that use's own subject.
+    /// </summary>
+    public ImmutableArray<(Location Location, ISymbol Subject)> Uses
     {
         get
         {
-            lock (_locations)
+            lock (_uses)
             {
-                return [.. _locations];
+                return [.. _uses];
             }
         }
     }
 
-    public void Add(Location location)
+    public void Add(Location location, ISymbol subject)
     {
-        lock (_locations)
+        lock (_uses)
         {
-            _locations.Add(location);
+            _uses.Add((location, subject));
         }
     }
 }
