@@ -59,13 +59,13 @@ internal sealed class BudgetReconciler
                 continue;
             }
 
-            var ordered = record.Locations
-                .OrderBy(l => l.SourceTree?.FilePath ?? string.Empty, StringComparer.Ordinal)
-                .ThenBy(l => l.SourceSpan.Start)
+            var ordered = record.Uses
+                .OrderBy(u => u.Location.SourceTree?.FilePath ?? string.Empty, StringComparer.Ordinal)
+                .ThenBy(u => u.Location.SourceSpan.Start)
                 .ToList();
-            foreach (var location in ordered.Skip(ordered.Count - excess))
+            foreach (var (location, subject) in ordered.Skip(ordered.Count - excess))
             {
-                found.Add(DependencyUsageDiagnosticFactory.Create(key.Kind, record.Model, useRule, record.Member, record.Subject, location));
+                found.Add(DependencyUsageDiagnosticFactory.Create(key.Kind, record.Model, useRule, record.Member, subject, location));
             }
         }
 
