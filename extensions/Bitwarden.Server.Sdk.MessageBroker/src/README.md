@@ -40,7 +40,7 @@ Setting both raises `OptionsValidationException` at startup via `MessagingOption
 | `ChannelTopic.cs` | Fan-out channel; one `Channel<T>` per subscription; drains to escrow on shutdown |
 | `ChannelEscrowRegistration.cs` | Registers startup recovery and shutdown drain callbacks with `ChannelTopic` |
 | `RabbitPublisher.cs` / `RabbitSubscriber.cs` | RabbitMQ backend |
-| `RabbitConnection.cs` | Manages the shared RabbitMQ connection; declares exchanges and queues at startup |
+| `RabbitConnection.cs` | Manages the shared RabbitMQ connection for the host lifetime |
 | `AzureServiceBusPublisher.cs` / `AzureServiceBusSubscriber.cs` | Azure Service Bus backend |
 | `MessageBrokerActivitySource.cs` | Shared `ActivitySource` for publish and consume spans |
 | `MessageBrokerMetrics.cs` | Shared metrics (publish counter, consume counter, channel depth gauge) |
@@ -48,12 +48,17 @@ Setting both raises `OptionsValidationException` at startup via `MessagingOption
 
 ## RabbitMQ topology
 
-Queues are declared as **quorum queues** (`x-queue-type: quorum`) for accurate `DeliveryCount`
-tracking via the `x-delivery-count` header (RabbitMQ 3.12+). Classic queues only expose a boolean
-`redelivered` flag.
+The library does not provision RabbitMQ topology; operators pre-declare it (see
+[PACKAGE.md](PACKAGE.md) for the required exchanges, queues, bindings, and policies). The
+expected shape is driven by two design choices:
 
-Exchanges are declared as `fanout` and `durable`. Each subscription gets its own durable queue bound
-to the exchange, giving pub/sub fan-out with per-group competing consumers.
+- **Quorum queues** for subscriber queues. The `x-delivery-count` header on quorum queues
+  (RabbitMQ 3.12+) is what `RabbitSubscriber` reads into `Envelope<T>.DeliveryCount`. Classic
+  queues only expose a boolean `redelivered` flag, which is not enough to drive delivery-limit
+  behavior.
+- **Fanout exchanges** per topic, with one durable queue per subscription bound to the exchange.
+  Each subscription receives every message independently, giving pub/sub fan-out with
+  per-subscription competing consumers when multiple instances share a subscription name.
 
 ## Shutdown and escrow
 
