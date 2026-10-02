@@ -73,10 +73,14 @@ For each `AddSubscriber<T>(topic, subscription)`:
   an empty routing key.
 - A server-side policy applying `delivery-limit` to the queue, capping the number of
   redelivery attempts before a message is dead-lettered.
-- A server-side policy applying `dead-letter-exchange` to the queue, plus the target
-  dead-letter exchange and a queue bound to it. Without this policy, messages that call
-  `Envelope<T>.DeadLetterAsync` or exceed `delivery-limit` are silently dropped by
-  RabbitMQ.
+- A server-side policy applying `dead-letter-exchange`, `dead-letter-strategy: at-least-once`,
+  and `overflow: reject-publish` to the queue, plus the target dead-letter exchange and a
+  quorum queue bound to it. Without `dead-letter-exchange`, messages that call
+  `Envelope<T>.DeadLetterAsync` or exceed `delivery-limit` are silently dropped by RabbitMQ.
+  Without `at-least-once` (quorum queues default to `at-most-once`), the broker acknowledges
+  the source queue before confirming the dead-letter publish, so a failover or unavailable
+  dead-letter exchange can still drop the message; `at-least-once` requires
+  `overflow: reject-publish` on the same queue.
 
 Policies must be used rather than queue arguments because quorum queue arguments cannot be
 changed on an existing queue. See the RabbitMQ documentation on
@@ -105,10 +109,10 @@ rabbitmqadmin queues declare --name "dead-letter.orders" --type "quorum" --durab
 rabbitmqadmin bindings declare --source "dead-letter.orders" \
   --destination-type "queue" --destination "dead-letter.orders"
 
-# Policy applying delivery-limit and dead-letter-exchange to the orders.*
-# subscription queues.
+# Policy applying delivery-limit, dead-letter-exchange, dead-letter-strategy, and
+# overflow to the orders.* subscription queues.
 rabbitmqctl set_policy orders-subscriptions "^orders\." \
-  '{"delivery-limit":10,"dead-letter-exchange":"dead-letter.orders"}' \
+  '{"delivery-limit":10,"dead-letter-exchange":"dead-letter.orders","dead-letter-strategy":"at-least-once","overflow":"reject-publish"}' \
   --apply-to quorum_queues
 ```
 
