@@ -16,6 +16,8 @@ public class BudgetReconcilerTests
 
     private const string OtherSite = "M:Test.Consumer.Other(Test.User)";
 
+    private const string WrapSite = "M:Test.Decorator.Wrap(Test.IUserService)";
+
     [Fact]
     public async Task BudgetIsPerSite_OneSiteCannotSpendAnothersAllowance()
     {
@@ -72,6 +74,29 @@ public class BudgetReconcilerTests
                     }
                 }
                 """)
+            .RunAsync();
+    }
+
+    [Fact]
+    public async Task SurplusUse_SharingItsKey_NamesItsOwnSubject()
+    {
+        // Escape is keyed by the containing member, so a decorator's return type and parameter
+        // share one key. The surplus is the parameter, and the message must name it rather than
+        // whichever use opened the record.
+        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Escape, WrapSite))
+            .WithConsumer("""
+                using Test;
+
+                namespace Test;
+
+                public class Decorator
+                {
+                    public IUserService Wrap(IUserService {|#0:inner|}) => inner;
+                }
+                """)
+            .Expect(new DiagnosticResult(DiagnosticDescriptors.Escape)
+                .WithLocation(0)
+                .WithArguments("IUserService", "PM-1", "inner", "unowned"))
             .RunAsync();
     }
 
