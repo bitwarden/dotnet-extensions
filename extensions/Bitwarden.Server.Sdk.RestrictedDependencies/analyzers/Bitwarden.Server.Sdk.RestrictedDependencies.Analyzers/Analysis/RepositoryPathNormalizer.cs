@@ -9,8 +9,8 @@ internal static class RepositoryPathNormalizer
 {
     /// <summary>
     /// Makes <paramref name="filePath"/> relative to <paramref name="repoRoot"/>. When the file is
-    /// not under the root, or no root is known, the normalized absolute path is returned so that no
-    /// glob can accidentally match it.
+    /// not under the root, or no root is known, the normalized absolute path is returned, which
+    /// <see cref="Rules.PathGlobMatcher"/> never matches.
     /// </summary>
     public static string ToRelative(string filePath, string? repoRoot)
     {
