@@ -465,7 +465,7 @@ dotnet_diagnostic.BW0005.severity = warning
 
 **Fix:** Remove the configuration and use `[RestrictedDependencyException]` on the site instead; an exception exempts one site, with an owner and a date.
 
-> A consuming repository should still check its own build configuration directly: a project can switch the analyzer off entirely, which no diagnostic can report. `DiagnosticConstants.MustRemainErrors` lists the ids such a check covers.
+> A consuming repository should still check its own build configuration directly. A project can switch the analyzer off entirely, or enter observe mode by naming BW0017 in `WarningsAsErrors` or a ruleset alongside the seed key, and no diagnostic can report either. `DiagnosticConstants.MustRemainErrors` lists the ids such a check covers; BW0017 is not one of them, so check for it separately.
 
 ---
 
@@ -493,6 +493,6 @@ var options = compilation.Options.WithSpecificDiagnosticOptions(
 // and AnalyzerConfigConstants.SeedTypes = "Some.Restricted.IType;Another.IType"
 ```
 
-Both halves are required to enter observe mode, and the analyzer enforces nothing once in it, because it cannot treat the baseline it is rebuilding as the authority. A seed list with the channel left off is not a baseline tool: that build stays enforcing and reports BW0015. Only compiler options can reach `SpecificDiagnosticOptions`, so the seed key alone — which an `.editorconfig` can set — cannot stand a project down.
+Both halves are required to enter observe mode, and the analyzer enforces nothing once in it, because it cannot treat the baseline it is rebuilding as the authority. A seed list with the channel left off is not a baseline tool: that build stays enforcing and reports BW0015. Only compiler options can reach `SpecificDiagnosticOptions`, so the seed key alone — which an `.editorconfig` can set — cannot stand a project down. A project file can, by also naming BW0017 in `WarningsAsErrors` or a ruleset; see the note under [BW0016](#bw0016).
 
 Each diagnostic carries one row in `Diagnostic.Properties`, discriminated by `row`: a `usage`, a `declared-member`, an `exception`, or a `restricted-type`. The property names are constants on `ObservationConstants` in the `Bitwarden.Server.Sdk.RestrictedDependencies` namespace, so a tool does not spell them twice.
