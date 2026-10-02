@@ -64,7 +64,13 @@ internal sealed class PathGlobMatcher
     }
 
     /// <summary>
-    /// True when the repo-relative, forward-slash <paramref name="relativePath"/> matches.
+    /// True when the repo-relative, forward-slash <paramref name="relativePath"/> matches. A rooted
+    /// path never matches: <see cref="Analysis.RepositoryPathNormalizer.ToRelative"/> returns one
+    /// when it cannot make the path repo-relative, and a leading <c>**/</c> would otherwise match
+    /// through it.
     /// </summary>
-    public bool IsMatch(string relativePath) => _regex.IsMatch(relativePath);
+    public bool IsMatch(string relativePath) => !IsRooted(relativePath) && _regex.IsMatch(relativePath);
+
+    private static bool IsRooted(string path) =>
+        path.StartsWith("/", StringComparison.Ordinal) || (path.Length >= 2 && path[1] == ':');
 }

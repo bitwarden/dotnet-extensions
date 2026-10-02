@@ -22,6 +22,15 @@ public class PathGlobMatcherTests
     }
 
     [Theory]
+    [InlineData("/elsewhere/src/Core/AdminConsole/Foo.cs")]
+    [InlineData("C:/elsewhere/src/Core/AdminConsole/Foo.cs")]
+    public void IsMatch_RootedPath_NeverMatches(string path)
+    {
+        Assert.True(PathGlobMatcher.TryCreate("**/AdminConsole/**", out var glob));
+        Assert.False(glob!.IsMatch(path));
+    }
+
+    [Theory]
     [InlineData("")]
     [InlineData("   ")]
     [InlineData(@"src\Core\**")]
