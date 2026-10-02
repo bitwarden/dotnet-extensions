@@ -46,6 +46,10 @@ internal sealed class CompilationCoordinator
     /// reads BW0017 must have enabled it through <c>CompilationOptions.WithSpecificDiagnosticOptions</c>,
     /// which no .editorconfig can reach. A seed on its own leaves the build enforcing and is
     /// reported, so the seed key cannot be used to stand a project down.
+    ///
+    /// A project file can still reach both halves on purpose: a ruleset or WarningsAsErrors naming
+    /// BW0017 sets the same compiler option. That is a deliberate change to the build, like turning
+    /// RestrictedDependencyAnalysis off, and is left to the consuming repository's own checks.
     /// </summary>
     public CompilationCoordinator(Compilation compilation, AnalyzerOptions options, CancellationToken cancellationToken)
     {
@@ -65,7 +69,7 @@ internal sealed class CompilationCoordinator
         if (seedTypes is not null && !observationsEnabled)
         {
             StartupProblem(
-                $"'{AnalyzerConfigConstants.SeedTypes}' names seed types but {ObservationConstants.DiagnosticId} is not enabled through CompilationOptions.WithSpecificDiagnosticOptions, which only a baseline tool can do; this build stays enforcing.",
+                $"'{AnalyzerConfigConstants.SeedTypes}' names seed types but {ObservationConstants.DiagnosticId} is not enabled through CompilationOptions.WithSpecificDiagnosticOptions, as a baseline tool does; this build stays enforcing.",
                 Location.None);
         }
 
