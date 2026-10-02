@@ -72,7 +72,18 @@ internal static class ToolHost
             [new RestrictedDependencyAnalyzer()],
             new CompilationWithAnalyzersOptions(analyzerOptions, onAnalyzerException: null, concurrentAnalysis: true, logAnalyzerExecutionTime: false));
 
-        return await withAnalyzers.GetAnalyzerDiagnosticsAsync(cancellationToken);
+        var diagnostics = await withAnalyzers.GetAnalyzerDiagnosticsAsync(cancellationToken);
+
+        // Roslyn turns an analyzer exception into an AD0001 row rather than throwing, which would
+        // let a caller asserting a diagnostic's absence pass on a crash.
+        var crashes = diagnostics.Where(d => d.Id == "AD0001").ToList();
+        if (crashes.Count != 0)
+        {
+            throw new InvalidOperationException(
+                $"{nameof(ToolHost)} requires the analyzer to run to completion, but it threw: {string.Join("; ", crashes)}");
+        }
+
+        return diagnostics;
     }
 
     /// <summary>
