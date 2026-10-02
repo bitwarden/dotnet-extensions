@@ -51,10 +51,25 @@ internal sealed class ChannelTopic<T> : IHostedService
     public void SetShutdownDrain(string subscriptionName, Func<IReadOnlyList<Envelope<T>>, CancellationToken, Task> drain)
         => _subscribers.GetOrAdd(subscriptionName, _ => new Subscription()).ShutdownDrain = drain;
 
+    /// <summary>
+    /// Writes a message to every subscription's channel. Throws
+    /// <see cref="BrokerUnavailableException"/> on the first write to a subscription whose
+    /// channel has been sealed by a concurrent <see cref="StopAsync"/>. Subscriptions earlier
+    /// in the iteration order may have received the message before the failing write, so a
+    /// caller retry can double-deliver to them; this fail-fast ordering bounds the duplicate
+    /// set to the subscriptions already visited rather than every open subscription.
+    /// </summary>
     public async ValueTask WriteAsync(Func<ChannelWriter<Envelope<T>>, Func<Envelope<T>, CancellationToken, Task>?, Envelope<T>> factory, CancellationToken cancellationToken = default)
     {
-        foreach (var (_, sub) in _subscribers)
-            await sub.Channel.Writer.WriteAsync(factory(sub.Channel.Writer, sub.EscrowFallback), cancellationToken);
+        try
+        {
+            foreach (var (_, sub) in _subscribers)
+                await sub.Channel.Writer.WriteAsync(factory(sub.Channel.Writer, sub.EscrowFallback), cancellationToken);
+        }
+        catch (ChannelClosedException ex)
+        {
+            throw new BrokerUnavailableException(_topicName, ex);
+        }
     }
 
     // IHostedService — runs startup escrow recovery, then on shutdown drains remaining messages
