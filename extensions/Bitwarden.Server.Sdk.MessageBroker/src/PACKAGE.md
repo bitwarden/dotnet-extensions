@@ -39,6 +39,79 @@ If neither connection string is set the package falls back to an in-memory chann
 for local development and testing but loses all messages on process restart. Only one backend may be
 configured at a time; setting both raises a validation error at startup.
 
+## Broker setup
+
+The library does not provision broker topology. For the RabbitMQ and Azure Service Bus backends,
+the exchanges, queues, topics, subscriptions, and related policies must be declared on the broker
+before the application starts — typically as part of the broker container's bootstrap or via
+infrastructure-as-code (Terraform, Pulumi, broker-specific CLIs).
+
+For each publisher and subscriber registered with `AddPublisher<T>(topic)` /
+`AddSubscriber<T>(topic, subscription)`, declare the following on the broker:
+
+### Azure Service Bus
+
+For each unique `topic` across all publishers and subscribers:
+
+- A topic named `{topic}`.
+
+For each `AddSubscriber<T>(topic, subscription)`:
+
+- A subscription named `{subscription}` on that topic. Set `MaxDeliveryCount` on the
+  subscription to cap redelivery attempts; the subscription's built-in dead-letter queue
+  handles exhausted or explicitly dead-lettered messages automatically.
+
+### RabbitMQ
+
+For each unique `topic` across all publishers and subscribers:
+
+- A durable fanout exchange named `{topic}`.
+
+For each `AddSubscriber<T>(topic, subscription)`:
+
+- A durable quorum queue named `{topic}.{subscription}`, bound to the topic exchange with
+  an empty routing key.
+- A server-side policy applying `delivery-limit` to the queue, capping the number of
+  redelivery attempts before a message is dead-lettered.
+- A server-side policy applying `dead-letter-exchange` to the queue, plus the target
+  dead-letter exchange and a queue bound to it. Without this policy, messages that call
+  `Envelope<T>.DeadLetterAsync` or exceed `delivery-limit` are silently dropped by
+  RabbitMQ.
+
+Policies must be used rather than queue arguments because quorum queue arguments cannot be
+changed on an existing queue. See the RabbitMQ documentation on
+[quorum queue poison-message handling](https://www.rabbitmq.com/docs/quorum-queues#poison-message-handling)
+and [policies](https://www.rabbitmq.com/docs/policies) for the full command reference, and
+`management.load_definitions` for declarative bootstrap via a `definitions.json` file loaded
+at broker startup.
+
+#### Example
+
+Using `rabbitmqadmin` and `rabbitmqctl` for an application that registers
+`AddPublisher<OrderCreated>("orders")` and `AddSubscriber<OrderCreated>("orders", "workers")`:
+
+```bash
+# Topic exchange, subscription queue, binding.
+rabbitmqadmin exchanges declare --name "orders" --type "fanout" --durable true
+rabbitmqadmin queues declare --name "orders.workers" --type "quorum" --durable true
+rabbitmqadmin bindings declare --source "orders" \
+  --destination-type "queue" --destination "orders.workers"
+
+# Dead-letter exchange and queue. The names must not match the policy pattern
+# below, which would otherwise re-apply the dead-letter policy to the dead-letter
+# queue and cycle its messages back through itself.
+rabbitmqadmin exchanges declare --name "dead-letter.orders" --type "fanout" --durable true
+rabbitmqadmin queues declare --name "dead-letter.orders" --type "quorum" --durable true
+rabbitmqadmin bindings declare --source "dead-letter.orders" \
+  --destination-type "queue" --destination "dead-letter.orders"
+
+# Policy applying delivery-limit and dead-letter-exchange to the orders.*
+# subscription queues.
+rabbitmqctl set_policy orders-subscriptions "^orders\." \
+  '{"delivery-limit":10,"dead-letter-exchange":"dead-letter.orders"}' \
+  --apply-to quorum_queues
+```
+
 ## Publishing
 
 Inject `IPublisher<T>` as a keyed service using the topic name:
