@@ -27,7 +27,9 @@ internal sealed class ConsumerBackgroundService<T, TConsumer> : BackgroundServic
             try
             {
                 await _consumer.HandleAsync(envelope, stoppingToken);
-                await envelope.CompleteAsync(stoppingToken);
+                // Settle with CancellationToken.None: passing along a stopped token after a
+                // successful handler would leave the message un-acked and unsettled.
+                await envelope.CompleteAsync(CancellationToken.None);
             }
             catch (Exception ex)
             {
