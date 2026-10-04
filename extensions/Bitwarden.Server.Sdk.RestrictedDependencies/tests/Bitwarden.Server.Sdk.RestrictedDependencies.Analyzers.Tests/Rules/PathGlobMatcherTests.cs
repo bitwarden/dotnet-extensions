@@ -36,6 +36,7 @@ public class PathGlobMatcherTests
     [InlineData(@"src\Core\**")]
     [InlineData("/src/Core/**")]
     [InlineData("src//Core/**")]
+    [InlineData("src/Core/")]
     public void TryCreate_RejectsNonRepoRelativeForms(string pattern)
     {
         Assert.False(PathGlobMatcher.TryCreate(pattern, out var glob));

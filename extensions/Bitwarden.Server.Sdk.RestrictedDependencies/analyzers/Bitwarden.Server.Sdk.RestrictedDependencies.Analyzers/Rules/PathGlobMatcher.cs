@@ -25,7 +25,8 @@ internal sealed class PathGlobMatcher
     {
         glob = null;
         if (pattern is null || string.IsNullOrWhiteSpace(pattern) || pattern.IndexOf('\\') >= 0
-            || pattern.StartsWith("/", StringComparison.Ordinal) || pattern.Contains("//"))
+            || pattern.StartsWith("/", StringComparison.Ordinal) || pattern.EndsWith("/", StringComparison.Ordinal)
+            || pattern.Contains("//"))
         {
             return false;
         }
