@@ -45,8 +45,8 @@ internal static class AttributeDataExtensions
     }
 
     /// <summary>
-    /// The elements of the named string-array argument, empty when it is absent. An element that
-    /// is not a string comes back as null for the caller to reject.
+    /// The elements of the named string-array argument, empty when it is absent or null. An element
+    /// that is not a string comes back as null for the caller to reject.
     /// </summary>
     public static IEnumerable<string?> ReadStringArray(this AttributeData attribute, string name)
     {
@@ -54,7 +54,7 @@ internal static class AttributeDataExtensions
         {
             if (argument.Key == name && argument.Value.Kind == TypedConstantKind.Array)
             {
-                return argument.Value.Values.Select(v => v.Value as string);
+                return argument.Value.IsNull ? [] : argument.Value.Values.Select(v => v.Value as string);
             }
         }
 
