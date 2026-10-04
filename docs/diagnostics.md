@@ -423,7 +423,7 @@ Reported for anything that makes the attribute or baseline unreadable rather tha
 
 - `AllowExistingUses = false` combined with `AllowNewUses = true`, which has no meaning.
 - A type-level setting such as `SealMembers` or `AllowedPaths` applied to a member.
-- An `AllowedPaths` glob that is not a repo-relative forward-slash path.
+- An `AllowedPaths` glob that is not a repo-relative forward-slash path, or that ends in `/`.
 - A `[RestrictedDependency]` on a member of a type that does not carry the attribute itself, where it governs nothing: member rules are only read off a restricted type.
 - A type carrying `[RestrictedDependency]` with no baseline supplied to the compilation.
 - Analysis enabled for a project with no baseline supplied at all, which gates nothing. Set `RestrictedDependencyBaselinesPath`, or turn the analysis off for that project.
