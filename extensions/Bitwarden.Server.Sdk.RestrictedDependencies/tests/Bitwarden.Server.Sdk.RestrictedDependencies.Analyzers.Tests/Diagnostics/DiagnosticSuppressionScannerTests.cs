@@ -214,6 +214,26 @@ public class DiagnosticSuppressionScannerTests
             .RunAsync();
     }
 
+    [Fact]
+    public async Task SuppressMessageAttribute_OnAnIndexerParameter_ReportsUnstructuredSuppression()
+    {
+        await AnalyzerHarness.WithBaseline()
+            .WithConsumer("""
+                using System.Diagnostics.CodeAnalysis;
+                using Test;
+
+                namespace Test;
+
+                public class Consumer
+                {
+                    public object this[[SuppressMessage("RestrictedDependencies", "BW0009")] IUserService service] => null!;
+                }
+                """)
+            .Expect(new DiagnosticResult(DiagnosticDescriptors.UnstructuredSuppression)
+                .WithArguments("[SuppressMessage] on 'service' at 'src/Api/Consumer.cs' line 8", "BW0009"))
+            .RunAsync();
+    }
+
     [Theory]
     [InlineData("assembly", "", "TestProject")]
     [InlineData("module", "", "TestProject.dll")]
