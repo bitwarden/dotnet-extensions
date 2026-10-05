@@ -14,9 +14,7 @@ internal sealed class AnalyzerHarness : CSharpAnalyzerTest<RestrictedDependencyA
 {
     /// <summary>
     /// <paramref name="seedTypes"/> goes into the same global config as the rest of the build
-    /// properties, which is where a build puts it. It cannot be added as a second global config
-    /// file: a further <c>is_global</c> file makes the keys in this one unreadable, and the
-    /// analyzer then reports nothing at all.
+    /// properties, which is where a build puts it.
     /// </summary>
     public AnalyzerHarness(bool enabled = true, string repoRoot = SampleProjectFixture.RepoRoot, string? seedTypes = null)
     {
