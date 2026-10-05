@@ -96,6 +96,34 @@ public partial class RestrictedDependencyUseClassifierTests
         }
         """;
 
+    private const string ExplicitInterfaceProperty = """
+        public interface IUserServiceHolder
+        {
+            IUserService {|BW0009:Service|} { get; }
+        }
+
+        public class Consumer : IUserServiceHolder
+        {
+            IUserService IUserServiceHolder.{|BW0009:Service|} => null!;
+        }
+        """;
+
+    private const string ExplicitInterfaceEvent = """
+        public interface IUserServiceSource
+        {
+            event Action<IUserService> {|BW0009:Resolved|};
+        }
+
+        public class Consumer : IUserServiceSource
+        {
+            event Action<IUserService> IUserServiceSource.{|BW0009:Resolved|}
+            {
+                add { }
+                remove { }
+            }
+        }
+        """;
+
     /// <summary>
     /// A <c>Lazy&lt;T&gt;</c> parameter and a protected property are escapes rather than
     /// injections, so the constructor that receives the dependency needs its own baseline row
@@ -113,6 +141,8 @@ public partial class RestrictedDependencyUseClassifierTests
     [InlineData(ConstrainedMethodParameter, null)]
     [InlineData(ConstrainedTypeParameterInsideLazy, null)]
     [InlineData(IndexerParameter, null)]
+    [InlineData(ExplicitInterfaceProperty, null)]
+    [InlineData(ExplicitInterfaceEvent, null)]
     public async Task RestrictedTypeLeavingItsConsumer_ReportsEscape(
         [StringSyntax("C#-test")] string declaration,
         string? baselinedConstructor)
