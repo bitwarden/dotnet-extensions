@@ -89,6 +89,13 @@ public partial class RestrictedDependencyUseClassifierTests
         }
         """;
 
+    private const string IndexerParameter = """
+        public class Consumer
+        {
+            public object this[IUserService {|BW0009:service|}] => null!;
+        }
+        """;
+
     /// <summary>
     /// A <c>Lazy&lt;T&gt;</c> parameter and a protected property are escapes rather than
     /// injections, so the constructor that receives the dependency needs its own baseline row
@@ -105,6 +112,7 @@ public partial class RestrictedDependencyUseClassifierTests
     [InlineData(ArrayParameter, null)]
     [InlineData(ConstrainedMethodParameter, null)]
     [InlineData(ConstrainedTypeParameterInsideLazy, null)]
+    [InlineData(IndexerParameter, null)]
     public async Task RestrictedTypeLeavingItsConsumer_ReportsEscape(
         [StringSyntax("C#-test")] string declaration,
         string? baselinedConstructor)
