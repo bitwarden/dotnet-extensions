@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Hosting;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -24,6 +25,12 @@ internal sealed class ConsumerBackgroundService<T, TConsumer> : BackgroundServic
     {
         await foreach (var envelope in _subscriber.SubscribeAsync(stoppingToken))
         {
+            // Make the consumer span current so telemetry emitted inside HandleAsync (nested
+            // activities, HttpClient spans, EF Core command spans, scoped logs) is parented to
+            // the receive span. The backends create the Activity on the subscriber iterator's
+            // execution context, which the async enumerator does not flow out to this body.
+            var previousActivity = Activity.Current;
+            Activity.Current = envelope.Activity;
             try
             {
                 await _consumer.HandleAsync(envelope, stoppingToken);
@@ -43,6 +50,10 @@ internal sealed class ConsumerBackgroundService<T, TConsumer> : BackgroundServic
                     // will redeliver the message when the lock times out. Swallow so a transient
                     // settlement error doesn't kill the consumer permanently.
                 }
+            }
+            finally
+            {
+                Activity.Current = previousActivity;
             }
         }
     }

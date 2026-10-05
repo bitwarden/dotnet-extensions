@@ -16,5 +16,11 @@ namespace Bitwarden.Server.Sdk.MessageBroker;
 public interface IMessageConsumer<T>
 {
     /// <summary>Processes a single delivered message.</summary>
+    /// <remarks>
+    /// <see cref="System.Diagnostics.Activity.Current"/> is set to the receive span for the
+    /// duration of this call, so nested activities, <c>HttpClient</c> spans, EF Core command
+    /// spans, and scoped logs emitted here are parented to the <c>{topic} receive</c> span
+    /// without any extra wiring.
+    /// </remarks>
     Task HandleAsync(Envelope<T> envelope, CancellationToken cancellationToken);
 }

@@ -28,6 +28,13 @@ public abstract class Envelope<T>
     /// <summary>The received message.</summary>
     public T Message { get; }
 
+    /// <summary>
+    /// The consumer <see cref="System.Diagnostics.Activity"/> for this envelope, if any. Exposed
+    /// to the in-process consumer host so it can make the span current for the duration of
+    /// <see cref="IMessageConsumer{T}.HandleAsync"/>, parenting any telemetry the handler emits.
+    /// </summary>
+    internal Activity? Activity => _activity;
+
     /// <summary>A unique identifier for the message assigned by the publisher.</summary>
     public abstract string MessageId { get; }
 
