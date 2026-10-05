@@ -186,7 +186,10 @@ internal sealed class CompilationCoordinator
         var property = (IPropertySymbol)context.Symbol;
         var report = context.ReportDiagnostic;
         Inspect(report, property);
-        if (_classifier.HasRestrictedTypes && property.DeclaredAccessibility != Accessibility.Private && !property.IsImplicitlyDeclared)
+        // Roslyn reports an explicit interface implementation as private, but callers reach it through the interface.
+        if (_classifier.HasRestrictedTypes
+            && (property.DeclaredAccessibility != Accessibility.Private || !property.ExplicitInterfaceImplementations.IsEmpty)
+            && !property.IsImplicitlyDeclared)
         {
             _classifier.OnSignature(property.Type, property, SymbolFacts.SourceLocation(property), property, report);
             foreach (var parameter in property.Parameters)
@@ -214,7 +217,8 @@ internal sealed class CompilationCoordinator
         var @event = (IEventSymbol)context.Symbol;
         var report = context.ReportDiagnostic;
         Inspect(report, @event);
-        if (_classifier.HasRestrictedTypes && @event.DeclaredAccessibility != Accessibility.Private)
+        if (_classifier.HasRestrictedTypes
+            && (@event.DeclaredAccessibility != Accessibility.Private || !@event.ExplicitInterfaceImplementations.IsEmpty))
         {
             _classifier.OnSignature(@event.Type, @event, SymbolFacts.SourceLocation(@event), @event, report);
         }
