@@ -42,9 +42,9 @@ public class DependencyUsageDiagnosticFactoryTests
     }
 
     /// <summary>
-    /// BW0006 is the one format in the family whose placeholders are out of sequence — owner comes
-    /// after the hint — so the order it reads them in is worth pinning. The fixture's forbidden
-    /// member carries a <c>Replacement</c>, which is the hint's longer form.
+    /// BW0006's placeholders are out of sequence, with owner after the hint, so the order it
+    /// reads them in is worth pinning. The fixture's forbidden member carries a <c>Replacement</c>,
+    /// which is the hint's longer form.
     /// </summary>
     [Fact]
     public async Task MemberUse_NamesTheMemberTypeTrackingHintAndOwner()
