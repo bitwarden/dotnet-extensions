@@ -80,8 +80,10 @@ public class MessageConsumerTests
 
         await host.StartAsync(TestContext.Current.CancellationToken);
 
-        // AddMessageConsumer registers TConsumer as a singleton so tests can inspect it.
-        var consumer = host.Services.GetRequiredService<SignalingConsumer>();
+        // AddMessageConsumer registers TConsumer as scoped so handlers can inject scoped
+        // dependencies; tests resolve from a scope they create themselves.
+        using var scope = host.Services.CreateScope();
+        var consumer = scope.ServiceProvider.GetRequiredService<SignalingConsumer>();
         Assert.NotNull(consumer);
 
         await host.StopAsync(TestContext.Current.CancellationToken);

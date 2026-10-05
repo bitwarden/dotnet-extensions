@@ -129,8 +129,13 @@ public static class MessageBrokerServiceCollectionExtensions
     /// Rabbit when the consumer is co-located.
     /// </para>
     /// <para>
-    /// <typeparamref name="TConsumer"/> is registered as a singleton so it can be resolved by
-    /// type (e.g., in tests). All constructor parameters are resolved from the service provider;
+    /// <typeparamref name="TConsumer"/> is registered as scoped and resolved from a fresh
+    /// <see cref="IServiceScope"/> per message, so handlers can inject scoped dependencies
+    /// (e.g. a <c>DbContext</c>) the same way a controller action would.
+    /// Tests that need to resolve the consumer by type must create a scope first
+    /// (<c>using var scope = host.Services.CreateScope();</c>); apps that genuinely need a
+    /// singleton consumer can pre-register <typeparamref name="TConsumer"/> themselves before
+    /// calling this method. All constructor parameters are resolved from the service provider;
     /// do not take <see cref="ISubscriber{T}"/> as a constructor parameter —
     /// <see cref="ConsumerBackgroundService{T,TConsumer}"/> owns the subscription and invokes
     /// <see cref="IMessageConsumer{T}.HandleAsync"/> for each delivered message.
@@ -162,9 +167,11 @@ public static class MessageBrokerServiceCollectionExtensions
             services.AddSingleton<ChannelEscrowRegistration<T>>(sp =>
                 sp.GetRequiredKeyedService<ChannelEscrowRegistration<T>>(subscriptionKey));
 
-        // TConsumer is a singleton so it can be resolved by type in tests and shared across
-        // subscriptions when the same consumer class handles multiple topics.
-        services.TryAddSingleton<TConsumer>();
+        // TConsumer is scoped so each message is handled in its own DI scope, letting the handler
+        // inject scoped dependencies (e.g. a DbContext) the same way a controller action would.
+        // TryAddScoped respects a prior registration, so a consumer app that genuinely needs a
+        // singleton can pre-register TConsumer themselves.
+        services.TryAddScoped<TConsumer>();
 
         // Register one ConsumerBackgroundService per (TConsumer, subscriptionKey) pair.
         // TryAddKeyedSingleton deduplicates by (ServiceType, ServiceKey), so the same
@@ -175,7 +182,7 @@ public static class MessageBrokerServiceCollectionExtensions
             (string?)d.ServiceKey == subscriptionKey);
         services.TryAddKeyedSingleton<ConsumerBackgroundService<T, TConsumer>>(subscriptionKey, (sp, _) =>
             new ConsumerBackgroundService<T, TConsumer>(
-                sp.GetRequiredService<TConsumer>(),
+                sp.GetRequiredService<IServiceScopeFactory>(),
                 sp.GetRequiredKeyedService<ISubscriber<T>>(subscriptionKey)));
         if (consumerIsNew)
             services.AddSingleton<IHostedService>(sp =>

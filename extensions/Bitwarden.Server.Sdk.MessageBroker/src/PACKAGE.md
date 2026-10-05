@@ -165,13 +165,19 @@ public class OrderNotificationService(IEmailService email) : IMessageConsumer<Or
 }
 ```
 
-The consumer is registered as a singleton so it can be resolved by type in tests:
+The consumer is registered as scoped and resolved from a fresh scope per message, so handlers
+can inject scoped dependencies (e.g. a `DbContext`) the same way a controller action would.
+Additional constructor parameters are resolved from the container automatically.
+
+Tests that need to resolve the consumer by type must create a scope first:
 
 ```csharp
-var consumer = host.Services.GetRequiredService<OrderNotificationService>();
+using var scope = host.Services.CreateScope();
+var consumer = scope.ServiceProvider.GetRequiredService<OrderNotificationService>();
 ```
 
-Additional constructor parameters are resolved from the container automatically.
+Apps that genuinely need a singleton consumer can pre-register `TConsumer` themselves before
+`AddMessageConsumer`; the library's registration respects any prior lifetime.
 
 ### With `ISubscriber<T>` directly
 
@@ -202,6 +208,9 @@ public class OrderNotificationService(
     }
 }
 ```
+
+If the handler needs scoped dependencies, inject `IServiceScopeFactory` and create a scope per
+message.
 
 ### Envelope properties
 

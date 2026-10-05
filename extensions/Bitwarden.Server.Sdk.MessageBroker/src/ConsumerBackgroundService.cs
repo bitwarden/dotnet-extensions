@@ -5,19 +5,21 @@ namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Hosts an <see cref="IMessageConsumer{T}"/> as a <see cref="BackgroundService"/>, driving its
-/// message-processing loop and settling each envelope automatically.
+/// message-processing loop and settling each envelope automatically. Resolves
+/// <typeparamref name="TConsumer"/> from a fresh DI scope per message so handlers can inject
+/// scoped dependencies (e.g. a <c>DbContext</c>) the same way a controller action would.
 /// </summary>
 internal sealed class ConsumerBackgroundService<T, TConsumer> : BackgroundService
     where TConsumer : class, IMessageConsumer<T>
 {
-    private readonly TConsumer _consumer;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ISubscriber<T> _subscriber;
 
-    /// <param name="consumer">The consumer to invoke for each message.</param>
+    /// <param name="scopeFactory">Used to create a per-message DI scope.</param>
     /// <param name="subscriber">The subscriber to consume messages from.</param>
-    public ConsumerBackgroundService(TConsumer consumer, ISubscriber<T> subscriber)
+    public ConsumerBackgroundService(IServiceScopeFactory scopeFactory, ISubscriber<T> subscriber)
     {
-        _consumer = consumer;
+        _scopeFactory = scopeFactory;
         _subscriber = subscriber;
     }
 
@@ -31,9 +33,11 @@ internal sealed class ConsumerBackgroundService<T, TConsumer> : BackgroundServic
             // execution context, which the async enumerator does not flow out to this body.
             var previousActivity = Activity.Current;
             Activity.Current = envelope.Activity;
+            await using var scope = _scopeFactory.CreateAsyncScope();
             try
             {
-                await _consumer.HandleAsync(envelope, stoppingToken);
+                var consumer = scope.ServiceProvider.GetRequiredService<TConsumer>();
+                await consumer.HandleAsync(envelope, stoppingToken);
                 // Settle with CancellationToken.None: passing along a stopped token after a
                 // successful handler would leave the message un-acked and unsettled.
                 await envelope.CompleteAsync(CancellationToken.None);
