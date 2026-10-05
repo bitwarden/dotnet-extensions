@@ -238,8 +238,9 @@ internal sealed class CompilationCoordinator
     {
         // Every source generator opens its output with a blanket #pragma warning disable, so
         // scanning generated trees would fail any project using [GeneratedRegex] or the like.
-        // Nothing is lost: a pragma cannot suppress the error-severity rules, and the only warning,
-        // BW0011, sits on an exception attribute no generator writes.
+        // A pragma cannot suppress the NotConfigurable errors, so skipping these trees loses only
+        // the BW0012 for a pragma over BW0011 in a hand-written file Roslyn treats as generated.
+        // That is accepted because configuration can already lower BW0011 without a BW0016.
         if (context.IsGeneratedCode)
         {
             return;
