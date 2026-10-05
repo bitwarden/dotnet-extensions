@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Bitwarden.Server.Sdk.RestrictedDependencies.Analyzers.Analysis.Usage;
 using Bitwarden.Server.Sdk.RestrictedDependencies.Analyzers.Diagnostics;
 using Bitwarden.Server.Sdk.RestrictedDependencies.Analyzers.Rules;
@@ -302,6 +303,13 @@ internal sealed class CompilationCoordinator
     private void Inspect(Action<Diagnostic> report, ISymbol symbol)
     {
         Report(report, DiagnosticSuppressionScanner.OnSymbol(symbol, _repoRoot));
+        // Injection and escape uses are reported at the parameter, and Roslyn honours a
+        // [SuppressMessage] on that parameter.
+        foreach (var parameter in ParametersOf(symbol))
+        {
+            Report(report, DiagnosticSuppressionScanner.OnSymbol(parameter, _repoRoot));
+        }
+
         Report(report, _exceptions.Validate(symbol, reportExpiry: !_observe));
 
         // Member attributes are read only off a type that carries the attribute itself
@@ -317,6 +325,13 @@ internal sealed class CompilationCoordinator
                 $"'{owner.Name}.{symbol.Name}': [RestrictedDependency] on a member has no effect unless '{owner.Name}' carries it too."));
         }
     }
+
+    private static ImmutableArray<IParameterSymbol> ParametersOf(ISymbol symbol) => symbol switch
+    {
+        IMethodSymbol method => method.Parameters,
+        INamedTypeSymbol { DelegateInvokeMethod: { } invoke } => invoke.Parameters,
+        _ => [],
+    };
 
     private static void Report(Action<Diagnostic> report, IEnumerable<Diagnostic> diagnostics)
     {
