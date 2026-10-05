@@ -54,6 +54,8 @@ The `(AllowExistingUses, AllowNewUses)` pair decides how a use is treated:
 
 `AllowedPaths` is a full exemption: a matching file is neither gated, baselined nor observed for this type, so name the implementation file rather than its folder.
 
+Restrict the types a restricted type inherits from too. Member rules, baselines and `SealMembers` cover only the members the restricted type declares, so a member it inherits from an unrestricted interface or base class is neither counted nor sealed, and code can reach it through that base type without touching the restricted one.
+
 ### Exceptions
 
 When a new use is unavoidable, put an owned, expiring exception on the site rather than widening the baseline. All three properties are required, and an invalid exception excepts nothing:
