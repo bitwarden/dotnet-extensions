@@ -177,7 +177,9 @@ Additional constructor parameters are resolved from the container automatically.
 
 For more control — custom retry logic, dead-lettering after N deliveries, or consuming outside a
 `BackgroundService` — inject `ISubscriber<T>` as a keyed service and iterate it yourself. Each message
-must be either completed or requeued before the next is requested:
+must be either completed or requeued before the next is requested.
+
+This pattern is supported only on the RabbitMQ and Azure Service Bus backends.
 
 ```csharp
 public class OrderNotificationService(
