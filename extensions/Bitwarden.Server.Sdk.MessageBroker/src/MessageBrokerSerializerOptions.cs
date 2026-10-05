@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
@@ -12,6 +13,10 @@ public sealed class MessageBrokerSerializerOptions
     /// </remarks>
     public JsonSerializerOptions JsonSerializerOptions { get; set; } = CreateDefaultOptions();
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Resolver is only instantiated if IsReflectionEnabledByDefault is set")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Resolver is only instantiated if IsReflectionEnabledByDefault is set")]
     private static JsonSerializerOptions CreateDefaultOptions()
     {
         if (!JsonSerializer.IsReflectionEnabledByDefault)
@@ -19,8 +24,6 @@ public sealed class MessageBrokerSerializerOptions
             return new JsonSerializerOptions();
         }
 
-#pragma warning disable IL2026, IL3050
         return new JsonSerializerOptions { TypeInfoResolver = new DefaultJsonTypeInfoResolver() };
-#pragma warning restore IL2026, IL3050
     }
 }
