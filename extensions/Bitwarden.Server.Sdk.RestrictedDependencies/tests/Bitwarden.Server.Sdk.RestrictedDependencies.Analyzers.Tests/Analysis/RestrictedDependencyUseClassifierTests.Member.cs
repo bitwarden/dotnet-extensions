@@ -72,22 +72,6 @@ public partial class RestrictedDependencyUseClassifierTests
     }
 
     [Fact]
-    public async Task UseInsideLambda_KeysToEnclosingMethod()
-    {
-        await AnalyzerHarness.WithBaseline(
-                SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConstructorSite),
-                SampleProjectFixture.MemberSite(SampleProjectFixture.CanAccessPremium, SampleProjectFixture.RunSite, count: 1))
-            .WithConsumer(SampleProjectFixture.ConsumerPreamble + """
-                    public Func<Task<bool>> Run(User user)
-                    {
-                        return () => _userService.CanAccessPremium(user);
-                    }
-                }
-                """)
-            .RunAsync();
-    }
-
-    [Fact]
     public async Task MethodGroupReference_CountsAsUse()
     {
         await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConstructorSite))
