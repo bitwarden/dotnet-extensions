@@ -110,9 +110,10 @@ public class CompilationCoordinatorTests
     public async Task InEnforceMode_NoObservationsAreBuilt()
     {
         // Enforce mode is every real build. Even with the channel turned on it stays silent, so
-        // the rows cost nothing to produce when nobody is reading them.
-        var diagnostics = await ToolHost.RunAsync(observe: false, enableObservations: true);
+        // the rows cost nothing to produce when nobody is reading them. The baseline restricts
+        // IUserService, so the sample consumer's uses are recorded and there are rows to withhold.
+        var diagnostics = await ToolHost.RunAsync(observe: false, enableObservations: true, baselineJson: SampleProjectFixture.Baseline());
 
-        Assert.Empty(ToolHost.Rows(diagnostics, ObservationConstants.UsageRow));
+        Assert.DoesNotContain(diagnostics, d => d.Id == DiagnosticDescriptors.Observation.Id);
     }
 }
