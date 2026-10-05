@@ -29,12 +29,13 @@ flowchart TD
     subgraph Construct["Once per compilation"]
         Ctor --> Sev["DiagnosticSeverityScanner.Run<br/>NoWarn / .editorconfig lowering a family id → BW0016"]
         Ctor --> Base["BudgetIndex.Load<br/>committed baseline JSON → BW0015 on unreadable/duplicate files"]
-        Ctor --> Pol["RestrictedTypeIndex.Resolve<br/>read [RestrictedDependency] off seed types or baseline types<br/>→ BW0015 on bad attributes, flags orphaned baselines"]
-        Pol --> Mode{"SeedTypes supplied<br/>and BW0017 enabled?"}
+        Ctor --> Mode{"SeedTypes supplied<br/>and BW0017 enabled?"}
         Mode -- "both: a baseline tool is hosting" --> Observe["Observe mode — nothing enforced"]
         Mode -- "neither: the compiler is hosting" --> Enforce["Enforce mode"]
-        Mode -- "seed only: not a tool" --> Enforce
-        Enforce --> EnforceCheck["→ BW0015 on an unhonoured seed,<br/>or on analysis enabled with no baseline"]
+        Mode -- "seed only: not a tool" --> Unhonoured["→ BW0015 on an unhonoured seed"]
+        Unhonoured --> Enforce
+        Observe -- "seed types" --> Pol["RestrictedTypeIndex.Resolve<br/>read [RestrictedDependency] off the types the mode selects<br/>→ BW0015 on bad attributes, flags orphaned baselines"]
+        Enforce -- "baseline types" --> Pol
         Ctor --> Collab["build collaborators:<br/>DependencyExceptionTracker, DeclaredMemberSetChecker,<br/>BudgetReconciler, RestrictedDependencyUseClassifier"]
         Ctor --> Suppress0["scan assembly + module suppressions<br/>→ BW0012 candidates"]
     end
@@ -66,6 +67,7 @@ flowchart TD
     ModeEnd -- "Enforce" --> Recon["BudgetReconciler"]
     Recon --> Excess["ExcessUses → BW0005-0009 on surplus locations"]
     Recon --> Stale["StaleEntries → BW0013"]
+    ModeEnd -- "Enforce" --> NoBase["NoBaselineSupplied<br/>→ BW0015 on analysis enabled with no baseline"]
     ModeEnd -- "Observe" --> Obs["Ledger / RestrictedTypes / Exceptions .Observations()<br/>DeclaredMemberSetChecker.Observed"]
     Obs --> BW17["BW0017 rows: usage, declared-member, exception, restricted-type"]
 ```
