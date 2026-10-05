@@ -153,6 +153,67 @@ public class DiagnosticSuppressionScannerTests
             .RunAsync();
     }
 
+    [Fact]
+    public async Task SuppressMessageAttribute_OnAConstructorParameter_ReportsUnstructuredSuppression()
+    {
+        await AnalyzerHarness.WithBaseline()
+            .WithConsumer("""
+                using System.Diagnostics.CodeAnalysis;
+                using Test;
+
+                namespace Test;
+
+                public class Consumer
+                {
+                    public Consumer([SuppressMessage("RestrictedDependencies", "BW0005")] IUserService userService)
+                    {
+                    }
+                }
+                """)
+            .Expect(new DiagnosticResult(DiagnosticDescriptors.UnstructuredSuppression)
+                .WithArguments("[SuppressMessage] on 'userService' at 'src/Api/Consumer.cs' line 8", "BW0005"))
+            .RunAsync();
+    }
+
+    [Fact]
+    public async Task SuppressMessageAttribute_OnAMethodParameter_ReportsUnstructuredSuppression()
+    {
+        await AnalyzerHarness.WithBaseline()
+            .WithConsumer("""
+                using System.Diagnostics.CodeAnalysis;
+                using Test;
+
+                namespace Test;
+
+                public class Consumer
+                {
+                    public void Run([SuppressMessage("RestrictedDependencies", "BW0009")] IUserService service)
+                    {
+                    }
+                }
+                """)
+            .Expect(new DiagnosticResult(DiagnosticDescriptors.UnstructuredSuppression)
+                .WithArguments("[SuppressMessage] on 'service' at 'src/Api/Consumer.cs' line 8", "BW0009"))
+            .RunAsync();
+    }
+
+    [Fact]
+    public async Task SuppressMessageAttribute_OnADelegateParameter_ReportsUnstructuredSuppression()
+    {
+        await AnalyzerHarness.WithBaseline()
+            .WithConsumer("""
+                using System.Diagnostics.CodeAnalysis;
+                using Test;
+
+                namespace Test;
+
+                public delegate void Handler([SuppressMessage("RestrictedDependencies", "BW0009")] IUserService service);
+                """)
+            .Expect(new DiagnosticResult(DiagnosticDescriptors.UnstructuredSuppression)
+                .WithArguments("[SuppressMessage] on 'service' at 'src/Api/Consumer.cs' line 6", "BW0009"))
+            .RunAsync();
+    }
+
     [Theory]
     [InlineData("assembly", "", "TestProject")]
     [InlineData("module", "", "TestProject.dll")]
