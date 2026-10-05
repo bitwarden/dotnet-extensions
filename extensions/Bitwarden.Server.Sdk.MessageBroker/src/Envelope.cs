@@ -9,7 +9,17 @@ public abstract class Envelope<T>
     private readonly Activity? _activity;
     private bool _settled;
 
-    internal Envelope(T message, Activity? activity = null)
+    /// <summary>
+    /// Initializes a new envelope. Package consumers can derive from <see cref="Envelope{T}"/>
+    /// to construct test doubles for their <see cref="IMessageConsumer{T}"/> implementations;
+    /// production backends use their own internal subclasses.
+    /// </summary>
+    /// <param name="message">The received message.</param>
+    /// <param name="activity">
+    /// The consumer <see cref="Activity"/> whose lifecycle should follow settlement, or
+    /// <see langword="null"/> if the derived type does not emit tracing.
+    /// </param>
+    protected Envelope(T message, Activity? activity = null)
     {
         Message = message;
         _activity = activity;
