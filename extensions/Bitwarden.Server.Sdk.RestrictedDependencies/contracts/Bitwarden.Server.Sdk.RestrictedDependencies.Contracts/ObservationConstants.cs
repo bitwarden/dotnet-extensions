@@ -1,9 +1,9 @@
 namespace Bitwarden.Server.Sdk.RestrictedDependencies;
 
 /// <summary>
-/// The property names carried by a BW0017 observation diagnostic. BW0017 is disabled in every
-/// real build; a repository's baseline tool enables it and reads these back, which is how it
-/// learns what the analyzer saw without a second scanner.
+/// The property names carried by a BW0017 observation diagnostic. BW0017 is disabled by default;
+/// a repository's baseline tool enables it and reads these back, which is how it learns what the
+/// analyzer saw without a second scanner.
 /// </summary>
 public static class ObservationConstants
 {
