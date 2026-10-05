@@ -189,6 +189,10 @@ internal sealed class CompilationCoordinator
         if (_classifier.HasRestrictedTypes && property.DeclaredAccessibility != Accessibility.Private && !property.IsImplicitlyDeclared)
         {
             _classifier.OnSignature(property.Type, property, SymbolFacts.SourceLocation(property), property, report);
+            foreach (var parameter in property.Parameters)
+            {
+                _classifier.OnSignature(parameter.Type, property, SymbolFacts.SourceLocation(parameter), parameter, report);
+            }
         }
     }
 
@@ -329,6 +333,7 @@ internal sealed class CompilationCoordinator
     private static ImmutableArray<IParameterSymbol> ParametersOf(ISymbol symbol) => symbol switch
     {
         IMethodSymbol method => method.Parameters,
+        IPropertySymbol property => property.Parameters,
         INamedTypeSymbol { DelegateInvokeMethod: { } invoke } => invoke.Parameters,
         _ => [],
     };
