@@ -26,9 +26,24 @@ public sealed record EscrowedMessage(string MessageId, string? TraceId, int Deli
 public interface IMessageEscrowStore
 {
     /// <summary>
-    /// Atomically stores <paramref name="messages"/> under <paramref name="key"/>.
-    /// Called during host shutdown after the channel writers have been sealed.
+    /// Appends <paramref name="messages"/> to any entries already stored under
+    /// <paramref name="key"/>. Implementations must not replace existing entries.
     /// </summary>
+    /// <remarks>
+    /// Two paths write under the same key and the store may see them in any order:
+    /// <list type="bullet">
+    ///   <item>
+    ///     The shutdown drain writes one bulk batch per subscription containing every message
+    ///     still in the channel.
+    ///   </item>
+    ///   <item>
+    ///     Each handler whose <see cref="Envelope{T}.RequeueAsync"/> finds the channel sealed
+    ///     writes a single-message batch; this can happen once per straggler message, both
+    ///     during host shutdown and outside it (any requeue after the writer is sealed).
+    ///   </item>
+    /// </list>
+    /// Replace semantics would lose all but the last of these writes.
+    /// </remarks>
     Task WriteAsync(string key, IReadOnlyList<EscrowedMessage> messages, CancellationToken cancellationToken = default);
 
     /// <summary>

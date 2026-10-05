@@ -319,7 +319,9 @@ public class ChannelEscrowTests
 
         public Task WriteAsync(string key, IReadOnlyList<EscrowedMessage> messages, CancellationToken cancellationToken = default)
         {
-            _store[key] = messages.ToList();
+            if (!_store.TryGetValue(key, out var existing))
+                _store[key] = existing = [];
+            existing.AddRange(messages);
             return Task.CompletedTask;
         }
 
