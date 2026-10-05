@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -36,7 +35,7 @@ public static class MessageBrokerServiceCollectionExtensions
             var metrics = sp.GetRequiredService<MessageBrokerMetrics>();
             if (!string.IsNullOrEmpty(options.AzureServiceBusConnectionString))
             {
-                return new AzureServiceBusPublisher<T>(sp.GetRequiredService<ServiceBusClient>(), name, serializer, metrics);
+                return new AzureServiceBusPublisher<T>(sp.GetRequiredService<AzureServiceBusConnection>().Client, name, serializer, metrics);
             }
             if (!string.IsNullOrEmpty(options.RabbitUri))
             {
@@ -101,7 +100,7 @@ public static class MessageBrokerServiceCollectionExtensions
             var metrics = sp.GetRequiredService<MessageBrokerMetrics>();
             if (!string.IsNullOrEmpty(options.AzureServiceBusConnectionString))
             {
-                return new AzureServiceBusSubscriber<T>(sp.GetRequiredService<ServiceBusClient>(), name, subscriptionName, serializer, metrics);
+                return new AzureServiceBusSubscriber<T>(sp.GetRequiredService<AzureServiceBusConnection>().Client, name, subscriptionName, serializer, metrics);
             }
             if (!string.IsNullOrEmpty(options.RabbitUri))
             {
@@ -203,8 +202,6 @@ public static class MessageBrokerServiceCollectionExtensions
 
     private static void AddAzureServiceBusInfrastructure(IServiceCollection services)
     {
-        services.TryAddSingleton<ServiceBusClient>(sp =>
-            new ServiceBusClient(
-                sp.GetRequiredService<IOptions<MessagingOptions>>().Value.AzureServiceBusConnectionString));
+        services.TryAddSingleton<AzureServiceBusConnection>();
     }
 }

@@ -30,8 +30,8 @@ services.AddOptions<MessagingOptions>().BindConfiguration("");
 
 ```json
 {
-  "AzureServiceBusConnectionString": "Endpoint=sb://...",
-  "RabbitUri": "amqp://guest:guest@localhost/"
+    "AzureServiceBusConnectionString": "Endpoint=sb://...",
+    "RabbitUri": "amqp://guest:guest@localhost/"
 }
 ```
 
@@ -60,6 +60,10 @@ For each `AddSubscriber<T>(topic, subscription)`:
 - A subscription named `{subscription}` on that topic. Set `MaxDeliveryCount` on the
   subscription to cap redelivery attempts; the subscription's built-in dead-letter queue
   handles exhausted or explicitly dead-lettered messages automatically.
+
+The library creates and owns its own `ServiceBusClient` from the configured connection string
+and does not consume any `ServiceBusClient` the app registers separately. An app that also uses
+`ServiceBusClient` against the same namespace will have two AMQP connections to the broker.
 
 ### RabbitMQ
 
@@ -201,11 +205,11 @@ public class OrderNotificationService(
 
 Each message is wrapped in an `Envelope<T>` that carries broker metadata:
 
-| Property | Description |
-|---|---|
-| `Message` | The deserialized message. |
-| `MessageId` | Unique identifier assigned by the publisher. |
-| `TraceId` | W3C traceparent of the publish span, for linking consumer traces to producer traces. |
+| Property        | Description                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------- |
+| `Message`       | The deserialized message.                                                                                     |
+| `MessageId`     | Unique identifier assigned by the publisher.                                                                  |
+| `TraceId`       | W3C traceparent of the publish span, for linking consumer traces to producer traces.                          |
 | `DeliveryCount` | Number of times this message has been delivered. `1` on the first attempt, incrementing with each redelivery. |
 
 ### Stopping gracefully
@@ -233,18 +237,18 @@ integrate with any OpenTelemetry-compatible pipeline.
 
 **Traces** — source name `Bitwarden.Server.Sdk.MessageBroker`:
 
-| Operation | Kind | Description |
-|---|---|---|
-| `{topic} publish` | Producer | One span per publish call, or one per batch. |
+| Operation         | Kind     | Description                                                                |
+| ----------------- | -------- | -------------------------------------------------------------------------- |
+| `{topic} publish` | Producer | One span per publish call, or one per batch.                               |
 | `{topic} receive` | Consumer | One span per message delivered, linked to the producer span via `TraceId`. |
 
 **Metrics** — meter name `Bitwarden.Server.Sdk.MessageBroker`:
 
-| Instrument | Type | Description |
-|---|---|---|
-| `messaging.client.published.messages` | Counter | Messages published, tagged with `messaging.destination.name`. |
-| `messaging.client.consumed.messages` | Counter | Messages delivered to a consumer, tagged with `messaging.destination.name`. |
-| `messaging.channel.queued.messages` | Gauge | Current number of messages buffered in the in-memory channel, tagged with `messaging.destination.name`. |
+| Instrument                            | Type    | Description                                                                                             |
+| ------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
+| `messaging.client.published.messages` | Counter | Messages published, tagged with `messaging.destination.name`.                                           |
+| `messaging.client.consumed.messages`  | Counter | Messages delivered to a consumer, tagged with `messaging.destination.name`.                             |
+| `messaging.channel.queued.messages`   | Gauge   | Current number of messages buffered in the in-memory channel, tagged with `messaging.destination.name`. |
 
 ## Serialization
 
