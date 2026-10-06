@@ -114,7 +114,14 @@ public class ChannelBehaviorTests : BehaviorTests
                     instrument.Name == "messaging.channel.queued.messages")
                     listener.EnableMeasurementEvents(instrument);
             };
-            meterListener.SetMeasurementEventCallback<long>((_, measurement, _, _) => depth = measurement);
+            // Filter by topic tag: parallel test hosts share the meter name and would
+            // otherwise overwrite depth with their own (unrelated) topic's measurement.
+            meterListener.SetMeasurementEventCallback<long>((_, measurement, tags, _) =>
+            {
+                foreach (var tag in tags)
+                    if (tag.Key == "messaging.destination.name" && (string?)tag.Value == TopicName)
+                        depth = measurement;
+            });
             meterListener.Start();
             meterListener.RecordObservableInstruments();
             return depth;
