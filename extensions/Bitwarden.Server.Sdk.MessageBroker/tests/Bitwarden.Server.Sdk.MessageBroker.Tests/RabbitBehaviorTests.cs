@@ -127,7 +127,7 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
         _droppableContainer = new ContainerBuilder()
             .WithImage("rabbitmq")
             .WithPortBinding(5672, true)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))
+            .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Server startup complete"))
             .Build();
         await _droppableContainer.StartAsync(TestContext.Current.CancellationToken);
         var config = new Dictionary<string, string?> { { "RabbitUri", GetContainerUri(_droppableContainer) } };
@@ -145,7 +145,7 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
         await using var container = new ContainerBuilder()
             .WithImage("rabbitmq")
             .WithPortBinding(5672, true)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))
+            .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Server startup complete"))
             .Build();
         await container.StartAsync(TestContext.Current.CancellationToken);
 
@@ -196,7 +196,7 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
         await using var container = new ContainerBuilder()
             .WithImage("rabbitmq")
             .WithPortBinding(5672, true)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))
+            .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Server startup complete"))
             .Build();
         await container.StartAsync(TestContext.Current.CancellationToken);
 
@@ -277,7 +277,7 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
             _container = new ContainerBuilder()
                 .WithImage("rabbitmq")
                 .WithPortBinding(5672, true)
-                .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(5672))
+                .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Server startup complete"))
                 .Build();
 
             await _container.StartAsync(TestContext.Current.CancellationToken);
