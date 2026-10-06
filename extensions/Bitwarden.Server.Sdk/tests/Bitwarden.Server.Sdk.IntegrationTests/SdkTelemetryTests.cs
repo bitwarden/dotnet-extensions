@@ -1,4 +1,3 @@
-using System.Net;
 using System.Text.Json;
 using Docker.DotNet;
 using DotNet.Testcontainers.Builders;
@@ -332,9 +331,11 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
                 logger.LogInformation("{Out}", stdout);
                 logger.LogError("{Error}", stderr);
             }
-            catch (DockerApiException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
+            catch (DockerApiException)
             {
-                // Container was removed before we could fetch logs; nothing to collect.
+                // Container may already be stopped/removed by the time we try to collect
+                // diagnostic logs on cancellation (Conflict, NotFound, etc.). Swallow —
+                // the logs are best-effort and shouldn't fail the test teardown.
             }
             cancellationTokenSource.Cancel();
         });
