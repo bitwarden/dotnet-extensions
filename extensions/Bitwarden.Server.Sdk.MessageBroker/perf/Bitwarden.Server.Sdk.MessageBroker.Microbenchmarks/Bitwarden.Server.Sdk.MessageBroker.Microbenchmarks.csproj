@@ -19,6 +19,10 @@
          still depends on the vulnerable 2025.1.0 transitively; this direct reference overrides
          it. Remove once Testcontainers ships a release that depends on 2026.0.0 or later. -->
     <PackageReference Include="SSH.NET" Version="2026.0.0" />
+
+    <!-- BenchmarkDotNet takes a version that has two CVEs so pin the transitive dependency higher
+        until a version without it exists. -->
+    <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="[3.2.8]" />
   </ItemGroup>
 
   <ItemGroup>
