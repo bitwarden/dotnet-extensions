@@ -87,6 +87,25 @@ public class DeclaredMemberSetCheckerTests
             .RunAsync();
     }
 
+    /// <summary>
+    /// A member's documentation-comment id includes its parameters, so changing a sealed member's
+    /// signature reads as a new member rather than slipping past the seal.
+    /// </summary>
+    [Fact]
+    public async Task SealedInterface_MemberSignatureChanges_ReportsGrowth()
+    {
+        await new AnalyzerHarness()
+            .WithBaselineJson(SampleProjectFixture.Baseline())
+            .WithSource(SampleProjectFixture.ServicePath, SampleProjectFixture.Service
+                .Replace(
+                    "Task<bool> CanAccessPremium(User user);",
+                    "Task<bool> {|BW0014:CanAccessPremium|}(User user, bool strict = false);")
+                .Replace(
+                    "public Task<bool> CanAccessPremium(User user) =>",
+                    "public Task<bool> CanAccessPremium(User user, bool strict = false) =>"))
+            .RunAsync();
+    }
+
     [Fact]
     public async Task SealedClass_GainsNestedTypeOrProperty_ReportsGrowth()
     {

@@ -75,7 +75,7 @@ public class DiagnosticSuppressionScannerTests
     [Fact]
     public async Task SuppressMessageAttribute_OnAnAccessor_ReportsUnstructuredSuppression()
     {
-        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConstructorSite))
+        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConsumerSite))
             .WithConsumer("""
                 using System.Diagnostics.CodeAnalysis;
                 using System.Threading.Tasks;

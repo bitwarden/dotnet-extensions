@@ -21,7 +21,7 @@ public class ObservationDiagnosticFactoryTests(ObserveModeRunFixture run) : ICla
                 Assert.Equal(SampleProjectFixture.Type, row[ObservationConstants.Type]);
                 Assert.Equal("injection", row[ObservationConstants.UsageKind]);
                 Assert.Null(row[ObservationConstants.Member]);
-                Assert.Equal(SampleProjectFixture.ConstructorSite, row[ObservationConstants.Site]);
+                Assert.Equal(SampleProjectFixture.ConsumerSite, row[ObservationConstants.Site]);
                 Assert.Equal("1", row[ObservationConstants.Count]);
                 Assert.Equal("src/Api/Consumer.cs", row[ObservationConstants.File]);
                 Assert.Equal("false", row[ObservationConstants.Excepted]);
@@ -30,7 +30,7 @@ public class ObservationDiagnosticFactoryTests(ObserveModeRunFixture run) : ICla
             {
                 Assert.Equal("member", row[ObservationConstants.UsageKind]);
                 Assert.Equal(SampleProjectFixture.CanAccessPremium, row[ObservationConstants.Member]);
-                Assert.Equal(SampleProjectFixture.RunSite, row[ObservationConstants.Site]);
+                Assert.Equal(SampleProjectFixture.ConsumerSite, row[ObservationConstants.Site]);
             });
     }
 
