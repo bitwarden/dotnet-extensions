@@ -6,7 +6,7 @@ namespace Bitwarden.Server.Sdk.RestrictedDependencies;
 /// <param name="Kind">The access shape.</param>
 /// <param name="Member">Documentation-comment id of the restricted member; set only for member uses.</param>
 /// <param name="Project">Assembly name of the compilation the use was seen in.</param>
-/// <param name="Site">Documentation-comment id of the member that contains the use.</param>
+/// <param name="Site">Documentation-comment id of the type that contains the use.</param>
 /// <param name="Count">How many uses this row covers.</param>
 /// <param name="Tracked">
 /// Whether the rule governing the use allows new ones, in which case the row is a snapshot for
