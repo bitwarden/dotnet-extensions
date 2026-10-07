@@ -70,7 +70,7 @@ public class ProviderBillingController(IUserService userService);
 
 ## Baselines
 
-A baseline is one JSON document per restricted type, listing every use keyed by the documentation-comment id of the containing member — so it survives line moves and is overload-safe. It carries no timestamp or commit hash: two runs on the same tree serialize byte-identically. Its `type` field is the name `Compilation.GetTypeByMetadataName` accepts: namespace, dot, nested names joined by `+`, arity suffix included.
+A baseline is one JSON document per restricted type, listing every use keyed by the documentation-comment id of the type that contains it, so it survives line moves and changes to the parameters or names of the constructors and methods that hold the uses. A member row keeps the restricted member's full id, parameters included, so changing that member's signature reports BW0014 on a sealed type, and BW0006 and BW0013 when the member's rule is gated. It carries no timestamp or commit hash: two runs on the same tree serialize byte-identically. Its `type` field is the name `Compilation.GetTypeByMetadataName` accepts: namespace, dot, nested names joined by `+`, arity suffix included.
 
 A row whose rule is tracked-only carries `"tracked": true`, which `BudgetRatchet.FindGrowth` reads to exempt it: that total is expected to rise, so comparing it would fail the check for exactly the code the rule permits. The flag is written only when true, so a document with no tracked-only rows is byte-identical to one written without it. Your tool takes the value off the `tracked` property of each BW0017 usage row.
 

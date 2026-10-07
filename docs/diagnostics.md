@@ -151,6 +151,8 @@ Reported when a constructor — classic or primary — takes a parameter of a ty
 
 A parameter typed as a type parameter constrained to the restricted type counts the same way: `Consumer<T>(T userService) where T : IUserService` injects it as surely as naming it does.
 
+The site is the type that declares the constructor, so adding, removing or reordering the constructor's other parameters doesn't change it. A second constructor in the same type that also takes the restricted type is a second use.
+
 ### Example
 
 ```csharp
@@ -172,7 +174,9 @@ public class BillingController(IUserService userService);
 
 ### Summary
 
-Reported when a member of a restricted type is called or referenced more times inside one member than the baseline records, or at all when the member's rule is `AllowExistingUses = false`. A `nameof` is not a use. Uses inside a lambda or local function count against the method that contains them.
+Reported when a member of a restricted type is called or referenced more times inside one type than the baseline records, or at all when the member's rule is `AllowExistingUses = false`. A `nameof` is not a use. Uses inside a lambda, local function or query expression count against the type that contains them.
+
+When a type has more uses than its budget, the error marks the last uses in file order, which might not be the ones you added, so check every use in the type.
 
 ### Example
 
@@ -374,7 +378,7 @@ Reported when a baseline row for this project matches nothing, or fewer uses tha
 
 Only gated rules are checked. A tracked-only entry — `AllowNewUses = true` — is a snapshot for reporting, so its disappearance is not reported. Such a row is written carrying `"tracked": true`, which is what also keeps it out of the shrink-only comparison in `BudgetRatchet.FindGrowth`: a total the rule allows to rise must not fail the baseline check.
 
-Renaming or moving a method that holds baselined uses changes its key, so the build reports BW0013 for the old key and BW0006 for the new one until the baseline is regenerated. A shrink-only check reads that as a net-zero move and accepts it.
+Renaming a type that holds baselined uses, or moving it to another namespace or project, changes the row its uses are counted under, so the build reports BW0013 for the old row and BW0005–BW0009 for the new one until the baseline is regenerated. A shrink-only check reads that as a net-zero move and accepts it. Changing a constructor's or method's parameters, renaming a method, or moving a use to another member of the same type doesn't change the row.
 
 **Fix:** Regenerate the baselines. The message quotes the command configured in `RestrictedDependencyUpdateCommand`.
 
@@ -393,6 +397,8 @@ Renaming or moving a method that holds baselined uses changes its key, so the bu
 Reported when a type marked `SealMembers`, `SealNestedTypes` or `SealProperties` declares something the seal covers that is not in its baseline's `declaredMembers`. Freezing the shape is what stops a type that is supposed to be dissolving from growing instead.
 
 The seal covers methods, events, properties and nested types. Fields, constructors and user-defined operators are not covered by it.
+
+Changing a covered member's parameters changes its documentation-comment id, so the build reports it as a new member. A restricted member's signature is frozen along with the rest of the type.
 
 ### Example
 
