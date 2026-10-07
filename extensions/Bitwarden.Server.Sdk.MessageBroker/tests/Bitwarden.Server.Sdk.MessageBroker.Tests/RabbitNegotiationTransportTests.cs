@@ -30,7 +30,7 @@ public class RabbitNegotiationTransportTests
             AdmissionTimeout = TimeSpan.FromSeconds(15),
         };
 
-        var connection = new RabbitConnection(msgOpts, []);
+        var connection = new RabbitConnection(msgOpts);
         await connection.StartingAsync(TestContext.Current.CancellationToken);
         _connections.Add(connection);
         // Bind every data-topic the behavior tests exercise so a single "service" acts as
