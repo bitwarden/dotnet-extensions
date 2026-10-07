@@ -54,12 +54,12 @@ public static class ObservationConstants
     public const string Member = "member";
 
     /// <summary>
-    /// Documentation-comment id of the member that contains a use.
+    /// Documentation-comment id of the type that contains a use.
     /// </summary>
     public const string Site = "site";
 
     /// <summary>
-    /// How many uses of this shape the containing member holds.
+    /// How many uses of this shape the containing type holds.
     /// </summary>
     public const string Count = "count";
 
