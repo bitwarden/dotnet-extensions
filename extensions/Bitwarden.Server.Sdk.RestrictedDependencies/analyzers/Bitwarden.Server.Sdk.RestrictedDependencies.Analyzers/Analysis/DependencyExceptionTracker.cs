@@ -68,7 +68,7 @@ internal sealed class DependencyExceptionTracker
         {
             var typeName = exception.RestrictedType is null ? "?" : SymbolFacts.MetadataName(exception.RestrictedType);
             var expired = exception.IsExpired(_today);
-            _observed.Add(new Seen(typeName, SymbolFacts.SiteId(symbol), exception.Owner, exception.Reason, exception.Expires, exception.IsValid, expired));
+            _observed.Add(new Seen(typeName, symbol.GetDocumentationCommentId() ?? symbol.ToDisplayString(), exception.Owner, exception.Reason, exception.Expires, exception.IsValid, expired));
 
             if (!exception.IsValid)
             {
