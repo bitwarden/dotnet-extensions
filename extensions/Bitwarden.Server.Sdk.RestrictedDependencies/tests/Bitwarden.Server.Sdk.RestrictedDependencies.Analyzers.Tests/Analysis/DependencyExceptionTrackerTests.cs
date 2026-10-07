@@ -33,7 +33,7 @@ public class DependencyExceptionTrackerTests
     [Fact]
     public async Task ValidMemberLevelException_CoversMemberUsesInThatMemberOnly()
     {
-        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConstructorSite))
+        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConsumerSite))
             .WithConsumer($$"""
                 using System.Threading.Tasks;
                 using Bitwarden.Server.Sdk.RestrictedDependencies;
@@ -87,7 +87,7 @@ public class DependencyExceptionTrackerTests
     [InlineData(EventAddAccessor)]
     public async Task ValidPropertyOrEventLevelException_CoversMemberUsesInItsAccessors([StringSyntax("C#-test")] string excepted)
     {
-        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConstructorSite))
+        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConsumerSite))
             .WithConsumer($$"""
                 using System;
                 using System.Threading.Tasks;

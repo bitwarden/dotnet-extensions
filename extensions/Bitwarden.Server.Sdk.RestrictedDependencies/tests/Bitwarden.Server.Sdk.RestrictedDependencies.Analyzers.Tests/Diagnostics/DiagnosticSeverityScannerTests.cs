@@ -107,8 +107,8 @@ public class DiagnosticSeverityScannerTests
 
     private static AnalyzerHarness AnalyzerOnSampleProject() =>
         AnalyzerHarness.WithBaseline(
-                SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConstructorSite),
-                SampleProjectFixture.MemberSite(SampleProjectFixture.CanAccessPremium, SampleProjectFixture.RunSite))
+                SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConsumerSite),
+                SampleProjectFixture.MemberSite(SampleProjectFixture.CanAccessPremium, SampleProjectFixture.ConsumerSite))
             .WithConsumer(SampleProjectFixture.Consumer);
 
     private static IEnumerable<Diagnostic> ScanCompilation(LoweringSource source, ReportDiagnostic report, params string[] paths)
