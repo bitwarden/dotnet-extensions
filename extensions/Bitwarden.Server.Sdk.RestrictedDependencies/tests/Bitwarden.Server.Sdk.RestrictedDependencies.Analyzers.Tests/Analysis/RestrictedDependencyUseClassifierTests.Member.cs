@@ -8,8 +8,8 @@ public partial class RestrictedDependencyUseClassifierTests
     public async Task ForbiddenMember_EveryUseReported_EvenWhenBaselined()
     {
         await AnalyzerHarness.WithBaseline(
-                SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConstructorSite),
-                SampleProjectFixture.MemberSite(SampleProjectFixture.GetUserName, SampleProjectFixture.RunSite, count: 1))
+                SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConsumerSite),
+                SampleProjectFixture.MemberSite(SampleProjectFixture.GetUserName, SampleProjectFixture.ConsumerSite, count: 1))
             .WithConsumer(SampleProjectFixture.ConsumerPreamble + """
                     public string Run(User user)
                     {
@@ -23,7 +23,7 @@ public partial class RestrictedDependencyUseClassifierTests
     [Fact]
     public async Task TrackedOnlyMember_NotBaselined_ReportsNothing()
     {
-        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConstructorSite))
+        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConsumerSite))
             .WithConsumer(SampleProjectFixture.ConsumerPreamble + """
                     public Guid? Run(User user)
                     {
@@ -38,7 +38,7 @@ public partial class RestrictedDependencyUseClassifierTests
     public async Task CallThroughImplementationTypedVariable_CountsAsInterfaceMemberUse()
     {
         await AnalyzerHarness.WithBaseline(
-                SampleProjectFixture.Site(DependencyUsageType.Concrete, SampleProjectFixture.RunSite))
+                SampleProjectFixture.Site(DependencyUsageType.Concrete, SampleProjectFixture.ConsumerSite))
             .WithConsumer("""
                 using System.Threading.Tasks;
                 using Test;
@@ -60,7 +60,7 @@ public partial class RestrictedDependencyUseClassifierTests
     [Fact]
     public async Task NameOf_IsNotAUse()
     {
-        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConstructorSite))
+        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConsumerSite))
             .WithConsumer(SampleProjectFixture.ConsumerPreamble + """
                     public string Run(User user)
                     {
@@ -74,7 +74,7 @@ public partial class RestrictedDependencyUseClassifierTests
     [Fact]
     public async Task MethodGroupReference_CountsAsUse()
     {
-        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConstructorSite))
+        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConsumerSite))
             .WithConsumer(SampleProjectFixture.ConsumerPreamble + """
                     public Func<User, Task<bool>> Run(User user)
                     {
@@ -103,6 +103,40 @@ public partial class RestrictedDependencyUseClassifierTests
             .RunAsync();
     }
 
+    private const string ParameterAdded = """
+            public Task<bool> Run(User user, bool force) => _userService.CanAccessPremium(user);
+        }
+        """;
+
+    private const string MethodRenamed = """
+            public Task<bool> Execute(User user) => _userService.CanAccessPremium(user);
+        }
+        """;
+
+    private const string UseMovedToAnotherMethod = """
+            public Task<bool> Run(User user) => Check(user);
+
+            private Task<bool> Check(User user) => _userService.CanAccessPremium(user);
+        }
+        """;
+
+    /// <summary>
+    /// A member row names the type, so changing the parameters or name of the method that holds the
+    /// use, or moving the use to another method of the same type, leaves the row where it was.
+    /// </summary>
+    [Theory]
+    [InlineData(ParameterAdded)]
+    [InlineData(MethodRenamed)]
+    [InlineData(UseMovedToAnotherMethod)]
+    public async Task GatedMember_ReshapedMethod_ConsumesTheTypesBudget([StringSyntax("C#-test")] string body)
+    {
+        await AnalyzerHarness.WithBaseline(
+                SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConsumerSite),
+                SampleProjectFixture.MemberSite(SampleProjectFixture.CanAccessPremium, SampleProjectFixture.ConsumerSite, count: 1))
+            .WithConsumer(SampleProjectFixture.ConsumerPreamble + body)
+            .RunAsync();
+    }
+
     private const string LambdaBody = """
             public Task<bool> Run(User user)
             {
@@ -122,27 +156,98 @@ public partial class RestrictedDependencyUseClassifierTests
         }
         """;
 
+    private const string LinqSelect = """
+            public IEnumerable<Task<bool>> Run(IEnumerable<User> users) => users.Select(u => _userService.CanAccessPremium(u));
+        }
+        """;
+
+    private const string QuerySyntax = """
+            public IEnumerable<Task<bool>> Run(IEnumerable<User> users) => from u in users select _userService.CanAccessPremium(u);
+        }
+        """;
+
+    private const string AnonymousMethod = """
+            public Task<bool> Run(User user)
+            {
+                Func<User, Task<bool>> call = delegate (User u) { return _userService.CanAccessPremium(u); };
+                return call(user);
+            }
+        }
+        """;
+
+    private const string ExpressionTree = """
+            public Expression<Func<User, Task<bool>>> Run()
+            {
+                Expression<Func<User, Task<bool>>> e = u => _userService.CanAccessPremium(u);
+                return e;
+            }
+        }
+        """;
+
+    private const string ExpressionBodiedPropertyLambda = """
+            public Func<User, Task<bool>> Check => u => _userService.CanAccessPremium(u);
+        }
+        """;
+
     /// <summary>
-    /// Lambdas and local functions have no documentation-comment id, so a use inside one is keyed to
-    /// the method that contains it and consumes that method's budget rather than falling outside
-    /// every baseline row.
+    /// Lambdas, local functions, anonymous methods and query clauses have no documentation-comment
+    /// id, so a use inside one is keyed to the type that contains it. A budget of one passes only
+    /// when the use is counted exactly once: none would leave the row stale and two would exceed it.
     /// </summary>
     [Theory]
     [InlineData(LambdaBody)]
     [InlineData(LocalFunctionBody)]
-    public async Task GatedMember_UsedInsideNestedFunction_ConsumesTheContainingMethodsBudget([StringSyntax("C#-test")] string body)
+    [InlineData(LinqSelect)]
+    [InlineData(QuerySyntax)]
+    [InlineData(AnonymousMethod)]
+    [InlineData(ExpressionTree)]
+    [InlineData(ExpressionBodiedPropertyLambda)]
+    public async Task GatedMember_UsedInsideNestedFunction_ConsumesTheContainingTypesBudget([StringSyntax("C#-test")] string body)
     {
         await AnalyzerHarness.WithBaseline(
-                SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConstructorSite),
-                SampleProjectFixture.MemberSite(SampleProjectFixture.CanAccessPremium, SampleProjectFixture.RunSite, count: 1))
-            .WithConsumer(SampleProjectFixture.ConsumerPreamble + body)
+                SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConsumerSite),
+                SampleProjectFixture.MemberSite(SampleProjectFixture.CanAccessPremium, SampleProjectFixture.ConsumerSite, count: 1))
+            .WithConsumer("""
+                using System.Collections.Generic;
+                using System.Linq;
+                using System.Linq.Expressions;
+
+                """ + SampleProjectFixture.ConsumerPreamble + body)
+            .RunAsync();
+    }
+
+    [Fact]
+    public async Task GatedMember_ReachedThroughALambdaParameter_IsAMemberUse()
+    {
+        await AnalyzerHarness.WithBaseline(
+                SampleProjectFixture.MemberSite(SampleProjectFixture.CanAccessPremium, SampleProjectFixture.ConsumerSite, count: 1),
+                SampleProjectFixture.Site(DependencyUsageType.Escape, "T:Test.Account"))
+            .WithConsumer("""
+                using System.Collections.Generic;
+                using System.Linq;
+                using System.Threading.Tasks;
+                using Test;
+
+                namespace Test;
+
+                public class Account
+                {
+                    public IUserService UserService { get; init; } = null!;
+                }
+
+                public class Consumer
+                {
+                    public IEnumerable<Task<bool>> Run(IEnumerable<Account> accounts, User user) =>
+                        accounts.Select(a => a.UserService.CanAccessPremium(user));
+                }
+                """)
             .RunAsync();
     }
 
     [Fact]
     public async Task GatedMember_UsedInsideLambda_WithoutBudget_IsReportedAtTheUse()
     {
-        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConstructorSite))
+        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConsumerSite))
             .WithConsumer(SampleProjectFixture.ConsumerPreamble + """
                     public Task<bool> Run(User user)
                     {

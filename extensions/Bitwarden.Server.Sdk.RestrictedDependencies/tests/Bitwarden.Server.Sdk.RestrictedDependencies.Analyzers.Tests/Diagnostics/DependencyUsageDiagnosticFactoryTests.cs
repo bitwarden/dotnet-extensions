@@ -49,7 +49,7 @@ public class DependencyUsageDiagnosticFactoryTests
     [Fact]
     public async Task MemberUse_NamesTheMemberTypeTrackingHintAndOwner()
     {
-        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConstructorSite))
+        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConsumerSite))
             .WithConsumer(SampleProjectFixture.ConsumerPreamble + """
                     public string Run(User user)
                     {
