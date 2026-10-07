@@ -44,7 +44,7 @@ public partial class RestrictedDependencyUseClassifierTests
     public async Task BaselinedServiceLocator_ReportsNoLocator_ButTheReturnTypeStillEscapes()
     {
         await AnalyzerHarness.WithBaseline(
-                SampleProjectFixture.Site(DependencyUsageType.Locator, "M:Test.Consumer.Resolve(System.IServiceProvider)"))
+                SampleProjectFixture.Site(DependencyUsageType.Locator, SampleProjectFixture.ConsumerSite))
             .WithConsumer("""
                 using System;
                 using Microsoft.Extensions.DependencyInjection;

@@ -43,12 +43,12 @@ public class BudgetIndexTests
         // Two rows of count 2 would budget four uses, while three uses still satisfied each row on
         // its own - so nothing would report the slack and the ratchet could never be turned down.
         // The document is rejected instead, which surfaces as BW0015 and fails the build.
-        var duplicated = SampleProjectFixture.MemberSite(SampleProjectFixture.CanAccessPremium, SampleProjectFixture.RunSite, count: 2);
+        var duplicated = SampleProjectFixture.MemberSite(SampleProjectFixture.CanAccessPremium, SampleProjectFixture.ConsumerSite, count: 2);
 
         await new AnalyzerHarness()
             .WithSource(SampleProjectFixture.ServicePath, SampleProjectFixture.ServiceWithMarkedInterface)
             .WithBaselineJson(SampleProjectFixture.Baseline(
-                SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConstructorSite),
+                SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConsumerSite),
                 duplicated,
                 duplicated))
             .WithConsumer(SampleProjectFixture.ConsumerPreamble + """
@@ -61,7 +61,7 @@ public class BudgetIndexTests
                 }
                 """)
             .Expect(new DiagnosticResult(DiagnosticDescriptors.AttributeInvalid)
-                .WithArguments($"Baseline 'baselines/{SampleProjectFixture.Type}.json' is malformed: Duplicate 'member' site '{SampleProjectFixture.RunSite}' in project '{SampleProjectFixture.Project}'."))
+                .WithArguments($"Baseline 'baselines/{SampleProjectFixture.Type}.json' is malformed: Duplicate 'member' site '{SampleProjectFixture.ConsumerSite}' in project '{SampleProjectFixture.Project}'."))
             .Expect(new DiagnosticResult(DiagnosticDescriptors.AttributeInvalid)
                 .WithLocation(0)
                 .WithArguments($"'IUserService' carries [RestrictedDependency] but no baseline named '{SampleProjectFixture.Type}.json' was supplied; regenerate the committed baselines."))

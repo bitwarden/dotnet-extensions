@@ -4,7 +4,7 @@ namespace Bitwarden.Server.Sdk.RestrictedDependencies.Analyzers.Tests.Analysis;
 
 public partial class RestrictedDependencyUseClassifierTests
 {
-    private const string BaseConstructorSite = "M:Test.BaseConsumer.#ctor(Test.IUserService)";
+    private const string BaseConsumerSite = "T:Test.BaseConsumer";
 
     private const string NonConstructorParameter = """
         public class Consumer
@@ -134,7 +134,7 @@ public partial class RestrictedDependencyUseClassifierTests
     [InlineData(ReturnType, null)]
     [InlineData(DelegateType, null)]
     [InlineData(LazyConstructorParameter, null)]
-    [InlineData(ProtectedProperty, BaseConstructorSite)]
+    [InlineData(ProtectedProperty, BaseConsumerSite)]
     [InlineData(PublicField, null)]
     [InlineData(PublicEvent, null)]
     [InlineData(ArrayParameter, null)]
@@ -145,11 +145,11 @@ public partial class RestrictedDependencyUseClassifierTests
     [InlineData(ExplicitInterfaceEvent, null)]
     public async Task RestrictedTypeLeavingItsConsumer_ReportsEscape(
         [StringSyntax("C#-test")] string declaration,
-        string? baselinedConstructor)
+        string? baselinedInjectionSite)
     {
-        BudgetEntry[] baseline = baselinedConstructor is null
+        BudgetEntry[] baseline = baselinedInjectionSite is null
             ? []
-            : [SampleProjectFixture.Site(DependencyUsageType.Injection, baselinedConstructor)];
+            : [SampleProjectFixture.Site(DependencyUsageType.Injection, baselinedInjectionSite)];
 
         await AnalyzerHarness.WithBaseline(baseline)
             .WithConsumer($$"""
@@ -171,7 +171,7 @@ public partial class RestrictedDependencyUseClassifierTests
     [Fact]
     public async Task PrivateBackingField_IsStorageNotEscape()
     {
-        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConstructorSite))
+        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConsumerSite))
             .WithConsumer(SampleProjectFixture.ConsumerPreamble + "}")
             .RunAsync();
     }
@@ -180,8 +180,8 @@ public partial class RestrictedDependencyUseClassifierTests
     public async Task BaseConstructorPassThrough_ReportsEscapeAtArgument()
     {
         await AnalyzerHarness.WithBaseline(
-                SampleProjectFixture.Site(DependencyUsageType.Injection, BaseConstructorSite),
-                SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConstructorSite))
+                SampleProjectFixture.Site(DependencyUsageType.Injection, BaseConsumerSite),
+                SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConsumerSite))
             .WithConsumer("""
                 using Test;
 
@@ -217,9 +217,7 @@ public partial class RestrictedDependencyUseClassifierTests
     [Fact]
     public async Task ThisConstructorChain_IsNotAnEscape()
     {
-        await AnalyzerHarness.WithBaseline(
-                SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConstructorSite),
-                SampleProjectFixture.Site(DependencyUsageType.Injection, "M:Test.Consumer.#ctor(Test.IUserService,System.Int32)"))
+        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConsumerSite, count: 2))
             .WithConsumer("""
                 using Test;
 

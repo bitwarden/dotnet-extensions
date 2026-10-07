@@ -47,6 +47,125 @@ public partial class RestrictedDependencyUseClassifierTests
             .RunAsync();
     }
 
+    private const string OnlyTheService = """
+        public class Consumer
+        {
+            private readonly IUserService _userService;
+
+            public Consumer(IUserService userService)
+            {
+                _userService = userService;
+            }
+        }
+        """;
+
+    private const string ParameterAddedAfter = """
+        public class Consumer
+        {
+            private readonly IUserService _userService;
+
+            public Consumer(IUserService userService, User user)
+            {
+                _userService = userService;
+            }
+        }
+        """;
+
+    private const string ParameterAddedBefore = """
+        public class Consumer
+        {
+            private readonly IUserService _userService;
+
+            public Consumer(User user, IUserService userService)
+            {
+                _userService = userService;
+            }
+        }
+        """;
+
+    private const string ParametersReordered = """
+        public class Consumer
+        {
+            private readonly IUserService _userService;
+
+            public Consumer(Principal p, IUserService userService, User u)
+            {
+                _userService = userService;
+            }
+        }
+        """;
+
+    private const string ParameterRenamed = """
+        public class Consumer
+        {
+            private readonly IUserService _userService;
+
+            public Consumer(IUserService users)
+            {
+                _userService = users;
+            }
+        }
+        """;
+
+    private const string PrimaryConstructorWithOtherParameters = """
+        public class Consumer(User user, IUserService userService)
+        {
+            private readonly User _user = user;
+            private readonly IUserService _userService = userService;
+        }
+        """;
+
+    /// <summary>
+    /// An injection row names the type, so changing the constructor's other parameters, their order
+    /// or the restricted parameter's name leaves the row where it was.
+    /// </summary>
+    [Theory]
+    [InlineData(OnlyTheService)]
+    [InlineData(ParameterAddedAfter)]
+    [InlineData(ParameterAddedBefore)]
+    [InlineData(ParametersReordered)]
+    [InlineData(ParameterRenamed)]
+    [InlineData(PrimaryConstructorWithOtherParameters)]
+    public async Task ConstructorParameter_ReshapedConstructor_ConsumesTheTypesBudget([StringSyntax("C#-test")] string consumer)
+    {
+        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConsumerSite))
+            .WithConsumer($$"""
+                using Test;
+
+                namespace Test;
+
+                {{consumer}}
+                """)
+            .RunAsync();
+    }
+
+    [Fact]
+    public async Task ConstructorParameter_SecondConstructorAlsoInjects_ReportsInjection()
+    {
+        await AnalyzerHarness.WithBaseline(SampleProjectFixture.Site(DependencyUsageType.Injection, SampleProjectFixture.ConsumerSite))
+            .WithConsumer("""
+                using Test;
+
+                namespace Test;
+
+                public class Consumer
+                {
+                    private readonly IUserService _userService;
+
+                    public Consumer(IUserService userService)
+                    {
+                        _userService = userService;
+                    }
+
+                    public Consumer(IUserService {|BW0005:userService|}, User user)
+                    {
+                        _userService = userService;
+                    }
+                }
+                """)
+            .RunAsync();
+    }
+
     private const string HelperInjectingTheRestrictedType = """
         using Test;
 
