@@ -26,22 +26,18 @@ internal static class SymbolFacts
 
     /// <summary>
     /// The baseline site key for code inside <paramref name="symbol"/>: the documentation-comment
-    /// id of the nearest enclosing member that has one. Lambdas and local functions have none, so
-    /// their uses key to the method that contains them.
+    /// id of <paramref name="symbol"/> when it is a type, otherwise of the nearest type that
+    /// contains it. Changing a member's parameters or name, or moving a use between members of the
+    /// same type, leaves the key unchanged. Uses inside lambdas and local functions key to the
+    /// type that contains them.
     /// </summary>
     public static string SiteId(ISymbol symbol)
     {
         for (var current = symbol; current is not null; current = current.ContainingSymbol)
         {
-            if (current is IMethodSymbol { MethodKind: MethodKind.AnonymousFunction or MethodKind.LocalFunction })
+            if (current is INamedTypeSymbol type && type.GetDocumentationCommentId() is { Length: > 0 } id)
             {
-                continue;
-            }
-
-            var id = current.GetDocumentationCommentId();
-            if (!string.IsNullOrEmpty(id))
-            {
-                return id!;
+                return id;
             }
         }
 
