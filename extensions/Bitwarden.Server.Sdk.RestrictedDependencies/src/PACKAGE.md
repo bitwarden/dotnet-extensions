@@ -8,17 +8,18 @@ It ships a Roslyn analyzer, a source generator that emits the attributes, and th
 
 ## How to use
 
-Turn the analysis on for the projects you want gated, and point it at your committed baselines:
+In your repository's root `Directory.Build.props`, turn the analysis on for the projects you want gated and point it at your committed baselines. `RepoRoot` must be the repository root. `$(MSBuildThisFileDirectory)` is the repository root only in that file; in a project file it is the project directory. Gate projects with a `Condition` on `RestrictedDependencyAnalysis`, or set it in each project file:
 
 ```xml
 <PropertyGroup>
+  <!-- Add a Condition here, or move this line into each gated project. -->
   <RestrictedDependencyAnalysis>true</RestrictedDependencyAnalysis>
   <RepoRoot>$(MSBuildThisFileDirectory)</RepoRoot>
   <RestrictedDependencyBaselinesPath>$(RepoRoot)baselines</RestrictedDependencyBaselinesPath>
   <RestrictedDependencyUpdateCommand>dotnet run --project tools/Baselines -- update</RestrictedDependencyUpdateCommand>
 </PropertyGroup>
 
-<ItemGroup>
+<ItemGroup Condition="'$(RestrictedDependencyAnalysis)' == 'true'">
   <PackageReference Include="Bitwarden.Server.Sdk.RestrictedDependencies" Version="..." IncludeAssets="analyzers;build" />
 </ItemGroup>
 ```
