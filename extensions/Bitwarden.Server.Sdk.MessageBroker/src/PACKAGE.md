@@ -413,8 +413,11 @@ Removing V1 breaks at consume time. A subscriber still built against a payload t
 references V1 — one running an older copy of the shared type library — can no longer decode
 post-retirement messages, and the transport dead-letters the message before either `IMessageConsumer<...>` or `ISubscriber<...>` receive it.
 
-A future release will add symmetric startup pre-flight checks for both subscribers and publishers to
-ensure variant overlap at startup.
+Startup negotiation catches this before messages flow (see [Version negotiation](#version-negotiation)).
+On the Azure Service Bus and Rabbit backends, a publisher whose chain no longer carries a variant some
+live subscriber requires, and a subscriber whose ceiling the live publisher no longer sends, each
+throw `NegotiationRejectedException` at startup and fail the host. Consume-time dead-letters remain
+should the negotiation system errantly permit a non-compliant service to join.
 
 Before removing V1, use the `messaging.variant.name` tag on `messaging.client.consumed.messages`
 to confirm no subscriber is still reading it. V1 falling to zero across the deployment is the
