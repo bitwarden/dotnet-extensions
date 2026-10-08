@@ -279,6 +279,7 @@ public static class HostBuilderExtensions
                 tracing.AddRedisInstrumentation();
 #endif
                 tracing.AddSource("Bitwarden.*");
+                tracing.AddSource("Azure.*");
             });
 
 #if BIT_INCLUDE_CACHING
