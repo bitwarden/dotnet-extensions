@@ -190,9 +190,9 @@ public partial class RestrictedDependencyUseClassifierTests
         """;
 
     /// <summary>
-    /// Lambdas, local functions, anonymous methods and query clauses have no documentation-comment
-    /// id, so a use inside one is keyed to the type that contains it. A budget of one passes only
-    /// when the use is counted exactly once: none would leave the row stale and two would exceed it.
+    /// A use inside a lambda, local function, anonymous method or query clause is keyed to the type
+    /// that contains it, like any other use. A budget of one passes only when the use is counted
+    /// exactly once: none would leave the row stale and two would exceed it.
     /// </summary>
     [Theory]
     [InlineData(LambdaBody)]
