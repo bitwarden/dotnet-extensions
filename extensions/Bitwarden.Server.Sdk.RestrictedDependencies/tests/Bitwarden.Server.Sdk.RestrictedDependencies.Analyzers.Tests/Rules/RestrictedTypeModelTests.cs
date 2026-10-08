@@ -80,4 +80,32 @@ public class RestrictedTypeModelTests
                 """)
             .RunAsync();
     }
+
+    /// <summary>
+    /// GetMembers returns nested types beside the members. A nested type that carries the attribute
+    /// is a restricted type of its own, so a type-level setting on it is not a member override and
+    /// reports nothing.
+    /// </summary>
+    [Fact]
+    public async Task TypeLevelSettingOnANestedRestrictedType_ReportsNothing()
+    {
+        await new AnalyzerHarness()
+            .WithBaselineJson(new BudgetModel("Test.IWidget", [], []).Serialize(), "Test.IWidget")
+            .WithBaselineJson(new BudgetModel("Test.IWidget+Options", [], []).Serialize(), "Test.IWidget+Options")
+            .WithSource(WidgetPath, """
+                using Bitwarden.Server.Sdk.RestrictedDependencies;
+
+                namespace Test;
+
+                [RestrictedDependency]
+                public interface IWidget
+                {
+                    [RestrictedDependency(SealMembers = true)]
+                    public interface Options
+                    {
+                    }
+                }
+                """)
+            .RunAsync();
+    }
 }
