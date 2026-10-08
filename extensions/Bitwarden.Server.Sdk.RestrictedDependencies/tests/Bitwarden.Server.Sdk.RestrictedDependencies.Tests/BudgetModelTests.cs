@@ -8,17 +8,17 @@ public class BudgetModelTests
         var first = new BudgetModel("Bit.Core.Services.IUserService",
             ["M:B", "M:A"],
             [
-                new BudgetEntry(DependencyUsageType.Member, "M:A", "Core", "M:Z.Run", 2),
-                new BudgetEntry(DependencyUsageType.Injection, null, "Api", "M:Y.#ctor", 1),
-                new BudgetEntry(DependencyUsageType.Injection, null, "Admin", "M:X.#ctor", 1),
+                new BudgetEntry(DependencyUsageType.Member, "M:A", "Core", "T:Z", 2),
+                new BudgetEntry(DependencyUsageType.Injection, null, "Api", "T:Y", 1),
+                new BudgetEntry(DependencyUsageType.Injection, null, "Admin", "T:X", 1),
             ]).Serialize();
 
         var second = new BudgetModel("Bit.Core.Services.IUserService",
             ["M:A", "M:B"],
             [
-                new BudgetEntry(DependencyUsageType.Injection, null, "Admin", "M:X.#ctor", 1),
-                new BudgetEntry(DependencyUsageType.Member, "M:A", "Core", "M:Z.Run", 2),
-                new BudgetEntry(DependencyUsageType.Injection, null, "Api", "M:Y.#ctor", 1),
+                new BudgetEntry(DependencyUsageType.Injection, null, "Admin", "T:X", 1),
+                new BudgetEntry(DependencyUsageType.Member, "M:A", "Core", "T:Z", 2),
+                new BudgetEntry(DependencyUsageType.Injection, null, "Api", "T:Y", 1),
             ]).Serialize();
 
         Assert.Equal(first, second);
@@ -30,9 +30,9 @@ public class BudgetModelTests
                 "M:B"
               ],
               "sites": [
-                { "kind": "injection", "project": "Admin", "site": "M:X.#ctor" },
-                { "kind": "injection", "project": "Api", "site": "M:Y.#ctor" },
-                { "kind": "member", "member": "M:A", "project": "Core", "site": "M:Z.Run", "count": 2 }
+                { "kind": "injection", "project": "Admin", "site": "T:X" },
+                { "kind": "injection", "project": "Api", "site": "T:Y" },
+                { "kind": "member", "member": "M:A", "project": "Core", "site": "T:Z", "count": 2 }
               ]
             }
 
@@ -45,9 +45,9 @@ public class BudgetModelTests
         var original = new BudgetModel("T",
             ["M:A"],
             [
-                new BudgetEntry(DependencyUsageType.Escape, null, "Identity", "P:X._userService", 1),
-                new BudgetEntry(DependencyUsageType.Injection, null, "Api", "M:Y.#ctor(T)", 2),
-                new BudgetEntry(DependencyUsageType.Member, "M:A", "Core", "M:Z.Run", 1),
+                new BudgetEntry(DependencyUsageType.Escape, null, "Identity", "T:X", 1),
+                new BudgetEntry(DependencyUsageType.Injection, null, "Api", "T:Y", 2),
+                new BudgetEntry(DependencyUsageType.Member, "M:A", "Core", "T:Z", 1),
             ]);
 
         var parsed = BudgetModel.Parse(original.Serialize());
@@ -93,27 +93,27 @@ public class BudgetModelTests
               "type": "T",
               "declaredMembers": [],
               "sites": [
-                { "kind": "member", "member": "M:A", "project": "Core", "site": "M:Z.Run", "count": 2 },
-                { "kind": "member", "member": "M:A", "project": "Core", "site": "M:Z.Run", "count": 2 }
+                { "kind": "member", "member": "M:A", "project": "Core", "site": "T:Z", "count": 2 },
+                { "kind": "member", "member": "M:A", "project": "Core", "site": "T:Z", "count": 2 }
               ]
             }
             """));
 
-        Assert.Contains("Duplicate 'member' site 'M:Z.Run'", error.Message, StringComparison.Ordinal);
+        Assert.Contains("Duplicate 'member' site 'T:Z'", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Parse_AcceptsTwoRestrictedMembersUsedAtOneSite()
     {
         // Only Kind, Member, Project and Site together make a row a duplicate, because that is the
-        // key the analyzer budgets by. One method using two restricted members is two rows.
+        // key the analyzer budgets by. One type using two restricted members is two rows.
         var parsed = BudgetModel.Parse("""
             {
               "type": "T",
               "declaredMembers": [],
               "sites": [
-                { "kind": "member", "member": "M:A", "project": "Core", "site": "M:Z.Run", "count": 1 },
-                { "kind": "member", "member": "M:B", "project": "Core", "site": "M:Z.Run", "count": 1 }
+                { "kind": "member", "member": "M:A", "project": "Core", "site": "T:Z", "count": 1 },
+                { "kind": "member", "member": "M:B", "project": "Core", "site": "T:Z", "count": 1 }
               ]
             }
             """);
@@ -122,12 +122,12 @@ public class BudgetModelTests
     }
 
     [Fact]
-    public void Parse_EscapesInSiteKeysSurvive()
+    public void Parse_EscapesInMemberIdsSurvive()
     {
-        var site = "M:Bit.Api.Controller.#ctor(System.Collections.Generic.Dictionary{System.String,System.String})";
-        var text = new BudgetModel("T", [], [new BudgetEntry(DependencyUsageType.Injection, null, "Api", site, 1)]).Serialize();
+        var member = "M:Bit.Api.Controller.#ctor(System.Collections.Generic.Dictionary{System.String,System.String})";
+        var text = new BudgetModel("T", [], [new BudgetEntry(DependencyUsageType.Member, member, "Api", "T:Bit.Api.Controller", 1)]).Serialize();
 
-        Assert.Equal(site, BudgetModel.Parse(text).Usages.Single().Site);
+        Assert.Equal(member, BudgetModel.Parse(text).Usages.Single().Member);
     }
 
     /// <summary>
@@ -140,8 +140,8 @@ public class BudgetModelTests
         var text = new BudgetModel("T",
             [],
             [
-                new BudgetEntry(DependencyUsageType.Member, "M:A", "Core", "M:Z.Run", 2, Tracked: true),
-                new BudgetEntry(DependencyUsageType.Injection, null, "Api", "M:Y.#ctor", 1),
+                new BudgetEntry(DependencyUsageType.Member, "M:A", "Core", "T:Z", 2, Tracked: true),
+                new BudgetEntry(DependencyUsageType.Injection, null, "Api", "T:Y", 1),
             ]).Serialize();
 
         Assert.Equal("""
@@ -149,8 +149,8 @@ public class BudgetModelTests
               "type": "T",
               "declaredMembers": [],
               "sites": [
-                { "kind": "injection", "project": "Api", "site": "M:Y.#ctor" },
-                { "kind": "member", "member": "M:A", "project": "Core", "site": "M:Z.Run", "count": 2, "tracked": true }
+                { "kind": "injection", "project": "Api", "site": "T:Y" },
+                { "kind": "member", "member": "M:A", "project": "Core", "site": "T:Z", "count": 2, "tracked": true }
               ]
             }
 

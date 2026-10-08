@@ -5,7 +5,7 @@ namespace Bitwarden.Server.Sdk.RestrictedDependencies;
 /// <summary>
 /// The shrink-only comparison behind a repository's baseline check. It compares two sets of
 /// baseline documents purely as data: a per (type, kind, member) total that rose across projects,
-/// or a sealed type whose declared-member list grew, is growth. Moves between methods or projects
+/// or a sealed type whose declared-member list grew, is growth. Moves between types or projects
 /// net to zero and pass.
 ///
 /// Rows marked <see cref="BudgetEntry.Tracked"/> are exempt. A tracked-only rule allows new uses
