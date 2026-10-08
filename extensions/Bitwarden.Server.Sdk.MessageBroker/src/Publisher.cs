@@ -53,7 +53,6 @@ public abstract class Publisher<TPayload, TCeiling>
     }
 }
 
-
 /// <summary>
 /// Continuation methods on <see cref="Publisher{TPayload, TCeiling}.PublishBuilder{TCurrent}"/>. Extensions
 /// rather than instance methods because they additionally constrain the builder's

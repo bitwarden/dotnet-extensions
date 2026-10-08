@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using Bitwarden.Server.Sdk.Caching;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.Metrics.Testing;
@@ -43,6 +44,9 @@ public class MessagingOptionsValidationTests
     public void PassesWhenOnlyOneBackendIsConfigured()
     {
         var services = new ServiceCollection();
+        // AddBitwardenCaching satisfies PublisherCacheValidator; without it the validator would
+        // fail once RabbitUri is set on the options.
+        services.AddBitwardenCaching();
         services.AddPublisher<MyItemPayload, MyItem>("test");
         var provider = services.BuildServiceProvider();
 
@@ -127,8 +131,14 @@ public abstract class BehaviorTests : IAsyncLifetime
             .ConfigureServices(services =>
             {
                 services.AddMetrics();
+                // Cross-process publishers (ASB, Rabbit) resolve their shared cache eagerly at
+                // construction. Channel-backed tests don't require
+                // either but the extra registrations are harmless.
+                services.AddDistributedMemoryCache();
+                services.AddBitwardenCaching();
                 configure(services);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
+                services.Configure<NegotiationOptions>(o => o.ServiceName = "negotiation");
             })
             .Build();
         await PreStartAsync(host, TestContext.Current.CancellationToken);
@@ -399,16 +409,16 @@ public abstract class BehaviorTests : IAsyncLifetime
         Task.FromResult<(Dictionary<string, string?>, Func<Task>)?>(null);
 
     [Fact(Timeout = 60 * 1000)]
-    public async Task PublishThrowsBrokerUnavailableExceptionWhenBrokerIsDown()
+    public async Task HostStartupThrowsBrokerUnavailableExceptionWhenBrokerIsDown()
     {
         var config = CreateBrokerDownConfig();
         Assert.SkipWhen(config is null, "This backend cannot be configured to fail on publish (e.g., in-memory channel).");
 
-        var host = await BuildHostAsync(config, services => services.AddPublisher<MyItemPayload, MyItem>(TopicName));
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
-
+        // Negotiation runs at host startup and needs to reach the broker to send the
+        // PublisherJoin. When the broker is down, the deploy-time gate fires here and the
+        // process fails to start.
         var ex = await Assert.ThrowsAsync<BrokerUnavailableException>(
-            () => publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken));
+            () => BuildHostAsync(config, services => services.AddPublisher<MyItemPayload, MyItem>(TopicName)));
 
         Assert.Equal(TopicName, ex.TopicName);
         Assert.NotNull(ex.InnerException);

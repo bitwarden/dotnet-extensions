@@ -15,7 +15,7 @@ namespace Bitwarden.Server.Sdk.MessageBroker;
 /// </para>
 /// <para>
 /// Descent and ascent are coupled: any variant that is not the ceiling must declare both a downcast
-/// to its floor-side neighbour and an upcast to its ceiling-side neighbour, so no variant is
+/// to its floor-side neighbor and an upcast to its ceiling-side neighbor, so no variant is
 /// unreachable in either direction. The interface set enforces this at compile time as possible and validated
 /// at runtime service registration where not (complete, sparse, linear).
 /// </para>
@@ -68,7 +68,7 @@ public abstract class Payload<TSelf> where TSelf : Payload<TSelf>
     /// </summary>
     public interface IPureUp : IVariant
     {
-        /// <summary>Produces the ceiling-side neighbour of this variant. Returned as the base marker so runtime code can chain without knowing the concrete type.</summary>
+        /// <summary>Produces the ceiling-side neighbor of this variant. Returned as the base marker so runtime code can chain without knowing the concrete type.</summary>
         IVariant Upcast();
     }
 
@@ -78,7 +78,7 @@ public abstract class Payload<TSelf> where TSelf : Payload<TSelf>
     /// </summary>
     public interface IPureUp<TUp> : IPureUp where TUp : IVariant
     {
-        /// <summary>Produces the ceiling-side neighbour of this variant.</summary>
+        /// <summary>Produces the ceiling-side neighbor of this variant.</summary>
         new TUp Upcast();
 
         IVariant IPureUp.Upcast() => Upcast();
@@ -101,7 +101,7 @@ public abstract class Payload<TSelf> where TSelf : Payload<TSelf>
         void IReachesFloor.DescendToFloor(ICollection<IVariant> sink) { }
     }
 
-    /// <summary>The bottom of the chain, with a pure upcast to its ceiling-side neighbour.</summary>
+    /// <summary>The bottom of the chain, with a pure upcast to its ceiling-side neighbor.</summary>
     public interface IFloor<TUp> : IFloor, IPureUp<TUp> where TUp : IVariant;
 
     /// <summary>
@@ -121,7 +121,7 @@ public abstract class Payload<TSelf> where TSelf : Payload<TSelf>
         where TDown : IReachesFloor
         where TUp : IVariant
     {
-        /// <summary>Produces the floor-side neighbour of this variant.</summary>
+        /// <summary>Produces the floor-side neighbor of this variant.</summary>
         TDown Downcast();
 
         void IReachesFloor.DescendToFloor(ICollection<IVariant> sink)
@@ -141,7 +141,7 @@ public abstract class Payload<TSelf> where TSelf : Payload<TSelf>
         where TBlocked : IVariant
         where TUp : IVariant
     {
-        /// <summary>Produces the floor-side neighbour of this variant.</summary>
+        /// <summary>Produces the floor-side neighbor of this variant.</summary>
         TDown Downcast();
 
         TBlocked IBlockedAt<TBlocked>.DescendToBlocked(ICollection<IVariant> sink)
@@ -163,7 +163,7 @@ public abstract class Payload<TSelf> where TSelf : Payload<TSelf>
         where TAssist : IAssist<TSelfV, TDown, TAssist>
         where TSelfV : IAssistedDowncast<TDown, TAssist, TSelfV>
     {
-        /// <summary>Produces the floor-side neighbour using caller-supplied <paramref name="assist"/>.</summary>
+        /// <summary>Produces the floor-side neighbors using caller-supplied <paramref name="assist"/>.</summary>
         TDown Downcast(TAssist assist);
 
         TSelfV IBlockedAt<TSelfV>.DescendToBlocked(ICollection<IVariant> sink) => (TSelfV)this;
@@ -187,7 +187,7 @@ public abstract class Payload<TSelf> where TSelf : Payload<TSelf>
     public interface IPureCeiling<TDown> : IReachesFloor, ICeiling
         where TDown : IReachesFloor
     {
-        /// <summary>Produces the floor-side neighbour of this variant.</summary>
+        /// <summary>Produces the floor-side neighbor of this variant.</summary>
         TDown Downcast();
 
         void IReachesFloor.DescendToFloor(ICollection<IVariant> sink)
@@ -203,7 +203,7 @@ public abstract class Payload<TSelf> where TSelf : Payload<TSelf>
         where TDown : IBlockedAt<TBlocked>
         where TBlocked : IVariant
     {
-        /// <summary>Produces the floor-side neighbour of this variant.</summary>
+        /// <summary>Produces the floor-side neighbor of this variant.</summary>
         TDown Downcast();
 
         TBlocked IBlockedAt<TBlocked>.DescendToBlocked(ICollection<IVariant> sink)
@@ -236,7 +236,7 @@ public abstract class Payload<TSelf> where TSelf : Payload<TSelf>
         where TTo : IVariant
         where TSelfA : IAssist<TFrom, TTo, TSelfA>
     {
-        /// <summary>Applies this assist to <paramref name="from"/> to produce its floor-side neighbour.</summary>
+        /// <summary>Applies this assist to <paramref name="from"/> to produce its floor-side neighbor.</summary>
         TTo Descend(TFrom from) => from.Downcast((TSelfA)this);
     }
 }

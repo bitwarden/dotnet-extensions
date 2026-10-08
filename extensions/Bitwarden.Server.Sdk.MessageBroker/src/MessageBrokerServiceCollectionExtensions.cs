@@ -20,6 +20,7 @@ public static class MessageBrokerServiceCollectionExtensions
         services.AddOptions();
         services.TryAddSingleton<MessageBrokerMetrics>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MessagingOptions>, MessagingOptionsValidator>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MessagingOptions>, PublisherCacheValidator>());
         services.AddOptions<MessagingOptions>().ValidateOnStart();
         AddRabbitInfrastructure(services);
         AddAzureServiceBusInfrastructure(services);
@@ -51,6 +52,16 @@ public static class MessageBrokerServiceCollectionExtensions
         });
 
         services.AddSingleton(new BrokerTopologyDeclaration(name));
+        services.AddSingleton(new PublisherRoleMarker(
+            name,
+            TPayload.Variants.Select(v => v.WireName).ToHashSet()));
+        // Coordinator and requester both run their startup work in the IHostedLifecycleService
+        // StartingAsync phase, which the host completes for every service before invoking any
+        // StartAsync. However, within the StartingAsync phase itself the host still runs services
+        // in registration order, so the coordinator (which brings up the local listener) is registered
+        // here first, ahead of the join requester that will send the PublisherJoin.
+        AddNegotiationListenerCoordinator(services);
+        AddPublisherJoinRequester(services);
 
         return services;
     }
@@ -63,8 +74,22 @@ public static class MessageBrokerServiceCollectionExtensions
     /// while multiple instances sharing the same subscription name compete for each message
     /// (pub/sub fan-out with per-group competing consumers). The resolved service key is
     /// <c>name/subscriptionName</c>.
+    /// <para>
+    /// Set <paramref name="proceedOnAdmissionTimeout"/> to opt this subscriber into graceful
+    /// degradation: if the publisher fleet does not respond to the startup capability request
+    /// within <see cref="NegotiationOptions.AdmissionTimeout"/>, the requester logs an error
+    /// and lets the host start anyway instead of failing. Broker-unreachable and explicit no-go
+    /// responses still hard-fail. Multiple registrations for the same topic combine with
+    /// strictest wins: a topic only softens if every registration opts in, since silently
+    /// starting a hard-requiring subscriber without confirmed compatibility is undefined
+    /// behavior.
+    /// </para>
     /// </remarks>
-    public static IServiceCollection AddSubscriber<TPayload, TCeiling>(this IServiceCollection services, string name, string subscriptionName)
+    public static IServiceCollection AddSubscriber<TPayload, TCeiling>(
+        this IServiceCollection services,
+        string name,
+        string subscriptionName,
+        bool proceedOnAdmissionTimeout = false)
         where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
         where TCeiling : Payload<TPayload>.ICeiling
     {
@@ -123,6 +148,12 @@ public static class MessageBrokerServiceCollectionExtensions
 
         services.AddSingleton(new BrokerTopologyDeclaration(name, subscriptionName));
 
+        services.AddSingleton(new SubscriberRoleMarker(
+            name,
+            TPayload.Variants.Select(v => v.WireName).ToHashSet(),
+            proceedOnAdmissionTimeout));
+        AddSubscriberCapabilityRequester(services);
+
         return services;
     }
 
@@ -153,14 +184,15 @@ public static class MessageBrokerServiceCollectionExtensions
     public static IServiceCollection AddMessageConsumer<TPayload, TCeiling, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TConsumer>(
         this IServiceCollection services,
         string name,
-        string subscriptionName)
+        string subscriptionName,
+        bool proceedOnAdmissionTimeout = false)
         where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
         where TCeiling : Payload<TPayload>.ICeiling
         where TConsumer : class, IMessageConsumer<TPayload, TCeiling>
     {
         var subscriptionKey = $"{name}/{subscriptionName}";
 
-        services.AddSubscriber<TPayload, TCeiling>(name, subscriptionName);
+        services.AddSubscriber<TPayload, TCeiling>(name, subscriptionName, proceedOnAdmissionTimeout);
 
         // Register ChannelEscrowRegistration so ChannelTopic resolves it via
         // IEnumerable<ChannelEscrowRegistration<T>> and wires up startup recovery and shutdown
@@ -247,4 +279,75 @@ public static class MessageBrokerServiceCollectionExtensions
     {
         services.TryAddSingleton<AzureServiceBusConnection>();
     }
+
+    private static void AddNegotiationListenerCoordinator(IServiceCollection services)
+    {
+        if (services.Any(d => d.ServiceType == typeof(NegotiationListenerCoordinator)))
+            return;
+        // Validator is registered but NOT wired to ValidateOnStart — NegotiationOptions is only
+        // materialized when a distributed backend spawns a transport, so validation naturally
+        // scopes to that path and doesn't fire for channel-backend deployments.
+        services.AddOptions<NegotiationOptions>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NegotiationOptions>, NegotiationOptionsValidator>());
+        services.TryAddSingleton<NegotiationMetrics>();
+        services.AddSingleton<NegotiationListenerCoordinator>();
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<NegotiationListenerCoordinator>());
+    }
+
+    private static void AddPublisherJoinRequester(IServiceCollection services)
+    {
+        if (services.Any(d => d.ServiceType == typeof(PublisherJoinRequester)))
+            return;
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NegotiationOptions>, NegotiationRoleOptionsValidator>());
+        services.TryAddSingleton(TimeProvider.System);
+        // Factory that closes over messaging + negotiation options and picks a transport per
+        // backend. Registered as a DI service so tests can swap it for an in-memory transport
+        // and drive PublisherJoinRequester end-to-end without a real broker.
+        services.TryAddSingleton<PublisherNegotiationSenderFactory>(sp => topics =>
+        {
+            var msgOpts = sp.GetRequiredService<IOptions<MessagingOptions>>();
+            var negOpts = sp.GetRequiredService<IOptions<NegotiationOptions>>();
+            var messaging = msgOpts.Value;
+            if (!string.IsNullOrEmpty(messaging.AzureServiceBusConnectionString))
+                return AzureServiceBusNegotiationTransport.ForSender(msgOpts, negOpts);
+            if (!string.IsNullOrEmpty(messaging.RabbitUri))
+                return RabbitNegotiationTransport.ForPublisherSender(sp.GetRequiredService<RabbitConnection>(), negOpts, topics);
+            return new NoopNegotiationTransport();
+        });
+        // Callers of this helper must register AddNegotiationListenerCoordinator first — see the
+        // ordered call in AddPublisher. Within the StartingAsync phase the host still walks
+        // services in registration order, so the listener needs to be brought up before this
+        // requester sends its first PublisherJoin.
+        services.AddSingleton<PublisherJoinRequester>();
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<PublisherJoinRequester>());
+    }
+
+    private static void AddSubscriberCapabilityRequester(IServiceCollection services)
+    {
+        if (services.Any(d => d.ServiceType == typeof(SubscriberJoinRequester)))
+            return;
+        services.AddOptions<NegotiationOptions>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NegotiationOptions>, NegotiationOptionsValidator>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NegotiationOptions>, NegotiationRoleOptionsValidator>());
+        services.TryAddSingleton(TimeProvider.System);
+        // Subscriber-only services never call AddPublisher (which drags in the coordinator), so
+        // register the metrics singleton here too. TryAdd makes it a no-op when the coordinator's
+        // registration already ran.
+        services.TryAddSingleton<NegotiationMetrics>();
+        // Factory that closes over messaging + negotiation options and picks a transport per
+        // backend. Registered as a DI service so tests can swap it for an in-memory transport
+        // and drive SubscriberJoinRequester end-to-end without a real broker.
+        services.TryAddSingleton<SubscriberNegotiationSenderFactory>(sp => topics =>
+        {
+            var msgOpts = sp.GetRequiredService<IOptions<MessagingOptions>>();
+            var negOpts = sp.GetRequiredService<IOptions<NegotiationOptions>>();
+            var messaging = msgOpts.Value;
+            if (!string.IsNullOrEmpty(messaging.AzureServiceBusConnectionString))
+                return AzureServiceBusNegotiationTransport.ForSender(msgOpts, negOpts);
+            return RabbitNegotiationTransport.ForSubscriberSender(sp.GetRequiredService<RabbitConnection>(), negOpts);
+        });
+        services.AddSingleton<SubscriberJoinRequester>();
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<SubscriberJoinRequester>());
+    }
+
 }
