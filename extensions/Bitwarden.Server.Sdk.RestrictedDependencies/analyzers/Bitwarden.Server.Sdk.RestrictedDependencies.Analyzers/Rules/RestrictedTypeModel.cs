@@ -107,6 +107,13 @@ internal sealed class RestrictedTypeModel
         var overrides = ImmutableDictionary.CreateBuilder<ISymbol, UseRule>(SymbolEqualityComparer.Default);
         foreach (var member in type.GetMembers())
         {
+            // GetMembers also returns nested types. One that carries the attribute is a restricted
+            // type in its own right, read by its own TryRead, not a member override of this one.
+            if (member is INamedTypeSymbol)
+            {
+                continue;
+            }
+
             var memberAttribute = FindAttribute(member);
             if (memberAttribute is null)
             {
