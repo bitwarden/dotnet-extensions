@@ -189,6 +189,106 @@ Wire names are decoupled from CLR type names so variants can be renamed or moved
 messages already on the wire. Each topic is bound to exactly one payload family at DI registration,
 so wire names are scoped by topic and only need to be unique within that payload's own `Variants` list.
 
+## Evolving a payload
+
+Payload variants let publishers and subscribers deploy on independent schedules. A publisher that
+adds a new ceiling keeps sending the old floor alongside, so a subscriber built against the older
+ceiling still finds a variant it can decode. The chain of variants — floor to ceiling — is the
+contract between publishing and consuming services.
+
+The service that publishes a topic owns its payload type and its `Variants` list, which should be
+made available as a library so subscribing services can reference it to establish the contract.
+
+### Adding a variant (non-breaking)
+
+Say `OrganizationDeleted` carries only the organization id today and needs to grow a deletion
+reason.
+
+Before:
+
+```csharp
+public sealed class OrganizationDeletedPayload
+    : Payload<OrganizationDeletedPayload, OrganizationDeletedPayload.V1, OrganizationDeletedPayload.V1>,
+      IPayloadVariants<OrganizationDeletedPayload>
+{
+    public static IReadOnlyList<(Type Type, string WireName)> Variants =>
+    [
+        (typeof(V1), "v1"),
+    ];
+
+    public sealed record V1(Guid OrganizationId)
+        : ISole;
+}
+```
+
+After:
+
+```csharp
+public sealed class OrganizationDeletedPayload
+    : Payload<OrganizationDeletedPayload, OrganizationDeletedPayload.V1, OrganizationDeletedPayload.V2>,
+      IPayloadVariants<OrganizationDeletedPayload>
+{
+    public static IReadOnlyList<(Type Type, string WireName)> Variants =>
+    [
+        (typeof(V1), "v1"),
+        (typeof(V2), "v2"),
+    ];
+
+    public sealed record V1(Guid OrganizationId)
+        : IFloor<V2>
+    {
+        public V2 Upcast() => new(OrganizationId, Reason: "unknown");
+    }
+
+    public sealed record V2(Guid OrganizationId, string Reason)
+        : IPureCeiling<V1>
+    {
+        public V1 Downcast() => new(OrganizationId);
+    }
+}
+```
+
+The upcast on V1 fills the new field with a safe default so a V1 message from an older publisher
+still produces a well-formed V2 for a V2-ceiling consumer. The downcast on V2 is pure because V1's
+fields are a strict subset of V2's.
+
+Update the publisher registration to the new ceiling —
+`AddPublisher<OrganizationDeletedPayload, OrganizationDeletedPayload.V2>("org-deleted")` — and
+ship. Existing subscribers keep working at V1 and move to V2 whenever they're ready.
+
+### Retiring a variant (breaking)
+
+Breaking changes do not apply to the in-memory channel broker, since both publisher and subscriber ends use identical payload type libraries.
+
+Removing V1 breaks at consume time. A subscriber still built against a payload type that
+references V1 — one running an older copy of the shared type library — can no longer decode
+post-retirement messages, and the transport dead-letters the message before either `IMessageConsumer<...>` or `ISubscriber<...>` receive it.
+
+A future release will add symmetric startup pre-flight checks for both subscribers and publishers to
+ensure variant overlap at startup.
+
+Before removing V1, use the `messaging.variant.name` tag on `messaging.client.consumed.messages`
+to confirm no subscriber is still reading it. V1 falling to zero across the deployment is the
+signal it's safe to drop. Dead-letter queue growth is how you find out if you shipped the removal
+too early.
+
+Once V1 is cold, the V1+V2 state from above collapses to:
+
+```csharp
+public sealed class OrganizationDeletedPayload
+    : Payload<OrganizationDeletedPayload, OrganizationDeletedPayload.V2, OrganizationDeletedPayload.V2>,
+      IPayloadVariants<OrganizationDeletedPayload>
+{
+    public static IReadOnlyList<(Type Type, string WireName)> Variants =>
+    [
+        (typeof(V2), "v2"),
+    ];
+
+    public sealed record V2(Guid OrganizationId, string Reason)
+        : Payload<OrganizationDeletedPayload>.ISole;
+}
+```
+
 ## Publishing
 
 Register a publisher with `AddPublisher<TPayload, TCeiling>`:
@@ -345,11 +445,11 @@ integrate with any OpenTelemetry-compatible pipeline.
 
 **Metrics** — meter name `Bitwarden.Server.Sdk.MessageBroker`:
 
-| Instrument                            | Type    | Description                                                                                             |
-| ------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
-| `messaging.client.published.messages` | Counter | Messages published, tagged with `messaging.destination.name`.                                           |
+| Instrument                            | Type    | Description                                                                                                                                                                               |
+| ------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `messaging.client.published.messages` | Counter | Messages published, tagged with `messaging.destination.name`.                                                                                                                             |
 | `messaging.client.consumed.messages`  | Counter | Messages delivered to a consumer, tagged with `messaging.destination.name` and `messaging.variant.name` (wire name of the highest received variant at or below the subscriber's ceiling). |
-| `messaging.channel.queued.messages`   | Gauge   | Current number of messages buffered in the in-memory channel, tagged with `messaging.destination.name`. |
+| `messaging.channel.queued.messages`   | Gauge   | Current number of messages buffered in the in-memory channel, tagged with `messaging.destination.name`.                                                                                   |
 
 ## Serialization
 
