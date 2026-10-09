@@ -20,6 +20,12 @@ internal static class SampleProjectFixture
     public static readonly string[] DeclaredMembers = [CanAccessPremium, GetProperUserId, GetUserName];
 
     /// <summary>
+    /// Documentation-comment id of <see cref="Consumer"/>, the type that injects the restricted type
+    /// and uses its members. This is the site every baselined row for those uses names.
+    /// </summary>
+    public const string ConsumerSite = "T:Test.Consumer";
+
+    /// <summary>
     /// Documentation-comment id of <see cref="Consumer"/>'s constructor, which is where it injects
     /// the restricted type. This is the site a baselined injection row names.
     /// </summary>
