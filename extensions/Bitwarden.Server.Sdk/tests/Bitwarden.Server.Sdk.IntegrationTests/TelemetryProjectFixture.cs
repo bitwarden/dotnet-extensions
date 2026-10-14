@@ -54,6 +54,11 @@ public sealed class TelemetryProjectFixture
                 return Results.Ok();
             });
 
+            app.MapGet("/alive", (bool? fail) => fail == true ? Results.StatusCode(503) : Results.Ok());
+            app.MapGet("/healthz", (bool? fail) => fail == true ? Results.StatusCode(503) : Results.Ok());
+
+            app.MapGet("/throw", string () => throw new InvalidOperationException("Something went wrong"));
+
             app.Run();
 
             internal sealed class CustomMetrics : IDisposable
