@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Docker.DotNet;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using Microsoft.Extensions.Logging;
@@ -324,9 +325,18 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
         var cancellationTokenSource = new CancellationTokenSource();
         TestContext.Current.CancellationToken.Register(() =>
         {
-            var (stdout, stderr) = container.GetLogsAsync().GetAwaiter().GetResult();
-            logger.LogInformation("{Out}", stdout);
-            logger.LogError("{Error}", stderr);
+            try
+            {
+                var (stdout, stderr) = container.GetLogsAsync().GetAwaiter().GetResult();
+                logger.LogInformation("{Out}", stdout);
+                logger.LogError("{Error}", stderr);
+            }
+            catch (DockerApiException)
+            {
+                // Container may already be stopped/removed by the time we try to collect
+                // diagnostic logs on cancellation (Conflict, NotFound, etc.). Swallow —
+                // the logs are best-effort and shouldn't fail the test teardown.
+            }
             cancellationTokenSource.Cancel();
         });
 

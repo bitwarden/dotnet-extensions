@@ -1,36 +1,23 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["github>bitwarden/renovate-config:non-pinned"],
-  "enabledManagers": ["dotnet-sdk", "github-actions", "nuget"],
-  "postUpdateOptions": ["nugetLockFileUpdate"],
+  "enabledManagers": ["github-actions", "nuget"],
   "packageRules": [
-    {
-      "groupName": "msbuild-packages",
-      "description": "MSBuild dependencies",
-      "commitMessagePrefix": "[deps] MSBuild:",
-      "matchPackageNames": [
-        "/^Microsoft.Build/"
-      ],
-      "matchUpdateTypes": ["patch"]
-    },
     {
       "groupName": "test-packages",
       "description": "Dependencies used in test projects",
       "commitMessagePrefix": "[deps] Test:",
       "matchPackageNames": [
-        "Microsoft.Testing.Extensions.CodeCoverage",
         "Microsoft.AspNetCore.TestHost",
+        "Microsoft.Extensions.Diagnostics.Testing",
+        "Microsoft.Testing.Extensions.CodeCoverage",
         "NSubstitute",
-        "xunit.v3",
         "Testcontainers",
-        "MSBuild.ProjectCreation",
-        "Microsoft.Extensions.Diagnostics.Testing"
+        "xunit.v3",
+        "xunit.v3.mtp-v2",
+        "/^Microsoft\\.CodeAnalysis\\..+\\.Testing$/"
       ],
       "matchUpdateTypes": ["patch", "minor"]
-    },
-    {
-      "matchManagers": ["nuget"],
-      "rangeStrategy": "auto"
     },
     {
       "groupName": "gh minor",

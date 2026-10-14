@@ -13,9 +13,6 @@ internal sealed class LaunchDarklyFeatureService : IFeatureService
     private readonly IOptionsMonitor<FeatureFlagOptions> _featureFlagOptions;
     private readonly ILogger<LaunchDarklyFeatureService> _logger;
 
-    // Should not change during the course of a request, so cache this
-    private Context? _context;
-
     public LaunchDarklyFeatureService(
         ILaunchDarklyClientProvider launchDarklyClientProvider,
         IContextBuilder contextBuilder,
@@ -40,22 +37,22 @@ internal sealed class LaunchDarklyFeatureService : IFeatureService
 
     public bool IsEnabled(string key, bool defaultValue = false)
     {
-        return _ldClient.BoolVariation(key, GetContext(), defaultValue);
+        return _ldClient.BoolVariation(key, _contextBuilder.Build(), defaultValue);
     }
 
     public int GetIntVariation(string key, int defaultValue = 0)
     {
-        return _ldClient.IntVariation(key, GetContext(), defaultValue);
+        return _ldClient.IntVariation(key, _contextBuilder.Build(), defaultValue);
     }
 
     public string GetStringVariation(string key, string? defaultValue = null)
     {
-        return _ldClient.StringVariation(key, GetContext(), defaultValue);
+        return _ldClient.StringVariation(key, _contextBuilder.Build(), defaultValue);
     }
 
     public IReadOnlyDictionary<string, JsonValue> GetAll()
     {
-        var flagsState = _ldClient.AllFlagsState(GetContext());
+        var flagsState = _ldClient.AllFlagsState(_contextBuilder.Build());
 
         var flagValues = new Dictionary<string, JsonValue>();
 
@@ -84,10 +81,5 @@ internal sealed class LaunchDarklyFeatureService : IFeatureService
         }
 
         return flagValues;
-    }
-
-    private Context GetContext()
-    {
-        return _context ??= _contextBuilder.Build();
     }
 }

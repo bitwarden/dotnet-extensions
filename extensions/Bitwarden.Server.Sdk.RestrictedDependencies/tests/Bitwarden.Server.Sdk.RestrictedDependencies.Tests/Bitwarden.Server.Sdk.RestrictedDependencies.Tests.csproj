@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3.mtp-v2" Version="[3.2.2]" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="[18.8.0]" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\contracts\Bitwarden.Server.Sdk.RestrictedDependencies.Contracts\Bitwarden.Server.Sdk.RestrictedDependencies.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.RestrictedDependencies.csproj" />
+  </ItemGroup>
+
+</Project>

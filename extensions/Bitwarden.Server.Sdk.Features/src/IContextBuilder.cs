@@ -17,13 +17,20 @@ namespace Bitwarden.Server.Sdk.Features;
 /// the feature flag check is not happening during the context of an HTTP call. It is likely that it's instead taking
 /// place in a <see cref="Microsoft.Extensions.Hosting.IHostedService"/>.
 /// </para>
+/// <para>
+/// Because this service is a singleton, implementations should be stateless. Do not cache the built
+/// <see cref="Context"/> in an instance field, doing so would share one request's context with every other request.
+/// If building your context is expensive, store the result in
+/// <see cref="Microsoft.AspNetCore.Http.HttpContext.Items"/> so that it is cached only for the current request.
+/// </para>
 /// </remarks>
 public interface IContextBuilder
 {
     /// <summary>
-    /// Called the first time a feature flag value is requested in each service scope. The returned value is cached
-    /// for all subsequent feature flag requests.
+    /// Called every time a feature flag value is requested. The returned value is not cached, if building your
+    /// context is expensive it is your responsibility to cache it. See the remarks on <see cref="IContextBuilder"/>
+    /// for how to do that safely from a singleton.
     /// </summary>
-    /// <returns>The Context to use for all feature flag requests in this service scope.</returns>
+    /// <returns>The Context to use for the current feature flag request.</returns>
     public Context Build();
 }
