@@ -4,7 +4,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.DependencyInjection;
 #if BIT_INCLUDE_TELEMETRY
-using Bitwarden.Server.Sdk.Internal;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Resources;
@@ -203,8 +202,6 @@ public static class HostBuilderExtensions
         IHostEnvironment hostEnvironment)
     {
 #if BIT_INCLUDE_TELEMETRY
-        const string OtelDebuggingConfigKey = "OTEL_DEBUGGING";
-
         // Allow the exporting of telemetry to be disabled through a configuration key
         // but if the setting isn't present default to enabled for cloud uses
         // and disabled for self hosted installations.
@@ -269,10 +266,11 @@ public static class HostBuilderExtensions
                     tracing.AddOtlpExporter();
                 }
 
-                tracing.AddAspNetCoreInstrumentation();
+                // Record exceptions as span events so the type, message, and stack trace are visible on failed spans.
+                tracing.AddAspNetCoreInstrumentation(options => options.RecordException = true);
                 tracing.AddHttpClientInstrumentation();
                 tracing.AddEntityFrameworkCoreInstrumentation();
-                tracing.AddSqlClientInstrumentation();
+                tracing.AddSqlClientInstrumentation(options => options.RecordException = true);
 
 #if BIT_INCLUDE_CACHING
                 tracing.AddFusionCacheInstrumentation();
@@ -281,6 +279,16 @@ public static class HostBuilderExtensions
                 tracing.AddSource("Bitwarden.*");
                 tracing.AddSource("Azure.*");
             });
+
+        // Health check endpoints are called constantly by orchestrators, tracing them adds noise and cost without
+        // telling us anything. They are filtered when the request starts, which also drops any child spans, so failed
+        // health checks are not traced either.
+        // PostConfigure so that we compose with any Filter the application configures itself.
+        services.PostConfigure<OpenTelemetry.Instrumentation.AspNetCore.AspNetCoreTraceInstrumentationOptions>(options =>
+        {
+            var filter = options.Filter;
+            options.Filter = context => !IsHealthCheckRequest(context.Request) && (filter == null || filter(context));
+        });
 
 #if BIT_INCLUDE_CACHING
         // The caching library uses RedisCacheOptions for customizing how redis is used.
@@ -304,14 +312,15 @@ public static class HostBuilderExtensions
             });
         });
 #endif
-
-        if (configuration.GetValue(OtelDebuggingConfigKey, false))
-        {
-            if (!services.Any((sd) => sd.ServiceType == typeof(IHostedService) && sd.ImplementationType == typeof(OtelDebuggingHostedService)))
-            {
-                services.Insert(0, ServiceDescriptor.Singleton<IHostedService, OtelDebuggingHostedService>());
-            }
-        }
 #endif
     }
+
+#if BIT_INCLUDE_TELEMETRY
+    private static bool IsHealthCheckRequest(Microsoft.AspNetCore.Http.HttpRequest request)
+    {
+        return Microsoft.AspNetCore.Http.HttpMethods.IsGet(request.Method)
+            && (request.Path.Equals("/alive", StringComparison.OrdinalIgnoreCase)
+                || request.Path.Equals("/healthz", StringComparison.OrdinalIgnoreCase));
+    }
+#endif
 }

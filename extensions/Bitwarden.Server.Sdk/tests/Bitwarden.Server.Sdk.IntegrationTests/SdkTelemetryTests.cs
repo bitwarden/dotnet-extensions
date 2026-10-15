@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using Docker.DotNet;
 using DotNet.Testcontainers.Builders;
@@ -195,7 +196,72 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
         Assert.NotNull(result.Traces);
     }
 
-    private static async Task<TelemetryResult> RunTelemetryAsync(Dictionary<string, string?> environmentVariables)
+    [Fact(Timeout = TwentySeconds)]
+    public async Task HealthCheckRequestsAreNotTraced()
+    {
+        using var result = await RunTelemetryAsync([], async client =>
+        {
+            foreach (var path in new[] { "/alive", "/healthz" })
+            {
+                var success = await client.GetAsync(path, TestContext.Current.CancellationToken);
+                Assert.Equal(HttpStatusCode.OK, success.StatusCode);
+
+                var failure = await client.GetAsync($"{path}?fail=true", TestContext.Current.CancellationToken);
+                Assert.Equal(HttpStatusCode.ServiceUnavailable, failure.StatusCode);
+            }
+        });
+
+        Assert.NotNull(result.Traces);
+        var spanNames = result.Traces.RootElement.GetProperty("resourceSpans").EnumerateArray()
+            .SelectMany(rs => rs.GetProperty("scopeSpans").EnumerateArray())
+            .SelectMany(ss => ss.GetProperty("spans").EnumerateArray())
+            .Select(s => s.GetProperty("name").GetString())
+            .ToList();
+
+        // Other requests are still traced
+        Assert.Contains("GET /", spanNames);
+
+        // Health checks are not traced, even when they fail
+        Assert.DoesNotContain("GET /alive", spanNames);
+        Assert.DoesNotContain("GET /healthz", spanNames);
+    }
+
+    [Fact(Timeout = TwentySeconds)]
+    public async Task RequestExceptionsAreRecorded()
+    {
+        using var result = await RunTelemetryAsync([], async client =>
+        {
+            var thrown = await client.GetAsync("/throw", TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.InternalServerError, thrown.StatusCode);
+        });
+
+        Assert.NotNull(result.Traces);
+        var throwSpan = Assert.Single(
+            result.Traces.RootElement.GetProperty("resourceSpans").EnumerateArray()
+                .SelectMany(rs => rs.GetProperty("scopeSpans").EnumerateArray())
+                .Where(ss => ss.GetProperty("scope").GetProperty("name").GetString() == "Microsoft.AspNetCore")
+                .SelectMany(ss => ss.GetProperty("spans").EnumerateArray()),
+            s => s.GetProperty("name").GetString() == "GET /throw"
+        );
+
+        // Status code 2 is Error
+        Assert.Equal(2, throwSpan.GetProperty("status").GetProperty("code").GetInt32());
+
+        var exceptionEvent = Assert.Single(
+            throwSpan.GetProperty("events").EnumerateArray(),
+            e => e.GetProperty("name").GetString() == "exception"
+        );
+        var attributes = exceptionEvent.GetProperty("attributes").EnumerateArray()
+            .ToDictionary(a => a.GetProperty("key").GetString()!, a => a.GetProperty("value").GetProperty("stringValue").GetString());
+
+        Assert.Equal("System.InvalidOperationException", attributes["exception.type"]);
+        Assert.Equal("Something went wrong", attributes["exception.message"]);
+        Assert.False(string.IsNullOrEmpty(attributes["exception.stacktrace"]));
+    }
+
+    private static async Task<TelemetryResult> RunTelemetryAsync(
+        Dictionary<string, string?> environmentVariables,
+        Func<HttpClient, Task>? sendRequests = null)
     {
         using var loggerFactory = LoggerFactory.Create(builder =>
         {
@@ -280,6 +346,15 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
             .Build();
 
         await LoggedStartAsync(testContainer, loggerFactory.CreateLogger("TestContainer"));
+
+        if (sendRequests is not null)
+        {
+            using var client = new HttpClient
+            {
+                BaseAddress = new Uri($"http://{testContainer.Hostname}:{testContainer.GetMappedPublicPort(8080)}"),
+            };
+            await sendRequests(client);
+        }
 
         await testContainer.StopAsync(TestContext.Current.CancellationToken);
         await otelContainer.StopAsync(TestContext.Current.CancellationToken);
