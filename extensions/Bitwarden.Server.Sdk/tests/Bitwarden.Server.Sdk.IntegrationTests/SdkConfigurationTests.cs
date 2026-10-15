@@ -1,4 +1,5 @@
 using DotNet.Testcontainers.Builders;
+using DotNet.Testcontainers.Configurations;
 using Microsoft.Extensions.Logging;
 
 namespace Bitwarden.Server.Sdk.IntegrationTests;
@@ -192,7 +193,8 @@ public class SdkConfigurationTests : IClassFixture<ConfigTestFixture>
             .WithImage(imageName)
             .WithLogger(loggerFactory.CreateLogger("Example"))
             .WithEnvironment(environmentVariables)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Done"))
+            .WithWaitStrategy(Wait.ForUnixContainer()
+                .UntilMessageIsLogged("Done", wait => wait.WithMode(WaitStrategyMode.OneShot)))
             .Build();
 
         await testContainer.StartAsync(TestContext.Current.CancellationToken);

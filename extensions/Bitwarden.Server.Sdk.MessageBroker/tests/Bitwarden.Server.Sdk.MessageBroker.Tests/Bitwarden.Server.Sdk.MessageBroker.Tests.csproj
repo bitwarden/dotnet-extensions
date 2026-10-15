@@ -24,15 +24,8 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="[10.0.9]" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="[10.0.9]" />
     <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="[18.8.0]" />
-    <PackageReference Include="Testcontainers" Version="[4.13.0]" />
+    <PackageReference Include="Testcontainers" Version="[4.16.0]" />
     <PackageReference Include="xunit.v3.mtp-v2" Version="[3.2.2]" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- Force SSH.NET to 2026.0.0 to resolve GHSA-q939-rpr3-3284. Testcontainers 4.13.0
-         still depends on the vulnerable 2025.1.0 transitively; this direct reference overrides
-         it. Remove once Testcontainers ships a release that depends on 2026.0.0 or later. -->
-    <PackageReference Include="SSH.NET" Version="2026.0.0" />
   </ItemGroup>
 
   <ItemGroup>
