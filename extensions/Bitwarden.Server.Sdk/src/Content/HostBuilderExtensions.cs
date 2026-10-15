@@ -268,8 +268,7 @@ public static class HostBuilderExtensions
 
                 // Record exceptions as span events so the type, message, and stack trace are visible on failed spans.
                 tracing.AddAspNetCoreInstrumentation(options => options.RecordException = true);
-                // The .NET 10 runtime records exceptions on HttpClient spans itself, recording them again would duplicate the event.
-                tracing.AddHttpClientInstrumentation(options => options.RecordException = Environment.Version.Major < 10);
+                tracing.AddHttpClientInstrumentation();
                 tracing.AddEntityFrameworkCoreInstrumentation();
                 tracing.AddSqlClientInstrumentation(options => options.RecordException = true);
 
