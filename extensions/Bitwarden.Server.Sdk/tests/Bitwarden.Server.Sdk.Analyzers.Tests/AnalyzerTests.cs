@@ -11,7 +11,7 @@ public abstract class AnalyzerTests<TAnalyzer> : CSharpAnalyzerTest<TAnalyzer, D
     protected async Task RunAnalyzerAsync([StringSyntax("C#-test")] string source)
     {
         TestCode = source;
-        TestState.ReferenceAssemblies = ReferenceAssemblies.Net.Net80;
+        TestState.ReferenceAssemblies = ReferenceAssemblies.Net.Net100;
         await RunAsync(TestContext.Current.CancellationToken);
     }
 }
