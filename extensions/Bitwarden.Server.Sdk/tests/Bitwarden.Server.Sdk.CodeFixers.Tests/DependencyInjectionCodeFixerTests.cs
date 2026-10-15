@@ -163,7 +163,7 @@ public class DependencyInjectionCodeFixerTests : CSharpCodeFixTest<DependencyInj
         TestCode = inputSource;
         FixedCode = expectedFixedSource;
 
-        TestState.ReferenceAssemblies = ReferenceAssemblies.Net.Net80;
+        TestState.ReferenceAssemblies = ReferenceAssemblies.Net.Net100;
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IServiceCollection).Assembly.Location));
 
         await RunAsync(TestContext.Current.CancellationToken);
