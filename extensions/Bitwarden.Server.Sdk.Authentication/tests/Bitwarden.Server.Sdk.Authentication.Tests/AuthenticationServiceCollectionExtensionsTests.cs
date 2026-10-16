@@ -284,11 +284,13 @@ public class AuthenticationServiceCollectionExtensionsTests
                     // Stub out the minimal things needed from an OpenId compatible server
                     endpoints.MapGet("/.well-known/openid-configuration", () =>
                     {
-                        return Results.Json(new OpenIdConnectConfiguration
-                        {
-                            Issuer = "http://localhost",
-                            JwksUri = "http://localhost/.well-known/openid-configuration/jwks",
-                        });
+                        return Results.Content(
+                            OpenIdConnectConfiguration.Write(new OpenIdConnectConfiguration
+                            {
+                                Issuer = "http://localhost",
+                                JwksUri = "http://localhost/.well-known/openid-configuration/jwks",
+                            }),
+                            "application/json");
                     });
 
                     endpoints.MapGet("/.well-known/openid-configuration/jwks", () =>

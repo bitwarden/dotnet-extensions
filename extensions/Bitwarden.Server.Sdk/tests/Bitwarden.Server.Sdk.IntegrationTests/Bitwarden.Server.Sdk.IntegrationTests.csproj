@@ -8,10 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="[18.8.0]" />
-    <PackageReference Include="Testcontainers" Version="4.7.0" />
-    <!-- Force SSH.NET to 2026.0.0 to resolve GHSA-q939-rpr3-3284. Testcontainers pulls in a
-         vulnerable version transitively; this direct reference overrides it. -->
-    <PackageReference Include="SSH.NET" Version="[2026.0.0]" />
+    <PackageReference Include="Testcontainers" Version="4.16.0" />
     <PackageReference Include="xunit.v3.mtp-v2" Version="[3.2.2]" />
   </ItemGroup>
 
