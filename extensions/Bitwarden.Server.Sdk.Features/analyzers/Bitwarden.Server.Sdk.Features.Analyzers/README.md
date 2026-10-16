@@ -33,7 +33,7 @@ type. The generated file is named `FlagKeyCollection.<TypeName>.g.cs`.
 
 ## Running Tests
 
-Analyzer tests use `xunit.v3.mtp-v2` and must be run with `dotnet run` on the .NET 10 SDK:
+Analyzer tests use `xunit.v3` and must be run with `dotnet run` on the .NET 10 SDK:
 
 ```bash
 dotnet run --project tests/Bitwarden.Server.Sdk.Features.Analyzers.Tests
