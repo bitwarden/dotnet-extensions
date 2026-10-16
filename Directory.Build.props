@@ -16,6 +16,10 @@
     <TestingPlatformDotnetTestSupport Condition="'$(TestingPlatformDotnetTestSupport)' == ''">true</TestingPlatformDotnetTestSupport>
     <UseMicrosoftTestingPlatformRunner Condition="'$(UseMicrosoftTestingPlatformRunner)' == ''">true</UseMicrosoftTestingPlatformRunner>
     <TestingPlatformShowTestsFailure>true</TestingPlatformShowTestsFailure>
+    <!--
+      xunit1069: Wants us to use TestContext cancellation token but doesn't realize we are using it in a helper function
+    --!>
+    <NoWarn>$(NoWarn);xunit1069<NoWarn>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(IsTestProject)' != 'true' and '$(IsBenchmarkProject)' != 'true' and '$(IsAnalyzerProject)' != 'true'">
