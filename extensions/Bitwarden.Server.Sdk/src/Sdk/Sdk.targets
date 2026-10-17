@@ -87,7 +87,7 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(BitAspireIntegration)' == 'enabled'">
-    <PackageReference Include="Microsoft.Extensions.ServiceDiscovery" Version="10.4.0" />
+    <PackageReference Include="Microsoft.Extensions.ServiceDiscovery" Version="10.10.0" />
   </ItemGroup>
 
   <Target Name="CheckBitwardenEnvironmentCompatibility" BeforeTargets="Build">
