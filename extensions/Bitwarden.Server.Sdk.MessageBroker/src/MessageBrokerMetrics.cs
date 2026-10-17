@@ -33,9 +33,10 @@ internal sealed class MessageBrokerMetrics
         _publishedMessages.Add(count,
             new KeyValuePair<string, object?>("messaging.destination.name", topicName));
 
-    public void RecordConsume(string topicName) =>
+    public void RecordConsume(string topicName, string variantWireName) =>
         _consumedMessages.Add(1,
-            new KeyValuePair<string, object?>("messaging.destination.name", topicName));
+            new KeyValuePair<string, object?>("messaging.destination.name", topicName),
+            new KeyValuePair<string, object?>("messaging.variant.name", variantWireName));
 
     public void RegisterQueueDepthProvider(string topicName, Func<long> getCount)
         => _queueDepthProviders[topicName] = getCount;
