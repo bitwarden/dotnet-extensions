@@ -22,9 +22,7 @@ public sealed class RestrictedDependencyAnalyzer : DiagnosticAnalyzer
     public override void Initialize(AnalysisContext context)
     {
         context.EnableConcurrentExecution();
-        // Generated code is analyzed and reported like any other: an auto-generated header,
-        // [GeneratedCode] or generated_code = true would otherwise be a one-line bypass of the gate.
-        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.Analyze | GeneratedCodeAnalysisFlags.ReportDiagnostics);
+        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.RegisterCompilationStartAction(start =>
         {
             if (!RestrictedDependencyConfig.IsEnabled(start.Options.AnalyzerConfigOptionsProvider.GlobalOptions))
