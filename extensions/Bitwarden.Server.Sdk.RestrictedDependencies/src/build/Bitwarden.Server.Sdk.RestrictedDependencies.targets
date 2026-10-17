@@ -1,0 +1,12 @@
+<Project>
+
+  <!--
+      The committed baselines, marked so the analyzer can tell them from every other AdditionalFile
+      the build supplies. In .targets rather than .props because it reads the final value of
+      RestrictedDependencyAnalysis, which a project may set after NuGet's props are imported.
+  -->
+  <ItemGroup Condition="'$(RestrictedDependencyAnalysis)' == 'true' and '$(RestrictedDependencyBaselinesPath)' != ''">
+    <AdditionalFiles Include="$(RestrictedDependencyBaselinesPath)/*.json" RestrictedDependencyBaseline="true" />
+  </ItemGroup>
+
+</Project>
