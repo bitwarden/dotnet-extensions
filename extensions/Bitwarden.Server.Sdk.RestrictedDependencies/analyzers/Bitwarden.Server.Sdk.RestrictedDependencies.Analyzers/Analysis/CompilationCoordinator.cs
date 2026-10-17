@@ -245,16 +245,6 @@ internal sealed class CompilationCoordinator
 
     public void OnSyntaxTree(SyntaxTreeAnalysisContext context)
     {
-        // Every source generator opens its output with a blanket #pragma warning disable, so
-        // scanning generated trees would fail any project using [GeneratedRegex] or the like.
-        // A pragma cannot suppress the NotConfigurable errors, so skipping these trees loses only
-        // the BW0012 for a pragma over BW0011 in a hand-written file Roslyn treats as generated.
-        // That is accepted because configuration can already lower BW0011 without a BW0016.
-        if (context.IsGeneratedCode)
-        {
-            return;
-        }
-
         Report(context.ReportDiagnostic, DiagnosticSuppressionScanner.OnSyntaxTree(context.Tree, _repoRoot, context.CancellationToken));
     }
 
