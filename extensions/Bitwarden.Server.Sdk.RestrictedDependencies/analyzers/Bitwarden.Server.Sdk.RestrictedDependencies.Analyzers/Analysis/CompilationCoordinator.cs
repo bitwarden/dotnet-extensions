@@ -243,11 +243,6 @@ internal sealed class CompilationCoordinator
             context.ReportDiagnostic,
             DiagnosticSuppressionScanner.OnSymbol(((ILocalFunctionOperation)context.Operation).Symbol, _repoRoot));
 
-    public void OnSyntaxTree(SyntaxTreeAnalysisContext context)
-    {
-        Report(context.ReportDiagnostic, DiagnosticSuppressionScanner.OnSyntaxTree(context.Tree, _repoRoot, context.CancellationToken));
-    }
-
     public void OnCompilationEnd(CompilationAnalysisContext context)
     {
         var report = context.ReportDiagnostic;

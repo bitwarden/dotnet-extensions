@@ -48,7 +48,6 @@ public sealed class RestrictedDependencyAnalyzer : DiagnosticAnalyzer
                 OperationKind.FieldReference,
                 OperationKind.ObjectCreation,
                 OperationKind.TypeOf);
-            start.RegisterSyntaxTreeAction(coordinator.OnSyntaxTree);
             start.RegisterCompilationEndAction(coordinator.OnCompilationEnd);
         });
     }
