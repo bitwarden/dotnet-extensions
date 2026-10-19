@@ -92,7 +92,7 @@ Your tool hosts the same analyzer the compiler does rather than reimplementing t
 | [BW0009](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#bw0009) | Error    | A restricted type escapes its consumer.                                               |
 | [BW0010](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#bw0010) | Error    | An exception is missing `Owner`, `Reason` or a `yyyy-MM-dd` `Expires`.                |
 | [BW0011](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#bw0011) | Warning  | An exception has expired.                                                             |
-| [BW0012](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#bw0012) | Error    | A pragma or `[SuppressMessage]` names one of these ids.                               |
+| [BW0012](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#bw0012) | Error    | A `[SuppressMessage]` names one of these ids.                                         |
 | [BW0013](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#bw0013) | Error    | A baseline entry no longer matches the code.                                          |
 | [BW0014](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#bw0014) | Error    | A sealed type gained a member, nested type or property.                               |
 | [BW0015](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#bw0015) | Error    | An attribute or a baseline is invalid, missing or orphaned.                           |

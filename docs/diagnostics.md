@@ -344,9 +344,9 @@ This is the one diagnostic in the family that may be configured below error; BW0
 
 ### Summary
 
-Reported when `#pragma warning disable` or `[SuppressMessage]` names one of BW0005-BW0017. `[SuppressMessage]` silences the diagnostic it names; a pragma does not, because the error ids are not configurable (see BW0016), but it is reported all the same. A bare `#pragma warning disable` with no ids silences everything configurable, including BW0011, and is reported under that description.
+Reported when `[SuppressMessage]` names one of BW0005-BW0017. The attribute silences the diagnostic it names. `#pragma warning disable` is not reported: the family's error ids are not configurable (see BW0016), so a pragma cannot silence them. A pragma that silences BW0011, the expiry warning, is not reported either.
 
-The diagnostic is deliberately reported **without a source location**, because one placed inside the suppressed region would be silenced by the very directive it is reporting.
+The diagnostic is deliberately reported **without a source location**, because one placed inside the suppressed region would be silenced by the very attribute it is reporting.
 
 > A global `[SuppressMessage]` (assembly or module scope) naming BW0012 silences every BW0012, including the one about itself, because global suppressions reach location-less diagnostics too. A consuming repository should scan its production source for global suppressions of these ids.
 
@@ -355,9 +355,8 @@ The diagnostic is deliberately reported **without a source location**, because o
 ### Example
 
 ```csharp
-#pragma warning disable BW0005 // BW0012 is reported, and BW0005 still is
+[SuppressMessage("RestrictedDependencies", "BW0005")] // BW0005 is silenced, and BW0012 is reported
 public BillingController(IUserService userService) { }
-#pragma warning restore BW0005
 ```
 
 **Fix:** Use `[RestrictedDependencyException]` with an owner, reason and expiry. A suppression hides the debt; an exception records who owns it and when it should be gone.
