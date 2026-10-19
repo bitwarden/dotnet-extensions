@@ -1,13 +1,12 @@
 using Bitwarden.Server.Sdk.RestrictedDependencies.Analyzers.Analysis;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Bitwarden.Server.Sdk.RestrictedDependencies.Analyzers.Diagnostics;
 
 /// <summary>
-/// BW0012. Finds the two ways a restricted-dependency diagnostic can be silenced in source: a
-/// <c>[SuppressMessage]</c> naming one of the family's ids, and a <c>#pragma warning disable</c>.
+/// BW0012. Finds a <c>[SuppressMessage]</c> naming one of the family's ids. A
+/// <c>#pragma warning disable</c> is not scanned: the error ids are not configurable, so a pragma
+/// cannot silence them.
 /// </summary>
 /// <remarks>
 /// The ids sit in a range shared with the rest of the package's diagnostics, so this matches the
@@ -42,34 +41,6 @@ internal static class DiagnosticSuppressionScanner
                 Location.None,
                 $"[{name.Replace("Attribute", string.Empty)}] on '{symbol.Name}' at {Describe(location, repoRoot)}",
                 checkId);
-        }
-    }
-
-    /// <summary>
-    /// Pragma directives in one tree. A bare <c>disable</c> with no ids silences everything, which
-    /// includes BW0011, so it is reported under that description.
-    /// </summary>
-    public static IEnumerable<Diagnostic> OnSyntaxTree(SyntaxTree tree, string? repoRoot, CancellationToken cancellationToken)
-    {
-        var root = tree.GetRoot(cancellationToken);
-        foreach (var directive in root.DescendantTrivia().Select(t => t.GetStructure()).OfType<PragmaWarningDirectiveTriviaSyntax>())
-        {
-            if (!directive.DisableOrRestoreKeyword.IsKind(SyntaxKind.DisableKeyword))
-            {
-                continue;
-            }
-
-            var ids = directive.ErrorCodes.Select(c => c.ToString()).Where(DiagnosticDescriptors.Ids.Contains).ToList();
-            if (ids.Count == 0 && directive.ErrorCodes.Count == 0)
-            {
-                ids.Add($"every warning, including {DiagnosticDescriptors.ExceptionExpired.Id}");
-            }
-
-            foreach (var id in ids)
-            {
-                yield return Diagnostic.Create(
-                    DiagnosticDescriptors.UnstructuredSuppression, Location.None, $"#pragma warning disable at {Describe(directive.GetLocation(), repoRoot)}", id);
-            }
         }
     }
 

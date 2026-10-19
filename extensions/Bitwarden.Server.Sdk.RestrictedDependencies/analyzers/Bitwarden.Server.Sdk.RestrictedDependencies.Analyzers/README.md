@@ -42,7 +42,7 @@ flowchart TD
 
     Collab --> CB["per-symbol / per-operation callbacks"]
 
-    subgraph Callbacks["named types, methods, properties, fields, events, operations, syntax trees"]
+    subgraph Callbacks["named types, methods, properties, fields, events, operations"]
         CB --> Insp["Inspect: suppression scan + exception validation<br/>→ BW0010 / BW0011 / BW0012"]
         CB --> Attributed{"[RestrictedDependency] type?"}
         Attributed -- "yes" --> MemberSet["DeclaredMemberSetChecker.Check<br/>→ BW0015 if no baseline;<br/>if sealed, compare declared members → BW0014"]

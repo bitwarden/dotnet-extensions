@@ -20,9 +20,6 @@ internal sealed class AnalyzerHarness : CSharpAnalyzerTest<RestrictedDependencyA
     {
         ReferenceAssemblies = ReferenceAssemblies.Net.Net100;
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(IServiceCollection).Assembly.Location));
-        // The harness's suppression check prepends "#pragma warning disable <id>" to every source
-        // and expects the diagnostic to vanish. BW0012 exists to flag exactly that, so skip it.
-        TestBehaviors |= TestBehaviors.SkipSuppressionCheck;
         TestState.Sources.Add(("/repo/src/Core/RestrictedDependencyAttributes.g.cs", AttributeConstants.Text));
         var seed = seedTypes is null ? string.Empty : $"{AnalyzerConfigConstants.SeedTypes} = {seedTypes}\n";
         TestState.AnalyzerConfigFiles.Add(("/.globalconfig",

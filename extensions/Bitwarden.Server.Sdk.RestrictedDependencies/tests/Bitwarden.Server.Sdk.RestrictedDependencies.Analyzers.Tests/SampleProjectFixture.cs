@@ -26,18 +26,6 @@ internal static class SampleProjectFixture
     public const string ConsumerSite = "T:Test.Consumer";
 
     /// <summary>
-    /// Documentation-comment id of <see cref="Consumer"/>'s constructor, which is where it injects
-    /// the restricted type. This is the site a baselined injection row names.
-    /// </summary>
-    public const string ConstructorSite = "M:Test.Consumer.#ctor(Test.IUserService)";
-
-    /// <summary>
-    /// Documentation-comment id of <see cref="Consumer"/>'s only method, which is where it uses a
-    /// restricted member. This is the site a baselined member row names.
-    /// </summary>
-    public const string RunSite = "M:Test.Consumer.Run(Test.User)";
-
-    /// <summary>
     /// A complete, unexpired exception covering the restricted type. Every part is filled in, so a
     /// test using it exercises the valid path rather than tripping BW0010.
     /// </summary>
