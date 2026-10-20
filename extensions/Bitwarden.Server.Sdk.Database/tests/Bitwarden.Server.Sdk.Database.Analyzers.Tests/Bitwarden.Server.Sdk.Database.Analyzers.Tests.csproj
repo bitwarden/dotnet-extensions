@@ -18,10 +18,10 @@
          BuildCompilationAsync picks them up from the test bin directory. The generator detects
          referenced providers via compilation.ReferencedAssemblyNames and only emits code for
          those that are present — these references ensure all four providers are exercised in tests. -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="[8.0.8]" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="[8.0.8]" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[8.0.4]" />
-    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="[8.0.2]" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="[9.0.20]" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="[9.0.20]" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[9.0.4]" />
+    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="[9.0.0]" />
     <!-- Pin the patched SQLite native library (GHSA-2m69-gcr7-jv3q). -->
     <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="[3.53.3]" />
     <PackageReference Include="Testcontainers.MsSql" Version="[4.9.0]" />

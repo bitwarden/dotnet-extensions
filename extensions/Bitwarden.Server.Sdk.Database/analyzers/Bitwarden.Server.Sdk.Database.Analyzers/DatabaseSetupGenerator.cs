@@ -12,12 +12,17 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
     // names (e.g. SqliteContext) and switch cases; Assembly is both the assembly looked for in
     // ReferencedAssemblyNames to detect the provider and the value IDatabaseProvider.Name reports
     // at runtime, so one string serves compile-time detection and runtime dispatch.
+    //
+    // A Name may be served by more than one package when they share an API. Microting's fork of
+    // Pomelo keeps Pomelo's UseMySql and ServerVersion, so the generated calls are identical and
+    // only the assembly name differs; whichever one the project references is the one used.
     private static readonly ProviderSpec[] AllProviders =
     [
         new("Sqlite", "Microsoft.EntityFrameworkCore.Sqlite"),
         new("SqlServer", "Microsoft.EntityFrameworkCore.SqlServer"),
         new("PostgreSql", "Npgsql.EntityFrameworkCore.PostgreSQL"),
         new("MySql", "Pomelo.EntityFrameworkCore.MySql"),
+        new("MySql", "Microting.EntityFrameworkCore.MySql"),
     ];
 
     /// <summary>
@@ -33,6 +38,20 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
             + "overlap: one is a prefix of the other. The journal rewrite only supports adopting an "
             + "unrelated name. Set BitPreviousSqlServerScriptPrefix to the name the journal actually "
             + "records, or remove it if the journal already matches this build.",
+        category: "Bitwarden.Database",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// Reported when two packages serving the same provider are both referenced. They define the
+    /// same types in the same namespaces, so the generated code couldn't bind to either, and the
+    /// runtime dispatch could only ever match one of them.
+    /// </summary>
+    private static readonly DiagnosticDescriptor ConflictingProviderPackages = new(
+        id: "BWDB002",
+        title: "More than one package is referenced for the same database provider",
+        messageFormat: "The {0} provider is referenced through more than one package: {1}. "
+            + "Reference only one of them.",
         category: "Bitwarden.Database",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -119,7 +138,8 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
     /// <summary>
     /// Returns the subset of <see cref="AllProviders"/> whose package assemblies are present
     /// in the compilation's referenced assembly list. Only referenced providers get
-    /// subcontexts, design-time factories, and switch cases generated for them.
+    /// subcontexts, design-time factories, and switch cases generated for them. Two packages
+    /// for the same provider both come back, so generation can report the conflict.
     /// </summary>
     private static EquatableArray<ProviderSpec> DetectProviders(Compilation compilation)
     {
@@ -302,6 +322,23 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
         {
             spc.ReportDiagnostic(Diagnostic.Create(
                 OverlappingScriptPrefixes, Location.None, previous, current));
+            return;
+        }
+
+        var conflicts = providers.Array
+            .GroupBy(p => p.Name)
+            .Where(g => g.Count() > 1)
+            .ToList();
+        if (conflicts.Count > 0)
+        {
+            foreach (var conflict in conflicts)
+            {
+                spc.ReportDiagnostic(Diagnostic.Create(
+                    ConflictingProviderPackages,
+                    Location.None,
+                    conflict.Key,
+                    string.Join(", ", conflict.Select(p => p.Assembly))));
+            }
             return;
         }
 

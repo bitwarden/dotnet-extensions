@@ -12,6 +12,8 @@ public enum DatabaseProvider
     /// <summary>PostgreSQL — managed via EF Core migrations using the Npgsql provider.</summary>
     PostgreSql,
 
-    /// <summary>MySQL / MariaDB — managed via EF Core migrations using the Pomelo provider.</summary>
+    /// <summary>
+    /// MySQL / MariaDB — managed via EF Core migrations using the Pomelo provider or Microting's fork of it.
+    /// </summary>
     MySql,
 }

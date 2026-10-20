@@ -215,7 +215,12 @@ Implemented:
   convention, with `Exclude="@(EmbeddedResource)"` so a project declaring its own items keeps them.
   The script folder is fixed: `BitSqlServerScriptPrefix` describes the recorded name, not the
   layout, so an adopted schema moves its scripts like any other.
-- `BWDB001` is the generator's only diagnostic: an error when `BitPreviousSqlServerScriptPrefix`
+- A provider may be served by more than one package when they share an API: MySQL is detected from
+  either `Pomelo.EntityFrameworkCore.MySql` or Microting's fork, `Microting.EntityFrameworkCore.MySql`.
+  The generated calls are identical, and the dispatcher matches whichever assembly name was
+  referenced. Both at once is `BWDB002`, an error, since the two define the same types and the
+  generated code couldn't bind to either.
+- `BWDB001` is an error when `BitPreviousSqlServerScriptPrefix`
   overlaps `BitSqlServerScriptPrefix`, meaning one is a prefix of the other. The journal rewrite is
   anchored to the start of the recorded name and so is idempotent only for unrelated names; both
   values are build properties, so the overlap is decided at compile time instead of against a

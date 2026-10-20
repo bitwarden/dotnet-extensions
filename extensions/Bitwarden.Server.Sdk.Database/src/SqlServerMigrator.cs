@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using DbUp;
 using DbUp.Helpers;
 using Microsoft.Data.SqlClient;
@@ -137,6 +138,21 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator
     internal static bool IsJournaled(MigrationPhase phase) => phase == MigrationPhase.Initial;
 
     /// <summary>
+    /// Defaults the database to the lower-cased registration name when the connection string
+    /// doesn't name one.
+    /// </summary>
+    internal static (string ConnectionString, string DatabaseName) ResolveDatabase(
+        string connectionString,
+        string optionsName)
+    {
+        var builder = new SqlConnectionStringBuilder(connectionString);
+        if (string.IsNullOrWhiteSpace(builder.InitialCatalog))
+            builder.InitialCatalog = optionsName.ToLowerInvariant();
+
+        return (builder.ConnectionString, builder.InitialCatalog);
+    }
+
+    /// <summary>
     /// Applies the configured phase, retrying while SQL Server reports it is in script upgrade
     /// mode — which it does for a while after patching, and which clears on its own.
     /// </summary>
@@ -149,10 +165,12 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
+                var (connectionString, databaseName) = ResolveDatabase(ConnectionString, _optionsName);
+
                 // Preparing sits inside the retry, so a server in script upgrade mode is retried
                 // whichever step hits it.
-                await PrepareDatabaseAsync(cancellationToken);
-                await MigrateCoreAsync(cancellationToken);
+                await PrepareDatabaseAsync(connectionString, databaseName, cancellationToken);
+                await MigrateCoreAsync(connectionString);
                 return;
             }
             catch (DbException ex) when (ex.Message.Contains("Server is in script upgrade mode.") && attempt < 9)
@@ -163,10 +181,11 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator
         }
     }
 
-    private async Task PrepareDatabaseAsync(CancellationToken cancellationToken)
+    private async Task PrepareDatabaseAsync(
+        string connectionString,
+        string databaseName,
+        CancellationToken cancellationToken)
     {
-        var connectionString = ConnectionString;
-
         var masterConnectionString = new SqlConnectionStringBuilder(connectionString)
         {
             InitialCatalog = "master"
@@ -174,10 +193,6 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator
 
         await using (var connection = new SqlConnection(masterConnectionString))
         {
-            var databaseName = new SqlConnectionStringBuilder(connectionString).InitialCatalog;
-            if (string.IsNullOrWhiteSpace(databaseName))
-                databaseName = "vault";
-
             var databaseNameQuoted = new SqlCommandBuilder().QuoteIdentifier(databaseName);
 
             await connection.OpenAsync(cancellationToken);
@@ -195,10 +210,10 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator
             await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        await RenameJournalEntriesAsync(cancellationToken);
+        await RenameJournalEntriesAsync(connectionString, cancellationToken);
     }
 
-    private async Task RenameJournalEntriesAsync(CancellationToken cancellationToken)
+    private async Task RenameJournalEntriesAsync(string connectionString, CancellationToken cancellationToken)
     {
         var options = MigrationOptions;
         if (!ShouldRenameJournalEntries(options))
@@ -207,7 +222,7 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator
         var previous = options.PreviousScriptPrefix!.TrimEnd('.');
         var current = options.ScriptPrefix.TrimEnd('.');
 
-        await using var connection = new SqlConnection(ConnectionString);
+        await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
 
         using var cmd = new SqlCommand(JournalRenameSql, connection);
@@ -225,9 +240,9 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator
         }
     }
 
-    private Task MigrateCoreAsync(CancellationToken cancellationToken)
+    private Task MigrateCoreAsync(string connectionString)
     {
-        var upgrader = BuildUpgrader();
+        var upgrader = BuildUpgrader(connectionString);
 
         if (MigrationOptions.DryRun)
         {
@@ -235,7 +250,11 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator
             return Task.CompletedTask;
         }
 
+        // DbUp returns failures rather than throwing them. A database error is rethrown as-is so
+        // the script upgrade mode retry can see it.
         var result = upgrader.PerformUpgrade();
+        if (result.Error is DbException dbException)
+            ExceptionDispatchInfo.Capture(dbException).Throw();
         if (!result.Successful)
             throw new InvalidOperationException("SQL Server migration failed.", result.Error);
 
@@ -260,12 +279,12 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator
             _logger.LogInformation("Would apply {Script}.", script.Name);
     }
 
-    private DbUp.Engine.UpgradeEngine BuildUpgrader()
+    private DbUp.Engine.UpgradeEngine BuildUpgrader(string connectionString)
     {
         var options = MigrationOptions;
 
         var builder = DeployChanges.To
-            .SqlDatabase(ConnectionString)
+            .SqlDatabase(connectionString)
             .WithScriptsEmbeddedInAssembly(
                 _scriptsAssembly,
                 ScriptFilterFor(options.Phase, options.ScriptPrefix))

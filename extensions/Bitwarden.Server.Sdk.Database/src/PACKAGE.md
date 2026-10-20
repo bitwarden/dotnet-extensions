@@ -6,14 +6,16 @@ This package, combined with the `DatabaseSetupGenerator` source generator that s
 stands up a complete multi-provider database migration pipeline from a single assembly attribute.
 Applying `[assembly: DatabaseSetup<TContext>]` to a project causes the generator to emit:
 
-- Provider-specific `DbContext` subclasses (`SqliteContext`, `SqlServerContext`, etc.)
+- Provider-specific `DbContext` subclasses (`SqliteContext`, `PostgreSqlContext`, `MySqlContext`) —
+  SQL Server has none, since DbUp migrates it
 - EF Core design-time factories for each provider (used by `dotnet ef` tooling)
 - A `Add{Schema}` DI extension method
 - A `Program` entry point that handles the migration CLI
 
 At runtime the package provides:
 
-- An EF Core migrations runner (SQLite, PostgreSQL, MySQL via the Npgsql and Pomelo providers)
+- An EF Core migrations runner (SQLite, PostgreSQL via Npgsql, MySQL via Pomelo or Microting's
+  fork of it)
 - A DbUp migrations runner (SQL Server, using embedded `.sql` scripts)
 - A hosted service that applies pending migrations automatically on self-hosted startup
 - `IDatabaseMigrator` — a keyed service you can resolve to run migrations on demand
@@ -27,13 +29,19 @@ schema-specific decision is which EF Core providers it supports:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.8" />
-  <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.4" />
+  <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.20" />
+  <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
 </ItemGroup>
 ```
 
 A provider gets a subcontext, a design-time factory, and a switch case only if its package is
 referenced here, so this list decides which providers the generated code supports.
+
+MySQL can come from either `Pomelo.EntityFrameworkCore.MySql` or
+`Microting.EntityFrameworkCore.MySql`, a fork of Pomelo that keeps its API. The generated code is
+the same for both; reference whichever one you use. Referencing both is a build error (`BWDB002`),
+since they define the same types. This package targets EF Core 9, so use a 9.x version of
+whichever provider you pick.
 
 Scripts need no csproj entry: `.sql` under `Migrations/SqlServer/` and under any `HelperScripts/`
 folder is embedded by convention, so adding a script is just adding a file.
@@ -535,7 +543,7 @@ The generated code includes the executable's entry point, so the project has to 
   <!-- The generated migration entry point is built on System.CommandLine. -->
   <PackageReference Include="System.CommandLine" Version="2.0.11" />
   <!-- Design-time tooling for `dotnet ef`, kept out of consumers' dependency graphs. -->
-  <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.8" PrivateAssets="all" />
+  <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.20" PrivateAssets="all" />
 </ItemGroup>
 ```
 

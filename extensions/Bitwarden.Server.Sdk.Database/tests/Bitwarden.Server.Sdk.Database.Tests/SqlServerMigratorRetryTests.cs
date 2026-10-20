@@ -138,6 +138,43 @@ public sealed class SqlServerMigratorRetryTests : IClassFixture<SqlServerFixture
     }
 
     [Fact(Explicit = true)]
+    public async Task MigrateAsync_ScriptUpgradeModeWhileApplyingScripts_RetriesAndThenMigrates()
+    {
+        const string DatabaseName = "retry_during_upgrade";
+        var (migrator, time, logs, connectionString) = await BuildMigratorAsync(DatabaseName);
+
+        var master = new SqlConnectionStringBuilder(connectionString) { InitialCatalog = "master" }.ConnectionString;
+        await ExecuteAsync(master, $"CREATE DATABASE [{DatabaseName}];");
+
+        // Fails the first script's CREATE TABLE once. The upgrade's transaction rolls back anything
+        // the trigger could record, but not a sequence, so that is what counts the attempts.
+        await ExecuteAsync(connectionString, "CREATE SEQUENCE [dbo].[FailOnce] START WITH 1;");
+        await ExecuteAsync(connectionString, $"""
+            CREATE TRIGGER trg_fail_upgrade ON DATABASE FOR CREATE_TABLE AS
+            BEGIN
+                -- Nested, not AND: T-SQL doesn't short-circuit, and the journal table's CREATE TABLE
+                -- would otherwise use up the first value.
+                IF EVENTDATA().value('(/EVENT_INSTANCE/ObjectName)[1]', 'nvarchar(128)') = N'Orders'
+                    IF NEXT VALUE FOR [dbo].[FailOnce] = 1
+                        RAISERROR('{ScriptUpgradeMode}', 16, 1);
+            END;
+            """);
+
+        var migration = migrator.MigrateAsync(TestContext.Current.CancellationToken);
+        await SettleAsync(time, migration);
+        await migration;
+
+        Assert.Contains(
+            logs.GetSnapshot(),
+            record => record.Message.Contains("script upgrade mode, retrying (attempt 2/9)"));
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        using var count = new SqlCommand("SELECT COUNT(1) FROM [dbo].[Migration]", connection);
+        Assert.Equal(2, (int)(await count.ExecuteScalarAsync(TestContext.Current.CancellationToken))!);
+    }
+
+    [Fact(Explicit = true)]
     public async Task MigrateAsync_AnotherDatabaseError_IsNotRetried()
     {
         const string DatabaseName = "retry_other_error";

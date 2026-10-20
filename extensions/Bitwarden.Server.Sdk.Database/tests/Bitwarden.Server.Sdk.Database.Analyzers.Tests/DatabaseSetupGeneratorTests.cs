@@ -1333,6 +1333,111 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
         Assert.DoesNotContain("PreviousScriptPrefix", generated);
     }
 
+    [Fact]
+    public async Task MicrotingMySql_IsUsedInPlaceOfPomelo()
+    {
+        // The fork keeps Pomelo's API, so the calls are the same; only the provider name the
+        // migrations dispatcher matches on at runtime changes.
+        var generated = await GenerateAsync(
+            """
+            using Microsoft.EntityFrameworkCore;
+            using Bitwarden.Server.Sdk.Database;
+            using My.App;
+
+            [assembly: DatabaseSetup<MyDatabaseContext>]
+
+            namespace My.App;
+
+            public class MyDatabaseContext(DbContextOptions options) : DbContext(options);
+            """,
+            excludeAssemblyNames: ["Pomelo.EntityFrameworkCore.MySql"],
+            additionalReferences: [MicrotingMySqlStub.Value]);
+
+        Assert.Contains(
+            "if (provider == \"Microting.EntityFrameworkCore.MySql\") return _mySqlEntries;",
+            generated);
+        Assert.Contains("case DatabaseProvider.MySql:", generated);
+        Assert.Contains(
+            "builder.UseMySql(opts.ConnectionString, ServerVersion.AutoDetect(opts.ConnectionString));",
+            generated);
+        Assert.Contains("file sealed class MySqlContextFactory", generated);
+        Assert.DoesNotContain("Pomelo", generated);
+    }
+
+    [Fact]
+    public async Task BothMySqlPackages_AreRejectedAtBuildTime()
+    {
+        var diagnostics = await GenerateDiagnosticsAsync(
+            """
+            using Microsoft.EntityFrameworkCore;
+            using Bitwarden.Server.Sdk.Database;
+            using My.App;
+
+            [assembly: DatabaseSetup<MyDatabaseContext>]
+
+            namespace My.App;
+
+            public class MyDatabaseContext(DbContextOptions options) : DbContext(options);
+            """,
+            additionalReferences: [MicrotingMySqlStub.Value]);
+
+        var diagnostic = Assert.Single(diagnostics);
+        Assert.Equal("BWDB002", diagnostic.Id);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Contains("Pomelo.EntityFrameworkCore.MySql", diagnostic.GetMessage());
+        Assert.Contains("Microting.EntityFrameworkCore.MySql", diagnostic.GetMessage());
+    }
+
+    /// <summary>
+    /// Stands in for Microting.EntityFrameworkCore.MySql, which can't be referenced beside Pomelo:
+    /// the two define the same types, which is the conflict BWDB002 exists for. The generator
+    /// detects it by assembly name, and the generated code binds to the slice of Pomelo's API
+    /// declared here.
+    /// </summary>
+    private static readonly Lazy<MetadataReference> MicrotingMySqlStub = new(() =>
+    {
+        var stub = CSharpCompilation.Create(
+            "Microting.EntityFrameworkCore.MySql",
+            [CSharpSyntaxTree.ParseText(
+                """
+                namespace Microsoft.EntityFrameworkCore;
+
+                public abstract class ServerVersion
+                {
+                    public static ServerVersion AutoDetect(string connectionString) => throw null!;
+                }
+
+                public static class MySqlDbContextOptionsBuilderExtensions
+                {
+                    public static DbContextOptionsBuilder UseMySql(
+                        this DbContextOptionsBuilder builder, string connectionString, ServerVersion serverVersion)
+                        => builder;
+
+                    public static DbContextOptionsBuilder<TContext> UseMySql<TContext>(
+                        this DbContextOptionsBuilder<TContext> builder, string connectionString, ServerVersion serverVersion)
+                        where TContext : DbContext
+                        => builder;
+                }
+                """,
+                _parseOptions)],
+            PlatformAssemblies
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Where(dll => !Path.GetFileNameWithoutExtension(dll)
+                    .Equals("Pomelo.EntityFrameworkCore.MySql", StringComparison.OrdinalIgnoreCase))
+                .Select(dll => MetadataReference.CreateFromFile(dll)),
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
+                .WithNullableContextOptions(NullableContextOptions.Enable));
+
+        using var peStream = new MemoryStream();
+        var result = stub.Emit(peStream);
+        Assert.True(
+            result.Success,
+            "Microting stub failed to emit: "
+            + string.Join(" | ", result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)));
+
+        return MetadataReference.CreateFromImage(peStream.ToArray());
+    });
+
     [Theory]
     // The new prefix extends the old one, and the reverse.
     [InlineData("Bit.Migrator.DbScripts", "Bit.Migrator.DbScripts.SqlServer")]
@@ -1955,7 +2060,8 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
     private static async Task<Compilation> BuildCompilationAsync(
         [StringSyntax("C#")] string source,
         IReadOnlyCollection<string>? excludeAssemblyNames = null,
-        CSharpParseOptions? parseOptions = null)
+        CSharpParseOptions? parseOptions = null,
+        IReadOnlyCollection<MetadataReference>? additionalReferences = null)
     {
         var projectName = $"DatabaseSetupGeneratorTestProject-{Guid.NewGuid()}";
         var compilationOptions = new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
@@ -1979,6 +2085,9 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
 
         foreach (var dll in references)
             project = project.AddMetadataReference(MetadataReference.CreateFromFile(dll));
+
+        if (additionalReferences is not null)
+            project = project.AddMetadataReferences(additionalReferences);
 
         project = project
             .AddDocument("TestSource.cs", SourceText.From(source, Encoding.UTF8))
@@ -2012,9 +2121,11 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
     private static async Task<ImmutableArray<Diagnostic>> GenerateDiagnosticsAsync(
         [StringSyntax("C#")] string source,
         string? scriptPrefix = null,
-        string? previousScriptPrefix = null)
+        string? previousScriptPrefix = null,
+        IReadOnlyCollection<MetadataReference>? additionalReferences = null)
     {
-        var compilation = await BuildCompilationAsync(source, excludeAssemblyNames: null);
+        var compilation = await BuildCompilationAsync(
+            source, excludeAssemblyNames: null, additionalReferences: additionalReferences);
 
         var buildProperties = new Dictionary<string, string>();
         if (scriptPrefix is not null)
@@ -2042,9 +2153,11 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
         IReadOnlyCollection<string>? excludeAssemblyNames = null,
         string? projectDir = null,
         string? scriptPrefix = null,
-        string? previousScriptPrefix = null)
+        string? previousScriptPrefix = null,
+        IReadOnlyCollection<MetadataReference>? additionalReferences = null)
     {
-        var initialCompilation = await BuildCompilationAsync(source, excludeAssemblyNames);
+        var initialCompilation = await BuildCompilationAsync(
+            source, excludeAssemblyNames, additionalReferences: additionalReferences);
 
         var initialDiagnostics = initialCompilation.GetDiagnostics(TestContext.Current.CancellationToken);
 

@@ -15,29 +15,30 @@ public class SqlServerMigratorIntegrationTests(SqlServerFixture sqlServer) : ICl
     /// <summary>Each test gets its own database, which also exercises creating one.</summary>
     private async Task<(IDatabaseMigrator Migrator, string ConnectionString, FakeLogCollector Logs)> BuildMigratorAsync(
         string databaseName,
-        Action<SqlServerMigrationOptions>? configure = null)
+        Action<SqlServerMigrationOptions>? configure = null,
+        string name = "Test")
     {
         var connectionString = await sqlServer.ConnectionStringForAsync(databaseName);
 
         var services = new ServiceCollection();
         services.AddLogging(builder => builder.AddFakeLogging());
-        services.Configure<DatabaseOptions>("Test", opts =>
+        services.Configure<DatabaseOptions>(name, opts =>
         {
             opts.Provider = DatabaseProvider.SqlServer;
             opts.ConnectionString = connectionString;
         });
-        services.Configure<SqlServerMigrationOptions>("Test", opts =>
+        services.Configure<SqlServerMigrationOptions>(name, opts =>
         {
             // What the generated registration would set from BitSqlServerScriptPrefix.
             opts.ScriptPrefix = ScriptPrefix;
             configure?.Invoke(opts);
         });
-        services.AddSqlServerDatabaseMigrator("Test", typeof(SqlServerMigratorIntegrationTests).Assembly);
+        services.AddSqlServerDatabaseMigrator(name, typeof(SqlServerMigratorIntegrationTests).Assembly);
 
         var provider = services.BuildServiceProvider();
 
         return (
-            provider.GetRequiredKeyedService<IDatabaseMigrator>("Test"),
+            provider.GetRequiredKeyedService<IDatabaseMigrator>(name),
             connectionString,
             provider.GetRequiredService<FakeLogCollector>());
     }
@@ -142,6 +143,22 @@ public class SqlServerMigratorIntegrationTests(SqlServerFixture sqlServer) : ICl
         var value = await cmd.ExecuteScalarAsync(TestContext.Current.CancellationToken);
 
         return value is DBNull ? null : value;
+    }
+
+    [Fact(Explicit = true)]
+    public async Task MigrateAsync_WithoutADatabase_MigratesADatabaseNamedForTheRegistration()
+    {
+        var (migrator, serverConnectionString, _) = await BuildMigratorAsync("", name: "NoCatalog");
+
+        await migrator.MigrateAsync(TestContext.Current.CancellationToken);
+
+        var connectionString = await sqlServer.ConnectionStringForAsync("nocatalog");
+        Assert.Equal(["initial"], await OrderNamesAsync(connectionString));
+        Assert.Equal(2, (await JournalAsync(connectionString)).Count);
+
+        // Nothing landed in the login's default database.
+        Assert.Null(await ScalarOrNullAsync(serverConnectionString, "SELECT OBJECT_ID('dbo.Orders')"));
+        Assert.Null(await ScalarOrNullAsync(serverConnectionString, "SELECT OBJECT_ID('dbo.Migration')"));
     }
 
     [Fact(Explicit = true)]

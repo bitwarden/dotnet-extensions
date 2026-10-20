@@ -9,7 +9,7 @@ namespace Bitwarden.Server.Sdk.Database;
 /// </summary>
 /// <remarks>
 /// Only one <c>[assembly: DatabaseSetup&lt;TContext&gt;]</c> attribute is allowed per assembly
-/// — applying it more than once is a compile-time error (BW0005) — so each schema needs its
+/// — applying it more than once is a compile-time error (CS0579) — so each schema needs its
 /// own project.
 /// </remarks>
 /// <typeparam name="TContext">The root <see cref="DbContext"/> for this schema.</typeparam>
