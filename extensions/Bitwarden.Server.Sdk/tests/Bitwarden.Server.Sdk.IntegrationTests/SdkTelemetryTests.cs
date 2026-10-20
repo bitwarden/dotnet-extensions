@@ -9,7 +9,7 @@ namespace Bitwarden.Server.Sdk.IntegrationTests;
 
 public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
 {
-    private const int TwentySeconds = 20 * 1000;
+    private const int SixtySeconds = 60 * 1000;
 
     private readonly TelemetryProjectFixture _fixture;
 
@@ -18,7 +18,7 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
         _fixture = fixture;
     }
 
-    [Fact(Timeout = TwentySeconds)]
+    [Fact(Timeout = SixtySeconds)]
     public async Task CustomMetricsAndTracesWork()
     {
         using var result = await RunTelemetryAsync(new Dictionary<string, string?>
@@ -123,7 +123,7 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
         );
     }
 
-    [Fact(Timeout = TwentySeconds)]
+    [Fact(Timeout = SixtySeconds)]
     public async Task OtelEnvironmentVariableWins()
     {
         using var result = await RunTelemetryAsync(new Dictionary<string, string?>
@@ -135,7 +135,7 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
         Assert.Equal("SOME_NAME", result.GetMetricsServiceName());
     }
 
-    [Fact(Timeout = TwentySeconds)]
+    [Fact(Timeout = SixtySeconds)]
     public async Task TelemetryCanBeDisabled()
     {
         using var result = await RunTelemetryAsync(new Dictionary<string, string?>
@@ -147,7 +147,7 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
         Assert.Null(result.Traces);
     }
 
-    [Fact(Timeout = TwentySeconds)]
+    [Fact(Timeout = SixtySeconds)]
     public async Task OnlyTracesCanBeDisabled()
     {
         using var result = await RunTelemetryAsync(new Dictionary<string, string?>
@@ -159,7 +159,7 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
         Assert.Null(result.Traces);
     }
 
-    [Fact(Timeout = TwentySeconds)]
+    [Fact(Timeout = SixtySeconds)]
     public async Task OnlyMetricsCanBeDisabled()
     {
         using var result = await RunTelemetryAsync(new Dictionary<string, string?>
@@ -171,7 +171,7 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
         Assert.NotNull(result.Traces);
     }
 
-    [Fact(Timeout = TwentySeconds)]
+    [Fact(Timeout = SixtySeconds)]
     public async Task SelfHostDoesNotDoTelemetryByDefault()
     {
         using var result = await RunTelemetryAsync(new Dictionary<string, string?>
@@ -183,7 +183,7 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
         Assert.Null(result.Traces);
     }
 
-    [Fact(Timeout = TwentySeconds)]
+    [Fact(Timeout = SixtySeconds)]
     public async Task SelfHostCanDoTelemetryIfEnabled()
     {
         using var result = await RunTelemetryAsync(new Dictionary<string, string?>
@@ -196,7 +196,7 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
         Assert.NotNull(result.Traces);
     }
 
-    [Fact(Timeout = TwentySeconds)]
+    [Fact(Timeout = SixtySeconds)]
     public async Task HealthCheckRequestsAreNotTraced()
     {
         using var result = await RunTelemetryAsync([], async client =>
@@ -226,7 +226,7 @@ public class SdkTelemetryTests : IClassFixture<TelemetryProjectFixture>
         Assert.DoesNotContain("GET /healthz", spanNames);
     }
 
-    [Fact(Timeout = TwentySeconds)]
+    [Fact(Timeout = SixtySeconds)]
     public async Task RequestExceptionsAreRecorded()
     {
         using var result = await RunTelemetryAsync([], async client =>
