@@ -541,7 +541,7 @@ The generated code includes the executable's entry point, so the project has to 
 <ItemGroup>
   <PackageReference Include="Bitwarden.Server.Sdk.Database" Version="0.1.0" />
   <!-- The generated migration entry point is built on System.CommandLine. -->
-  <PackageReference Include="System.CommandLine" Version="2.0.11" />
+  <PackageReference Include="System.CommandLine" Version="2.0.13" />
   <!-- Design-time tooling for `dotnet ef`, kept out of consumers' dependency graphs. -->
   <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.20" PrivateAssets="all" />
 </ItemGroup>
