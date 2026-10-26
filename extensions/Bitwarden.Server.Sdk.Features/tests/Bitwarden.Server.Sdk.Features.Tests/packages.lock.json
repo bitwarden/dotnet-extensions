@@ -64,16 +64,16 @@
       },
       "LaunchDarkly.EventSource": {
         "type": "Transitive",
-        "resolved": "5.3.1",
-        "contentHash": "bVXethnjYnjC+hYSHYhn+1QFZhwtD0NYy1MJjtfOfC6CBW9h1pzR0hEAf16DQYl/LJtMi7fwOJbQhq8lFlFrSw==",
+        "resolved": "6.0.0",
+        "contentHash": "GQGSWpmcx5x0bkFQH/6KZsFXRTspNx+0uEMMHrYDdUqEqYHF/71SRIdKILjTBe7VWJTAJHABR5U7HWZJG/XWSA==",
         "dependencies": {
           "LaunchDarkly.Logging": "[2.0.0, 3.0.0)"
         }
       },
       "LaunchDarkly.InternalSdk": {
         "type": "Transitive",
-        "resolved": "3.6.1",
-        "contentHash": "qkbqHzz3AruAPW5PfbwQEM883p2ArHG3xun8IONmBT/QdiAhLFqh/5vxMCUsT1GfPyyly4S0HxYx3GP01Gc3Pg==",
+        "resolved": "3.11.1",
+        "contentHash": "L/ZRcRHFCJgyXgOQgBt6Cn+lnI3xVqejFly36s3GcblHFzJoDzli1ZfWxDmKe1HRz45tjiksXZNdFD6oCLyGRg==",
         "dependencies": {
           "LaunchDarkly.CommonSdk": "[7.2.0, 8.0.0)",
           "LaunchDarkly.Logging": "[2.0.0, 3.0.0)"
@@ -81,19 +81,19 @@
       },
       "LaunchDarkly.Logging": {
         "type": "Transitive",
-        "resolved": "2.0.0",
-        "contentHash": "lsLKNqAZ7HIlkdTIrf4FetfRA1SUDE3WlaZQn79aSVkLjYWEhUhkDDK7hORGh4JoA3V2gXN+cIvJQax2uR/ijA=="
+        "resolved": "2.1.0",
+        "contentHash": "v3sjm7PZDuAYR/N225rPNrl8M9dozBFkF7zxhdD2qPAJ7O/7k7/AJxEI6yTkqx5jn/8b495xvAuesTfNpsdi4A=="
       },
       "LaunchDarkly.ServerSdk": {
         "type": "Transitive",
-        "resolved": "8.14.1",
-        "contentHash": "ufdAP+8OYpLEnDJanErS7wXj9xRYKCY1ZXmxaYuQwTB0qik3DviMRy5ml6Ehjd8kGgWZzOnur5EwqTKM+wW/AQ==",
+        "resolved": "8.17.2",
+        "contentHash": "ClMclLGtdJcJm+/B8i9iSiQJ7el4nA9Sl+gWxazsr+0gp8uhKrX+d6MDcXdVSAFGJ419CISMlR9DL++5CHllDQ==",
         "dependencies": {
           "LaunchDarkly.Cache": "1.0.2",
           "LaunchDarkly.CommonSdk": "7.2.0",
-          "LaunchDarkly.EventSource": "5.3.1",
-          "LaunchDarkly.InternalSdk": "3.6.1",
-          "LaunchDarkly.Logging": "2.0.0"
+          "LaunchDarkly.EventSource": "6.0.0",
+          "LaunchDarkly.InternalSdk": "3.11.1",
+          "LaunchDarkly.Logging": "2.1.0"
         }
       },
       "Microsoft.ApplicationInsights": {
@@ -212,7 +212,7 @@
         "type": "Project",
         "dependencies": {
           "Bitwarden.Server.Sdk.Environment": "[0.1.0, )",
-          "LaunchDarkly.ServerSdk": "[8.14.1, )"
+          "LaunchDarkly.ServerSdk": "[8.17.2, )"
         }
       }
     }
