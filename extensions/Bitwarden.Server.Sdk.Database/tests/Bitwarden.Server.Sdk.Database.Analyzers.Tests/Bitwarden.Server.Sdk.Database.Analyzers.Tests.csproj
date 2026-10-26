@@ -22,11 +22,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="[9.0.20]" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[9.0.4]" />
     <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="[9.0.0]" />
-    <!-- Pin the patched SQLite native library (GHSA-2m69-gcr7-jv3q). -->
-    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="[3.53.3]" />
-    <PackageReference Include="Testcontainers.MsSql" Version="[4.9.0]" />
-    <!-- Testcontainers pulls a vulnerable SSH.NET; same pin as the other test projects. -->
-    <PackageReference Include="SSH.NET" Version="[2026.0.0]" />
+    <PackageReference Include="Testcontainers.MsSql" Version="[4.16.0]" />
   </ItemGroup>
 
   <!-- One definition of the fixture, shared rather than duplicated. -->

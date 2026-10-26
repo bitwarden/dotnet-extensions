@@ -21,15 +21,11 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="[9.0.20]" />
     <!-- Test-only: proves a DbUp-migrated SQL Server schema is still queryable through EF Core. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="[9.0.20]" />
-    <PackageReference Include="Testcontainers.MsSql" Version="[4.9.0]" />
-    <PackageReference Include="Testcontainers.PostgreSql" Version="[4.9.0]" />
-    <PackageReference Include="Testcontainers.MySql" Version="[4.9.0]" />
+    <PackageReference Include="Testcontainers.MsSql" Version="[4.16.0]" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="[4.16.0]" />
+    <PackageReference Include="Testcontainers.MySql" Version="[4.16.0]" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[9.0.4]" />
     <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="[9.0.0]" />
-    <!-- Testcontainers pulls a vulnerable SSH.NET; same pin as the SDK integration tests. -->
-    <PackageReference Include="SSH.NET" Version="[2026.0.0]" />
-    <!-- Overrides the vulnerable 2.1.6 that Microsoft.EntityFrameworkCore.Sqlite pulls in. -->
-    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="[3.53.3]" />
   </ItemGroup>
 
   <ItemGroup>
