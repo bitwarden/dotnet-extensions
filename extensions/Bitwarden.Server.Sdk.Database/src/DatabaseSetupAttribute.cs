@@ -31,20 +31,10 @@ public sealed class DatabaseSetupAttribute<TContext> : Attribute
     /// </summary>
     public string? MigratorKey { get; set; }
 
-    // TODO: Add a MigrationsNamespace property so the generator uses a caller-supplied namespace
-    // for the generated provider subcontexts and design-time factories instead of the context
-    // type's own namespace. This allows migration files that were authored in a separate assembly
-    // (e.g. Bit.VaultDatabase.Migrations.Sqlite) to move into the schema project without their
-    // namespaces being renamed, leaving the existing [DbContext(typeof(SqliteContext))] and
-    // [Migration("...")] attributes valid. Without it, every migration file needs updating when
-    // schemas are consolidated into a single project.
-
-    // TODO: Add a MySqlServerVersion property (e.g. "8.0.21") so the generator can emit a
-    // static ServerVersion instead of calling ServerVersion.AutoDetect(connectionString).
-    // AutoDetect opens a live connection, which trips up design-time EF tooling (dotnet ef
-    // migrations add) and DI registration when no MySQL server is reachable. It would need to
-    // be a string rather than a Version, since attribute arguments are compile-time constants.
-    // The generated MySqlContextFactory and the AddDatabase DI registration would both use
-    // MySqlServerVersion.Parse(MySqlServerVersion) when the property is set, falling back to
-    // AutoDetect only when it is null.
+    // TODO (PM-45775): Add a MySqlServerVersion property (e.g. "8.0.36-mysql") so the generated
+    // MySqlContextFactory can use ServerVersion.Parse instead of ServerVersion.AutoDetect, which
+    // opens a live connection and stops design-time EF tooling (dotnet ef migrations add) working
+    // when no MySQL server is reachable. It would need to be a string rather than a Version, since
+    // attribute arguments are compile-time constants. The DI registration keeps AutoDetect: the
+    // version decides the SQL generated against each deployment's MySQL or MariaDB server.
 }
