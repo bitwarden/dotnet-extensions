@@ -17,7 +17,7 @@
   <ItemGroup>
     <!-- BenchmarkDotNet takes a version that has two CVEs so pin the transitive dependency higher
         until a version without it exists. -->
-    <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="[3.2.8]" />
+    <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="[4.0.0]" />
   </ItemGroup>
 
   <ItemGroup>
