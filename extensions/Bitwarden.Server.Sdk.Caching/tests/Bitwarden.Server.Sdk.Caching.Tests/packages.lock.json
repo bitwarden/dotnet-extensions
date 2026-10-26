@@ -429,27 +429,27 @@
       },
       "ZiggyCreatures.FusionCache": {
         "type": "Transitive",
-        "resolved": "2.6.0",
-        "contentHash": "BCe+/SkwQZfaMpq2ZGDZB2pyx6BdGnP+zxqjMM/5K+4PBuH6hljZeIqH4KVzQ26khSbPsQ7IiYZl0Fve4OZOog==",
+        "resolved": "2.9.0",
+        "contentHash": "m2z6LlE4yckDkE95Vha2NH/gPD+iM9PnCUMfe1nfkC+xaiq48S80HI7olnSblVOAHx5OP+VN9vhQoTdZAPZp0g==",
         "dependencies": {
           "Microsoft.Extensions.Caching.Memory": "10.0.1"
         }
       },
       "ZiggyCreatures.FusionCache.Backplane.StackExchangeRedis": {
         "type": "Transitive",
-        "resolved": "2.6.0",
-        "contentHash": "GHzTt4OVBzVcajgFUJ8oHLmBZJPF+pi044LKG5rTS44ECcSxfzzvSnVZoTPrECbPl3tG96TyiLM+P4uIvzZWPQ==",
+        "resolved": "2.9.0",
+        "contentHash": "1O2IZiNvTgjssKwxuG5yFBHhrcjXDbraaQUbUPBSGM5sdsHNrj5hxNIx6uAXshikSxBibTdPotwTfgZaO4GPjQ==",
         "dependencies": {
           "StackExchange.Redis": "2.10.1",
-          "ZiggyCreatures.FusionCache": "2.6.0"
+          "ZiggyCreatures.FusionCache": "2.9.0"
         }
       },
       "ZiggyCreatures.FusionCache.Serialization.SystemTextJson": {
         "type": "Transitive",
-        "resolved": "2.6.0",
-        "contentHash": "A00mNC7xrkC8LUAQMkeB3OtVTfGzyTyHxTgAOwfqaFdazO/54d3fT8LFoekpgSslkvDjKAIPlyafqsFBPLgQIw==",
+        "resolved": "2.9.0",
+        "contentHash": "4cJOqBFLmFGcm1SSu7HAcMOTyHCRAHAxZ7fmxrcxMXwZ+FYNiZBpdxqi67vbtw608piFtswOyJhxLZhO36fLCg==",
         "dependencies": {
-          "ZiggyCreatures.FusionCache": "2.6.0"
+          "ZiggyCreatures.FusionCache": "2.9.0"
         }
       },
       "bitwarden.server.sdk.caching": {
@@ -457,9 +457,9 @@
         "dependencies": {
           "Microsoft.Extensions.Caching.StackExchangeRedis": "[10.0.0, )",
           "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.0, )",
-          "ZiggyCreatures.FusionCache": "[2.6.0, )",
-          "ZiggyCreatures.FusionCache.Backplane.StackExchangeRedis": "[2.6.0, )",
-          "ZiggyCreatures.FusionCache.Serialization.SystemTextJson": "[2.6.0, )"
+          "ZiggyCreatures.FusionCache": "[2.9.0, )",
+          "ZiggyCreatures.FusionCache.Backplane.StackExchangeRedis": "[2.9.0, )",
+          "ZiggyCreatures.FusionCache.Serialization.SystemTextJson": "[2.9.0, )"
         }
       }
     }
