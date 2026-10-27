@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "bitwarden.server.sdk.environment": {
+        "type": "Project"
+      },
+      "bitwarden.server.sdk.infrastructure": {
+        "type": "Project"
+      }
+    }
+  }
+}
