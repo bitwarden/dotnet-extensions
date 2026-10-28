@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 
 namespace Bitwarden.Server.Sdk.Database;
 
-internal sealed class SqlServerMigrator : IDatabaseMigrator
+internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailability
 {
     private readonly IOptionsMonitor<DatabaseOptions> _optionsMonitor;
     private readonly IOptionsMonitor<SqlServerMigrationOptions> _migrationOptionsMonitor;
@@ -156,6 +156,29 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator
     /// Applies the configured phase, retrying while SQL Server reports it is in script upgrade
     /// mode — which it does for a while after patching, and which clears on its own.
     /// </summary>
+    /// <summary>
+    /// Connects to <c>master</c>, which needs the server to be up but not this schema's database,
+    /// since migrating creates it.
+    /// </summary>
+    public async Task<DbException?> CheckConnectionAsync(CancellationToken cancellationToken)
+    {
+        var master = new SqlConnectionStringBuilder(ResolveDatabase(ConnectionString, _optionsName).ConnectionString)
+        {
+            InitialCatalog = "master",
+        }.ConnectionString;
+
+        try
+        {
+            await using var connection = new SqlConnection(master);
+            await connection.OpenAsync(cancellationToken);
+            return null;
+        }
+        catch (DbException e)
+        {
+            return e;
+        }
+    }
+
     public async Task MigrateAsync(CancellationToken cancellationToken = default)
     {
         var attempt = 1;

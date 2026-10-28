@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -166,52 +167,91 @@ public class DatabaseMigrationHostedServiceTests
         await migrator.Received(1).MigrateAsync(Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task StartAsync_DbException_RetriesUntilSuccess()
+    /// <summary>A migrator whose server refuses connections for a while, and whose migration may fail.</summary>
+    private sealed class FlakyServerMigrator : IDatabaseMigrator, IDatabaseAvailability
     {
-        var fakeTime = new FakeTimeProvider();
-        var callCount = 0;
-        var migrator = Substitute.For<IDatabaseMigrator>();
-        migrator.MigrateAsync(Arg.Any<CancellationToken>())
-            .Returns(_ =>
-            {
-                if (++callCount < 3)
-                    return Task.FromException(new SqliteException("DB unavailable", 1));
-                return Task.CompletedTask;
-            });
+        private readonly int _refusedChecks;
+        private readonly DbException? _migrationError;
 
-        var services = new ServiceCollection();
-        services.AddKeyedScoped<IDatabaseMigrator>("Test", (_, _) => migrator);
+        public FlakyServerMigrator(int refusedChecks, DbException? migrationError = null)
+        {
+            _refusedChecks = refusedChecks;
+            _migrationError = migrationError;
+        }
 
-        var hostedService = BuildHostedService(services, timeProvider: fakeTime);
-        var startTask = hostedService.StartAsync(CancellationToken.None);
-        // State machine is suspended at Task.Delay after the first DbException
-        fakeTime.Advance(TimeSpan.FromSeconds(20)); // resumes → second attempt fails → suspends
-        fakeTime.Advance(TimeSpan.FromSeconds(20)); // resumes → third attempt succeeds
-        await startTask;
+        public string Name => "Test";
+        public int Checks { get; private set; }
+        public int Migrations { get; private set; }
 
-        Assert.Equal(3, callCount);
+        public Task<DbException?> CheckConnectionAsync(CancellationToken cancellationToken)
+            => Task.FromResult<DbException?>(
+                ++Checks <= _refusedChecks ? new SqliteException("unable to open database file", 14) : null);
+
+        public Task MigrateAsync(CancellationToken cancellationToken = default)
+        {
+            Migrations++;
+            return _migrationError is null ? Task.CompletedTask : Task.FromException(_migrationError);
+        }
+    }
+
+    /// <summary>Advances the clock until startup settles; the waits between checks vary.</summary>
+    private static async Task SettleAsync(FakeTimeProvider time, Task starting)
+    {
+        for (var i = 0; i < 100 && !starting.IsCompleted; i++)
+        {
+            time.Advance(TimeSpan.FromSeconds(5));
+            await Task.Delay(1, TestContext.Current.CancellationToken);
+        }
     }
 
     [Fact]
-    public async Task StartAsync_DbException_ExhaustsMaxAttempts_Throws()
+    public async Task StartAsync_DatabaseNotAcceptingConnectionsYet_WaitsThenMigratesOnce()
     {
-        var fakeTime = new FakeTimeProvider();
-        var migrator = Substitute.For<IDatabaseMigrator>();
-        migrator.MigrateAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromException(new SqliteException("DB unavailable", 1)));
+        var time = new FakeTimeProvider();
+        var migrator = new FlakyServerMigrator(refusedChecks: 2);
 
         var services = new ServiceCollection();
         services.AddKeyedScoped<IDatabaseMigrator>("Test", (_, _) => migrator);
 
-        var hostedService = BuildHostedService(services, timeProvider: fakeTime);
-        var startTask = hostedService.StartAsync(CancellationToken.None);
-        // MaxAttempts = 10: first attempt plus 9 retries means 9 delays
-        for (var i = 0; i < 9; i++)
-            fakeTime.Advance(TimeSpan.FromSeconds(20));
+        var hostedService = BuildHostedService(services, timeProvider: time);
+        var starting = hostedService.StartAsync(CancellationToken.None);
+        await SettleAsync(time, starting);
+        await starting;
 
-        await Assert.ThrowsAsync<SqliteException>(() => startTask);
-        await migrator.Received(10).MigrateAsync(Arg.Any<CancellationToken>());
+        Assert.Equal(3, migrator.Checks);
+        Assert.Equal(1, migrator.Migrations);
+    }
+
+    [Fact]
+    public async Task StartAsync_DatabaseNeverAcceptsConnections_GivesUpWithoutMigrating()
+    {
+        var time = new FakeTimeProvider();
+        var migrator = new FlakyServerMigrator(refusedChecks: int.MaxValue);
+
+        var services = new ServiceCollection();
+        services.AddKeyedScoped<IDatabaseMigrator>("Test", (_, _) => migrator);
+
+        var hostedService = BuildHostedService(services, timeProvider: time);
+        var starting = hostedService.StartAsync(CancellationToken.None);
+        await SettleAsync(time, starting);
+
+        await Assert.ThrowsAsync<SqliteException>(() => starting);
+        Assert.Equal(0, migrator.Migrations);
+    }
+
+    [Fact]
+    public async Task StartAsync_MigrationFailsWithADbException_IsNotRetried()
+    {
+        var migrator = new FlakyServerMigrator(
+            refusedChecks: 0, migrationError: new SqliteException("UNIQUE constraint failed: Orders.Name", 19));
+
+        var services = new ServiceCollection();
+        services.AddKeyedScoped<IDatabaseMigrator>("Test", (_, _) => migrator);
+
+        var hostedService = BuildHostedService(services, timeProvider: new FakeTimeProvider());
+
+        await Assert.ThrowsAsync<SqliteException>(() => hostedService.StartAsync(CancellationToken.None));
+        Assert.Equal(1, migrator.Migrations);
     }
 
     [Fact]
