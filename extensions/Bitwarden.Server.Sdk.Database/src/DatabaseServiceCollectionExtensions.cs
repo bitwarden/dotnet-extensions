@@ -47,6 +47,7 @@ public static class DatabaseServiceCollectionExtensions
             options.ReplaceService<IMigrationsAssembly, TMigrationsAssembly>();
         });
 
+        DefaultSqlServerDatabase(services, name);
         services.AddKeyedScoped<IDatabaseMigrator>(name, (sp, _) => CreateMigrator<TContext>(sp, name));
 
         services.TryAddSingleton(TimeProvider.System);
@@ -72,6 +73,7 @@ public static class DatabaseServiceCollectionExtensions
         string name,
         Assembly scriptsAssembly)
     {
+        DefaultSqlServerDatabase(services, name);
         services.AddKeyedScoped<IDatabaseMigrator>(name, (sp, _) => CreateSqlServerMigrator(sp, name, scriptsAssembly));
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddEnumerable(
@@ -106,6 +108,17 @@ public static class DatabaseServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// Gives a SQL Server connection string that names no database the registration's default, so
+    /// the application connects to the database the migrator creates.
+    /// </summary>
+    private static void DefaultSqlServerDatabase(IServiceCollection services, string name)
+        => services.PostConfigure<DatabaseOptions>(name, opts =>
+        {
+            if (opts.Provider == DatabaseProvider.SqlServer)
+                opts.ConnectionString = SqlServerMigrator.ResolveDatabase(opts.ConnectionString, name).ConnectionString;
+        });
 
     private static SqlServerMigrator CreateSqlServerMigrator(
         IServiceProvider serviceProvider, string name, Assembly scriptsAssembly) =>

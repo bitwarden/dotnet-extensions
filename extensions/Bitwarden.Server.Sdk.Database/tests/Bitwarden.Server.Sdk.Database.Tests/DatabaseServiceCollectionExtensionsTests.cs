@@ -1,5 +1,7 @@
 using Bitwarden.Server.Sdk.Environment;
+using Microsoft.Data.SqlClient;
 using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -30,6 +32,27 @@ public class DatabaseServiceCollectionExtensionsTests
         var context = scope.ServiceProvider.GetRequiredService<TestDbContext>();
         var extensions = context.Database.GetService<IDbContextOptions>().Extensions;
         Assert.Contains(extensions, e => e.GetType().Name.Contains("Sqlite"));
+    }
+
+    [Fact]
+    public void AddDatabase_SqlServerWithoutADatabase_ContextUsesTheRegistrationsDatabase()
+    {
+        var services = new ServiceCollection();
+        services.Configure<DatabaseOptions>("Vault", opts =>
+        {
+            opts.Provider = DatabaseProvider.SqlServer;
+            opts.ConnectionString = "Server=localhost;User Id=sa;Password=pass";
+        });
+        services.AddDatabase<TestDbContext, EmptyMigrationsAssembly>(
+            "Vault", static (opts, builder) => builder.UseSqlServer(opts.ConnectionString));
+
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<TestDbContext>();
+
+        Assert.Equal(
+            "vault",
+            new SqlConnectionStringBuilder(context.Database.GetConnectionString()).InitialCatalog);
     }
 
     [Fact]
