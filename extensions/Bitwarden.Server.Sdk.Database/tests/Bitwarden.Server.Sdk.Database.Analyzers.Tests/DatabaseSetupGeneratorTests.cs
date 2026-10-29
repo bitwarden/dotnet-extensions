@@ -15,7 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Bitwarden.Server.Sdk.Database.Analyzers.Tests;
 
-public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServerFixture>
+public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServerFixture>
 {
     private readonly Database.Tests.SqlServerFixture _sqlServer;
 

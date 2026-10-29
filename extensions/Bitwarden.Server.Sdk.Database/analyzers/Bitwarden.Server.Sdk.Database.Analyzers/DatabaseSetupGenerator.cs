@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
@@ -65,6 +66,68 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
         title: "A declared database provider's package is not referenced",
         messageFormat: "The {0} provider is declared on DatabaseSetup but its package isn't referenced. "
             + "Reference {1}.",
+        category: "Bitwarden.Database",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// Reported when the context is sealed. Each EF Core engine gets a subcontext derived from it,
+    /// which would otherwise fail to compile inside generated code.
+    /// </summary>
+    private static readonly DiagnosticDescriptor SealedContext = new(
+        id: "BWDB004",
+        title: "The DatabaseSetup context is sealed",
+        messageFormat: "{0} is sealed, but DatabaseSetup derives a context from it for each EF Core engine. "
+            + "Remove sealed from {0}.",
+        category: "Bitwarden.Database",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// Reported when no constructor the subcontexts can call takes the context's options.
+    /// </summary>
+    private static readonly DiagnosticDescriptor NoOptionsConstructor = new(
+        id: "BWDB005",
+        title: "The DatabaseSetup context has no constructor taking its options",
+        messageFormat: "{0} needs a non-private constructor with one DbContextOptions or DbContextOptions<{0}> "
+            + "parameter, and no ref, out, in or params parameters, for DatabaseSetup to derive a context from it",
+        category: "Bitwarden.Database",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// Reported when <c>DesignTimeServices</c> names a type the generated factories can't use.
+    /// </summary>
+    private static readonly DiagnosticDescriptor InvalidDesignTimeServices = new(
+        id: "BWDB006",
+        title: "DesignTimeServices can't be used",
+        messageFormat: "DesignTimeServices type {0} must be a non-abstract class implementing "
+            + "IDatabaseDesignTimeServices with a public parameterless constructor",
+        category: "Bitwarden.Database",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// Reported when SQL Server is set to EF Core migrations but isn't one of the declared engines.
+    /// </summary>
+    private static readonly DiagnosticDescriptor SqlServerMigrationsWithoutSqlServer = new(
+        id: "BWDB007",
+        title: "SqlServerMigrations is set but SQL Server isn't declared",
+        messageFormat: "SqlServerMigrations = EfCore has no effect: DatabaseProvider.SqlServer isn't among the "
+            + "declared providers",
+        category: "Bitwarden.Database",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// Reported when the context's constructor needs more than its options and nothing registers it.
+    /// The design-time factories would otherwise fail when EF Core tooling runs them.
+    /// </summary>
+    private static readonly DiagnosticDescriptor MissingDesignTimeServices = new(
+        id: "BWDB008",
+        title: "The DatabaseSetup context needs DesignTimeServices",
+        messageFormat: "{0}'s constructor takes more than its options, so EF Core tooling can't construct it. "
+            + "Set DesignTimeServices to a type implementing IDatabaseDesignTimeServices that registers them.",
         category: "Bitwarden.Database",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -195,8 +258,129 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
         var namedArg = attr.NamedArguments.FirstOrDefault(kv => kv.Key == "MigratorKey");
         var migratorKey = namedArg.Value.Value as string ?? defaultKey;
 
-        return new AttributeInfo(ns, typeName, schemaName, migratorKey, DeclaredProviders(attr));
+        var sqlServerEfCore = attr.NamedArguments
+            .FirstOrDefault(kv => kv.Key == "SqlServerMigrations").Value is { Type: INamedTypeSymbol migrationsEnum, Value: { } value }
+            && EnumMemberName(migrationsEnum, value) == "EfCore";
+
+        var designTimeServices = attr.NamedArguments
+            .FirstOrDefault(kv => kv.Key == "DesignTimeServices").Value.Value as INamedTypeSymbol;
+
+        return new AttributeInfo(
+            ns,
+            typeName,
+            schemaName,
+            migratorKey,
+            DeclaredProviders(attr),
+            sqlServerEfCore,
+            contextType.IsSealed,
+            FindConstructor(contextType),
+            designTimeServices?.ToDisplayString(FullyQualified),
+            designTimeServices is not null && !IsUsableDesignTimeServices(designTimeServices));
     }
+
+    private static string? EnumMemberName(INamedTypeSymbol enumType, object value)
+        => enumType.GetMembers()
+            .OfType<IFieldSymbol>()
+            .FirstOrDefault(f => f.HasConstantValue && Equals(f.ConstantValue, value))
+            ?.Name;
+
+    private static readonly SymbolDisplayFormat FullyQualified = SymbolDisplayFormat.FullyQualifiedFormat
+        .AddMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
+
+    /// <summary>
+    /// The constructor the subcontexts call: the non-private one with the most parameters, as
+    /// dependency injection would choose, among those taking exactly one <c>DbContextOptions</c> or
+    /// <c>DbContextOptions&lt;TContext&gt;</c> and no ref, out, in or params parameters.
+    /// </summary>
+    private static ContextConstructor? FindConstructor(INamedTypeSymbol context)
+    {
+        ContextConstructor? best = null;
+        var bestCount = -1;
+
+        foreach (var ctor in context.InstanceConstructors)
+        {
+            if (ctor.DeclaredAccessibility == Accessibility.Private || ctor.Parameters.Length <= bestCount)
+                continue;
+
+            var optionsIndex = -1;
+            var genericOptions = false;
+            var usable = true;
+            var parameters = ImmutableArray.CreateBuilder<ConstructorParameter>();
+
+            for (var i = 0; i < ctor.Parameters.Length && usable; i++)
+            {
+                var parameter = ctor.Parameters[i];
+                if (parameter.RefKind != RefKind.None || parameter.IsParams)
+                {
+                    usable = false;
+                    break;
+                }
+
+                if (IsOptions(parameter.Type, context, out var generic))
+                {
+                    usable = optionsIndex < 0;
+                    optionsIndex = i;
+                    genericOptions = generic;
+                }
+
+                parameters.Add(new ConstructorParameter(
+                    parameter.Type.ToDisplayString(FullyQualified), parameter.Name, DefaultOf(parameter)));
+            }
+
+            if (!usable || optionsIndex < 0)
+                continue;
+
+            best = new ContextConstructor(
+                new EquatableArray<ConstructorParameter>(parameters.ToImmutable()), optionsIndex, genericOptions);
+            bestCount = ctor.Parameters.Length;
+        }
+
+        return best;
+    }
+
+    private static bool IsOptions(ITypeSymbol type, INamedTypeSymbol context, out bool generic)
+    {
+        generic = false;
+        if (type is not INamedTypeSymbol { Name: "DbContextOptions" } named
+            || named.ContainingNamespace?.ToDisplayString() != "Microsoft.EntityFrameworkCore")
+        {
+            return false;
+        }
+
+        if (named.Arity == 0)
+            return true;
+
+        generic = named.Arity == 1 && SymbolEqualityComparer.Default.Equals(named.TypeArguments[0], context);
+        return generic;
+    }
+
+    /// <summary>A parameter's default value as C# source, or null when it has none.</summary>
+    private static string? DefaultOf(IParameterSymbol parameter)
+    {
+        if (!parameter.HasExplicitDefaultValue)
+            return null;
+
+        var value = parameter.ExplicitDefaultValue;
+        if (value is null)
+            return "default";
+
+        var literal = SymbolDisplay.FormatPrimitive(value, quoteStrings: true, useHexadecimalNumbers: false);
+        return parameter.Type.TypeKind == TypeKind.Enum
+            ? $"({parameter.Type.ToDisplayString(FullyQualified)}){literal}"
+            : value switch
+            {
+                float => literal + "F",
+                decimal => literal + "M",
+                _ => literal,
+            };
+    }
+
+    private static bool IsUsableDesignTimeServices(INamedTypeSymbol type)
+        => type is { TypeKind: TypeKind.Class, IsAbstract: false, IsUnboundGenericType: false }
+            && type.AllInterfaces.Any(i =>
+                i.ToDisplayString() == "Bitwarden.Server.Sdk.Database.IDatabaseDesignTimeServices")
+            && type.InstanceConstructors.Any(c =>
+                c.DeclaredAccessibility == Accessibility.Public && c.Parameters.Length == 0);
 
     /// <summary>
     /// The engines named in the attribute's constructor argument, by <c>DatabaseProvider</c>
@@ -394,6 +578,40 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
             failed = true;
         }
 
+        if (attr.SqlServerEfCore && !declared.Contains("SqlServer"))
+        {
+            spc.ReportDiagnostic(Diagnostic.Create(SqlServerMigrationsWithoutSqlServer, Location.None));
+            attr = attr with { SqlServerEfCore = false };
+        }
+
+        if (attr.InvalidDesignTimeServices)
+        {
+            spc.ReportDiagnostic(Diagnostic.Create(InvalidDesignTimeServices, Location.None, attr.DesignTimeServices));
+            failed = true;
+        }
+
+        // Only an engine migrated by EF Core gets a subcontext, so only then does the context's
+        // shape matter.
+        if (selected.Any(p => IsEfCore(attr, p)))
+        {
+            if (attr.ContextSealed)
+            {
+                spc.ReportDiagnostic(Diagnostic.Create(SealedContext, Location.None, attr.TypeName));
+                failed = true;
+            }
+            else if (attr.Constructor is not { } ctor)
+            {
+                spc.ReportDiagnostic(Diagnostic.Create(NoOptionsConstructor, Location.None, attr.TypeName));
+                failed = true;
+            }
+            else if (attr.DesignTimeServices is null
+                && ctor.Parameters.Array.Where((_, i) => i != ctor.OptionsIndex).Any(p => p.Default is null))
+            {
+                spc.ReportDiagnostic(Diagnostic.Create(MissingDesignTimeServices, Location.None, attr.TypeName));
+                failed = true;
+            }
+        }
+
         if (failed)
             return;
 
@@ -403,6 +621,10 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
                 Emit(attr, migrationData, selected, buildProperties),
                 System.Text.Encoding.UTF8));
     }
+
+    /// <summary>Whether EF Core migrates the provider: every engine but SQL Server, unless the schema opts it in.</summary>
+    private static bool IsEfCore(AttributeInfo attr, ProviderSpec provider)
+        => provider.Name != "SqlServer" || attr.SqlServerEfCore;
 
     // Provider call shapes shared with the emitter
 
@@ -453,7 +675,23 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
 
     // Data pulled off the DatabaseSetup<T> attribute.
     private readonly record struct AttributeInfo(
-        string Ns, string TypeName, string SchemaName, string MigratorKey, EquatableArray<string> Providers);
+        string Ns,
+        string TypeName,
+        string SchemaName,
+        string MigratorKey,
+        EquatableArray<string> Providers,
+        bool SqlServerEfCore,
+        bool ContextSealed,
+        ContextConstructor? Constructor,
+        string? DesignTimeServices,
+        bool InvalidDesignTimeServices);
+
+    // The context constructor the subcontexts forward to, and which parameter takes the options.
+    private readonly record struct ContextConstructor(
+        EquatableArray<ConstructorParameter> Parameters, int OptionsIndex, bool GenericOptions);
+
+    // A constructor parameter as source: its fully qualified type, name and default, if any.
+    private readonly record struct ConstructorParameter(string Type, string Name, string? Default);
 
     // Transient pipeline entry, before grouping into ProviderMigrations.
     private readonly record struct MigrationRawEntry(string Provider, string Id, string FqTypeName);

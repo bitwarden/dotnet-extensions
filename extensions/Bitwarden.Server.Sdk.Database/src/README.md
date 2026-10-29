@@ -10,7 +10,9 @@ plumbing. See `PACKAGE.md` for the consumer guide.
 
 - `DatabaseSetupAttribute<TContext>` — assembly-level attribute. `MigratorKey` defaults to the
   schema name derived from `TContext` by stripping `DatabaseContext` (e.g. `VaultDatabaseContext` →
-  `Vault`).
+  `Vault`). `SqlServerMigrations` chooses DbUp (the default) or EF Core for SQL Server.
+  `DesignTimeServices` names an `IDatabaseDesignTimeServices` that registers the context's
+  constructor dependencies for the design-time factories.
 
 ### Configuration
 
@@ -227,6 +229,23 @@ Implemented:
   The generated calls are identical, and the dispatcher matches whichever assembly name was
   referenced. Both at once is `BWDB002`, an error, since the two define the same types and the
   generated code couldn't bind to either.
+- With `SqlServerMigrations = SqlServerMigrations.EfCore`, SQL Server is treated like the other
+  engines throughout the generated file: a subcontext and factory, entries in the dispatcher and in
+  `add-migration`, and `AddDatabase(..., SqlServerMigrations.EfCore)`, which makes `CreateMigrator`
+  return `EfCoreMigrator` for it. The script prefix, the DbUp-only registration and CLI, and
+  `SQLSERVER_MIGRATOR_BUILD` are left out; defining that symbol hits an `#error`. Without SQL Server
+  declared the setting is ignored, with `BWDB007` as a warning.
+- Subcontexts forward the context constructor with the most parameters among the non-private ones
+  taking exactly one `DbContextOptions` or `DbContextOptions<TContext>` (`BWDB005` when there is
+  none), defaults included. When it takes more than its options, the factories construct the
+  subcontext with `ActivatorUtilities` from the services `DesignTimeServices` registers; `BWDB008`
+  rejects a constructor with an undefaulted extra parameter and no `DesignTimeServices`, and
+  `BWDB006` a type that can't be used. A sealed context is `BWDB004`, but only when some engine is
+  migrated by EF Core, since only then are subcontexts emitted.
+- Creating a missing SQL Server database is serialized by an application lock in `master`, keyed by
+  the database name. The migration lock lives in the database, so it can't cover creating it, and a
+  host whose `CREATE DATABASE` loses the race has its connection severed rather than getting error
+  1801 back.
 - `BWDB001` is an error when `BitPreviousSqlServerScriptPrefix`
   overlaps `BitSqlServerScriptPrefix`, meaning one is a prefix of the other. The journal rewrite is
   anchored to the start of the recorded name and so is idempotent only for unrelated names; both

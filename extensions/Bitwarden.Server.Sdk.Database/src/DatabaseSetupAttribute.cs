@@ -18,6 +18,11 @@ namespace Bitwarden.Server.Sdk.Database;
 /// [assembly: DatabaseSetup&lt;MyDatabaseContext&gt;(
 ///     [DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql],
 ///     MigratorKey = "MyDb")]
+///
+/// // EF Core migrations on every engine, SQL Server included:
+/// [assembly: DatabaseSetup&lt;MyDatabaseContext&gt;(
+///     [DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql, DatabaseProvider.MySql],
+///     SqlServerMigrations = SqlServerMigrations.EfCore)]
 /// </code>
 /// </example>
 [AttributeUsage(AttributeTargets.Assembly)]
@@ -46,6 +51,21 @@ public sealed class DatabaseSetupAttribute<TContext> : Attribute
     /// just <c>Context</c> for types not following the <c>*DatabaseContext</c> convention.
     /// </summary>
     public string? MigratorKey { get; set; }
+
+    /// <summary>
+    /// How SQL Server is migrated: by DbUp from hand-authored scripts (the default), or by EF Core
+    /// migrations scaffolded from the model, as the other engines are. Has no effect unless
+    /// <see cref="Providers"/> includes <see cref="DatabaseProvider.SqlServer"/>.
+    /// </summary>
+    public SqlServerMigrations SqlServerMigrations { get; set; } = SqlServerMigrations.DbUp;
+
+    /// <summary>
+    /// A type implementing <see cref="IDatabaseDesignTimeServices"/> that registers what
+    /// <typeparamref name="TContext"/>'s constructor needs beyond its options. The generated
+    /// design-time factories resolve those parameters from it. Not needed when the constructor takes
+    /// only its options.
+    /// </summary>
+    public Type? DesignTimeServices { get; set; }
 
     // TODO (PM-45775): Add a MySqlServerVersion property (e.g. "8.0.36-mysql") so the generated
     // MySqlContextFactory can use ServerVersion.Parse instead of ServerVersion.AutoDetect, which

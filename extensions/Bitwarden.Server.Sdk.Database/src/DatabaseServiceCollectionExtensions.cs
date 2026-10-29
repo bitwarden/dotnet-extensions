@@ -33,10 +33,15 @@ public static class DatabaseServiceCollectionExtensions
     /// Supplied by the generated <c>Add{Schema}Database</c> extension method, which emits
     /// only the provider cases that are referenced in the consuming project.
     /// </param>
+    /// <param name="sqlServerMigrations">
+    /// How SQL Server is migrated, from the schema's
+    /// <see cref="DatabaseSetupAttribute{TContext}.SqlServerMigrations"/>.
+    /// </param>
     public static IServiceCollection AddDatabase<TContext, TMigrationsAssembly>(
         this IServiceCollection services,
         string name,
-        Action<DatabaseOptions, DbContextOptionsBuilder> configureProvider)
+        Action<DatabaseOptions, DbContextOptionsBuilder> configureProvider,
+        SqlServerMigrations sqlServerMigrations = SqlServerMigrations.DbUp)
         where TContext : DbContext
         where TMigrationsAssembly : class, IMigrationsAssembly
     {
@@ -48,7 +53,7 @@ public static class DatabaseServiceCollectionExtensions
         });
 
         DefaultSqlServerDatabase(services, name);
-        services.AddKeyedScoped<IDatabaseMigrator>(name, (sp, _) => CreateMigrator<TContext>(sp, name));
+        services.AddKeyedScoped<IDatabaseMigrator>(name, (sp, _) => CreateMigrator<TContext>(sp, name, sqlServerMigrations));
 
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddEnumerable(
@@ -129,13 +134,14 @@ public static class DatabaseServiceCollectionExtensions
             serviceProvider.GetRequiredService<ILogger<SqlServerMigrator>>(),
             serviceProvider.GetRequiredService<TimeProvider>());
 
-    private static IDatabaseMigrator CreateMigrator<TContext>(IServiceProvider serviceProvider, string name)
+    private static IDatabaseMigrator CreateMigrator<TContext>(
+        IServiceProvider serviceProvider, string name, SqlServerMigrations sqlServerMigrations)
         where TContext : DbContext
     {
         var opts = serviceProvider.GetRequiredService<IOptionsMonitor<DatabaseOptions>>().Get(name);
         return opts.Provider switch
         {
-            DatabaseProvider.SqlServer => new SqlServerMigrator(
+            DatabaseProvider.SqlServer when sqlServerMigrations == SqlServerMigrations.DbUp => new SqlServerMigrator(
                 serviceProvider.GetRequiredService<IOptionsMonitor<DatabaseOptions>>(),
                 serviceProvider.GetRequiredService<IOptionsMonitor<SqlServerMigrationOptions>>(),
                 name,
