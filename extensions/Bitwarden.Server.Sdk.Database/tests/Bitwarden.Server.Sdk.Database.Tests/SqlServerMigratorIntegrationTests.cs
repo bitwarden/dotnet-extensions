@@ -97,6 +97,44 @@ public class SqlServerMigratorIntegrationTests(SqlServerFixture sqlServer) : ICl
     }
 
     [Fact(Explicit = true)]
+    public async Task MigrateAsync_TwoHostsAtOnce_ApplyEachScriptOnce()
+    {
+        // Two hosts migrating the same database together, as several instances starting at once do.
+        const string DatabaseName = "concurrent_test";
+        var (first, connectionString, _) = await BuildMigratorAsync(DatabaseName);
+        var (second, _, _) = await BuildMigratorAsync(DatabaseName);
+
+        // An existing database with scripts pending: its journal is already there, as DbUp creates it.
+        var master = new SqlConnectionStringBuilder(connectionString) { InitialCatalog = "master" }.ConnectionString;
+        await ScalarOrNullAsync(master, $"CREATE DATABASE [{DatabaseName}];");
+        await ScalarOrNullAsync(connectionString, """
+            CREATE TABLE [dbo].[Migration]
+            (
+                [Id] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_Migration_Id] PRIMARY KEY,
+                [ScriptName] NVARCHAR(255) NOT NULL,
+                [Applied] DATETIME NOT NULL
+            );
+            """);
+
+        // Holds the first script open, so the second run reads the journal while the first is
+        // still applying what it found pending there.
+        await ScalarOrNullAsync(connectionString, """
+            CREATE TRIGGER trg_slow_create ON DATABASE FOR CREATE_TABLE AS
+            BEGIN
+                IF EVENTDATA().value('(/EVENT_INSTANCE/ObjectName)[1]', 'nvarchar(128)') = N'Orders'
+                    WAITFOR DELAY '00:00:03';
+            END;
+            """);
+
+        await Task.WhenAll(
+            first.MigrateAsync(TestContext.Current.CancellationToken),
+            second.MigrateAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(2, (await JournalAsync(connectionString)).Count);
+        Assert.Equal(["initial"], await OrderNamesAsync(connectionString));
+    }
+
+    [Fact(Explicit = true)]
     public async Task DryRun_ReportsTheScriptsWithoutApplyingThem()
     {
         // The database doesn't exist yet, so preparing it is part of what a dry run has to survive.

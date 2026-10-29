@@ -36,6 +36,7 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
 
     private const string JournalSchema = "dbo";
     private const string JournalTable = "Migration";
+    private const string MigrationLockResource = "Bitwarden.Server.Sdk.Database.Migration";
 
     public string Name => _optionsName;
 
@@ -193,7 +194,15 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
                 // Preparing sits inside the retry, so a server in script upgrade mode is retried
                 // whichever step hits it.
                 await PrepareDatabaseAsync(connectionString, databaseName, cancellationToken);
-                await MigrateCoreAsync(connectionString);
+
+                // Held from reading the journal to the last script, so a host migrating at the same
+                // time waits, then finds the scripts already journaled.
+                await using (await AcquireMigrationLockAsync(connectionString, cancellationToken))
+                {
+                    await RenameJournalEntriesAsync(connectionString, cancellationToken);
+                    await MigrateCoreAsync(connectionString);
+                }
+
                 return;
             }
             catch (DbException ex) when (ex.Message.Contains("Server is in script upgrade mode.") && attempt < 9)
@@ -232,8 +241,72 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
                 $"ALTER DATABASE {databaseNameQuoted} SET AUTO_CLOSE OFF;";
             await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
+    }
 
-        await RenameJournalEntriesAsync(connectionString, cancellationToken);
+    /// <summary>
+    /// Takes an exclusive application lock in the database, owned by a connection of its own so
+    /// DbUp's sessions don't affect it. DbUp, unlike EF Core, doesn't lock, so two hosts would
+    /// otherwise read the same pending scripts from the journal and both apply them.
+    /// </summary>
+    private static async Task<MigrationLock> AcquireMigrationLockAsync(
+        string connectionString, CancellationToken cancellationToken)
+    {
+        var connection = new SqlConnection(connectionString);
+        try
+        {
+            await connection.OpenAsync(cancellationToken);
+
+            using var cmd = new SqlCommand(
+                "DECLARE @result INT; "
+                + "EXEC @result = sp_getapplock @Resource = @resource, @LockMode = 'Exclusive', "
+                + "@LockOwner = 'Session', @LockTimeout = -1; "
+                + "SELECT @result;",
+                connection);
+            cmd.Parameters.AddWithValue("@resource", MigrationLockResource);
+            cmd.CommandTimeout = 0;
+
+            // 0 is granted at once, 1 after waiting; anything negative is a failure.
+            var result = (int)(await cmd.ExecuteScalarAsync(cancellationToken))!;
+            if (result < 0)
+                throw new InvalidOperationException($"Could not take the migration lock (sp_getapplock returned {result}).");
+
+            return new MigrationLock(connection);
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Releases the lock explicitly before disposing its connection. Disposing alone returns a
+    /// pooled connection to the pool with its session, and the lock, still alive until the pool
+    /// reuses it, so a waiting host would wait indefinitely.
+    /// </summary>
+    private sealed class MigrationLock : IAsyncDisposable
+    {
+        private readonly SqlConnection _connection;
+
+        public MigrationLock(SqlConnection connection)
+        {
+            _connection = connection;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            try
+            {
+                using var cmd = new SqlCommand(
+                    "EXEC sp_releaseapplock @Resource = @resource, @LockOwner = 'Session';", _connection);
+                cmd.Parameters.AddWithValue("@resource", MigrationLockResource);
+                await cmd.ExecuteNonQueryAsync();
+            }
+            finally
+            {
+                await _connection.DisposeAsync();
+            }
+        }
     }
 
     private async Task RenameJournalEntriesAsync(string connectionString, CancellationToken cancellationToken)
