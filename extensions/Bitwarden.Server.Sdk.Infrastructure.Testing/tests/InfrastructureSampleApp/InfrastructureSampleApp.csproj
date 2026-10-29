@@ -9,7 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\Bitwarden.Server.Sdk.Environment\src\Bitwarden.Server.Sdk.Environment.csproj" />
+    <PackageReference Include="Bitwarden.Server.Sdk.Environment" Version="[0.1.0]" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\..\Bitwarden.Server.Sdk.Infrastructure\src\Bitwarden.Server.Sdk.Infrastructure.csproj" />
   </ItemGroup>
 

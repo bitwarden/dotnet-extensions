@@ -9,10 +9,17 @@ namespace Bitwarden.Server.Sdk.Infrastructure.Testing;
 public sealed class InfrastructureCollectionOptions
 {
     /// <summary>
-    /// Whether to run the service as self-hosted by setting <c>globalSettings:selfHosted</c>.
+    /// Whether to run the service as self-hosted, as reported by <c>IBitwardenEnvironment</c>.
     /// Defaults to <see langword="false"/>, which runs it as cloud.
     /// </summary>
     public bool SelfHosted { get; set; }
+
+    /// <summary>
+    /// The self-host flavor to run the service as, for example <c>lite</c>, as reported by
+    /// <c>IBitwardenEnvironment</c>. Requires <see cref="SelfHosted"/>. Defaults to
+    /// <see langword="null"/>, which reports the flavor as <c>unknown</c>.
+    /// </summary>
+    public string? SelfHostFlavor { get; set; }
 
     /// <summary>
     /// The hosting environment to run the service in. Defaults to

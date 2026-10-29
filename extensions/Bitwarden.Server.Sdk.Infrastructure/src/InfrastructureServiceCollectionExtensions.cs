@@ -18,9 +18,9 @@ public static class InfrastructureServiceCollectionExtensions
     /// <c>Bitwarden.Server.Sdk.Infrastructure.Testing</c>, and have no effect on how the service runs.
     /// </para>
     /// <para>
-    /// Declaring a deeply equal requirement more than once results in a single requirement. When a
-    /// requirement depends on other services, configure <see cref="InfrastructureOptions"/> directly
-    /// with the options pattern instead.
+    /// Declaring the same kind with deeply equal properties more than once results in a single
+    /// requirement. When a requirement depends on other services, configure
+    /// <see cref="InfrastructureOptions"/> directly with the options pattern instead.
     /// </para>
     /// </remarks>
     /// <param name="services">The service collection to declare the requirement against.</param>
@@ -30,15 +30,10 @@ public static class InfrastructureServiceCollectionExtensions
     /// time requirements are collected, so it should not be changed after this call.
     /// </param>
     /// <returns>The same <see cref="IServiceCollection"/> for chaining.</returns>
-    /// <exception cref="ArgumentException"><paramref name="properties"/> contains a <c>kind</c> property.</exception>
     public static IServiceCollection AddInfrastructureRequirement(this IServiceCollection services, string kind, JsonObject? properties = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrEmpty(kind);
-        if (properties is not null && properties.ContainsKey("kind"))
-        {
-            throw new ArgumentException("Requirement properties may not contain 'kind'; pass it as the kind instead.", nameof(properties));
-        }
 
         services.Configure<InfrastructureOptions>(options => options.Add(kind, properties));
 

@@ -24,6 +24,17 @@
           "xunit.v3.core.mtp-v2": "[3.2.2]"
         }
       },
+      "Bitwarden.Server.Sdk.Environment": {
+        "type": "Transitive",
+        "resolved": "0.1.0",
+        "contentHash": "yLK3ik/+zQ4w41iDObvv4vq2QwWPaVMuyKFpzlgsukClOOuZUxJAivwnnZZDMXbp2wipWgaW4yeEY+yLdLVaVQ==",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.9",
+          "Microsoft.Extensions.Hosting.Abstractions": "10.0.9",
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.9",
+          "Microsoft.Extensions.Options": "10.0.9"
+        }
+      },
       "Microsoft.ApplicationInsights": {
         "type": "Transitive",
         "resolved": "2.23.0",
@@ -435,15 +446,6 @@
           "xunit.v3.runner.common": "[3.2.2]"
         }
       },
-      "bitwarden.server.sdk.environment": {
-        "type": "Project",
-        "dependencies": {
-          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.9, )",
-          "Microsoft.Extensions.Hosting.Abstractions": "[10.0.9, )",
-          "Microsoft.Extensions.Logging.Abstractions": "[10.0.9, )",
-          "Microsoft.Extensions.Options": "[10.0.9, )"
-        }
-      },
       "bitwarden.server.sdk.infrastructure": {
         "type": "Project",
         "dependencies": {
@@ -454,6 +456,7 @@
       "bitwarden.server.sdk.infrastructure.testing": {
         "type": "Project",
         "dependencies": {
+          "Bitwarden.Server.Sdk.Environment": "[0.1.0, )",
           "Bitwarden.Server.Sdk.Infrastructure": "[0.1.0, )",
           "Microsoft.AspNetCore.Mvc.Testing": "[10.0.12, )"
         }
@@ -461,7 +464,7 @@
       "infrastructuresampleapp": {
         "type": "Project",
         "dependencies": {
-          "Bitwarden.Server.Sdk.Environment": "[0.2.0, )",
+          "Bitwarden.Server.Sdk.Environment": "[0.1.0, 0.1.0]",
           "Bitwarden.Server.Sdk.Infrastructure": "[0.1.0, )"
         }
       }

@@ -13,7 +13,9 @@ public class InfrastructureServiceCollectionExtensionsTests
 
         services.AddInfrastructureRequirement("database", new JsonObject { ["name"] = "vault" });
 
-        Assert.Equal("""{"kind":"database","name":"vault"}""", Assert.Single(Collect(services)).ToJsonString());
+        var requirements = Collect(services);
+        Assert.Equal("database", Assert.Single(requirements.Keys));
+        Assert.Equal("""{"name":"vault"}""", Assert.Single(requirements["database"]).ToJsonString());
     }
 
     [Fact]
@@ -24,7 +26,7 @@ public class InfrastructureServiceCollectionExtensionsTests
         services.AddInfrastructureRequirement("database", new JsonObject { ["name"] = "vault" });
         services.AddInfrastructureRequirement("database", new JsonObject { ["name"] = "vault" });
 
-        Assert.Single(Collect(services));
+        Assert.Single(Collect(services)["database"]);
     }
 
     [Fact]
@@ -33,18 +35,10 @@ public class InfrastructureServiceCollectionExtensionsTests
         var services = new ServiceCollection();
         services.AddInfrastructureRequirement("database", new JsonObject { ["name"] = "vault" });
 
-        var first = Assert.Single(Collect(services));
+        var first = Assert.Single(Collect(services)["database"]);
         first["name"] = "changed";
 
-        Assert.Equal("vault", Assert.Single(Collect(services))["name"]!.GetValue<string>());
-    }
-
-    [Fact]
-    public void AddInfrastructureRequirement_PropertiesContainingKind_Throws()
-    {
-        var services = new ServiceCollection();
-
-        Assert.Throws<ArgumentException>(() => services.AddInfrastructureRequirement("database", new JsonObject { ["kind"] = "cache" }));
+        Assert.Equal("vault", Assert.Single(Collect(services)["database"])["name"]!.GetValue<string>());
     }
 
     [Fact]
@@ -73,12 +67,12 @@ public class InfrastructureServiceCollectionExtensionsTests
                 }
             });
 
-        Assert.Equal(needsCache, Collect(services).Any(r => r["kind"]!.GetValue<string>() == "distributed-cache"));
+        Assert.Equal(needsCache, Collect(services).ContainsKey("distributed-cache"));
     }
 
     private sealed record SampleSettings(bool NeedsCache);
 
-    private static IReadOnlyList<JsonObject> Collect(IServiceCollection services)
+    private static IReadOnlyDictionary<string, IReadOnlyList<JsonObject>> Collect(IServiceCollection services)
     {
         using var provider = services.BuildServiceProvider();
         return provider.GetRequiredService<IOptions<InfrastructureOptions>>().Value.Requirements;

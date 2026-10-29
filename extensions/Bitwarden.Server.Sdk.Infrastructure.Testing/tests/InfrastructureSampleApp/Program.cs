@@ -7,21 +7,13 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddInfrastructureRequirement("database", new JsonObject { ["name"] = "vault" });
 
-if (builder.Configuration.GetValue("globalSettings:selfHosted", false))
-{
-    builder.Services.AddInfrastructureRequirement("self-signed-certificate", new JsonObject { ["name"] = "identity" });
-}
-else
-{
-    builder.Services.AddInfrastructureRequirement("distributed-cache");
-}
-
 if (builder.Environment.IsDevelopment())
 {
     builder.Services.AddInfrastructureRequirement("database", new JsonObject { ["name"] = "development-seed" });
 }
 
-if (builder.Configuration["Sample:ExtraDatabase"] is { } extraDatabase)
+var extraDatabase = builder.Configuration["Sample:ExtraDatabase"];
+if (!string.IsNullOrEmpty(extraDatabase))
 {
     builder.Services.AddInfrastructureRequirement("database", new JsonObject { ["name"] = extraDatabase });
 }
@@ -39,34 +31,26 @@ builder.Services.AddOptions<SelfHostDetails>()
             details.MakeCloud();
     });
 
-// Decided at collection time, as a library that only sees IServiceCollection would.
+// The collector post-configures SelfHostDetails, overriding the configuration-based setup above.
 builder.Services.AddOptions<InfrastructureOptions>()
     .Configure<IBitwardenEnvironment>((infrastructure, environment) =>
     {
         if (!environment.SelfHosted)
         {
+            infrastructure.Add("distributed-cache");
             infrastructure.Add("messaging-topic", new JsonObject { ["topic"] = "audit" });
+            return;
+        }
+
+        infrastructure.Add("self-signed-certificate", new JsonObject { ["name"] = "identity" });
+        if (environment.SelfHostFlavor == "lite")
+        {
+            infrastructure.Add("volume", new JsonObject { ["path"] = "/etc/bitwarden" });
         }
     });
-
-// Neither of these may run while collecting infrastructure.
-builder.Services.AddHostedService<ThrowingHostedService>();
-builder.Services.AddOptions<SampleOptions>()
-    .Validate(_ => false, "Sample options are never valid.")
-    .ValidateOnStart();
 
 var app = builder.Build();
 
 app.Run();
 
 public partial class Program;
-
-internal sealed class SampleOptions;
-
-internal sealed class ThrowingHostedService : IHostedService
-{
-    public Task StartAsync(CancellationToken cancellationToken)
-        => throw new InvalidOperationException("Hosted services must not start while collecting infrastructure.");
-
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-}

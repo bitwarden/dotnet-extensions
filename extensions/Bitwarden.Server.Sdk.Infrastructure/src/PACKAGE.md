@@ -9,7 +9,7 @@ service needs, without changing how the service behaves at runtime.
 
 ## Usage
 
-A requirement is a JSON object with a `kind` and any properties that describe it. Declare one while
+A requirement has a kind and a JSON object of properties that describe it. Declare one while
 registering services:
 
 ```csharp
@@ -22,21 +22,23 @@ builder.Services.AddInfrastructureRequirement("messaging-subscription", new Json
 builder.Services.AddInfrastructureRequirement("distributed-cache");
 ```
 
-These are collected as:
+These are collected grouped by kind, with kinds in alphabetical order:
 
 ```json
-{ "kind": "database", "name": "vault" }
-{ "kind": "messaging-subscription", "topic": "orders", "subscription": "billing" }
-{ "kind": "distributed-cache" }
+{
+  "database": [ { "name": "vault" } ],
+  "distributed-cache": [ {} ],
+  "messaging-subscription": [ { "topic": "orders", "subscription": "billing" } ]
+}
 ```
 
 ### Duplicates
 
-The whole object is a requirement's identity. Declaring a deeply equal requirement more than once,
-for example from both a library and the service, results in a single requirement. Property order
-does not matter, but array order does. A requirement that differs in any property, including an
-extra one, is kept as a separate requirement, so every declaration of the same requirement should
-describe it the same way.
+Within a kind, the properties are a requirement's identity. Declaring the same kind with deeply
+equal properties more than once, for example from both a library and the service, results in a
+single requirement. Property order does not matter, but array order does. A requirement that differs
+in any property, including an extra one, is kept as a separate requirement, so every declaration of
+the same requirement should describe it the same way.
 
 ### Requirements that depend on other services
 
@@ -55,9 +57,10 @@ services.AddOptions<InfrastructureOptions>()
     });
 ```
 
-`IBitwardenEnvironment.SelfHosted` comes from `SelfHostDetails`, so this relies on the service
-configuring `SelfHostDetails` from `globalSettings:selfHosted` as described in the
-`Bitwarden.Server.Sdk` documentation.
+`IBitwardenEnvironment.SelfHosted` comes from `SelfHostDetails`, which the service configures from
+`globalSettings:selfHosted` as described in the `Bitwarden.Server.Sdk` documentation. When collecting,
+`Bitwarden.Server.Sdk.Infrastructure.Testing` sets `SelfHostDetails` directly for each hosting mode.
+Prefer this over reading `globalSettings:selfHosted` from configuration while registering services.
 
 ### Writing declarations
 
@@ -69,7 +72,6 @@ configuring `SelfHostDetails` from `globalSettings:selfHosted` as described in t
 - Declare what the service needs for the way it is currently configured. Requirements that differ
   between cloud and self-hosted are captured by collecting once per hosting mode, not by tagging
   them, so the collected list depends on the configuration the collector runs with.
-- `kind` is reserved and cannot be used as a property name.
 
 ### Collecting infrastructure
 
