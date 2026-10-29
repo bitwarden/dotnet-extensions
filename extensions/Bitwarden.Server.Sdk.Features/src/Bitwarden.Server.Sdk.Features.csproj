@@ -24,7 +24,7 @@
 
   <ItemGroup>
     <PackageReference Include="Bitwarden.Server.Sdk.Environment" Version="0.1.0" />
-    <PackageReference Include="LaunchDarkly.ServerSdk" Version="8.14.1" />
+    <PackageReference Include="LaunchDarkly.ServerSdk" Version="8.17.2" />
   </ItemGroup>
 
   <ItemGroup>
