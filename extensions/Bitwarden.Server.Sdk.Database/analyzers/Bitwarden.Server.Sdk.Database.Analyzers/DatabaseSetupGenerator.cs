@@ -56,6 +56,19 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    /// <summary>
+    /// Reported when an engine is declared on the attribute but none of its provider packages is
+    /// referenced, which would otherwise surface as an unresolved call inside generated code.
+    /// </summary>
+    private static readonly DiagnosticDescriptor MissingProviderPackage = new(
+        id: "BWDB003",
+        title: "A declared database provider's package is not referenced",
+        messageFormat: "The {0} provider is declared on DatabaseSetup but its package isn't referenced. "
+            + "Reference {1}.",
+        category: "Bitwarden.Database",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     private static bool PrefixesOverlap(string previous, string current)
         => previous.Length != current.Length
             && (previous.StartsWith(current, StringComparison.Ordinal)
@@ -137,9 +150,9 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
 
     /// <summary>
     /// Returns the subset of <see cref="AllProviders"/> whose package assemblies are present
-    /// in the compilation's referenced assembly list. Only referenced providers get
-    /// subcontexts, design-time factories, and switch cases generated for them. Two packages
-    /// for the same provider both come back, so generation can report the conflict.
+    /// in the compilation's referenced assembly list, transitive ones included. Generation keeps
+    /// only the engines the attribute declares. Two packages for the same provider both come
+    /// back, so generation can report the conflict.
     /// </summary>
     private static EquatableArray<ProviderSpec> DetectProviders(Compilation compilation)
     {
@@ -182,7 +195,34 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
         var namedArg = attr.NamedArguments.FirstOrDefault(kv => kv.Key == "MigratorKey");
         var migratorKey = namedArg.Value.Value as string ?? defaultKey;
 
-        return new AttributeInfo(ns, typeName, schemaName, migratorKey);
+        return new AttributeInfo(ns, typeName, schemaName, migratorKey, DeclaredProviders(attr));
+    }
+
+    /// <summary>
+    /// The engines named in the attribute's constructor argument, by <c>DatabaseProvider</c>
+    /// member name, which is also the <see cref="ProviderSpec.Name"/> they match.
+    /// </summary>
+    private static EquatableArray<string> DeclaredProviders(AttributeData attr)
+    {
+        if (attr.ConstructorArguments is not [{ Kind: TypedConstantKind.Array } providers]
+            || attr.AttributeConstructor?.Parameters[0].Type is not IArrayTypeSymbol { ElementType: INamedTypeSymbol providerEnum })
+        {
+            return EquatableArray<string>.Empty;
+        }
+
+        var names = providerEnum.GetMembers()
+            .OfType<IFieldSymbol>()
+            .Where(f => f.HasConstantValue)
+            .ToDictionary(f => f.ConstantValue!, f => f.Name);
+
+        var declared = ImmutableArray.CreateBuilder<string>();
+        foreach (var value in providers.Values)
+        {
+            if (value.Value is { } v && names.TryGetValue(v, out var name) && !declared.Contains(name))
+                declared.Add(name);
+        }
+
+        return new EquatableArray<string>(declared.ToImmutable());
     }
 
     // ForAttributeWithMetadataName transforms
@@ -325,27 +365,42 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
             return;
         }
 
-        var conflicts = providers.Array
-            .GroupBy(p => p.Name)
-            .Where(g => g.Count() > 1)
-            .ToList();
-        if (conflicts.Count > 0)
+        // Exactly the declared engines, in AllProviders order so the output is stable. Packages
+        // referenced for anything else, such as tests or a transitive dependency, play no part.
+        var declared = attr.Providers.Array;
+        var selected = providers.Array.Where(p => declared.Contains(p.Name)).ToImmutableArray();
+        var failed = false;
+
+        foreach (var name in declared)
         {
-            foreach (var conflict in conflicts)
-            {
-                spc.ReportDiagnostic(Diagnostic.Create(
-                    ConflictingProviderPackages,
-                    Location.None,
-                    conflict.Key,
-                    string.Join(", ", conflict.Select(p => p.Assembly))));
-            }
-            return;
+            if (selected.Any(p => p.Name == name))
+                continue;
+
+            spc.ReportDiagnostic(Diagnostic.Create(
+                MissingProviderPackage,
+                Location.None,
+                name,
+                string.Join(" or ", AllProviders.Where(p => p.Name == name).Select(p => p.Assembly))));
+            failed = true;
         }
+
+        foreach (var conflict in selected.GroupBy(p => p.Name).Where(g => g.Count() > 1))
+        {
+            spc.ReportDiagnostic(Diagnostic.Create(
+                ConflictingProviderPackages,
+                Location.None,
+                conflict.Key,
+                string.Join(", ", conflict.Select(p => p.Assembly))));
+            failed = true;
+        }
+
+        if (failed)
+            return;
 
         spc.AddSource(
             $"{attr.SchemaName}.g.cs",
             SourceText.From(
-                Emit(attr, migrationData, providers.Array, buildProperties),
+                Emit(attr, migrationData, selected, buildProperties),
                 System.Text.Encoding.UTF8));
     }
 
@@ -398,7 +453,7 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
 
     // Data pulled off the DatabaseSetup<T> attribute.
     private readonly record struct AttributeInfo(
-        string Ns, string TypeName, string SchemaName, string MigratorKey);
+        string Ns, string TypeName, string SchemaName, string MigratorKey, EquatableArray<string> Providers);
 
     // Transient pipeline entry, before grouping into ProviderMigrations.
     private readonly record struct MigrationRawEntry(string Provider, string Id, string FqTypeName);

@@ -4,7 +4,8 @@
 
 This package, combined with the `DatabaseSetupGenerator` source generator that ships inside it,
 stands up a complete multi-provider database migration pipeline from a single assembly attribute.
-Applying `[assembly: DatabaseSetup<TContext>]` to a project causes the generator to emit:
+Applying `[assembly: DatabaseSetup<TContext>(providers)]` to a project causes the generator to emit,
+for each declared provider:
 
 - Provider-specific `DbContext` subclasses (`SqliteContext`, `PostgreSqlContext`, `MySqlContext`) —
   SQL Server has none, since DbUp migrates it
@@ -25,17 +26,26 @@ At runtime the package provides:
 ### 1. Create the schema project
 
 A schema lives in its own project, which builds into a migration executable. The one
-schema-specific decision is which EF Core providers it supports:
+schema-specific decision is which database providers it supports. You declare them on the
+attribute in the next step, and reference each one's EF Core provider package here:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.20" />
+  <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.20" />
   <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
 </ItemGroup>
 ```
 
-A provider gets a subcontext, a design-time factory, and a switch case only if its package is
-referenced here, so this list decides which providers the generated code supports.
+| Provider | Package |
+|---|---|
+| `DatabaseProvider.SqlServer` | `Microsoft.EntityFrameworkCore.SqlServer` |
+| `DatabaseProvider.PostgreSql` | `Npgsql.EntityFrameworkCore.PostgreSQL` |
+| `DatabaseProvider.MySql` | `Pomelo.EntityFrameworkCore.MySql` or `Microting.EntityFrameworkCore.MySql` |
+| `DatabaseProvider.Sqlite` | `Microsoft.EntityFrameworkCore.Sqlite` |
+
+Code is generated for exactly the declared providers. A declared provider whose package isn't
+referenced is a build error (`BWDB003`), and a provider package referenced for any other reason — for
+tests, or arriving transitively through another reference — is ignored.
 
 MySQL can come from either `Pomelo.EntityFrameworkCore.MySql` or
 `Microting.EntityFrameworkCore.MySql`, a fork of Pomelo that keeps its API. The generated code is
@@ -56,7 +66,9 @@ folder is embedded by convention, so adding a script is just adding a file.
 using Bitwarden.Server.Sdk.Database;
 using Microsoft.EntityFrameworkCore;
 
-[assembly: DatabaseSetup<OrderDatabaseContext>(MigratorKey = "Order")]
+[assembly: DatabaseSetup<OrderDatabaseContext>(
+    [DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql],
+    MigratorKey = "Order")]
 
 namespace Acme.OrderDatabase;
 
@@ -66,7 +78,8 @@ public class OrderDatabaseContext(DbContextOptions options) : DbContext(options)
 }
 ```
 
-The source generator derives the schema name from the context type name
+The providers are required: they decide which engines the schema supports, so they aren't inferred
+from package references. The source generator derives the schema name from the context type name
 (`OrderDatabaseContext` → schema `OrderDatabase`, default key `Order`). Override the key with
 `MigratorKey` when the default doesn't match your configuration key.
 

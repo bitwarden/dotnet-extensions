@@ -1,7 +1,7 @@
 # Bitwarden.Server.Sdk.Database
 
 Runtime support for the `DatabaseSetupGenerator` source generator. Apply
-`[assembly: DatabaseSetup<TContext>]` to a schema project; the generator emits all migration
+`[assembly: DatabaseSetup<TContext>(providers)]` to a schema project; the generator emits all migration
 plumbing. See `PACKAGE.md` for the consumer guide.
 
 ## Public API surface
@@ -61,7 +61,7 @@ plumbing. See `PACKAGE.md` for the consumer guide.
 
 ## What the source generator emits
 
-For `[assembly: DatabaseSetup<VaultDatabaseContext>(MigratorKey = "Vault")]` the generator
+For `[assembly: DatabaseSetup<VaultDatabaseContext>([DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql, DatabaseProvider.MySql, DatabaseProvider.Sqlite], MigratorKey = "Vault")]` the generator
 produces a single source file `VaultDatabase.g.cs` containing (behind `#if !SQLSERVER_MIGRATOR_BUILD`
 where relevant):
 
@@ -215,6 +215,13 @@ Implemented:
   convention, with `Exclude="@(EmbeddedResource)"` so a project declaring its own items keeps them.
   The script folder is fixed: `BitSqlServerScriptPrefix` describes the recorded name, not the
   layout, so an adopted schema moves its scripts like any other.
+- Providers are declared on the attribute's constructor, so leaving them out is a compiler error
+  rather than a diagnostic of ours. They aren't inferred from package references: those include
+  transitive ones (anything a referenced project or package brings in), so inference would turn a
+  provider referenced for tests or by a dependency into a production engine, and silently drop one
+  whose reference went missing. The generator emits exactly the declared providers; a declared
+  provider whose package isn't referenced is `BWDB003`, an error, instead of an unresolved call in
+  generated code.
 - A provider may be served by more than one package when they share an API: MySQL is detected from
   either `Pomelo.EntityFrameworkCore.MySql` or Microting's fork, `Microting.EntityFrameworkCore.MySql`.
   The generated calls are identical, and the dispatcher matches whichever assembly name was

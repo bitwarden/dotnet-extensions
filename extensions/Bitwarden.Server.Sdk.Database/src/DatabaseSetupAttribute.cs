@@ -15,13 +15,29 @@ namespace Bitwarden.Server.Sdk.Database;
 /// <typeparam name="TContext">The root <see cref="DbContext"/> for this schema.</typeparam>
 /// <example>
 /// <code>
-/// [assembly: DatabaseSetup&lt;MyDatabaseContext&gt;(MigratorKey = "MyDb")]
+/// [assembly: DatabaseSetup&lt;MyDatabaseContext&gt;(
+///     [DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql],
+///     MigratorKey = "MyDb")]
 /// </code>
 /// </example>
 [AttributeUsage(AttributeTargets.Assembly)]
 public sealed class DatabaseSetupAttribute<TContext> : Attribute
     where TContext : DbContext
 {
+    /// <summary>Declares a schema and the database engines it supports.</summary>
+    /// <param name="providers">The engines this schema supports; see <see cref="Providers"/>.</param>
+    public DatabaseSetupAttribute(DatabaseProvider[] providers)
+    {
+        Providers = providers;
+    }
+
+    /// <summary>
+    /// The database engines this schema supports. Code is generated for exactly these, and each
+    /// one's provider package must be referenced. A provider package referenced for any other
+    /// reason, such as tests or a transitive dependency, is ignored.
+    /// </summary>
+    public DatabaseProvider[] Providers { get; }
+
     /// <summary>
     /// Named-options key used to resolve <see cref="DatabaseOptions"/> and the keyed
     /// <see cref="IDatabaseMigrator"/>. Defaults to the schema key derived from

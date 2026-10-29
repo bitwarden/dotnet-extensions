@@ -31,7 +31,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
             using Bitwarden.Server.Sdk.Database;
             using My.App;
 
-            [assembly: DatabaseSetup<MyDatabaseContext>]
+            [assembly: DatabaseSetup<MyDatabaseContext>([DatabaseProvider.Sqlite, DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql, DatabaseProvider.MySql])]
 
             namespace My.App;
 
@@ -337,7 +337,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
             using Bitwarden.Server.Sdk.Database;
             using Foo.Bar;
 
-            [assembly: DatabaseSetup<FooDatabaseContext>(MigratorKey = "Custom")]
+            [assembly: DatabaseSetup<FooDatabaseContext>([DatabaseProvider.Sqlite, DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql, DatabaseProvider.MySql], MigratorKey = "Custom")]
 
             namespace Foo.Bar;
 
@@ -635,17 +635,17 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
     }
 
     [Fact]
-    public async Task UnreferencedProvider_IsNotGenerated()
+    public async Task UndeclaredProvider_IsNotGenerated()
     {
-        // Simulates a project that references Sqlite, SqlServer, and PostgreSql but not MySQL,
-        // so the generator should only emit code for the provider packages that are present.
+        // MySQL's package is referenced, as one arriving for tests or transitively would be, but
+        // only the declared engines get code generated for them.
         await RunAsync(
             """
             using Microsoft.EntityFrameworkCore;
             using Bitwarden.Server.Sdk.Database;
             using My.App;
 
-            [assembly: DatabaseSetup<MyDatabaseContext>]
+            [assembly: DatabaseSetup<MyDatabaseContext>([DatabaseProvider.Sqlite, DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql])]
 
             namespace My.App;
 
@@ -904,8 +904,31 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
                 static Task<int> Main(string[] args) => MyDatabaseMigrationProgram.RunAsync(args);
             }
 
+            """);
+    }
+
+    [Fact]
+    public async Task DeclaredProviderWithoutItsPackage_IsRejectedAtBuildTime()
+    {
+        var diagnostics = await GenerateDiagnosticsAsync(
+            """
+            using Microsoft.EntityFrameworkCore;
+            using Bitwarden.Server.Sdk.Database;
+            using My.App;
+
+            [assembly: DatabaseSetup<MyDatabaseContext>([DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql])]
+
+            namespace My.App;
+
+            public class MyDatabaseContext(DbContextOptions options) : DbContext(options);
             """,
-            excludeAssemblyNames: ["Pomelo.EntityFrameworkCore.MySql"]);
+            excludeAssemblyNames: ["Npgsql.EntityFrameworkCore.PostgreSQL"]);
+
+        var diagnostic = Assert.Single(diagnostics);
+        Assert.Equal("BWDB003", diagnostic.Id);
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Contains("PostgreSql", diagnostic.GetMessage());
+        Assert.Contains("Npgsql.EntityFrameworkCore.PostgreSQL", diagnostic.GetMessage());
     }
 
     [Fact]
@@ -917,7 +940,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
             using Bitwarden.Server.Sdk.Database;
             using My.App;
 
-            [assembly: DatabaseSetup<MyDatabaseContext>]
+            [assembly: DatabaseSetup<MyDatabaseContext>([DatabaseProvider.Sqlite, DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql, DatabaseProvider.MySql])]
 
             namespace My.App;
 
@@ -1226,7 +1249,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
             using Microsoft.EntityFrameworkCore;
             using Bitwarden.Server.Sdk.Database;
 
-            [assembly: DatabaseSetup<My.App.MyDatabaseContext>]
+            [assembly: DatabaseSetup<My.App.MyDatabaseContext>([DatabaseProvider.Sqlite, DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql, DatabaseProvider.MySql])]
 
             namespace My.App
             {
@@ -1311,7 +1334,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
             using Bitwarden.Server.Sdk.Database;
             using My.App;
 
-            [assembly: DatabaseSetup<MyDatabaseContext>(MigratorKey = "Vault")]
+            [assembly: DatabaseSetup<MyDatabaseContext>([DatabaseProvider.Sqlite, DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql, DatabaseProvider.MySql], MigratorKey = "Vault")]
 
             namespace My.App;
 
@@ -1344,7 +1367,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
             using Bitwarden.Server.Sdk.Database;
             using My.App;
 
-            [assembly: DatabaseSetup<MyDatabaseContext>]
+            [assembly: DatabaseSetup<MyDatabaseContext>([DatabaseProvider.Sqlite, DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql, DatabaseProvider.MySql])]
 
             namespace My.App;
 
@@ -1373,7 +1396,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
             using Bitwarden.Server.Sdk.Database;
             using My.App;
 
-            [assembly: DatabaseSetup<MyDatabaseContext>]
+            [assembly: DatabaseSetup<MyDatabaseContext>([DatabaseProvider.Sqlite, DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql, DatabaseProvider.MySql])]
 
             namespace My.App;
 
@@ -1454,7 +1477,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
             using Bitwarden.Server.Sdk.Database;
             using My.App;
 
-            [assembly: DatabaseSetup<MyDatabaseContext>(MigratorKey = "Vault")]
+            [assembly: DatabaseSetup<MyDatabaseContext>([DatabaseProvider.Sqlite, DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql, DatabaseProvider.MySql], MigratorKey = "Vault")]
 
             namespace My.App;
 
@@ -1479,7 +1502,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
             using Bitwarden.Server.Sdk.Database;
             using My.App;
 
-            [assembly: DatabaseSetup<MyDatabaseContext>(MigratorKey = "Vault")]
+            [assembly: DatabaseSetup<MyDatabaseContext>([DatabaseProvider.Sqlite, DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql, DatabaseProvider.MySql], MigratorKey = "Vault")]
 
             namespace My.App;
 
@@ -1504,7 +1527,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
             using Bitwarden.Server.Sdk.Database;
             using My.App;
 
-            [assembly: DatabaseSetup<MyDatabaseContext>(MigratorKey = @"Vault\Legacy")]
+            [assembly: DatabaseSetup<MyDatabaseContext>([DatabaseProvider.Sqlite, DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql, DatabaseProvider.MySql], MigratorKey = @"Vault\Legacy")]
 
             namespace My.App;
 
@@ -1527,7 +1550,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
             using Bitwarden.Server.Sdk.Database;
             using My.App;
 
-            [assembly: DatabaseSetup<MyDatabaseContext>(MigratorKey = "Vault")]
+            [assembly: DatabaseSetup<MyDatabaseContext>([DatabaseProvider.Sqlite, DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql, DatabaseProvider.MySql], MigratorKey = "Vault")]
 
             namespace My.App;
 
@@ -1556,7 +1579,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
             using Bitwarden.Server.Sdk.Database;
             using My.App;
 
-            [assembly: DatabaseSetup<MyDatabaseContext>(MigratorKey = "Vault")]
+            [assembly: DatabaseSetup<MyDatabaseContext>([DatabaseProvider.Sqlite, DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql, DatabaseProvider.MySql], MigratorKey = "Vault")]
 
             namespace My.App;
 
@@ -1614,7 +1637,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
             using Bitwarden.Server.Sdk.Database;
             using My.App;
 
-            [assembly: DatabaseSetup<MyDatabaseContext>(MigratorKey = "Vault")]
+            [assembly: DatabaseSetup<MyDatabaseContext>([DatabaseProvider.Sqlite, DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql, DatabaseProvider.MySql], MigratorKey = "Vault")]
 
             namespace My.App;
 
@@ -1676,7 +1699,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
             using Bitwarden.Server.Sdk.Database;
             using My.App;
 
-            [assembly: DatabaseSetup<MyDatabaseContext>(MigratorKey = "Vault")]
+            [assembly: DatabaseSetup<MyDatabaseContext>([DatabaseProvider.Sqlite, DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql, DatabaseProvider.MySql], MigratorKey = "Vault")]
 
             namespace My.App;
 
@@ -2032,7 +2055,7 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
         using Bitwarden.Server.Sdk.Database;
         using My.App;
 
-        [assembly: DatabaseSetup<MyDatabaseContext>(MigratorKey = "Vault")]
+        [assembly: DatabaseSetup<MyDatabaseContext>([DatabaseProvider.Sqlite, DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql, DatabaseProvider.MySql], MigratorKey = "Vault")]
 
         namespace My.App
         {
@@ -2122,10 +2145,11 @@ public class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.SqlServe
         [StringSyntax("C#")] string source,
         string? scriptPrefix = null,
         string? previousScriptPrefix = null,
-        IReadOnlyCollection<MetadataReference>? additionalReferences = null)
+        IReadOnlyCollection<MetadataReference>? additionalReferences = null,
+        IReadOnlyCollection<string>? excludeAssemblyNames = null)
     {
         var compilation = await BuildCompilationAsync(
-            source, excludeAssemblyNames: null, additionalReferences: additionalReferences);
+            source, excludeAssemblyNames, additionalReferences: additionalReferences);
 
         var buildProperties = new Dictionary<string, string>();
         if (scriptPrefix is not null)
