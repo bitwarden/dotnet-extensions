@@ -38,6 +38,9 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
     private const string JournalTable = "Migration";
     private const string MigrationLockResource = "Bitwarden.Server.Sdk.Database.Migration";
 
+    // Prefix of the lock, taken in master, that serializes hosts creating the same database.
+    private const string CreateLockResourcePrefix = "Bitwarden.Server.Sdk.Database.Create.";
+
     public string Name => _optionsName;
 
     private string ConnectionString => _optionsMonitor.Get(_optionsName).ConnectionString;
@@ -154,10 +157,6 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
     }
 
     /// <summary>
-    /// Applies the configured phase, retrying while SQL Server reports it is in script upgrade
-    /// mode — which it does for a while after patching, and which clears on its own.
-    /// </summary>
-    /// <summary>
     /// Connects to <c>master</c>, which needs the server to be up but not this schema's database,
     /// since migrating creates it.
     /// </summary>
@@ -180,6 +179,10 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
         }
     }
 
+    /// <summary>
+    /// Applies the configured phase, retrying while SQL Server reports it is in script upgrade
+    /// mode — which it does for a while after patching, and which clears on its own.
+    /// </summary>
     public async Task MigrateAsync(CancellationToken cancellationToken = default)
     {
         var attempt = 1;
@@ -197,7 +200,7 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
 
                 // Held from reading the journal to the last script, so a host migrating at the same
                 // time waits, then finds the scripts already journaled.
-                await using (await AcquireMigrationLockAsync(connectionString, cancellationToken))
+                await using (await AcquireMigrationLockAsync(connectionString, MigrationLockResource, cancellationToken))
                 {
                     await RenameJournalEntriesAsync(connectionString, cancellationToken);
                     await MigrateCoreAsync(connectionString);
@@ -223,6 +226,12 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
             InitialCatalog = "master"
         }.ConnectionString;
 
+        // Held in master around the check and the create, since the migration lock lives in the
+        // database being created. Without it, hosts starting together on a first deployment can
+        // all find the database missing, and SQL Server severs the connection of each one whose
+        // CREATE DATABASE loses the race.
+        await using (await AcquireMigrationLockAsync(
+            masterConnectionString, CreateLockResourcePrefix + databaseName, cancellationToken))
         await using (var connection = new SqlConnection(masterConnectionString))
         {
             var databaseNameQuoted = new SqlCommandBuilder().QuoteIdentifier(databaseName);
@@ -244,12 +253,13 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
     }
 
     /// <summary>
-    /// Takes an exclusive application lock in the database, owned by a connection of its own so
-    /// DbUp's sessions don't affect it. DbUp, unlike EF Core, doesn't lock, so two hosts would
-    /// otherwise read the same pending scripts from the journal and both apply them.
+    /// Takes an exclusive application lock on <paramref name="resource"/> in the connection's
+    /// database, owned by a connection of its own so DbUp's sessions don't affect it. DbUp, unlike EF
+    /// Core, doesn't lock, so two hosts would otherwise read the same pending scripts from the
+    /// journal and both apply them. Also taken in <c>master</c> around creating the database.
     /// </summary>
     private static async Task<MigrationLock> AcquireMigrationLockAsync(
-        string connectionString, CancellationToken cancellationToken)
+        string connectionString, string resource, CancellationToken cancellationToken)
     {
         var connection = new SqlConnection(connectionString);
         try
@@ -262,7 +272,7 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
                 + "@LockOwner = 'Session', @LockTimeout = -1; "
                 + "SELECT @result;",
                 connection);
-            cmd.Parameters.AddWithValue("@resource", MigrationLockResource);
+            cmd.Parameters.AddWithValue("@resource", resource);
             cmd.CommandTimeout = 0;
 
             // 0 is granted at once, 1 after waiting; anything negative is a failure.
@@ -270,7 +280,7 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
             if (result < 0)
                 throw new InvalidOperationException($"Could not take the migration lock (sp_getapplock returned {result}).");
 
-            return new MigrationLock(connection);
+            return new MigrationLock(connection, resource);
         }
         catch
         {
@@ -287,10 +297,12 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
     private sealed class MigrationLock : IAsyncDisposable
     {
         private readonly SqlConnection _connection;
+        private readonly string _resource;
 
-        public MigrationLock(SqlConnection connection)
+        public MigrationLock(SqlConnection connection, string resource)
         {
             _connection = connection;
+            _resource = resource;
         }
 
         public async ValueTask DisposeAsync()
@@ -299,7 +311,7 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
             {
                 using var cmd = new SqlCommand(
                     "EXEC sp_releaseapplock @Resource = @resource, @LockOwner = 'Session';", _connection);
-                cmd.Parameters.AddWithValue("@resource", MigrationLockResource);
+                cmd.Parameters.AddWithValue("@resource", _resource);
                 await cmd.ExecuteNonQueryAsync();
             }
             finally
