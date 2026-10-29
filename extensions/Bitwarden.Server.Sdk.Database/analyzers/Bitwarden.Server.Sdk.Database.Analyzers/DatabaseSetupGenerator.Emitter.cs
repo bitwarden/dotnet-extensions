@@ -115,9 +115,13 @@ public sealed partial class DatabaseSetupGenerator
             return $"internal sealed class {className}(DbContextOptions<{className}> o) : {attr.TypeName}(o);";
 
         var parameters = string.Join(", ", ctor.Parameters.Array.Select((p, i) =>
-            (i == ctor.OptionsIndex && !ctor.GenericOptions ? $"DbContextOptions<{className}>" : p.Type)
-            + " @" + p.Name
-            + (p.Default is { } value ? " = " + value : "")));
+        {
+            var type = i == ctor.OptionsIndex && !ctor.GenericOptions
+                ? $"DbContextOptions<{className}>"
+                : p.Type;
+            var defaultValue = p.Default is { } value ? " = " + value : "";
+            return type + " @" + p.Name + defaultValue;
+        }));
 
         var arguments = string.Join(", ", ctor.Parameters.Array.Select(p => "@" + p.Name));
 

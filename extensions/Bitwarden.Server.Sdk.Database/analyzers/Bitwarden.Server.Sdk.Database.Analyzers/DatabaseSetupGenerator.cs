@@ -578,36 +578,39 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
             failed = true;
         }
 
+        // What generation uses: the attribute as declared, except that EfCore without SQL Server is
+        // ignored.
+        var schema = attr;
         if (attr.SqlServerEfCore && !declared.Contains("SqlServer"))
         {
             spc.ReportDiagnostic(Diagnostic.Create(SqlServerMigrationsWithoutSqlServer, Location.None));
-            attr = attr with { SqlServerEfCore = false };
+            schema = attr with { SqlServerEfCore = false };
         }
 
-        if (attr.InvalidDesignTimeServices)
+        if (schema.InvalidDesignTimeServices)
         {
-            spc.ReportDiagnostic(Diagnostic.Create(InvalidDesignTimeServices, Location.None, attr.DesignTimeServices));
+            spc.ReportDiagnostic(Diagnostic.Create(InvalidDesignTimeServices, Location.None, schema.DesignTimeServices));
             failed = true;
         }
 
         // Only an engine migrated by EF Core gets a subcontext, so only then does the context's
         // shape matter.
-        if (selected.Any(p => IsEfCore(attr, p)))
+        if (selected.Any(p => IsEfCore(schema, p)))
         {
-            if (attr.ContextSealed)
+            if (schema.ContextSealed)
             {
-                spc.ReportDiagnostic(Diagnostic.Create(SealedContext, Location.None, attr.TypeName));
+                spc.ReportDiagnostic(Diagnostic.Create(SealedContext, Location.None, schema.TypeName));
                 failed = true;
             }
-            else if (attr.Constructor is not { } ctor)
+            else if (schema.Constructor is not { } ctor)
             {
-                spc.ReportDiagnostic(Diagnostic.Create(NoOptionsConstructor, Location.None, attr.TypeName));
+                spc.ReportDiagnostic(Diagnostic.Create(NoOptionsConstructor, Location.None, schema.TypeName));
                 failed = true;
             }
-            else if (attr.DesignTimeServices is null
+            else if (schema.DesignTimeServices is null
                 && ctor.Parameters.Array.Where((_, i) => i != ctor.OptionsIndex).Any(p => p.Default is null))
             {
-                spc.ReportDiagnostic(Diagnostic.Create(MissingDesignTimeServices, Location.None, attr.TypeName));
+                spc.ReportDiagnostic(Diagnostic.Create(MissingDesignTimeServices, Location.None, schema.TypeName));
                 failed = true;
             }
         }
@@ -616,9 +619,9 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
             return;
 
         spc.AddSource(
-            $"{attr.SchemaName}.g.cs",
+            $"{schema.SchemaName}.g.cs",
             SourceText.From(
-                Emit(attr, migrationData, selected, buildProperties),
+                Emit(schema, migrationData, selected, buildProperties),
                 System.Text.Encoding.UTF8));
     }
 
