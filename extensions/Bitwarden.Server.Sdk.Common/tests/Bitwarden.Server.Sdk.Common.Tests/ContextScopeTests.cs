@@ -81,6 +81,27 @@ public sealed class ContextScopeTests
     }
 
     [Fact]
+    public void StatedContext_AnswersWhatItWasGiven()
+    {
+        var organization = Guid.NewGuid();
+        var user = Guid.NewGuid();
+
+        IContext context = new StatedContext
+        {
+            OrganizationId = organization,
+            UserId = user,
+            Credential = CallerCredential.System,
+            UserOrganizationIds = [organization],
+        };
+
+        Assert.Equal(organization, context.OrganizationId);
+        Assert.Equal(user, context.UserId);
+        Assert.Null(context.ProviderId);
+        Assert.Equal(CallerCredential.System, context.Credential);
+        Assert.Equal([organization], context.UserOrganizationIds);
+    }
+
+    [Fact]
     public void Begin_Null_Throws()
     {
         Assert.Throws<ArgumentNullException>(() => ContextScope.Begin(null!));
