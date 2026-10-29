@@ -56,9 +56,12 @@ public void Rename(Widget widget, string name)
 }
 ```
 
-A caller branches on the stable `code` in the error document, never on the human-readable text:
+A caller branches on the stable `code` in the error document, never on the human-readable text.
+The error document's types and codes are in `Bitwarden.Server.Sdk.Common.Errors`:
 
 ```csharp
+using Bitwarden.Server.Sdk.Common.Errors;
+
 if (error.Code == ErrorCodes.NotFound) { /* ... */ }
 ```
 

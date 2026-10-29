@@ -10,8 +10,8 @@ service. It lives here so that neither side depends on the other.
 
 | | |
 | --- | --- |
-| `ErrorResponse`, `Error`, `ErrorSource` | The body of every unsuccessful response |
-| `ErrorCodes`, `ErrorTitles`, `ErrorDetails` | The codes a caller branches on, and the prose that accompanies them |
+| `ErrorResponse`, `Error`, `ErrorSource` | The body of every unsuccessful response (namespace `Bitwarden.Server.Sdk.Common.Errors`) |
+| `ErrorCodes`, `ErrorTitles`, `ErrorDetails` | The codes a caller branches on, and the prose that accompanies them (also in `.Errors`) |
 | `NotFoundException`, `ConflictException`, `InvalidRequestException` | Raised by a service, and by a client on the caller's behalf |
 | `BitwardenHeaders` | The four headers carrying caller context from one service to another: `Bitwarden-Organization`, `Bitwarden-User`, `Bitwarden-Provider` and `Bitwarden-Context`; never a browser's to send |
 | `CallerContextHeader`, `CallerContextValue`, `CallerCredential` | `Bitwarden-Context`: one closed, versioned JSON object (`v`, `clientIp`, `deviceType`, `deviceIdentifier`, `credential`, `recordedUser`, `recordedProvider`, `organizations`), written and read strictly, at most 16 KB |

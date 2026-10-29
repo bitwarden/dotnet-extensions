@@ -70,6 +70,43 @@ public sealed class RowOwnershipTests
         Assert.Contains("no organization is in scope", actual.Message);
     }
 
+    [Fact]
+    public void RequireProvider_WithOneInScope_ReturnsIt()
+    {
+        // Arrange
+        var expected = Guid.NewGuid();
+        var ownership = new DefaultRowOwnership(new Context { ProviderId = expected });
+
+        // Act
+        var actual = ownership.RequireProvider();
+
+        // Assert
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void RequireProvider_WithNoneInScope_IsRefused()
+    {
+        // Arrange
+        var ownership = new DefaultRowOwnership(new Context());
+
+        // Act / Assert
+        Assert.Throws<ForbiddenException>(() => ownership.RequireProvider());
+    }
+
+    [Fact]
+    public void Owners_AreWhateverIsInScope_RequiringNone()
+    {
+        // Arrange
+        var context = new Context { OrganizationId = Guid.NewGuid(), UserId = Guid.NewGuid() };
+        var ownership = new DefaultRowOwnership(context);
+
+        // Act / Assert
+        Assert.Equal(context.OrganizationId, ownership.Organization());
+        Assert.Equal(context.UserId, ownership.User());
+        Assert.Null(ownership.Provider());
+    }
+
     private sealed class Context : IContext
     {
         public Guid? OrganizationId { get; init; }

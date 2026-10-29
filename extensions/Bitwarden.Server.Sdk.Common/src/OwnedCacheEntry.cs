@@ -63,7 +63,7 @@ public static class OwnedCacheEntry
 
     /// <summary>The key template a resource's entries are stored under.</summary>
     /// <param name="service">The owning service's name.</param>
-    /// <param name="resourceType">The resource's JSON:API type.</param>
+    /// <param name="resourceType">The resource's type.</param>
     public static string Template(string service, string resourceType) => $"{service}:{resourceType}:{KeyPlaceholder}";
 
     /// <summary>The key of one entry.</summary>

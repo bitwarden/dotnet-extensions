@@ -15,5 +15,5 @@ public interface IProvideErrors
     int StatusCode => 422;
 
     /// <summary>The errors to report, in the order the caller should read them.</summary>
-    IReadOnlyList<JsonApi.Error> Errors { get; }
+    IReadOnlyList<Errors.Error> Errors { get; }
 }

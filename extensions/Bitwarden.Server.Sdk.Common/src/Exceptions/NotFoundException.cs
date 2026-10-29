@@ -1,4 +1,4 @@
-using Bitwarden.Server.Sdk.Common.JsonApi;
+using Bitwarden.Server.Sdk.Common.Errors;
 
 namespace Bitwarden.Server.Sdk.Common;
 

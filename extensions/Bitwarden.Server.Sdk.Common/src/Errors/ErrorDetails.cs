@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Common.JsonApi;
+namespace Bitwarden.Server.Sdk.Common.Errors;
 
 /// <summary>
 /// The occurrence-specific explanations that accompany each error.

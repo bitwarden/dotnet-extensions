@@ -177,10 +177,34 @@ public sealed class CallerContextHeaderTests
     [InlineData("""{"v":1,"organizations":["00000000-0000-0000-0000-000000000000"]}""")]
     [InlineData("""{"v":1,"organizations":["a0000000-0000-4000-8000-000000000001","a0000000-0000-4000-8000-000000000001"]}""")]
     [InlineData("""{"v":1,"organizations":[""")]
+    [InlineData("{\"v\":1,\"clientIp\"")]
+    [InlineData("{\"v\":1,\"organizations\":[\"a0000000-0000-4000-8000-000000000001\"")]
     public void TryParse_Malformed_IsRefused(string header)
     {
         Assert.False(CallerContextHeader.TryParse(header, out _, out var problem));
         Assert.False(string.IsNullOrWhiteSpace(problem));
+    }
+
+    public static TheoryData<CallerContextValue> Unsendable =>
+    [
+        new CallerContextValue { ClientIp = "not an address" },
+        new CallerContextValue { DeviceType = "a device; with prose" },
+        new CallerContextValue { DeviceIdentifier = "has spaces in it" },
+        new CallerContextValue { Credential = (CallerCredential)99 },
+        new CallerContextValue { RecordedProvider = Guid.Empty },
+    ];
+
+    [Theory]
+    [MemberData(nameof(Unsendable))]
+    public void Write_AMemberThatCannotBeSent_Throws(CallerContextValue value)
+    {
+        Assert.Throws<ArgumentException>(() => CallerContextHeader.Write(value));
+    }
+
+    [Fact]
+    public void Name_AnUndefinedCredential_Throws()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => CallerContextHeader.Name((CallerCredential)99));
     }
 
     [Fact]

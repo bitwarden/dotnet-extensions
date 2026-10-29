@@ -5,4 +5,4 @@ namespace Bitwarden.Server.Sdk.Common;
 /// </summary>
 /// <param name="detail">What to tell the caller.</param>
 public sealed class ForbiddenException(string? detail = null)
-    : Exception(detail ?? JsonApi.ErrorDetails.Forbidden);
+    : Exception(detail ?? Errors.ErrorDetails.Forbidden);
