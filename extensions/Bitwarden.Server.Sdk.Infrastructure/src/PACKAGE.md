@@ -65,8 +65,10 @@ Prefer this over reading `globalSettings:selfHosted` from configuration while re
 ### Writing declarations
 
 - Declarations are only evaluated when infrastructure is being collected, after the service
-  provider is built. Hosted services are not started and startup validation does not run, but
-  resolving options from a `Configure<TDep>` callback still runs their validation.
+  provider is built. What else runs during collection depends on the collector:
+  `Bitwarden.Server.Sdk.Infrastructure.Testing` runs the service's full startup, as described in its
+  "How the service is run" section. Resolving options from a `Configure<TDep>` callback runs their
+  validation.
 - Never record secrets such as connection strings or keys, since collected requirements are often
   snapshotted. Record the configuration key name instead.
 - Declare what the service needs for the way it is currently configured. Requirements that differ

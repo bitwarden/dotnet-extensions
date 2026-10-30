@@ -7,6 +7,32 @@ Declarations of the infrastructure a service needs.
 
 ## Design
 
+### Flow
+
+```mermaid
+flowchart LR
+    subgraph registration ["Service registration"]
+        declare["AddInfrastructureRequirement(kind, properties)"]
+        conditional["AddOptions + Configure with dependencies<br/>(e.g. IBitwardenEnvironment)"]
+        delegates["Deferred configure delegates<br/>on InfrastructureOptions"]
+        declare --> delegates
+        conditional --> delegates
+    end
+
+    subgraph collection ["Collection only"]
+        resolve["Collector resolves<br/>IOptions of InfrastructureOptions"]
+        add["Delegates run in registration order,<br/>calling InfrastructureOptions.Add"]
+        group["Grouped by kind,<br/>duplicates removed with JsonNode.DeepEquals"]
+        manifest["InfrastructureManifest<br/>(Bitwarden.Server.Sdk.Infrastructure.Testing)"]
+        resolve --> add --> group --> manifest
+    end
+
+    delegates --> resolve
+    delegates -. "never resolved in a running service" .-> production["Production: delegates never run"]
+```
+
+### Decisions
+
 - A requirement is a kind plus a `JsonObject` of properties. There is no separate name or identity:
   within a kind the whole object is the identity, and `InfrastructureOptions.Add` skips a
   requirement when `JsonNode.DeepEquals` finds an equal one of the same kind. Requirements are never
