@@ -21,16 +21,13 @@ public interface IServiceIdentity
     /// <remarks>
     /// A product service takes the acting user from the session token and refuses a request that
     /// asserts one in <see cref="BitwardenHeaders.User"/>. A domain service is only called by other
-    /// services and takes the acting user from that header. Defaults to false.
+    /// services and takes the acting user from the caller context they sign. Defaults to false.
     /// </remarks>
     bool IsProductService => false;
 
     /// <summary>
-    /// The audience a token must name for this service to accept it.
+    /// The audience a token must name for this service to accept it: the service's own
+    /// <see cref="Name"/>.
     /// </summary>
-    /// <remarks>
-    /// A product service accepts tokens addressed to its <see cref="Name"/>. A domain service
-    /// accepts tokens addressed to <see cref="TokenAudience.Platform"/>.
-    /// </remarks>
-    string Audience => IsProductService ? Name : TokenAudience.Platform;
+    string Audience => Name;
 }
