@@ -6,7 +6,10 @@ public enum DatabaseProvider
     /// <summary>SQLite — lightweight file-based or in-memory database. Managed via EF Core migrations.</summary>
     Sqlite,
 
-    /// <summary>Microsoft SQL Server — managed via DbUp with embedded SQL scripts.</summary>
+    /// <summary>
+    /// Microsoft SQL Server — managed via DbUp with embedded SQL scripts, or via EF Core migrations
+    /// when the schema sets <see cref="DatabaseSetupAttribute{TContext}.SqlServerMigrations"/>.
+    /// </summary>
     SqlServer,
 
     /// <summary>PostgreSQL — managed via EF Core migrations using the Npgsql provider.</summary>

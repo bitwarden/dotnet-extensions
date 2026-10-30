@@ -32,7 +32,7 @@ public sealed partial class DatabaseSetupGenerator
         using Bitwarden.Server.Sdk.Database;
 
         namespace {{attr.Ns}};
-
+        {{EmitMigratorBuildGuard(attr)}}
         #if !SQLSERVER_MIGRATOR_BUILD
         {{EmitEfCoreInfrastructure(attr, migrationData, providers)}}
         #endif // !SQLSERVER_MIGRATOR_BUILD
@@ -49,6 +49,14 @@ public sealed partial class DatabaseSetupGenerator
 
         """;
 
+    // A schema that migrates SQL Server with EF Core has no scripts for a DbUp-only migrator build.
+    // Empty otherwise, which leaves the blank line after the namespace as it was.
+    private static string EmitMigratorBuildGuard(AttributeInfo attr) => attr.SqlServerEfCore
+        ? "\n#if SQLSERVER_MIGRATOR_BUILD\n"
+          + $"#error {attr.SchemaName} migrates SQL Server with EF Core migrations, so it has no SQLSERVER_MIGRATOR_BUILD.\n"
+          + "#endif\n"
+        : "";
+
     // Provider subcontexts, design-time factories, and the migrations-assembly dispatcher. Ends
     // with a newline so the #endif that follows it in the skeleton keeps its blank line.
     private static string EmitEfCoreInfrastructure(
@@ -58,17 +66,20 @@ public sealed partial class DatabaseSetupGenerator
     {
         var migrationsAssembly = EmitMigrationsAssembly(attr, migrationData, providers) + "\n";
 
-        // SQL Server is migrated by DbUp from hand-authored scripts, so it gets no subcontext and
-        // no design-time factory — there is nothing for EF tooling to scaffold against.
-        var scaffolded = providers.Where(p => p.Name != "SqlServer").ToImmutableArray();
+        // SQL Server is migrated by DbUp from hand-authored scripts unless the schema opts it into EF
+        // Core, so by default it gets no subcontext and no design-time factory — there is nothing for
+        // EF tooling to scaffold against.
+        var scaffolded = providers.Where(p => IsEfCore(attr, p)).ToImmutableArray();
 
         if (scaffolded.Length == 0)
             return migrationsAssembly;
 
-        var subcontexts = string.Join("\n", scaffolded.Select(p =>
-            $"internal sealed class {p.Name}Context(DbContextOptions<{p.Name}Context> o) : {attr.TypeName}(o);"));
+        var subcontexts = string.Join("\n", scaffolded.Select(p => EmitSubcontext(p.Name, attr)));
 
-        var factories = string.Join("\n\n", scaffolded.Select(p => EmitFactory(p.Name, attr.SchemaName)));
+        var factories = string.Join("\n\n", scaffolded.Select(p => EmitFactory(p.Name, attr)));
+
+        if (NeedsDesignTimeServices(attr))
+            factories += "\n\n" + EmitDesignTimeActivator(attr);
 
         return $$"""
         // Provider subcontexts are internal so EF Designer.cs files can reference
@@ -90,18 +101,102 @@ public sealed partial class DatabaseSetupGenerator
     /// </summary>
     private static string Literal(string value) => SymbolDisplay.FormatLiteral(value, quote: true);
 
-    private static string EmitFactory(string providerName, string schemaName) => providerName switch
+    /// <summary>
+    /// A provider's subcontext. Its constructor mirrors the context's, so any parameters beyond the
+    /// options are forwarded; the options are typed for the subcontext unless the context asks for
+    /// its own <c>DbContextOptions&lt;TContext&gt;</c>.
+    /// </summary>
+    private static string EmitSubcontext(string providerName, AttributeInfo attr)
+    {
+        var className = $"{providerName}Context";
+        var ctor = attr.Constructor!.Value;
+
+        if (ctor.Parameters.Array.Length == 1 && !ctor.GenericOptions)
+            return $"internal sealed class {className}(DbContextOptions<{className}> o) : {attr.TypeName}(o);";
+
+        var parameters = string.Join(", ", ctor.Parameters.Array.Select((p, i) =>
+        {
+            var type = i == ctor.OptionsIndex && !ctor.GenericOptions
+                ? $"DbContextOptions<{className}>"
+                : p.Type;
+            var defaultValue = p.Default is { } value ? " = " + value : "";
+            return type + " @" + p.Name + defaultValue;
+        }));
+
+        var arguments = string.Join(", ", ctor.Parameters.Array.Select(p => "@" + p.Name));
+
+        return $"internal sealed class {className}({parameters}) : {attr.TypeName}({arguments});";
+    }
+
+    // The context's constructor takes more than its options, so factories construct it through
+    // dependency injection rather than calling it directly.
+    private static bool NeedsDesignTimeServices(AttributeInfo attr)
+        => attr.Constructor is { } ctor && ctor.Parameters.Array.Length > 1;
+
+    // What a factory's options builder is typed for: the context itself when its constructor asks for
+    // DbContextOptions<TContext>, otherwise the subcontext.
+    private static string OptionsFor(string providerName, AttributeInfo attr)
+        => attr.Constructor is { GenericOptions: true } ? attr.TypeName : $"{providerName}Context";
+
+    // How a factory constructs the subcontext from its options, up to the opening parenthesis.
+    private static string ConstructFor(string providerName, AttributeInfo attr)
+        => NeedsDesignTimeServices(attr)
+            ? $"{attr.SchemaName}DesignTimeActivator.Create<{providerName}Context>("
+            : $"new {providerName}Context(";
+
+    private static string EmitDesignTimeActivator(AttributeInfo attr)
+    {
+        var configure = attr.DesignTimeServices is { } type
+            ? $"\n        Configure<{type}>(new global::Bitwarden.Server.Sdk.Database.DesignTimeContext {{ Services = services }});"
+            : "";
+        var configureMethod = attr.DesignTimeServices is null
+            ? ""
+            : """
+
+
+                // Through a type parameter, so an explicitly implemented ConfigureServices is reached too.
+                private static void Configure<TServices>(global::Bitwarden.Server.Sdk.Database.DesignTimeContext context)
+                    where TServices : global::Bitwarden.Server.Sdk.Database.IDatabaseDesignTimeServices
+                    => TServices.ConfigureServices(context);
+            """;
+
+        return $$"""
+        // Constructs a subcontext for EF tooling, resolving the parameters {{attr.TypeName}}'s constructor
+        // takes beyond its options from the schema's design-time services. The provider isn't disposed:
+        // the context may hold what it resolved, and the tooling's process ends with it.
+        file static class {{attr.SchemaName}}DesignTimeActivator
+        {
+            public static TContext Create<TContext>(DbContextOptions options)
+                where TContext : DbContext
+            {
+                var services = new ServiceCollection();{{configure}}
+                return ActivatorUtilities.CreateInstance<TContext>(services.BuildServiceProvider(), options);
+            }{{configureMethod}}
+        }
+        """;
+    }
+
+    private static string EmitFactory(string providerName, AttributeInfo attr) => providerName switch
     {
         "Sqlite" => EmitStandardFactory(
             "Sqlite",
+            attr,
             useCall: "UseSqlite(connectionString)",
             connectionStringKey: "Sqlite",
             defaultConnectionString: "Data Source=:memory:"),
+        // Scaffolding a SQL Server migration needs no server, so a local default is enough.
+        "SqlServer" => EmitStandardFactory(
+            "SqlServer",
+            attr,
+            useCall: "UseSqlServer(connectionString)",
+            connectionStringKey: "SqlServer",
+            defaultConnectionString: $"Server=localhost;Database={attr.SchemaName};Trusted_Connection=True;TrustServerCertificate=True"),
         "PostgreSql" => EmitStandardFactory(
             "PostgreSql",
+            attr,
             useCall: "UseNpgsql(connectionString)",
             connectionStringKey: "PostgreSql",
-            defaultConnectionString: $"Host=localhost;Database={schemaName}"),
+            defaultConnectionString: $"Host=localhost;Database={attr.SchemaName}"),
         // MySql has no usable default: ServerVersion.AutoDetect needs a reachable server.
         "MySql" => $$"""
         file sealed class MySqlContextFactory : IDesignTimeDbContextFactory<MySqlContext>
@@ -114,8 +209,8 @@ public sealed partial class DatabaseSetupGenerator
                     .Build()
                     .GetConnectionString("MySql")
                     ?? throw new InvalidOperationException(
-                        "Set ConnectionStrings__MySql before running EF tools against {{schemaName}}.");
-                return new MySqlContext(new DbContextOptionsBuilder<MySqlContext>()
+                        "Set ConnectionStrings__MySql before running EF tools against {{attr.SchemaName}}.");
+                return {{ConstructFor("MySql", attr)}}new DbContextOptionsBuilder<{{OptionsFor("MySql", attr)}}>()
                     .UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)).Options);
             }
         }
@@ -125,6 +220,7 @@ public sealed partial class DatabaseSetupGenerator
 
     private static string EmitStandardFactory(
         string providerName,
+        AttributeInfo attr,
         string useCall,
         string connectionStringKey,
         string defaultConnectionString) => $$"""
@@ -137,7 +233,7 @@ public sealed partial class DatabaseSetupGenerator
                     .AddCommandLine(args)
                     .Build()
                     .GetConnectionString("{{connectionStringKey}}") ?? "{{defaultConnectionString}}";
-                return new {{providerName}}Context(new DbContextOptionsBuilder<{{providerName}}Context>().{{useCall}}.Options);
+                return {{ConstructFor(providerName, attr)}}new DbContextOptionsBuilder<{{OptionsFor(providerName, attr)}}>().{{useCall}}.Options);
             }
         }
         """;
@@ -154,10 +250,10 @@ public sealed partial class DatabaseSetupGenerator
         MigrationData migrationData,
         ImmutableArray<ProviderSpec> providers)
     {
-        // SQL Server has no EF migrations to hand out, and the dispatcher refuses it outright
-        // rather than reporting an empty set, so Database.Migrate() fails loudly instead of
-        // silently applying nothing.
-        var efProviders = providers.Where(p => p.Name != "SqlServer").ToImmutableArray();
+        // SQL Server migrated by DbUp has no EF migrations to hand out, and the dispatcher refuses
+        // it outright rather than reporting an empty set, so Database.Migrate() fails loudly instead
+        // of silently applying nothing.
+        var efProviders = providers.Where(p => IsEfCore(attr, p)).ToImmutableArray();
 
         var entryArrays = string.Join("\n\n", efProviders.Select(p =>
         {
@@ -181,8 +277,8 @@ public sealed partial class DatabaseSetupGenerator
             return $"    private static readonly {SnapshotType} _{LowerFirst(p.Name)}Snapshot = {value};";
         }));
 
-        var entryDispatch = EmitProviderDispatch(providers, attr.SchemaName, p => $"_{LowerFirst(p.Name)}Entries");
-        var snapshotDispatch = EmitProviderDispatch(providers, attr.SchemaName, p => $"_{LowerFirst(p.Name)}Snapshot");
+        var entryDispatch = EmitProviderDispatch(providers, attr, p => $"_{LowerFirst(p.Name)}Entries");
+        var snapshotDispatch = EmitProviderDispatch(providers, attr, p => $"_{LowerFirst(p.Name)}Snapshot");
         var unsupported =
             "        throw new InvalidOperationException(\n"
             + $"            $\"Provider {{provider}} is not supported by {attr.TypeName}.\");";
@@ -221,13 +317,13 @@ public sealed partial class DatabaseSetupGenerator
 
     private static string EmitProviderDispatch(
         ImmutableArray<ProviderSpec> providers,
-        string schemaName,
+        AttributeInfo attr,
         Func<ProviderSpec, string> field)
-        => string.Join("\n", providers.Select(p => p.Name == "SqlServer"
+        => string.Join("\n", providers.Select(p => !IsEfCore(attr, p)
             ? $"        if (provider == \"{p.Assembly}\")\n"
               + "            throw new InvalidOperationException(\n"
-              + $"                \"{schemaName} migrates SQL Server with DbUp, not EF Core migrations. \"\n"
-              + $"                + \"Use the {schemaName} migrator instead of DbContext.Database calls.\");"
+              + $"                \"{attr.SchemaName} migrates SQL Server with DbUp, not EF Core migrations. \"\n"
+              + $"                + \"Use the {attr.SchemaName} migrator instead of DbContext.Database calls.\");"
             : $"        if (provider == \"{p.Assembly}\") return {field(p)};"));
 
     private static string EmitDiExtension(
@@ -254,6 +350,9 @@ public sealed partial class DatabaseSetupGenerator
             $"                    case DatabaseProvider.{p.Name}:\n" +
             $"                        builder.{ProviderUseCall(p.Name)};\n" +
             "                        break;"));
+
+        if (attr.SqlServerEfCore)
+            return EmitEfCoreDiExtension(attr, cases);
 
         return $$"""
         public static class {{attr.SchemaName}}ServiceCollectionExtensions
@@ -295,16 +394,33 @@ public sealed partial class DatabaseSetupGenerator
         """;
     }
 
+    // Every engine is migrated by EF Core, so there are no scripts to configure and no DbUp-only
+    // migrator build to register for.
+    private static string EmitEfCoreDiExtension(AttributeInfo attr, string cases) => $$"""
+        public static class {{attr.SchemaName}}ServiceCollectionExtensions
+        {
+            /// <summary>Registers {{attr.SchemaName}} migration services against the named options key {{Literal(attr.MigratorKey)}}.</summary>
+            public static IServiceCollection Add{{attr.SchemaName}}(this IServiceCollection services)
+                => services.AddDatabase<{{attr.TypeName}}, {{attr.SchemaName}}MigrationsAssembly>({{Literal(attr.MigratorKey)}},
+                    static (opts, builder) =>
+                    {
+                        switch (opts.Provider)
+                        {
+        {{cases}}
+                            default:
+                                throw new global::System.InvalidOperationException($"Provider {opts.Provider} is not supported by {{attr.SchemaName}}.");
+                        }
+                    },
+                    SqlServerMigrations.EfCore);
+        }
+        """;
+
     private static string EmitCli(
         AttributeInfo attr,
         ImmutableArray<ProviderSpec> providers,
         string? projectDir) => $$"""
         // CLI app: builds the System.CommandLine root command for the migration executable.
-        #if SQLSERVER_MIGRATOR_BUILD
-        {{EmitSqlServerCliApp(attr)}}
-        #else
-        {{EmitEfCoreCliApp(attr, providers, projectDir)}}
-        #endif // SQLSERVER_MIGRATOR_BUILD
+        {{EmitCliApp(attr, providers, projectDir)}}
 
         // CLI entry point, called from this assembly's Program.cs.
         internal static class {{attr.SchemaName}}MigrationProgram
@@ -312,6 +428,19 @@ public sealed partial class DatabaseSetupGenerator
             public static Task<int> RunAsync(string[] args)
                 => {{attr.SchemaName}}MigrationApp.Build().Parse(args).InvokeAsync();
         }
+        """;
+
+    private static string EmitCliApp(
+        AttributeInfo attr,
+        ImmutableArray<ProviderSpec> providers,
+        string? projectDir) => attr.SqlServerEfCore
+        ? EmitEfCoreCliApp(attr, providers, projectDir)
+        : $"""
+        #if SQLSERVER_MIGRATOR_BUILD
+        {EmitSqlServerCliApp(attr)}
+        #else
+        {EmitEfCoreCliApp(attr, providers, projectDir)}
+        #endif // SQLSERVER_MIGRATOR_BUILD
         """;
 
     private static string EmitSqlServerCliApp(AttributeInfo attr) => $$"""
@@ -384,7 +513,7 @@ public sealed partial class DatabaseSetupGenerator
             $"services => services.Add{attr.SchemaName}());"));
 
         var efProviders = string.Join("\n", providers
-            .Where(p => p.Name != "SqlServer")
+            .Where(p => IsEfCore(attr, p))
             .Select(p =>
                 $"            (\"{attr.Ns}.{p.Name}Context\", \"Migrations/{p.Name}\", \"{attr.Ns}.Migrations.{p.Name}\"),"));
 

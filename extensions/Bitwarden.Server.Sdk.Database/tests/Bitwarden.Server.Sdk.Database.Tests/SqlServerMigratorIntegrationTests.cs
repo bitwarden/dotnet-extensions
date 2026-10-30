@@ -135,6 +135,32 @@ public class SqlServerMigratorIntegrationTests(SqlServerFixture sqlServer) : ICl
     }
 
     [Fact(Explicit = true)]
+    public async Task MigrateAsync_TwoHostsAtOnceOnAFirstDeployment_BothStart()
+    {
+        // The same, before the database exists: both hosts can find it missing and both create it.
+        // Several pairs at once, since the window between the check and the create is narrow.
+        var pairs = await Task.WhenAll(Enumerable.Range(0, 4).Select(async i =>
+        {
+            var databaseName = $"first_deployment_test_{i}";
+            var (first, connectionString, _) = await BuildMigratorAsync(databaseName);
+            var (second, _, _) = await BuildMigratorAsync(databaseName);
+            return (first, second, connectionString);
+        }));
+
+        await Task.WhenAll(pairs.SelectMany(pair => new[]
+        {
+            pair.first.MigrateAsync(TestContext.Current.CancellationToken),
+            pair.second.MigrateAsync(TestContext.Current.CancellationToken),
+        }));
+
+        foreach (var (_, _, connectionString) in pairs)
+        {
+            Assert.Equal(2, (await JournalAsync(connectionString)).Count);
+            Assert.Equal(["initial"], await OrderNamesAsync(connectionString));
+        }
+    }
+
+    [Fact(Explicit = true)]
     public async Task DryRun_ReportsTheScriptsWithoutApplyingThem()
     {
         // The database doesn't exist yet, so preparing it is part of what a dry run has to survive.

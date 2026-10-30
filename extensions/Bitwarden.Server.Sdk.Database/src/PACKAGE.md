@@ -8,7 +8,8 @@ Applying `[assembly: DatabaseSetup<TContext>(providers)]` to a project causes th
 for each declared provider:
 
 - Provider-specific `DbContext` subclasses (`SqliteContext`, `PostgreSqlContext`, `MySqlContext`) —
-  SQL Server has none, since DbUp migrates it
+  SQL Server has none, since DbUp migrates it, unless the schema
+  [migrates SQL Server with EF Core](#ef-core-migrations-for-sql-server)
 - EF Core design-time factories for each provider (used by `dotnet ef` tooling)
 - A `Add{Schema}` DI extension method
 - A `Program` entry point that handles the migration CLI
@@ -17,7 +18,8 @@ At runtime the package provides:
 
 - An EF Core migrations runner (SQLite, PostgreSQL via Npgsql, MySQL via Pomelo or Microting's
   fork of it)
-- A DbUp migrations runner (SQL Server, using embedded `.sql` scripts)
+- A DbUp migrations runner (SQL Server, using embedded `.sql` scripts), or EF Core for SQL Server
+  too when the schema opts in
 - A hosted service that applies pending migrations automatically on self-hosted startup
 - `IDatabaseMigrator` — a keyed service you can resolve to run migrations on demand
 
@@ -82,6 +84,39 @@ The providers are required: they decide which engines the schema supports, so th
 from package references. The source generator derives the schema name from the context type name
 (`OrderDatabaseContext` → schema `OrderDatabase`, default key `Order`). Override the key with
 `MigratorKey` when the default doesn't match your configuration key.
+
+#### Contexts that take more than their options
+
+Each generated subcontext forwards the context's constructor, so a context can take services as
+well as its options, and can ask for `DbContextOptions<TContext>` rather than `DbContextOptions`.
+The context mustn't be `sealed` (`BWDB004`) while any engine is migrated by EF Core, since the
+subcontexts derive from it.
+
+EF Core tooling constructs the subcontexts through the generated design-time factories, which can't
+see the application's services. Name a type that registers what the constructor needs:
+
+```csharp
+[assembly: DatabaseSetup<OrderDatabaseContext>(
+    [DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql],
+    DesignTimeServices = typeof(OrderDesignTimeServices))]
+
+internal sealed class OrderDesignTimeServices : IDatabaseDesignTimeServices
+{
+    public static void ConfigureServices(DesignTimeContext context)
+        => context.Services.AddSingleton<ITenantFilter, NoTenantFilter>();
+}
+
+public class OrderDatabaseContext(DbContextOptions<OrderDatabaseContext> options, ITenantFilter tenants)
+    : DbContext(options)
+{
+    // ...
+}
+```
+
+Only design-time tooling uses these registrations; the application resolves its context from its own
+services as usual. A constructor whose extra parameters all have defaults needs none. One with a
+parameter nothing could supply is `BWDB008`, and a `DesignTimeServices` type that doesn't implement
+`IDatabaseDesignTimeServices` is `BWDB006`.
 
 ### 3. Register in your host application
 
@@ -175,6 +210,28 @@ Scripts are embedded by convention, so adding one needs no csproj change, and th
 the SQL Server script naming, so they can never be picked up as migrations DbUp should apply. A name
 that doesn't resolve throws immediately, listing what is embedded, rather than failing part-way
 through a migration run.
+
+## EF Core migrations for SQL Server
+
+By default SQL Server is migrated by DbUp from hand-authored scripts. A schema whose SQL Server
+database holds nothing the model doesn't describe — no stored procedures, views or table types — can
+have EF Core migrate SQL Server as it migrates the other engines:
+
+```csharp
+[assembly: DatabaseSetup<OrderDatabaseContext>(
+    [DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql, DatabaseProvider.MySql],
+    SqlServerMigrations = SqlServerMigrations.EfCore)]
+```
+
+The schema then gets a `SqlServerContext` and its design-time factory, `add-migration` scaffolds
+`Migrations/SqlServer/` alongside the others, and `IDatabaseMigrator` applies them with EF Core,
+recording them in `__EFMigrationsHistory` rather than DbUp's journal. Every engine's migrations are
+generated from the model, so `HasPendingModelChanges` covers SQL Server too, and EF Core's own
+migration lock serializes hosts migrating at once.
+
+Such a schema has no scripts, so none of the rest of this section applies to it: no script prefix,
+no phases, and no `SQLSERVER_MIGRATOR_BUILD`, which fails the build with an `#error`. Setting
+`SqlServerMigrations` without declaring SQL Server is `BWDB007`, a warning, since it has no effect.
 
 ## SQL Server migrations and `.sqlproj`
 
