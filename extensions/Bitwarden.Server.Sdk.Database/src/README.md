@@ -11,8 +11,9 @@ plumbing. See `PACKAGE.md` for the consumer guide.
 - `DatabaseSetupAttribute<TContext>` — assembly-level attribute. `MigratorKey` defaults to the
   schema name derived from `TContext` by stripping `DatabaseContext` (e.g. `VaultDatabaseContext` →
   `Vault`). `SqlServerMigrations` chooses DbUp (the default) or EF Core for SQL Server.
-  `DesignTimeServices` names an `IDatabaseDesignTimeServices` that registers the context's
-  constructor dependencies for the design-time factories.
+  `DesignTimeServices` names an `IDatabaseDesignTimeServices`, whose static `ConfigureServices`
+  registers the context's constructor dependencies for the design-time factories on the
+  `DesignTimeContext` it's given.
 
 ### Configuration
 

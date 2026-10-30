@@ -66,10 +66,10 @@ public partial class DatabaseSetupGeneratorTests
 
         public sealed class NoOwnership : IRowOwnership;
 
-        public sealed class MyDesignTimeServices : IDatabaseDesignTimeServices
+        internal sealed class MyDesignTimeServices : IDatabaseDesignTimeServices
         {
-            public void ConfigureServices(IServiceCollection services)
-                => services.AddSingleton<IRowOwnership, NoOwnership>();
+            static void IDatabaseDesignTimeServices.ConfigureServices(DesignTimeContext context)
+                => context.Services.AddSingleton<IRowOwnership, NoOwnership>();
         }
 
         public class MyDatabaseContext(DbContextOptions<MyDatabaseContext> options, IRowOwnership ownership, int retries = 3)
@@ -185,7 +185,9 @@ public partial class DatabaseSetupGeneratorTests
         Assert.Contains(
             "return MyDatabaseDesignTimeActivator.Create<SqlServerContext>(new DbContextOptionsBuilder<MyDatabaseContext>().UseSqlServer(connectionString).Options);",
             generated);
-        Assert.Contains("new global::My.App.MyDesignTimeServices().ConfigureServices(services);", generated);
+        Assert.Contains(
+            "Configure<global::My.App.MyDesignTimeServices>(new global::Bitwarden.Server.Sdk.Database.DesignTimeContext { Services = services });",
+            generated);
     }
 
     [Fact]

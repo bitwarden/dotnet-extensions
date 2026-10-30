@@ -100,10 +100,10 @@ see the application's services. Name a type that registers what the constructor 
     [DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql],
     DesignTimeServices = typeof(OrderDesignTimeServices))]
 
-public sealed class OrderDesignTimeServices : IDatabaseDesignTimeServices
+internal sealed class OrderDesignTimeServices : IDatabaseDesignTimeServices
 {
-    public void ConfigureServices(IServiceCollection services)
-        => services.AddSingleton<ITenantFilter, NoTenantFilter>();
+    public static void ConfigureServices(DesignTimeContext context)
+        => context.Services.AddSingleton<ITenantFilter, NoTenantFilter>();
 }
 
 public class OrderDatabaseContext(DbContextOptions<OrderDatabaseContext> options, ITenantFilter tenants)
@@ -115,8 +115,8 @@ public class OrderDatabaseContext(DbContextOptions<OrderDatabaseContext> options
 
 Only design-time tooling uses these registrations; the application resolves its context from its own
 services as usual. A constructor whose extra parameters all have defaults needs none. One with a
-parameter nothing could supply is `BWDB008`, and a `DesignTimeServices` type that isn't a concrete
-`IDatabaseDesignTimeServices` with a public parameterless constructor is `BWDB006`.
+parameter nothing could supply is `BWDB008`, and a `DesignTimeServices` type that doesn't implement
+`IDatabaseDesignTimeServices` is `BWDB006`.
 
 ### 3. Register in your host application
 

@@ -147,8 +147,18 @@ public sealed partial class DatabaseSetupGenerator
     private static string EmitDesignTimeActivator(AttributeInfo attr)
     {
         var configure = attr.DesignTimeServices is { } type
-            ? $"\n        new {type}().ConfigureServices(services);"
+            ? $"\n        Configure<{type}>(new global::Bitwarden.Server.Sdk.Database.DesignTimeContext {{ Services = services }});"
             : "";
+        var configureMethod = attr.DesignTimeServices is null
+            ? ""
+            : """
+
+
+                // Through a type parameter, so an explicitly implemented ConfigureServices is reached too.
+                private static void Configure<TServices>(global::Bitwarden.Server.Sdk.Database.DesignTimeContext context)
+                    where TServices : global::Bitwarden.Server.Sdk.Database.IDatabaseDesignTimeServices
+                    => TServices.ConfigureServices(context);
+            """;
 
         return $$"""
         // Constructs a subcontext for EF tooling, resolving the parameters {{attr.TypeName}}'s constructor
@@ -161,7 +171,7 @@ public sealed partial class DatabaseSetupGenerator
             {
                 var services = new ServiceCollection();{{configure}}
                 return ActivatorUtilities.CreateInstance<TContext>(services.BuildServiceProvider(), options);
-            }
+            }{{configureMethod}}
         }
         """;
     }

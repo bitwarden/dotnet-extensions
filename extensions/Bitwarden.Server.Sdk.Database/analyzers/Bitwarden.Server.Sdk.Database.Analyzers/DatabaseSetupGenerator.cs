@@ -101,8 +101,7 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor InvalidDesignTimeServices = new(
         id: "BWDB006",
         title: "DesignTimeServices can't be used",
-        messageFormat: "DesignTimeServices type {0} must be a non-abstract class implementing "
-            + "IDatabaseDesignTimeServices with a public parameterless constructor",
+        messageFormat: "DesignTimeServices type {0} must implement IDatabaseDesignTimeServices",
         category: "Bitwarden.Database",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -376,11 +375,9 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
     }
 
     private static bool IsUsableDesignTimeServices(INamedTypeSymbol type)
-        => type is { TypeKind: TypeKind.Class, IsAbstract: false, IsUnboundGenericType: false }
+        => type is { TypeKind: TypeKind.Class or TypeKind.Struct, IsUnboundGenericType: false }
             && type.AllInterfaces.Any(i =>
-                i.ToDisplayString() == "Bitwarden.Server.Sdk.Database.IDatabaseDesignTimeServices")
-            && type.InstanceConstructors.Any(c =>
-                c.DeclaredAccessibility == Accessibility.Public && c.Parameters.Length == 0);
+                i.ToDisplayString() == "Bitwarden.Server.Sdk.Database.IDatabaseDesignTimeServices");
 
     /// <summary>
     /// The engines named in the attribute's constructor argument, by <c>DatabaseProvider</c>

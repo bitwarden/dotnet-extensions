@@ -1,5 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
-
 namespace Bitwarden.Server.Sdk.Database;
 
 /// <summary>
@@ -9,12 +7,11 @@ namespace Bitwarden.Server.Sdk.Database;
 /// </summary>
 /// <remarks>
 /// Only design-time tooling, such as <c>add-migration</c>, uses these registrations. The application
-/// resolves its context from its own service collection as usual. Implementations need a public
-/// parameterless constructor.
+/// resolves its context from its own service collection as usual.
 /// </remarks>
 public interface IDatabaseDesignTimeServices
 {
-    /// <summary>Adds the context's constructor dependencies to <paramref name="services"/>.</summary>
-    /// <param name="services">The design-time service collection.</param>
-    void ConfigureServices(IServiceCollection services);
+    /// <summary>Adds the context's constructor dependencies to <see cref="DesignTimeContext.Services"/>.</summary>
+    /// <param name="context">What the design-time factory is building.</param>
+    static abstract void ConfigureServices(DesignTimeContext context);
 }
