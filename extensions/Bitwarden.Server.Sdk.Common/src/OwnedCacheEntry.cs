@@ -36,6 +36,11 @@ namespace Bitwarden.Server.Sdk.Common;
 /// is a miss to a reader and refuses a fill of any older version, so a slow read can't put back a
 /// value that a later change replaced.
 /// </para>
+/// <para>
+/// This cache needs Redis itself, not any <c>IDistributedCache</c>: a fill reads the stored version and
+/// writes in one atomic script, which a plain get and set can't do. It is separate from the caches
+/// <c>Bitwarden.Server.Sdk.Caching</c> configures.
+/// </para>
 /// </remarks>
 public static class OwnedCacheEntry
 {
