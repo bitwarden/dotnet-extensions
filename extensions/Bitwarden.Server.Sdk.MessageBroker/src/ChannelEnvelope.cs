@@ -4,18 +4,20 @@ using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-internal sealed class ChannelEnvelope<T> : Envelope<T>
+internal sealed class ChannelEnvelope<TPayload, TCeiling> : Envelope<TPayload, TCeiling>
+    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
+    where TCeiling : Payload<TPayload>.ICeiling
 {
-    private readonly ChannelWriter<Envelope<T>> _writer;
-    private readonly Func<Envelope<T>, CancellationToken, Task>? _escrowFallback;
+    private readonly ChannelWriter<Envelope<TPayload, TCeiling>> _writer;
+    private readonly Func<Envelope<TPayload, TCeiling>, CancellationToken, Task>? _escrowFallback;
     private readonly int _maxDeliveryCount;
     private readonly ILogger _logger;
     private readonly string _topicName;
 
     public ChannelEnvelope(
-        ChannelWriter<Envelope<T>> writer,
-        Func<Envelope<T>, CancellationToken, Task>? escrowFallback,
-        T message,
+        ChannelWriter<Envelope<TPayload, TCeiling>> writer,
+        Func<Envelope<TPayload, TCeiling>, CancellationToken, Task>? escrowFallback,
+        IEnumerable<Payload<TPayload>.IVariant> variants,
         string messageId,
         string? traceId,
         int deliveryCount,
@@ -23,7 +25,7 @@ internal sealed class ChannelEnvelope<T> : Envelope<T>
         ILogger logger,
         string topicName,
         Activity? activity = null)
-        : base(message, activity)
+        : base(variants, activity)
     {
         _writer = writer;
         _escrowFallback = escrowFallback;
@@ -79,6 +81,6 @@ internal sealed class ChannelEnvelope<T> : Envelope<T>
         return Task.CompletedTask;
     }
 
-    private ChannelEnvelope<T> CreateRedelivery() =>
-        new(_writer, _escrowFallback, Message, MessageId, TraceId, DeliveryCount + 1, _maxDeliveryCount, _logger, _topicName);
+    private ChannelEnvelope<TPayload, TCeiling> CreateRedelivery() =>
+        new(_writer, _escrowFallback, Variants, MessageId, TraceId, DeliveryCount + 1, _maxDeliveryCount, _logger, _topicName);
 }

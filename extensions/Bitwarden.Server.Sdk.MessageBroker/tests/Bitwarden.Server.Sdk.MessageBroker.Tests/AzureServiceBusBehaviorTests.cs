@@ -74,63 +74,11 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
     {
         // Azure Service Bus standard tier enforces a 256 KB per-message limit.
         // Publishing a larger payload should throw ServiceBusException.
-        var host = await BuildHostAsync(services => services.AddPublisher<OversizedItem>(TopicName));
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<OversizedItem>>(TopicName);
+        var host = await BuildHostAsync(services => services.AddPublisher<OversizedPayload, OversizedVariant>(TopicName));
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<OversizedPayload, OversizedVariant>>(TopicName);
         var oversizedPayload = new string('x', 300 * 1024); // ~300 KB > 256 KB limit
         await Assert.ThrowsAsync<ServiceBusException>(() =>
-            publisher.PublishAsync(new OversizedItem(oversizedPayload), TestContext.Current.CancellationToken));
-    }
-
-    [Fact(Timeout = 60 * 1000)]
-    public async Task BatchPublishOversizedMessageThrows()
-    {
-        // PublishBatchAsync uses SendMessagesAsync which also enforces the 256 KB per-message
-        // limit; a MessageSizeExceeded ServiceBusException propagates unwrapped.
-        var host = await BuildHostAsync(services => services.AddPublisher<OversizedItem>(TopicName));
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<OversizedItem>>(TopicName);
-        var oversizedPayload = new string('x', 300 * 1024); // ~300 KB > 256 KB limit
-        await Assert.ThrowsAsync<ServiceBusException>(() =>
-            publisher.PublishBatchAsync([new OversizedItem(oversizedPayload)], TestContext.Current.CancellationToken));
-    }
-
-    [Fact(Timeout = 60 * 1000)]
-    public async Task PublishBatchThrowsBrokerUnavailableExceptionWhenBrokerIsDown()
-    {
-        var config = CreateBrokerDownConfig();
-        var host = await BuildHostAsync(config, services => services.AddPublisher<MyItem>(TopicName));
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>(TopicName);
-
-        var ex = await Assert.ThrowsAsync<BrokerUnavailableException>(
-            () => publisher.PublishBatchAsync([new MyItem(1)], TestContext.Current.CancellationToken));
-        Assert.Equal(TopicName, ex.TopicName);
-        Assert.NotNull(ex.InnerException);
-    }
-
-    /// <summary>
-    /// Verifies that an active tracing span causes the <c>traceparent</c> application property
-    /// to be set on each message in a batch, covering the <c>if (traceId is not null)</c> branch
-    /// in <c>AzureServiceBusPublisher.PublishBatchAsync</c>.
-    /// </summary>
-    [Fact(Timeout = 60 * 1000)]
-    public async Task TracingSpanIsCreatedOnBatchPublish()
-    {
-        var activities = new ConcurrentBag<Activity>();
-        using var listener = new ActivityListener
-        {
-            ShouldListenTo = source => source.Name == "Bitwarden.Server.Sdk.MessageBroker",
-            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
-            ActivityStarted = activities.Add,
-        };
-        ActivitySource.AddActivityListener(listener);
-
-        var host = await BuildHostAsync(services => services.AddPublisher<MyItem>(TopicName));
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>(TopicName);
-
-        var before = activities.ToHashSet(ReferenceEqualityComparer.Instance);
-        await publisher.PublishBatchAsync([new MyItem(1)], TestContext.Current.CancellationToken);
-        var activity = Assert.Single(activities, a => !before.Contains(a) && a.OperationName == $"{TopicName} publish");
-
-        Assert.Equal(ActivityKind.Producer, activity.Kind);
+            publisher.Publish(new OversizedVariant(oversizedPayload)).SendAsync(TestContext.Current.CancellationToken));
     }
 
     /// <summary>
@@ -143,15 +91,15 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
     {
         var host = await BuildHostAsync(services =>
         {
-            services.AddPublisher<MyItem>(TopicName);
-            services.AddSubscriber<MyItem>(TopicName, SubscriptionName);
+            services.AddPublisher<MyItemPayload, MyItem>(TopicName);
+            services.AddSubscriber<MyItemPayload, MyItem>(TopicName, SubscriptionName);
         });
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>(TopicName);
-        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItem>>(SubscriptionKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
-        await publisher.PublishAsync(new MyItem(1), TestContext.Current.CancellationToken);
+        await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
 
-        Envelope<MyItem>? captured = null;
+        Envelope<MyItemPayload, MyItem>? captured = null;
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {
             captured = envelope;
@@ -188,7 +136,12 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
     }
 }
 
-public record OversizedItem(string Payload);
+public sealed record OversizedVariant(string Data) : OversizedPayload.ISole;
+
+public class OversizedPayload : Payload<OversizedPayload, OversizedVariant, OversizedVariant>, IPayloadVariants<OversizedPayload>
+{
+    public static IReadOnlyList<(Type, string)> Variants => [(typeof(OversizedVariant), nameof(OversizedVariant))];
+}
 
 public class AzureServiceBusFixture : IAsyncLifetime
 {

@@ -3,25 +3,39 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Bitwarden.Server.Sdk.MessageBroker;
 
-/// <summary>Serializes and deserializes message broker messages.</summary>
+/// <summary>Serializes and deserializes payload variant chains for the wire.</summary>
 /// <remarks>
 /// Register a custom implementation using
 /// <see cref="ServiceCollectionServiceExtensions.AddKeyedSingleton{TService,TImplementation}(IServiceCollection,object)"/>
 /// keyed to the topic name <em>before</em> calling
-/// <see cref="MessageBrokerServiceCollectionExtensions.AddPublisher{T}"/> or
-/// <see cref="MessageBrokerServiceCollectionExtensions.AddSubscriber{T}"/> to replace the default
-/// System.Text.Json serializer for that topic:
+/// <see cref="Microsoft.Extensions.DependencyInjection.MessageBrokerServiceCollectionExtensions.AddPublisher{TPayload, TCeiling}"/>
+/// or
+/// <see cref="Microsoft.Extensions.DependencyInjection.MessageBrokerServiceCollectionExtensions.AddSubscriber{TPayload, TCeiling}"/>
+/// to replace the default System.Text.Json serializer for that topic:
 /// <code>
 /// services.AddKeyedSingleton&lt;IMessageSerializer, MySerializer&gt;("my-topic");
-/// services.AddPublisher&lt;MyMessage&gt;("my-topic");
+/// services.AddPublisher&lt;MyPayload,MyVariantCeiling&gt;("my-topic");
 /// </code>
 /// A non-keyed <c>AddSingleton&lt;IMessageSerializer&gt;</c> registration is silently ignored.
 /// </remarks>
 public interface IMessageSerializer
 {
-    /// <summary>Serializes <paramref name="message"/> into <paramref name="destination"/>.</summary>
-    void Serialize<T>(T message, IBufferWriter<byte> destination);
+    /// <summary>
+    /// Serializes <paramref name="variants"/> into <paramref name="destination"/>. Each variant is
+    /// tagged with its concrete type so a subscriber can decode a variant it recognizes and skip
+    /// any it does not.
+    /// </summary>
+    void SerializeVariants<TPayload>(
+        IEnumerable<Payload<TPayload>.IVariant> variants,
+        IBufferWriter<byte> destination)
+        where TPayload : Payload<TPayload>, IPayloadVariants<TPayload>;
 
-    /// <summary>Deserializes a message from <paramref name="source"/>.</summary>
-    T? Deserialize<T>(ReadOnlySpan<byte> source);
+    /// <summary>
+    /// Deserializes the variants the subscriber can decode from <paramref name="source"/>.
+    /// Unknown variant types are silently skipped so newer publishers do not break older
+    /// subscribers.
+    /// </summary>
+    IReadOnlyList<Payload<TPayload>.IVariant> DeserializeVariants<TPayload>(
+        ReadOnlySpan<byte> source)
+        where TPayload : Payload<TPayload>, IPayloadVariants<TPayload>;
 }

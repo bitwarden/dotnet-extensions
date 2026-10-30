@@ -5,7 +5,12 @@ using Microsoft.Extensions.Hosting;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Microbenchmarks;
 
-public record BenchmarkMessage(int Id);
+public sealed record BenchmarkMessage(int Id) : BenchmarkPayload.ISole;
+
+public class BenchmarkPayload : Payload<BenchmarkPayload, BenchmarkMessage, BenchmarkMessage>, IPayloadVariants<BenchmarkPayload>
+{
+    public static IReadOnlyList<(Type, string)> Variants => [(typeof(BenchmarkMessage), nameof(BenchmarkMessage))];
+}
 
 /// <summary>
 /// Measures end-to-end throughput: publish <see cref="MessageCount"/> messages and wait
@@ -15,8 +20,8 @@ public record BenchmarkMessage(int Id);
 public abstract class MessageBrokerBenchmarks
 {
     private IHost? _host;
-    private IPublisher<BenchmarkMessage>? _publisher;
-    private ISubscriber<BenchmarkMessage>? _subscriber;
+    private Publisher<BenchmarkPayload, BenchmarkMessage>? _publisher;
+    private ISubscriber<BenchmarkPayload, BenchmarkMessage>? _subscriber;
     private bool _configured;
 
     private const string TopicName = "bench";
@@ -57,15 +62,15 @@ public abstract class MessageBrokerBenchmarks
             .ConfigureAppConfiguration(b => b.AddInMemoryCollection(config))
             .ConfigureServices(services =>
             {
-                services.AddPublisher<BenchmarkMessage>(TopicName);
-                services.AddSubscriber<BenchmarkMessage>(TopicName, TopicName);
+                services.AddPublisher<BenchmarkPayload, BenchmarkMessage>(TopicName);
+                services.AddSubscriber<BenchmarkPayload, BenchmarkMessage>(TopicName, TopicName);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
             .Build();
 
         await _host.StartAsync();
-        _publisher = _host.Services.GetRequiredKeyedService<IPublisher<BenchmarkMessage>>(TopicName);
-        _subscriber = _host.Services.GetRequiredKeyedService<ISubscriber<BenchmarkMessage>>(SubscriptionKey);
+        _publisher = _host.Services.GetRequiredKeyedService<Publisher<BenchmarkPayload, BenchmarkMessage>>(TopicName);
+        _subscriber = _host.Services.GetRequiredKeyedService<ISubscriber<BenchmarkPayload, BenchmarkMessage>>(SubscriptionKey);
         _configured = true;
     }
 
@@ -107,7 +112,7 @@ public abstract class MessageBrokerBenchmarks
         });
 
         for (var i = 0; i < MessageCount; i++)
-            await _publisher!.PublishAsync(new BenchmarkMessage(i), CancellationToken.None);
+            await _publisher!.Publish(new BenchmarkMessage(i)).SendAsync(CancellationToken.None);
 
         await consumeTask;
     }
