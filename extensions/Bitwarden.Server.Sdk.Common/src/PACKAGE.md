@@ -142,4 +142,3 @@ Only the length is checked. The value is never read or decrypted.
 | `EncryptedAttribute`, `PersonalDataAttribute`                            | Mark a field as Protected Data or as personal data                                       |
 | `OwnedCacheEntry`                                                        | How a service-owned cache entry is stored in Redis                                       |
 | `IServiceExtension`, `ServiceExtensionAttribute`                         | How a package configures every service that references it                                |
-| `IReadinessCheck`, `ReadinessResult`                                     | Something a service needs to do its work, reported to its readiness probe                |
