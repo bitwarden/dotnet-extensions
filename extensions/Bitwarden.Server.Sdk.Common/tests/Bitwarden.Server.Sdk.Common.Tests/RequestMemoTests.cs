@@ -2,16 +2,12 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Bitwarden.Server.Sdk.Common.Tests;
 
-/// <summary>
-/// What a request remembers about the acting person: read once, kept apart by organization and
-/// person, never shared with another request, shared with the request's own scopes.
-/// </summary>
 public sealed class RequestMemoTests
 {
     private static readonly Guid Organization = Guid.NewGuid();
     private static readonly Guid Person = Guid.NewGuid();
 
-    private readonly ServiceProvider _services = new ServiceCollection().AddRequestMemo().BuildServiceProvider();
+    private readonly ServiceProvider _services = new ServiceCollection().AddScoped<RequestMemo>().BuildServiceProvider();
 
     [Fact]
     public async Task RememberAsync_AskedTwice_ReadsOnce()

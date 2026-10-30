@@ -1,11 +1,5 @@
-using System.Text.Json;
-
 namespace Bitwarden.Server.Sdk.Common.Tests;
 
-/// <summary>
-/// <c>Bitwarden-Context</c>: a closed, versioned object, written by the platform alone and read
-/// strictly.
-/// </summary>
 public sealed class CallerContextHeaderTests
 {
     private static readonly Guid Person = new("b0000000-0000-4000-8000-000000000001");
@@ -27,7 +21,6 @@ public sealed class CallerContextHeaderTests
             written);
     }
 
-    // The provider a staff member acts through in a client: carried on any call, for the record alone.
     [Fact]
     public void Write_ThenParse_ARecordedProvider_RoundTrips()
     {
@@ -40,7 +33,6 @@ public sealed class CallerContextHeaderTests
         Assert.Equal(provider, read.RecordedProvider);
     }
 
-    // The acting person's organizations, for feature flags below the product layer.
     [Fact]
     public void Write_ThenParse_Organizations_RoundTrip()
     {
@@ -65,7 +57,6 @@ public sealed class CallerContextHeaderTests
         Assert.Equal("""{"v":1}""", CallerContextHeader.Write(new CallerContextValue { Organizations = [] }));
     }
 
-    // The most a person may list fits the limit beside every other member.
     [Fact]
     public void Write_TheMostOrganizations_FitsTheLimit()
     {
@@ -93,7 +84,6 @@ public sealed class CallerContextHeaderTests
         }));
     }
 
-    // Never absent: it always says which version it speaks.
     [Fact]
     public void Write_NothingToCarry_IsTheVersionAlone()
     {
@@ -155,6 +145,8 @@ public sealed class CallerContextHeaderTests
     [InlineData("""{"v":1,"clientIp":12}""")]
     [InlineData("""{"v":1,"clientIp":"not an address"}""")]
     [InlineData("""{"v":1,"deviceType":"a device; with prose"}""")]
+    [InlineData("""{"v":1,"deviceType":"10\n"}""")]
+    [InlineData("""{"v":1,"deviceIdentifier":"device-1\n"}""")]
     [InlineData("""{"v":1,"deviceIdentifier":"has spaces in it"}""")]
     [InlineData("""{"v":1,"deviceIdentifier":{"nested":1}}""")]
     [InlineData("""{"v":1,"credential":"user"}""")]
@@ -179,6 +171,10 @@ public sealed class CallerContextHeaderTests
     [InlineData("""{"v":1,"organizations":[""")]
     [InlineData("{\"v\":1,\"clientIp\"")]
     [InlineData("{\"v\":1,\"organizations\":[\"a0000000-0000-4000-8000-000000000001\"")]
+    // A lone surrogate in any string.
+    [InlineData("""{"v":1,"\uD800":1}""")]
+    [InlineData("""{"v":1,"deviceType":"\uD800"}""")]
+    [InlineData("""{"v":1,"organizations":["\uD800"]}""")]
     public void TryParse_Malformed_IsRefused(string header)
     {
         Assert.False(CallerContextHeader.TryParse(header, out _, out var problem));
@@ -189,6 +185,8 @@ public sealed class CallerContextHeaderTests
     [
         new CallerContextValue { ClientIp = "not an address" },
         new CallerContextValue { DeviceType = "a device; with prose" },
+        new CallerContextValue { DeviceType = "10\n" },
+        new CallerContextValue { DeviceIdentifier = "device-1\n" },
         new CallerContextValue { DeviceIdentifier = "has spaces in it" },
         new CallerContextValue { Credential = (CallerCredential)99 },
         new CallerContextValue { RecordedProvider = Guid.Empty },
@@ -216,7 +214,6 @@ public sealed class CallerContextHeaderTests
         Assert.Contains("16384", problem, StringComparison.Ordinal);
     }
 
-    // A refusal names the member, and never echoes what the caller sent.
     [Fact]
     public void TryParse_AnUnknownMember_NamesItWithoutItsValue()
     {
@@ -226,12 +223,32 @@ public sealed class CallerContextHeaderTests
         Assert.DoesNotContain("do-not-echo", problem, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Credential_InAnEnvelope_IsWrittenAllCaps()
+    [Theory]
+    [InlineData("10", true)]
+    [InlineData("10\n", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void IsDeviceType_AcceptsOnlyAShortName(string? value, bool expected)
     {
-        var json = JsonSerializer.Serialize(new { Credential = (CallerCredential?)CallerCredential.Machine });
+        Assert.Equal(expected, CallerContextHeader.IsDeviceType(value));
+    }
 
-        Assert.Equal("""{"Credential":"MACHINE"}""", json);
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<CallerCredential>("\"machine\""));
+    [Theory]
+    [InlineData("device:1_a-b", true)]
+    [InlineData("device-1\n", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void IsDeviceIdentifier_AcceptsOnlyWhatAPushTagAllows(string? value, bool expected)
+    {
+        Assert.Equal(expected, CallerContextHeader.IsDeviceIdentifier(value));
+    }
+
+    [Fact]
+    public void TryParse_AnUnknownMemberEndingInALineFeed_IsNotNamed()
+    {
+        Assert.False(CallerContextHeader.TryParse("""{"v":1,"secret\n":1}""", out _, out var problem));
+
+        Assert.Contains("a member", problem, StringComparison.Ordinal);
+        Assert.DoesNotContain("\n", problem, StringComparison.Ordinal);
     }
 }

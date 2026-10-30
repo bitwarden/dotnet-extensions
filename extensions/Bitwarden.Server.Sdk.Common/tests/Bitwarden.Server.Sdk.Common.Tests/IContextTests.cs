@@ -1,7 +1,5 @@
 namespace Bitwarden.Server.Sdk.Common.Tests;
 
-// Members added after the three owners are defaulted, so an implementation predating them keeps
-// compiling and answers "unknown" for each.
 public sealed class IContextTests
 {
     [Fact]

@@ -23,15 +23,6 @@
           "Mono.Cecil": "0.11.6"
         }
       },
-      "NSubstitute": {
-        "type": "Direct",
-        "requested": "[5.3.0, 5.3.0]",
-        "resolved": "5.3.0",
-        "contentHash": "lJ47Cps5Qzr86N99lcwd+OUvQma7+fBgr8+Mn+aOC0WrlqMNkdivaYD9IvnZ5Mqo6Ky3LS7ZI+tUq1/s9ERd0Q==",
-        "dependencies": {
-          "Castle.Core": "5.1.1"
-        }
-      },
       "xunit.v3.mtp-v2": {
         "type": "Direct",
         "requested": "[3.2.2, 3.2.2]",
@@ -41,14 +32,6 @@
           "xunit.analyzers": "1.27.0",
           "xunit.v3.assert": "[3.2.2]",
           "xunit.v3.core.mtp-v2": "[3.2.2]"
-        }
-      },
-      "Castle.Core": {
-        "type": "Transitive",
-        "resolved": "5.1.1",
-        "contentHash": "rpYtIczkzGpf+EkZgDr9CClTdemhsrwA/W5hMoPjLkRFnXzH44zDLoovXeKtmxb1ykXK9aJVODSpiJml8CTw2g==",
-        "dependencies": {
-          "System.Diagnostics.EventLog": "6.0.0"
         }
       },
       "Microsoft.ApplicationInsights": {
@@ -128,11 +111,6 @@
         "type": "Transitive",
         "resolved": "0.11.6",
         "contentHash": "f33RkDtZO8VlGXCtmQIviOtxgnUdym9xx/b1p9h91CRGOsJFxCFOFK1FDbVt1OCf1aWwYejUFa2MOQyFWTFjbA=="
-      },
-      "System.Diagnostics.EventLog": {
-        "type": "Transitive",
-        "resolved": "6.0.0",
-        "contentHash": "lcyUiXTsETK2ALsZrX+nWuHSIQeazhqPphLfaRxzdGaG93+0kELqpgEHtwWOlQe7+jSFnKwaCAgL4kjeZCQJnw=="
       },
       "xunit.analyzers": {
         "type": "Transitive",

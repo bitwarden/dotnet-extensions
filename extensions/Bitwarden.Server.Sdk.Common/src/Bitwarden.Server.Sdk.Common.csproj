@@ -2,9 +2,6 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -19,8 +16,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Abstractions only, for IServiceExtension. Every caller of this package already has both
-         through Microsoft.Extensions.Http or the ASP.NET framework, so nothing new is pulled in. -->
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.13" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.13" />
   </ItemGroup>

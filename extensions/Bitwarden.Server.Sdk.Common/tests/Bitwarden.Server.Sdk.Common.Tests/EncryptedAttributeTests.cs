@@ -1,7 +1,5 @@
 namespace Bitwarden.Server.Sdk.Common.Tests;
 
-// A member holding ciphertext is checked for its length and nothing else, and a declaration that
-// states no bound is a mistake in the resource, refused rather than accepting every value.
 public sealed class EncryptedAttributeTests
 {
     [Fact]

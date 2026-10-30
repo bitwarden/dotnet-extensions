@@ -1,6 +1,5 @@
 namespace Bitwarden.Server.Sdk.Common.Tests.Exceptions;
 
-// Says which service failed the caller and how, in a sentence the caller can read.
 public sealed class ServiceUnavailableExceptionTests
 {
     [Fact]

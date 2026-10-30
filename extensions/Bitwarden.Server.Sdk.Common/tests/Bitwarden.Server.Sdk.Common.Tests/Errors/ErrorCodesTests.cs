@@ -4,7 +4,6 @@ using Bitwarden.Server.Sdk.Common.Errors;
 
 namespace Bitwarden.Server.Sdk.Common.Tests.Errors;
 
-// Callers branch on these codes, so each is a stable, distinct, kebab-case word.
 public sealed partial class ErrorCodesTests
 {
     private static readonly string[] Codes = typeof(ErrorCodes)

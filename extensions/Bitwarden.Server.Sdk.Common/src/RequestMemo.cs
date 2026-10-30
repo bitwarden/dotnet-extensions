@@ -1,6 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-
 namespace Bitwarden.Server.Sdk.Common;
 
 /// <summary>
@@ -8,26 +5,16 @@ namespace Bitwarden.Server.Sdk.Common;
 /// </summary>
 /// <remarks>
 /// <para>
-/// A request often asks the same question many times: who the caller is in the organization, which
-/// collections or projects their grants reach. Each answer is the same for the rest of the request,
-/// so it is read once and remembered here:
+/// A request often asks the same question many times, such as which collections a member's grants
+/// reach. Each answer is the same for the rest of the request, so it is read once and remembered:
 /// </para>
 /// <code>
 /// var grants = await memo.RememberAsync("grants", organization, member, () => ReadGrantsAsync(member));
 /// </code>
 /// <para>
-/// <b>Never across callers.</b> A memo is scoped to one request, which has one acting person, and
-/// every fact is keyed by the organization and the person or membership it is about as well. The
-/// only things it may be shared with are scopes opened for the same request (<see cref="Share"/>),
-/// such as one per organization in a read across several. A cache that outlives the request is a
-/// different design, with invalidation, and is not this.
-/// </para>
-/// <para>
-/// <b>Never stale after a write.</b> Registered with
-/// <c>AddRequestMemo&lt;TContext&gt;()</c> (Bitwarden.Server.Sdk.Data), it forgets everything whenever the
-/// request saves to that database, so a request that changes a grant and then decides access reads
-/// the grant again. A service with no database of its own registers it with
-/// <see cref="RequestMemoServiceCollectionExtensions.AddRequestMemo"/>.
+/// A memo is scoped to one request, and every fact is also keyed by the organization and the
+/// subject it is about. It is never shared across callers. Call <see cref="Forget"/> after a write
+/// that could change a remembered fact.
 /// </para>
 /// <para>
 /// Not thread-safe: a request's work runs one step at a time.
@@ -49,7 +36,9 @@ public sealed class RequestMemo
         _facts = request._facts;
     }
 
-    /// <summary>The fact, read the first time it is asked for in this request.</summary>
+    /// <summary>
+    /// The fact, read the first time it is asked for in this request.
+    /// </summary>
     /// <typeparam name="T">The fact's type.</typeparam>
     /// <param name="fact">What is being asked: one name for each kind of fact.</param>
     /// <param name="organization">The organization it is about.</param>
@@ -74,25 +63,8 @@ public sealed class RequestMemo
         return answer;
     }
 
-    /// <summary>Forgets everything remembered.</summary>
-    public void Forget() => _facts.Clear();
-}
-
-/// <summary>Registers <see cref="RequestMemo"/>.</summary>
-public static class RequestMemoServiceCollectionExtensions
-{
     /// <summary>
-    /// A <see cref="RequestMemo"/> for each request, for a service with no database of its own to
-    /// forget on.
+    /// Forgets everything remembered.
     /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <returns>The service collection.</returns>
-    public static IServiceCollection AddRequestMemo(this IServiceCollection services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        services.TryAddScoped<RequestMemo>();
-
-        return services;
-    }
+    public void Forget() => _facts.Clear();
 }

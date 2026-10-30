@@ -3,8 +3,6 @@ using Bitwarden.Server.Sdk.Common.Errors;
 
 namespace Bitwarden.Server.Sdk.Common.Tests.Errors;
 
-// The error document is shared by the service writing it and the client reading it, so it must
-// survive a round trip through JSON as the web defaults write it.
 public sealed class ErrorResponseTests
 {
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);

@@ -1,6 +1,5 @@
 namespace Bitwarden.Server.Sdk.Common.Tests;
 
-// The writer and every reader must agree on where an entry lives and what its fields are called.
 public sealed class OwnedCacheEntryTests
 {
     private static readonly Guid Id = Guid.Parse("a0000000-0000-4000-8000-000000000001");

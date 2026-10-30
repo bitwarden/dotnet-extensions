@@ -1,6 +1,5 @@
 namespace Bitwarden.Server.Sdk.Common.Tests;
 
-// The header names are a wire contract between services; renaming one silently drops the context.
 public sealed class BitwardenHeadersTests
 {
     [Fact]

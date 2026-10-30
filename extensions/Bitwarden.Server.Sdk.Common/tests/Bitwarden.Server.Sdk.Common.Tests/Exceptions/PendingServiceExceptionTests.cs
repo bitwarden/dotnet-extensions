@@ -1,6 +1,5 @@
 namespace Bitwarden.Server.Sdk.Common.Tests.Exceptions;
 
-// A rule waiting on a dependency refuses out loud, as a not-implemented failure naming what it waits on.
 public sealed class PendingServiceExceptionTests
 {
     [Fact]

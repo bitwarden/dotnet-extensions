@@ -2,7 +2,6 @@ using Bitwarden.Server.Sdk.Common.Errors;
 
 namespace Bitwarden.Server.Sdk.Common.Tests.Errors;
 
-// The details a caller reads name what was wrong, in the caller's own terms.
 public sealed class ErrorDetailsTests
 {
     [Fact]

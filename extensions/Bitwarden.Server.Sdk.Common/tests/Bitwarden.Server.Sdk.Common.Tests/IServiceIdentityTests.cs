@@ -1,6 +1,5 @@
 namespace Bitwarden.Server.Sdk.Common.Tests;
 
-// A service names itself once; whether it is a product service decides which audience it accepts.
 public sealed class IServiceIdentityTests
 {
     [Fact]

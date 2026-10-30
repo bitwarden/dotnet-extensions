@@ -1,6 +1,5 @@
 namespace Bitwarden.Server.Sdk.Common.Tests;
 
-// A readiness check answers yes, or no with a reason a probe can show.
 public sealed class IReadinessCheckTests
 {
     [Fact]

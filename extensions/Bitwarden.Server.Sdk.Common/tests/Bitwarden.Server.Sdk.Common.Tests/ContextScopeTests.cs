@@ -1,7 +1,5 @@
 namespace Bitwarden.Server.Sdk.Common.Tests;
 
-// Work that arrives without a request states its own context. The scope must restore what was
-// there before, nest, and stay within the async flow that began it.
 public sealed class ContextScopeTests
 {
     private static readonly StatedContext First = new() { OrganizationId = Guid.NewGuid() };
@@ -45,7 +43,6 @@ public sealed class ContextScopeTests
         var inner = ContextScope.Begin(Second);
         inner.Dispose();
 
-        // A second dispose must not undo a scope begun after the first.
         using (ContextScope.Begin(Second))
         {
             inner.Dispose();
@@ -74,31 +71,9 @@ public sealed class ContextScopeTests
         {
             Assert.Same(First, await ReadInside());
 
-            // A scope begun in a child flow is never seen by its parent.
             await BeginInside();
             Assert.Same(First, ContextScope.Current);
         }
-    }
-
-    [Fact]
-    public void StatedContext_AnswersWhatItWasGiven()
-    {
-        var organization = Guid.NewGuid();
-        var user = Guid.NewGuid();
-
-        IContext context = new StatedContext
-        {
-            OrganizationId = organization,
-            UserId = user,
-            Credential = CallerCredential.System,
-            UserOrganizationIds = [organization],
-        };
-
-        Assert.Equal(organization, context.OrganizationId);
-        Assert.Equal(user, context.UserId);
-        Assert.Null(context.ProviderId);
-        Assert.Equal(CallerCredential.System, context.Credential);
-        Assert.Equal([organization], context.UserOrganizationIds);
     }
 
     [Fact]

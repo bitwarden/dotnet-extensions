@@ -2,7 +2,6 @@ using System.Reflection;
 
 namespace Bitwarden.Server.Sdk.Common.Tests;
 
-// A marker on a resource's properties, read where a copy could reach more readers than the resource does.
 public sealed class PersonalDataAttributeTests
 {
     [Fact]
