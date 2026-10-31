@@ -327,8 +327,16 @@ internal static class ModelValidation
     /// <summary>
     /// A map of strings to plain values, such as a document's <c>meta</c>: nothing to validate inside.
     /// </summary>
-    private static bool IsDictionaryOfSimple(Type type) =>
-        IsDictionary(type) && ValueTypeOf(type) is var value && (value == type || !IsComplex(value));
+    private static bool IsDictionaryOfSimple(Type type)
+    {
+        if (!IsDictionary(type))
+        {
+            return false;
+        }
+
+        var value = ValueTypeOf(type);
+        return value == type || !IsComplex(value);
+    }
 
     /// <summary>
     /// The type of a dictionary's values: <see cref="object"/> for a dictionary that does not say.

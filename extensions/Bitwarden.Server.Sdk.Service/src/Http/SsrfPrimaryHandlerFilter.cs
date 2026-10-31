@@ -19,7 +19,12 @@ internal sealed class SsrfPrimaryHandlerFilter(string? name, Func<IServiceProvid
     {
         next(builder);
 
-        if ((name is not null && builder.Name != name) || !applies(builder.Services))
+        if (name is not null && builder.Name != name)
+        {
+            return;
+        }
+
+        if (!applies(builder.Services))
         {
             return;
         }

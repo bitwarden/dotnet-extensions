@@ -143,7 +143,9 @@ internal static class StandardEndpointCheck
                 || definition == typeof(BulkDelete<>) || definition == typeof(BulkAction<>)
                 || definition == typeof(BulkAction<,>);
 
-            if (type == typeof(Query) || (filtered && !checks))
+            var uncheckedFilter = filtered && !checks;
+
+            if (type == typeof(Query) || uncheckedFilter)
             {
                 problems.Add(
                     $"'{StandardEndpointConvention.NameOf(method)}' takes '{parameter.Name}' as a "
