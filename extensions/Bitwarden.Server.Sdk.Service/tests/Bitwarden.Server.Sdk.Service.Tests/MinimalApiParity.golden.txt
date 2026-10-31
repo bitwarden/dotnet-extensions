@@ -1,0 +1,176 @@
+create valid
+201 application/json; charset=utf-8 /api/v1/parity-items/created {"data":{"id":"created","type":"parity-item","attributes":{"name":"ok","quantity":2}}}
+create invalid everywhere
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The field Name must be a string with a maximum length of 10.","source":{"pointer":"/data/attributes/name"}},{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The field Note must be a string with a maximum length of 255.","source":{"pointer":"/data/attributes/note"}},{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The field Secret must be an encrypted string of at most 50 characters.","source":{"pointer":"/data/attributes/secret"}},{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The field Quantity must be between 1 and 100.","source":{"pointer":"/data/attributes/quantity"}},{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The field Zip must be a string with a maximum length of 5.","source":{"pointer":"/data/attributes/address/zip"}},{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The City field is required.","source":{"pointer":"/data/attributes/address/city"}},{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The field Zip must be a string with a maximum length of 5.","source":{"pointer":"/data/attributes/others/1/zip"}},{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The City field is required.","source":{"pointer":"/data/attributes/others/1/city"}}]}
+create name missing
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"field-required","title":"A required field is missing.","detail":"The 'name' field is required.","source":{"pointer":"/data/attributes/name"}}]}
+create malformed
+400 application/json; charset=utf-8  {"errors":[{"status":"400","code":"malformed-json","title":"The request body could not be parsed.","detail":"The request body is not valid JSON.","source":{"pointer":"/"}}]}
+create empty
+400 application/json; charset=utf-8  {"errors":[{"status":"400","code":"malformed-json","title":"The request body could not be parsed.","detail":"The request body is empty.","source":{"pointer":"/"}}]}
+create no data
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"field-required","title":"A required field is missing.","detail":"The 'data' field is required.","source":{"pointer":"/data"}}]}
+create wrong type
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-resource-type","title":"The resource type is not the one this endpoint serves.","detail":"A resource of type 'parity-item' was expected, but 'other' was declared.","source":{"pointer":"/data/type"}}]}
+create wrong attribute type
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-type","title":"A field has the wrong type.","detail":"The 'quantity' field must be a number.","source":{"pointer":"/data/attributes/quantity"}}]}
+create unknown attribute
+201 application/json; charset=utf-8 /api/v1/parity-items/created {"data":{"id":"created","type":"parity-item","attributes":{"name":"ok","quantity":2}}}
+create as text
+415 application/json; charset=utf-8  {"errors":[{"status":"415","code":"unsupported-media-type","title":"The request body's media type is not supported.","detail":"The request body must be sent as application/json."}]}
+update valid
+200 application/json; charset=utf-8  {"data":{"id":"abc","type":"parity-item","attributes":{"name":"ok","quantity":2}}}
+update invalid
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The field Quantity must be between 1 and 100.","source":{"pointer":"/data/attributes/quantity"}}]}
+submit valid
+200 application/json; charset=utf-8  {"data":{"id":"abc","type":"parity-item","attributes":{"name":"item","note":"hi 2","quantity":1}}}
+submit invalid everywhere
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The field Count must be between 1 and 10.","source":{"pointer":"/count"}},{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The Email field is not a valid e-mail address.","source":{"pointer":"/email"}},{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The Subject field is required.","source":{"pointer":"/subject"}},{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The City field is required.","source":{"pointer":"/address/city"}},{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The City field is required.","source":{"pointer":"/items/1/city"}}]}
+submit empty subject
+200 application/json; charset=utf-8  {"data":{"id":"abc","type":"parity-item","attributes":{"name":"item","note":" 2","quantity":1}}}
+submit blank subject
+200 application/json; charset=utf-8  {"data":{"id":"abc","type":"parity-item","attributes":{"name":"item","note":"   2","quantity":1}}}
+form empty grant
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The GrantType field is required.","source":{"pointer":"/grant_type"}}]}
+submit seven
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"Seven is not allowed.","source":{"pointer":"/count"}}]}
+submit malformed
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"'n' is an invalid start of a property name. Expected a '\"'. Path: $ | LineNumber: 0 | BytePositionInLine: 1.","source":{"pointer":"/data"}}]}
+submit mismatched
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The JSON value could not be converted to System.Int32. Path: $.count | LineNumber: 0 | BytePositionInLine: 29.","source":{"pointer":"/count"}}]}
+submit nested mismatch
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The JSON value could not be converted to System.String. Path: $.items[0].city | LineNumber: 0 | BytePositionInLine: 44.","source":{"pointer":"/items/0/city"}}]}
+submit empty
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"A non-empty request body is required.","source":{"pointer":"/data"}}]}
+submit null
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"A non-empty request body is required.","source":{"pointer":"/data"}}]}
+submit as text
+415 application/json; charset=utf-8  {"errors":[{"status":"415","code":"unsupported-media-type","title":"The request body's media type is not supported.","detail":"The request body must be sent as application/json."}]}
+submit as text/json
+200 application/json; charset=utf-8  {"data":{"id":"abc","type":"parity-item","attributes":{"name":"item","note":"hi 2","quantity":1}}}
+submit no content type
+415 application/json; charset=utf-8  {"errors":[{"status":"415","code":"unsupported-media-type","title":"The request body's media type is not supported.","detail":"The request body must be sent as application/json."}]}
+submit optionally empty
+204   
+submit optionally valid
+204   
+submit optionally invalid
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The Subject field is required.","source":{"pointer":"/subject"}}]}
+submit optionally nothing at all
+204   
+submit optionally empty, no content type
+204   
+list
+200 application/json; charset=utf-8  {"data":[{"id":"one","type":"parity-item","attributes":{"name":"item","note":"    False   someone@example.com","quantity":1}},{"id":"two","type":"parity-item","attributes":{"name":"item","note":"    False   someone@example.com","quantity":1}},{"id":"three","type":"parity-item","attributes":{"name":"item","note":"    False   someone@example.com","quantity":1}}],"meta":{"pageCount":1,"pageNumber":1,"pageSize":50,"totalCount":3},"links":{"first":"/api/v1/parity-items?page[number]=1&page[size]=50","last":"/api/v1/parity-items?page[number]=1&page[size]=50"}}
+list filtered and paged
+200 application/json; charset=utf-8  {"data":[{"id":"one","type":"parity-item","attributes":{"name":"item","note":"a0000000-0000-4000-8000-0000000000aa  a|b -name True b0000000-0000-4000-8000-0000000000bb 2026-01-02T03:04:05.0000000+00:00 someone@example.com","quantity":1}},{"id":"two","type":"parity-item","attributes":{"name":"item","note":"a0000000-0000-4000-8000-0000000000aa  a|b -name True b0000000-0000-4000-8000-0000000000bb 2026-01-02T03:04:05.0000000+00:00 someone@example.com","quantity":1}},{"id":"three","type":"parity-item","attributes":{"name":"item","note":"a0000000-0000-4000-8000-0000000000aa  a|b -name True b0000000-0000-4000-8000-0000000000bb 2026-01-02T03:04:05.0000000+00:00 someone@example.com","quantity":1}}],"meta":{"pageCount":3,"pageNumber":2,"pageSize":1,"totalCount":3},"links":{"first":"/api/v1/parity-items?filter%5Bid%5D=a0000000-0000-4000-8000-0000000000aa&filter%5Btag%5D=a%2Cb&sort=-name&permanent=true&grant=b0000000-0000-4000-8000-0000000000bb&since=2026-01-02T03%3A04%3A05Z&page[number]=1&page[size]=1","prev":"/api/v1/parity-items?filter%5Bid%5D=a0000000-0000-4000-8000-0000000000aa&filter%5Btag%5D=a%2Cb&sort=-name&permanent=true&grant=b0000000-0000-4000-8000-0000000000bb&since=2026-01-02T03%3A04%3A05Z&page[number]=1&page[size]=1","next":"/api/v1/parity-items?filter%5Bid%5D=a0000000-0000-4000-8000-0000000000aa&filter%5Btag%5D=a%2Cb&sort=-name&permanent=true&grant=b0000000-0000-4000-8000-0000000000bb&since=2026-01-02T03%3A04%3A05Z&page[number]=3&page[size]=1","last":"/api/v1/parity-items?filter%5Bid%5D=a0000000-0000-4000-8000-0000000000aa&filter%5Btag%5D=a%2Cb&sort=-name&permanent=true&grant=b0000000-0000-4000-8000-0000000000bb&since=2026-01-02T03%3A04%3A05Z&page[number]=3&page[size]=1"}}
+list range
+200 application/json; charset=utf-8  {"data":[{"id":"one","type":"parity-item","attributes":{"name":"item","note":" Range { Lower = 01/01/2026 00:00:00 +00:00, Upper = 02/01/2026 00:00:00 +00:00, LowerInclusive = True, UpperInclusive = False }   False   someone@example.com","quantity":1}},{"id":"two","type":"parity-item","attributes":{"name":"item","note":" Range { Lower = 01/01/2026 00:00:00 +00:00, Upper = 02/01/2026 00:00:00 +00:00, LowerInclusive = True, UpperInclusive = False }   False   someone@example.com","quantity":1}},{"id":"three","type":"parity-item","attributes":{"name":"item","note":" Range { Lower = 01/01/2026 00:00:00 +00:00, Upper = 02/01/2026 00:00:00 +00:00, LowerInclusive = True, UpperInclusive = False }   False   someone@example.com","quantity":1}}],"meta":{"pageCount":1,"pageNumber":1,"pageSize":50,"totalCount":3},"links":{"first":"/api/v1/parity-items?filter%5BcreatedAt%5D=%5B2026-01-01T00%3A00%3A00Z%2C2026-02-01T00%3A00%3A00Z%29&page[number]=1&page[size]=50","last":"/api/v1/parity-items?filter%5BcreatedAt%5D=%5B2026-01-01T00%3A00%3A00Z%2C2026-02-01T00%3A00%3A00Z%29&page[number]=1&page[size]=50"}}
+list bad range
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"'filter[createdAt]' expects a range such as [begin,end), with datetimeoffset bounds or * for no limit, not '[2026-01-01'.","source":{"parameter":"filter[createdAt]"}}]}
+list bad filter
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"'filter[id]' expects a identifier, not 'nope'.","source":{"parameter":"filter[id]"}}]}
+list filter twice
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"'filter[id]' accepts one value, not 'a0000000-0000-4000-8000-0000000000aa,a0000000-0000-4000-8000-0000000000ab'.","source":{"parameter":"filter[id]"}}]}
+list bad sort
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"'colour' cannot be used to sort: 'colour' is not a field this collection sorts by. Sortable fields are 'name'.","source":{"parameter":"sort"}}]}
+list bad page number
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The 'page[number]' parameter must be a whole number of 1 or more, not 'abc'.","source":{"parameter":"page[number]"}}]}
+list page zero
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The 'page[number]' parameter must be a whole number of 1 or more, not '0'.","source":{"parameter":"page[number]"}}]}
+list page too big
+200 application/json; charset=utf-8  {"data":[{"id":"one","type":"parity-item","attributes":{"name":"item","note":"    False   someone@example.com","quantity":1}},{"id":"two","type":"parity-item","attributes":{"name":"item","note":"    False   someone@example.com","quantity":1}},{"id":"three","type":"parity-item","attributes":{"name":"item","note":"    False   someone@example.com","quantity":1}}],"meta":{"pageCount":1,"pageNumber":1,"pageSize":200,"totalCount":3},"links":{"first":"/api/v1/parity-items?page[number]=1&page[size]=200","last":"/api/v1/parity-items?page[number]=1&page[size]=200"}}
+list bad flag
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The value 'maybe' is not valid.","source":{"parameter":"permanent"}}]}
+list bad grant
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The value 'nope' is not valid.","source":{"parameter":"grant"}}]}
+list bad moment
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The value 'yesterday' is not valid.","source":{"parameter":"since"}}]}
+list two bad values
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The value 'nope' is not valid.","source":{"parameter":"grant"}},{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The value 'maybe' is not valid.","source":{"parameter":"permanent"}}]}
+list bad value and bad page
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The 'page[number]' parameter must be a whole number of 1 or more, not 'abc'.","source":{"parameter":"page[number]"}}]}
+list empty flag
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The value '' is invalid.","source":{"parameter":"permanent"}}]}
+required filter missing
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The organizationId field is required.","source":{"pointer":"/data"}}]}
+required filter bad
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"'filter[organizationId]' expects a identifier, not 'nope'.","source":{"parameter":"filter[organizationId]"}}]}
+required filter given
+200 application/json; charset=utf-8  {"data":[{"id":"one","type":"parity-item","attributes":{"name":"item","note":"a0000000-0000-4000-8000-0000000000aa","quantity":1}}]}
+guid route valid
+200 application/json; charset=utf-8  {"data":{"id":"a0000000-0000-4000-8000-0000000000aa","type":"parity-item","attributes":{"name":"item","note":"by guid","quantity":1}}}
+guid route bad
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The value 'nope' is not valid.","source":{"pointer":"/id"}}]}
+read sparse
+200 application/json; charset=utf-8  {"data":{"id":"abc","type":"parity-item","attributes":{"name":"item","quantity":1}}}
+read bad fields
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The 'fields[parity-item]' parameter names 'colour', which is not one of the resource's attributes.","source":{"parameter":"fields[parity-item]"}}]}
+read missing
+404 application/json; charset=utf-8  {"errors":[{"status":"404","code":"not-found","title":"The resource does not exist.","detail":"The requested resource does not exist."}]}
+delete
+204   
+bulk delete by ids
+200 application/json; charset=utf-8  {"meta":{"affectedCount":2}}
+bulk delete by filter
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"This operation does not accept 'filter'. Name the resources with 'ids'.","source":{"pointer":"/filter"}}]}
+bulk delete by neither
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"Name the resources to act on with 'ids'.","source":{"pointer":"/ids"}}]}
+bulk delete best effort
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"This operation is all-or-nothing and does not support 'atomic=false'. Every resource it touches succeeds, or none of them does.","source":{"pointer":"/atomic"}}]}
+bulk delete bad atomic
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"'perhaps' is not a value 'atomic' accepts. It is 'true' for all-or-nothing or 'false' for best-effort.","source":{"pointer":"/atomic"}}]}
+bulk delete malformed
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The JSON value could not be converted to Bitwarden.Server.Sdk.Service.Querying.BulkDelete`1[Bitwarden.Server.Sdk.Service.Tests.TestHost.ParityItem]. Path: $ | LineNumber: 0 | BytePositionInLine: 1.","source":{"pointer":"/data"}}]}
+upload octets
+200 application/json; charset=utf-8  {"city":"abc 10"}
+upload as json
+415 application/json; charset=utf-8  {"errors":[{"status":"415","code":"unsupported-media-type","title":"The request body's media type is not supported.","detail":"The request body must be sent as application/json."}]}
+form valid
+200 application/json; charset=utf-8  {"city":"password api"}
+form missing a value
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The GrantType field is required.","source":{"pointer":"/grant_type"}}]}
+form too long
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The field Scope must be a string with a maximum length of 10.","source":{"pointer":"/scope"}}]}
+query model valid
+200 application/json; charset=utf-8  {"data":[{"id":"one","type":"parity-item","attributes":{"name":"item","note":"ab 2","quantity":1}}]}
+query model invalid
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The field Code must be a string with a maximum length of 5.","source":{"pointer":"/code"}},{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The field Count must be between 1 and 3.","source":{"pointer":"/count"}}]}
+query model unparseable
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The value 'many' is not valid for Count.","source":{"pointer":"/count"}}]}
+raw echo valid
+200 application/json; charset=utf-8  "hi"
+raw echo invalid
+200 application/json; charset=utf-8  "none"
+raw echo malformed
+400 application/json; charset=utf-8  {"city":"nothing read"}
+raw echo empty
+400 application/json; charset=utf-8  {"city":"nothing read"}
+raw echo as text
+415 application/json; charset=utf-8  {"errors":[{"status":"415","code":"unsupported-media-type","title":"The request body's media type is not supported.","detail":"The request body must be sent as application/json."}]}
+raw form
+200 application/json; charset=utf-8  "password"
+raw form empty
+200 application/json; charset=utf-8  "none"
+raw echo nothing at all
+400 application/json; charset=utf-8  {"city":"nothing read"}
+submit nothing at all
+415 application/json; charset=utf-8  {"errors":[{"status":"415","code":"unsupported-media-type","title":"The request body's media type is not supported.","detail":"The request body must be sent as application/json."}]}
+raw nothing
+204   
+raw fault
+418 application/json; charset=utf-8  {"city":"faulted"}
+raw gated open
+200 application/json; charset=utf-8  "through"
+raw gated closed
+403 application/json; charset=utf-8  {"errors":[{"status":"403","code":"forbidden","title":"The caller is not permitted to do this.","detail":"The gate is closed."}]}
+probe create too long
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The field Note must be a string with a maximum length of 255.","source":{"pointer":"/data/attributes/note"}}]}
+probe list
+200 application/json; charset=utf-8  {"data":[{"id":"one","type":"probe","attributes":{"note":"worked out"}}],"meta":{"pageCount":2,"pageNumber":1,"pageSize":1,"totalCount":2},"links":{"first":"/api/v1/probes?fields%5Bprobe%5D=note&page[number]=1&page[size]=1","next":"/api/v1/probes?fields%5Bprobe%5D=note&page[number]=2&page[size]=1","last":"/api/v1/probes?fields%5Bprobe%5D=note&page[number]=2&page[size]=1"}}
+probe mark
+204   
+unknown path
+404 application/json; charset=utf-8  {"errors":[{"status":"404","code":"not-found","title":"The resource does not exist.","detail":"No resource exists at this address."}]}
+wrong verb
+405 application/json; charset=utf-8  {"errors":[{"status":"405","code":"method-not-allowed","title":"The method is not allowed on this resource.","detail":"The resource does not support PATCH requests."}]}

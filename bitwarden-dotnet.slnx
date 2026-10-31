@@ -84,6 +84,13 @@
     <Project Path="extensions/Bitwarden.Server.Sdk.RestrictedDependencies/tests/Bitwarden.Server.Sdk.RestrictedDependencies.Tests/Bitwarden.Server.Sdk.RestrictedDependencies.Tests.csproj" />
     <Project Path="extensions/Bitwarden.Server.Sdk.RestrictedDependencies/tests/Bitwarden.Server.Sdk.RestrictedDependencies.Analyzers.Tests/Bitwarden.Server.Sdk.RestrictedDependencies.Analyzers.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Service/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Service/src/Bitwarden.Server.Sdk.Service.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Service/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Service/tests/Bitwarden.Server.Sdk.Service.MinimalApi.Tests/Bitwarden.Server.Sdk.Service.MinimalApi.Tests.csproj" />
+    <Project Path="extensions/Bitwarden.Server.Sdk.Service/tests/Bitwarden.Server.Sdk.Service.Tests/Bitwarden.Server.Sdk.Service.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.WebEssentials/">
     <Project Path="extensions/Bitwarden.Server.Sdk.WebEssentials/src/Bitwarden.Server.Sdk.WebEssentials.csproj" />
   </Folder>

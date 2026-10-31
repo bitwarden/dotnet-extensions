@@ -1,0 +1,122 @@
+/* Bitwarden brand palette, from brand/brand-colors/palette.scss */
+:root {
+  --bw-blue: #175DDC;
+  --bw-deep-blue: #0C3276;
+  --bw-off-white: #F3F6F9;
+  --bw-light-grey: #D8E2EB;
+  --bw-teal: #2CDDE9;
+  --bw-green: #7BF1A8;
+  --bw-yellow: #FDC700;
+  --bw-red: #FF6550;
+}
+
+/* The topbar carries the definition picker and the spec-URL box, both of which exist to switch
+   between multiple documents. A Bitwarden service publishes exactly one. */
+.swagger-ui .topbar,
+.topbar { display: none !important; }
+
+.swagger-ui .info {
+    margin: 20px 0;
+}
+
+.swagger-ui .scheme-container {
+    padding-top: 0;
+}
+
+html.dark-mode .swagger-ui .scheme-container {
+    box-shadow: 0 1px 0 0 #545d61;
+}
+
+/* A product service (the browser's way in) on a dark blue, so it is never mistaken for a
+   domain service. Service.cs puts the class on <html> and forces the dark theme with it. */
+html.bw-product-service.dark-mode body,
+html.bw-product-service.dark-mode .swagger-ui,
+html.bw-product-service.dark-mode .swagger-ui .scheme-container {
+    background: #032246;
+}
+
+/* A product domain service (one product's data, not the platform's) on a dark green, set apart
+   from both. The same arrangement in Service.cs. */
+html.bw-product-domain-service.dark-mode body,
+html.bw-product-domain-service.dark-mode .swagger-ui,
+html.bw-product-domain-service.dark-mode .swagger-ui .scheme-container {
+    background: #042804;
+}
+
+/* The Bitwarden shield, beside the service name rather than above it.
+
+   On the title's ::before as an inline-block, so it sits on the title's own line and is centred
+   against it by the baseline rules: no absolute positioning, and no left offset on the title
+   that would have to be kept in step with the shield's width. The description below the title
+   keeps the full width. */
+.swagger-ui .info .title::before {
+  content: "";
+  display: inline-block;
+  vertical-align: middle;
+  width: 1.1em;
+  height: 1.3em;
+  margin-right: 0.45em;
+  /* Lifted slightly: vertical-align centres the box, but the shield's visual mass sits low. */
+  position: relative;
+  top: -0.06em;
+  background-image: url('/docs/bitwarden-shield.svg');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
+
+/* ---- Title block -------------------------------------------------------- */
+.swagger-ui .info .title small.version-stamp { background-color: var(--bw-blue); }
+.swagger-ui .info a { color: var(--bw-blue); }
+
+/* ---- Operations, coloured by verb from the brand palette ---------------- */
+.swagger-ui .opblock.opblock-get .opblock-summary-method    { background: var(--bw-blue); }
+.swagger-ui .opblock.opblock-get    { border-color: var(--bw-blue); }
+.swagger-ui .opblock.opblock-put .opblock-summary-method    { background: var(--bw-yellow); color: #3b2f00; }
+.swagger-ui .opblock.opblock-put    { border-color: var(--bw-yellow); }
+.swagger-ui .opblock.opblock-post .opblock-summary-method   { background: var(--bw-green); color: #06341a; }
+.swagger-ui .opblock.opblock-post   { border-color: var(--bw-green); }
+.swagger-ui .opblock.opblock-delete .opblock-summary-method { background: var(--bw-red); }
+.swagger-ui .opblock.opblock-delete { border-color: var(--bw-red); }
+
+.swagger-ui .btn.execute   { background-color: var(--bw-blue); border-color: var(--bw-blue); }
+.swagger-ui .btn.authorize { color: var(--bw-blue); border-color: var(--bw-blue); }
+.swagger-ui .btn.authorize svg { fill: var(--bw-blue); }
+
+/* ---- Section descriptions ------------------------------------------------
+
+   Swagger UI puts a tag's description inside the section heading, as a <small> next to the
+   name, so a sentence or two of explanation crowds the heading it is explaining and shoves the
+   collapse control to the far right.
+
+   The heading is a flex row, so the description only needs to be sent to the end of it and
+   given the full width: ordering it last keeps the name and the collapse control on the first
+   line, and a full basis wraps it onto its own. Dimmed, because it is context for the section
+   rather than part of its title. */
+.swagger-ui .opblock-tag {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.swagger-ui .opblock-tag small {
+  order: 1;
+  flex-basis: 100%;
+  margin: 0;
+  padding: 0 0 4px;
+  font-size: 13px;
+  line-height: 1.5;
+  /* Dimmed by transparency rather than by a colour, so it reads correctly against the light
+     theme and the dark one without either being stated. */
+  opacity: 0.65;
+}
+
+.swagger-ui .opblock-tag small p {
+  margin: 0;
+}
+
+/* Swagger UI pushes the collapse control right by letting the description take the slack in
+   the flex row. Sending the description to its own line takes that away, so the control is
+   pushed explicitly instead: it belongs at the far edge whether or not a section has one. */
+.swagger-ui .opblock-tag button.expand-operation {
+  margin-left: auto;
+}
