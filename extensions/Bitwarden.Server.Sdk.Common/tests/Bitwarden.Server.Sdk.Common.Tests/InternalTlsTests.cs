@@ -96,9 +96,10 @@ public sealed class InternalTlsTests : IDisposable
     public void Trusts_AChainToANamedAuthority()
     {
         using var authority = Authority("Internal");
+        using var system = SystemChain();
         using var server = Issue(authority);
 
-        Assert.True(InternalTls.Trusts([authority], server, null, SslPolicyErrors.RemoteCertificateChainErrors));
+        Assert.True(InternalTls.Trusts([authority], server, system, SslPolicyErrors.RemoteCertificateChainErrors));
     }
 
     [Fact]
@@ -106,18 +107,20 @@ public sealed class InternalTlsTests : IDisposable
     {
         using var authority = Authority("Internal");
         using var other = Authority("Other");
+        using var system = SystemChain();
         using var server = Issue(authority);
 
-        Assert.False(InternalTls.Trusts([other], server, null, SslPolicyErrors.RemoteCertificateChainErrors));
+        Assert.False(InternalTls.Trusts([other], server, system, SslPolicyErrors.RemoteCertificateChainErrors));
     }
 
     [Fact]
     public void Trusts_NothingExtraWhenNoAuthorityIsNamed()
     {
         using var authority = Authority("Internal");
+        using var system = SystemChain();
         using var server = Issue(authority);
 
-        Assert.False(InternalTls.Trusts([], server, null, SslPolicyErrors.RemoteCertificateChainErrors));
+        Assert.False(InternalTls.Trusts([], server, system, SslPolicyErrors.RemoteCertificateChainErrors));
     }
 
     [Theory]
@@ -127,18 +130,20 @@ public sealed class InternalTlsTests : IDisposable
     public void Trusts_NeverRescuesAnythingButTheChain(SslPolicyErrors errors)
     {
         using var authority = Authority("Internal");
+        using var system = SystemChain();
         using var server = Issue(authority);
 
-        Assert.False(InternalTls.Trusts([authority], server, null, errors));
+        Assert.False(InternalTls.Trusts([authority], server, system, errors));
     }
 
     [Fact]
     public void Trusts_ACertificateForServers()
     {
         using var authority = Authority("Internal");
+        using var system = SystemChain();
         using var server = Issue(authority, ServerAuthentication);
 
-        Assert.True(InternalTls.Trusts([authority], server, null, SslPolicyErrors.RemoteCertificateChainErrors));
+        Assert.True(InternalTls.Trusts([authority], server, system, SslPolicyErrors.RemoteCertificateChainErrors));
     }
 
     [Theory]
@@ -147,18 +152,20 @@ public sealed class InternalTlsTests : IDisposable
     public void Trusts_NotACertificateForAnotherPurpose(string purpose)
     {
         using var authority = Authority("Internal");
+        using var system = SystemChain();
         using var server = Issue(authority, purpose);
 
-        Assert.False(InternalTls.Trusts([authority], server, null, SslPolicyErrors.RemoteCertificateChainErrors));
+        Assert.False(InternalTls.Trusts([authority], server, system, SslPolicyErrors.RemoteCertificateChainErrors));
     }
 
     [Fact]
     public void Trusts_NotAnExpiredCertificate()
     {
         using var authority = Authority("Internal");
+        using var system = SystemChain();
         using var server = Issue(authority, notBefore: DateTimeOffset.UtcNow.AddHours(-2), notAfter: DateTimeOffset.UtcNow.AddHours(-1));
 
-        Assert.False(InternalTls.Trusts([authority], server, null, SslPolicyErrors.RemoteCertificateChainErrors));
+        Assert.False(InternalTls.Trusts([authority], server, system, SslPolicyErrors.RemoteCertificateChainErrors));
     }
 
     [Fact]
@@ -190,11 +197,22 @@ public sealed class InternalTlsTests : IDisposable
     }
 
     [Fact]
+    public void Trusts_NothingExtraWithoutTheSystemsChain()
+    {
+        using var authority = Authority("Internal");
+        using var server = Issue(authority, ServerAuthentication);
+
+        Assert.False(InternalTls.Trusts([authority], server, null, SslPolicyErrors.RemoteCertificateChainErrors));
+    }
+
+    [Fact]
     public void Trusts_NoCertificate_IsRefused()
     {
         using var authority = Authority("Internal");
 
-        Assert.False(InternalTls.Trusts([authority], null, null, SslPolicyErrors.RemoteCertificateChainErrors));
+        using var system = SystemChain();
+
+        Assert.False(InternalTls.Trusts([authority], null, system, SslPolicyErrors.RemoteCertificateChainErrors));
     }
 
     [Fact]
@@ -217,6 +235,13 @@ public sealed class InternalTlsTests : IDisposable
         request.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
         request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.KeyCertSign, true));
         return request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+    }
+
+    private static X509Chain SystemChain()
+    {
+        var chain = new X509Chain();
+        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+        return chain;
     }
 
     private static X509Certificate2 Intermediate(X509Certificate2 authority)

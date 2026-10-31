@@ -76,7 +76,7 @@ public sealed class InternalTls
     /// Whether a server's certificate is trusted, by the system or else by a chain to one of
     /// <paramref name="authorities"/>. The name must match either way, and a certificate from one of
     /// the authorities must be valid now and allowed for server authentication. Revocation is checked
-    /// as the system's chain checks it.
+    /// as the system's chain checks it, so without that chain nothing is trusted beyond the system.
     /// </summary>
     /// <param name="authorities">The certificate authorities trusted besides the system's.</param>
     /// <param name="certificate">The server's certificate.</param>
@@ -95,7 +95,7 @@ public sealed class InternalTls
             return true;
         }
 
-        if (errors != SslPolicyErrors.RemoteCertificateChainErrors || certificate is null || authorities.Count == 0)
+        if (errors != SslPolicyErrors.RemoteCertificateChainErrors || certificate is null || chain is null || authorities.Count == 0)
         {
             return false;
         }
@@ -104,15 +104,12 @@ public sealed class InternalTls
         custom.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
         custom.ChainPolicy.CustomTrustStore.AddRange(authorities);
         custom.ChainPolicy.ApplicationPolicy.Add(new Oid(ServerAuthentication));
-        custom.ChainPolicy.RevocationMode = chain?.ChainPolicy.RevocationMode ?? X509RevocationMode.NoCheck;
-        custom.ChainPolicy.RevocationFlag = chain?.ChainPolicy.RevocationFlag ?? X509RevocationFlag.ExcludeRoot;
+        custom.ChainPolicy.RevocationMode = chain.ChainPolicy.RevocationMode;
+        custom.ChainPolicy.RevocationFlag = chain.ChainPolicy.RevocationFlag;
 
-        if (chain is not null)
+        foreach (var element in chain.ChainElements)
         {
-            foreach (var element in chain.ChainElements)
-            {
-                custom.ChainPolicy.ExtraStore.Add(element.Certificate);
-            }
+            custom.ChainPolicy.ExtraStore.Add(element.Certificate);
         }
 
         using var server = new X509Certificate2(certificate);
