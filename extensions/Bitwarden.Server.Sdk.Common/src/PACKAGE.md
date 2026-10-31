@@ -123,22 +123,70 @@ public required string Notes { get; init; }
 
 Only the length is checked. The value is never read or decrypted.
 
+### Trust an internal certificate authority
+
+If your services' certificates come from an internal authority, name its root certificate under
+`Tls:CertificateAuthorities` and check each server's certificate with `InternalTls.Trusts`:
+
+```csharp
+var tls = configuration.GetSection(InternalTls.Section).Get<InternalTls>() ?? new InternalTls();
+var authorities = tls.LoadAuthorities();
+
+var handler = new SocketsHttpHandler
+{
+    SslOptions =
+    {
+        RemoteCertificateValidationCallback = (_, certificate, chain, errors) =>
+            InternalTls.Trusts(authorities, certificate, chain, errors),
+    },
+};
+```
+
+A certificate is trusted if the system trusts it, or if it chains to a named authority, is valid
+now and is allowed for server authentication. A name that doesn't match is never trusted.
+
+### Key a cached answer by text
+
+When a cached answer is keyed by text such as an email address, store only its digest. The service
+and its clients reach the same subject from the same normalized text:
+
+```csharp
+var subject = OwnedAnswerKey.Of("account-by-email", email.Trim().ToLowerInvariant());
+var key = OwnedCacheEntry.Key(OwnedAnswerKey.Template("identity-service", "account-by-email"), subject);
+```
+
+With no secret, the digest is plain SHA-256: it keeps the address out of the cache, but anyone who
+can read the cache and guess an address can confirm it. To prevent that, configure a shared secret
+and pass it, so the digest becomes HMAC-SHA-256:
+
+```csharp
+var secret = OwnedAnswerKey.ReadSecret(configuration);
+var subject = OwnedAnswerKey.Of("account-by-email", email.Trim().ToLowerInvariant(), secret);
+```
+
+`ReadSecret` reads `Caching:Owned:AnswerSecret` (base64, at least 32 bytes) and returns an empty
+secret when it is unset. Every service and client sharing the cache must use the same secret. The
+package's README in the repository explains how to choose.
+
 ## Types
 
-| Type                                                                     | Purpose                                                                                  |
-| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `ErrorResponse`, `Error`, `ErrorSource`, `FailedResource`                | The body of every unsuccessful response (namespace `Bitwarden.Server.Sdk.Common.Errors`) |
-| `ErrorCodes`, `ErrorTitles`, `ErrorDetails`                              | The codes a caller branches on, and the text that accompanies them (also in `.Errors`)   |
-| `NotFoundException`, `ConflictException`, `InvalidRequestException`, ... | The standard failures, each answered with its own status                                 |
-| `IProvideErrors`                                                         | An exception that reports several errors at once                                         |
-| `IExceptionTranslator`                                                   | Says which standard exception a library's own exception means                            |
-| `BitwardenHeaders`                                                       | The headers that carry caller context between services                                   |
-| `CallerContextHeader`, `CallerContextValue`, `CallerCredential`          | Writes and strictly reads the `Bitwarden-Context` header                                 |
-| `IContext`, `ContextScope`, `StatedContext`                              | Who and what the current operation concerns                                              |
-| `IRowOwnership`, `DefaultRowOwnership`                                   | The owner a restricted query is narrowed to, refusing when there is none                 |
-| `RequestMemo`                                                            | Facts read once in a request and remembered until it ends                                |
-| `IRequestNamedOwner`, `IOrganizationCreation`                            | Owners an operation names itself, for its outgoing calls                                 |
-| `IServiceIdentity`, `TokenAudience`                                      | Which service this is, and which token audience it accepts                               |
-| `EncryptedAttribute`, `PersonalDataAttribute`                            | Mark a field as Protected Data or as personal data                                       |
-| `OwnedCacheEntry`                                                        | How a service-owned cache entry is stored in Redis                                       |
-| `IServiceExtension`, `ServiceExtensionAttribute`                         | How a package configures every service that references it                                |
+| Type                                                                     | Purpose                                                                                        |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `ErrorResponse`, `Error`, `ErrorSource`, `FailedResource`                | The body of every unsuccessful response (namespace `Bitwarden.Server.Sdk.Common.Errors`)       |
+| `ErrorCodes`, `ErrorTitles`, `ErrorDetails`                              | The codes a caller branches on, and the text that accompanies them (also in `.Errors`)         |
+| `NotFoundException`, `ConflictException`, `InvalidRequestException`, ... | The standard failures, each answered with its own status                                       |
+| `IProvideErrors`                                                         | An exception that reports several errors at once                                               |
+| `IExceptionTranslator`                                                   | Says which standard exception a library's own exception means                                  |
+| `BitwardenHeaders`                                                       | The headers that carry caller context between services                                         |
+| `CallerContextHeader`, `CallerContextValue`, `CallerCredential`          | Writes and strictly reads the `Bitwarden-Context` header                                       |
+| `CallerContextToken`, `CallerContextAssertion`, `ICallerProof`           | The signed form of a call's context, what one call asserts, and the token it is exchanged from |
+| `IContext`, `ContextScope`, `StatedContext`                              | Who and what the current operation concerns                                                    |
+| `IRowOwnership`, `DefaultRowOwnership`                                   | The owner a restricted query is narrowed to, refusing when there is none                       |
+| `RequestMemo`                                                            | Facts read once in a request and remembered until it ends                                      |
+| `IRequestNamedOwner`, `IOrganizationCreation`                            | Owners an operation names itself, for its outgoing calls                                       |
+| `IServiceIdentity`, `TokenAudience`                                      | Which service this is, and which token audience it accepts                                     |
+| `EncryptedAttribute`, `PersonalDataAttribute`                            | Mark a field as Protected Data or as personal data                                             |
+| `OwnedCacheEntry`                                                        | How a service-owned cache entry is stored in Redis                                             |
+| `OwnedAnswerKey`                                                         | How a service-owned answer is keyed in the same cache                                          |
+| `InternalTls`                                                            | Which certificate authorities a service trusts for calls between services                      |
+| `IServiceExtension`, `ServiceExtensionAttribute`                         | How a package configures every service that references it                                      |

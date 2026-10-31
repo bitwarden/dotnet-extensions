@@ -4,18 +4,21 @@ namespace Bitwarden.Server.Sdk.Common;
 /// What an access token's <c>aud</c> names, and so which services accept it.
 /// </summary>
 /// <remarks>
+/// <para>
+/// A host accepts only tokens naming its service, by <see cref="IServiceIdentity.Audience"/>,
+/// whoever the caller is.
+/// </para>
 /// <list type="bullet">
 ///   <item>
 ///     <description>
-///     A service's token names the platform, <see cref="Platform"/>. Domain services accept this
-///     audience and no other.
+///     A service's token names the one service it calls, so a service token leaked at one service
+///     can't be used at another.
 ///     </description>
 ///   </item>
 ///   <item>
 ///     <description>
-///     A person's token names the one product service it is for, by that service's
-///     <see cref="IServiceIdentity.Name"/>. A product service accepts its own name and no other, so
-///     a person's token leaked at one product service can't be used at another.
+///     A person's token names the one product service it is for, so a person's token leaked at one
+///     product service can't be used at another.
 ///     </description>
 ///   </item>
 /// </list>
@@ -23,7 +26,7 @@ namespace Bitwarden.Server.Sdk.Common;
 public static class TokenAudience
 {
     /// <summary>
-    /// The audience every service's token names.
+    /// A retired audience shared by every service. A host never accepts it.
     /// </summary>
     public const string Platform = "bitwarden";
 }

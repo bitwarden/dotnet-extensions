@@ -3,12 +3,12 @@ namespace Bitwarden.Server.Sdk.Common.Tests;
 public sealed class IServiceIdentityTests
 {
     [Fact]
-    public void Defaults_AreADomainServiceAcceptingThePlatform()
+    public void Defaults_AreADomainServiceAcceptingItsOwnName()
     {
         IServiceIdentity identity = new DomainIdentity();
 
         Assert.False(identity.IsProductService);
-        Assert.Equal(TokenAudience.Platform, identity.Audience);
+        Assert.Equal("widget-service", identity.Audience);
     }
 
     [Fact]
