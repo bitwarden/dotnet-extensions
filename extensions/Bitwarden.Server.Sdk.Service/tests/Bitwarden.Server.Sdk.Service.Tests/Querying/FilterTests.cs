@@ -47,6 +47,16 @@ public sealed class FilterTests
         Assert.Null(await Filter<int[]>.BindAsync(Request(string.Empty), Parameter<int[]>()));
     }
 
+    [Fact]
+    public void Value_ConvertsAndPrintsAsTheValue()
+    {
+        var actual = new Filter<int>(7);
+
+        Assert.Equal(7, (int)actual);
+        Assert.Equal("7", actual.ToString());
+        Assert.Equal(string.Empty, new Filter<string?>(null).ToString());
+    }
+
     private static DefaultHttpContext Request(string query)
     {
         var context = new DefaultHttpContext();

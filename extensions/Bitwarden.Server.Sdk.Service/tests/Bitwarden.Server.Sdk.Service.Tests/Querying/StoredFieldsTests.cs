@@ -64,15 +64,42 @@ public sealed class StoredFieldsTests
         Assert.Equal(["a"], actual);
     }
 
-    // An expression may name only what the resource marks filterable.
     [Fact]
-    public void Require_FieldNotMarkedFilterable_Refused()
+    public void FilterableOf_PropertiesAndInheritedFields_AreThePublishedNamesAndWhereEachIsStored()
     {
-        var query = Query("""{ "==": [{ "var": "name" }, "a"] }""");
+        var actual = StoredFields.FilterableOf(typeof(Mapped));
 
-        var actual = Assert.Throws<Common.InvalidRequestException>(() => ResourceFields.Require(query, typeof(Mapped)));
+        Assert.Equal(nameof(Row.OwnerId), actual["owner"]);
+        Assert.Equal(nameof(Resource.CreatedAt), actual["createdAt"]);
+        Assert.Equal(2, actual.Count);
+    }
 
-        Assert.Contains("'name' is not a field this resource may be filtered on", actual.Message, StringComparison.Ordinal);
+    [Theory]
+    [InlineData(typeof(PropertyNamingAField), "only the resource may name a field")]
+    [InlineData(typeof(ResourceNamingNoField), "without naming one of its properties")]
+    [InlineData(typeof(ResourceNamingNoSuchProperty), "without naming one of its properties")]
+    [InlineData(typeof(FilterableTwice), "declares 'name' filterable more than once")]
+    public void FilterableOf_DeclarationThatCannotMeanAnything_Throws(Type resource, string expected)
+    {
+        var actual = Assert.Throws<InvalidOperationException>(() => StoredFields.FilterableOf(resource));
+
+        Assert.Contains(expected, actual.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FilterableOn_FieldWithNowhereToGo_FailsNamingIt()
+    {
+        var actual = Assert.Throws<InvalidOperationException>(() => StoredFields.FilterableOn(typeof(FilterableUnmapped), typeof(Row)));
+
+        Assert.Contains("'label' (looked for 'Row.Label')", actual.Message, StringComparison.Ordinal);
+        Assert.Contains("[Filterable(MappedTo", actual.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Published_JsonNameWhereGiven_ElseCamelCase()
+    {
+        Assert.Equal("display_name", StoredFields.Published(typeof(Named).GetProperty(nameof(Named.Label))!));
+        Assert.Equal("ownerId", StoredFields.Published(typeof(Row).GetProperty(nameof(Row.OwnerId))!));
     }
 
     private static Query Query(string filter) => JsonSerializer.Deserialize<Query>(filter)!;
@@ -87,6 +114,7 @@ public sealed class StoredFieldsTests
     }
 
     [Sortable(nameof(CreatedAt), Default = true)]
+    [Filterable(nameof(CreatedAt))]
     private sealed record Mapped : Resource
     {
         [Sortable(MappedTo = nameof(Row.OwnerId))]
@@ -105,5 +133,36 @@ public sealed class StoredFieldsTests
 
         [Sortable]
         public string? Name { get; init; }
+    }
+
+    private sealed record PropertyNamingAField : Resource
+    {
+        [Filterable("name")]
+        public string? Name { get; init; }
+    }
+
+    [Filterable]
+    private sealed record ResourceNamingNoField : Resource;
+
+    [Filterable("Nope")]
+    private sealed record ResourceNamingNoSuchProperty : Resource;
+
+    [Filterable(nameof(Name))]
+    private sealed record FilterableTwice : Resource
+    {
+        [Filterable]
+        public string? Name { get; init; }
+    }
+
+    private sealed record FilterableUnmapped : Resource
+    {
+        [Filterable]
+        public string? Label { get; init; }
+    }
+
+    private sealed record Named : Resource
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("display_name")]
+        public string? Label { get; init; }
     }
 }

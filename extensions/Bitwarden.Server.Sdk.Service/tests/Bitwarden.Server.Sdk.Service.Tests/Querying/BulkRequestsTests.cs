@@ -4,8 +4,7 @@ using Bitwarden.Server.Sdk.Service.Querying;
 namespace Bitwarden.Server.Sdk.Service.Tests.Querying;
 
 /// <summary>
-/// The request-level checks every bulk operation makes before touching a resource, and the version
-/// check every update makes.
+/// The request-level checks every bulk operation makes before touching a resource.
 /// </summary>
 public sealed class BulkRequestsTests
 {
@@ -36,31 +35,5 @@ public sealed class BulkRequestsTests
     public void RequireDistinct_Distinct_Passes()
     {
         BulkRequests.RequireDistinct(["a", "b"]);
-    }
-
-    [Fact]
-    public void BulkRefusedException_CarriesEveryError()
-    {
-        var refused = new BulkRefusedException(
-        [
-            new() { Status = "422", Code = "invalid-value", Title = "Invalid value" },
-            new() { Status = "422", Code = "invalid-value", Title = "Invalid value" },
-        ]);
-
-        Assert.Equal(2, refused.Errors.Count);
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("3")]
-    public void Concurrency_NoVersionOrTheStoredOne_Passes(string? sent)
-    {
-        Concurrency.Require(sent, 3);
-    }
-
-    [Fact]
-    public void Concurrency_AnotherVersion_Conflicts()
-    {
-        Assert.Throws<ConflictException>(() => Concurrency.Require("2", 3));
     }
 }

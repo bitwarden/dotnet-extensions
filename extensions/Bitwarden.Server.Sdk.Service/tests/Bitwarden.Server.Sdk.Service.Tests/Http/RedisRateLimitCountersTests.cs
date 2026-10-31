@@ -3,9 +3,6 @@ using System.Reflection;
 using Bitwarden.Server.Sdk.Service.Http;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using StackExchange.Redis;
 using static Bitwarden.Server.Sdk.Service.Tests.Http.IpRateLimitingTests;
@@ -32,10 +29,12 @@ public sealed class RateLimitRedisFixture : IAsyncLifetime
     public async ValueTask DisposeAsync() => await Container.DisposeAsync();
 }
 
-// Distributed IP rate limiting (globalSettings:distributedIpRateLimiting): with a Redis, every
-// instance of a service counts an address against one allowance; without one, each process counts on
-// its own; while Redis is away, limiting is skipped, and no request is refused for Redis's sake.
-public sealed class RateLimitCountersTests(RateLimitRedisFixture redis) : IClassFixture<RateLimitRedisFixture>
+/// <summary>
+/// Counts kept in Redis (<c>globalSettings:distributedIpRateLimiting</c>): every instance of a service counts an
+/// address against one allowance, under the service's own keys, holding no address; while Redis is away, limiting is
+/// skipped, and no request is refused for Redis's sake.
+/// </summary>
+public sealed class RedisRateLimitCountersTests(RateLimitRedisFixture redis) : IClassFixture<RateLimitRedisFixture>
 {
     // Two instances of one service draw on one allowance: what one counted, the other sees.
     [Fact]
@@ -146,29 +145,60 @@ public sealed class RateLimitCountersTests(RateLimitRedisFixture redis) : IClass
         Assert.Equal(4, ((FailingRedis)(object)failing).Calls);
     }
 
-    // The store: Redis given a connection string and enabled; this process's memory otherwise.
-    [Theory]
-    [InlineData(null, null, typeof(MemoryRateLimitCounters))]
-    [InlineData("localhost:6379", "false", typeof(MemoryRateLimitCounters))]
-    [InlineData("localhost:6379", null, typeof(RedisRateLimitCounters))]
-    public void TheStore_IsRedisOnlyWhenConfiguredAndEnabled(string? connectionString, string? enabled, Type expected)
+    // A limit below one still lets a window's first request through, as the in-memory counts do.
+    [Fact]
+    public async Task ALimitBelowOne_AllowsTheWindowsFirstRequest()
     {
-        var settings = new Dictionary<string, string?>
-        {
-            ["globalSettings:distributedIpRateLimiting:redisConnectionString"] = connectionString,
-            ["globalSettings:distributedIpRateLimiting:enabled"] = enabled,
-        };
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(settings.Where(setting => setting.Value is not null))
-            .Build();
-        using var provider = new ServiceCollection()
-            .AddSingleton<IConfiguration>(configuration)
-            .AddSingleton<IHostEnvironment>(new Environment())
-            .AddLogging()
-            .AddIpRateLimiting()
-            .BuildServiceProvider();
+        using var counters = Counters($"svc-{Guid.NewGuid():N}");
 
-        Assert.IsType(expected, provider.GetRequiredService<IRateLimitCounters>());
+        Assert.True(await counters.TryTakeAsync("bucket", 0, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken));
+        Assert.False(await counters.TryTakeAsync("bucket", 0, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken));
+    }
+
+    // A connection string that doesn't parse fails at startup, not on a request.
+    [Fact]
+    public void Connect_AConnectionStringThatDoesNotParse_Throws() =>
+        Assert.ThrowsAny<ArgumentException>(() => RedisRateLimitCounters.Connect("localhost,notAnOption=1"));
+
+    // Connecting waits for the first count: a service starts, and is disposed, without reaching Redis.
+    [Fact]
+    public void Dispose_BeforeAnyCount_NeverConnects()
+    {
+        var connects = 0;
+        var counters = new RedisRateLimitCounters(
+            () =>
+            {
+                connects++;
+                return Task.FromResult(FailingRedis.Create());
+            },
+            "svc",
+            new DistributedIpRateLimitingOptions(),
+            TimeProvider.System,
+            NullLogger<RedisRateLimitCounters>.Instance);
+
+        counters.Dispose();
+
+        Assert.Equal(0, connects);
+    }
+
+    // While the connection is down, nothing is sent and every request is let through.
+    [Fact]
+    public async Task Disconnected_SendsNothing_AndLetsEveryRequestThrough()
+    {
+        var disconnected = FailingRedis.Create(connected: false);
+        using var counters = new RedisRateLimitCounters(
+            () => Task.FromResult(disconnected),
+            "svc",
+            new DistributedIpRateLimitingOptions(),
+            TimeProvider.System,
+            NullLogger<RedisRateLimitCounters>.Instance);
+
+        for (var i = 0; i < 3; i++)
+        {
+            Assert.True(await counters.TryTakeAsync("bucket", 1, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken));
+        }
+
+        Assert.Equal(0, ((FailingRedis)(object)disconnected).Calls);
     }
 
     private RedisRateLimitCounters Counters(string service) => new(
@@ -189,24 +219,19 @@ public sealed class RateLimitCountersTests(RateLimitRedisFixture redis) : IClass
         public void Advance(TimeSpan by) => _now += by;
     }
 
-    private sealed class Environment : IHostEnvironment
-    {
-        public string EnvironmentName { get; set; } = "Production";
-        public string ApplicationName { get; set; } = "test";
-        public string ContentRootPath { get; set; } = "/";
-        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = null!;
-    }
-
     /// <summary>
-    /// A connected Redis whose every script times out.
+    /// A Redis whose every script times out, connected unless asked otherwise.
     /// </summary>
     public class FailingRedis : DispatchProxy
     {
         public int Calls;
 
-        public static IConnectionMultiplexer Create()
+        private bool _connected = true;
+
+        public static IConnectionMultiplexer Create(bool connected = true)
         {
             var multiplexer = DispatchProxy.Create<IConnectionMultiplexer, FailingRedis>();
+            ((FailingRedis)(object)multiplexer)._connected = connected;
             return multiplexer;
         }
 
@@ -215,7 +240,7 @@ public sealed class RateLimitCountersTests(RateLimitRedisFixture redis) : IClass
             switch (targetMethod?.Name)
             {
                 case "get_IsConnected":
-                    return true;
+                    return _connected;
                 case "GetDatabase":
                     var database = DispatchProxy.Create<IDatabase, FailingDatabase>();
                     ((FailingDatabase)(object)database).Owner = this;

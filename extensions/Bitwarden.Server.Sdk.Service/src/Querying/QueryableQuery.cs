@@ -117,12 +117,13 @@ public static class QueryableQuery
         Row row,
         Func<Expression, Expression, Expression> compare)
     {
-        var (field, literal) = Pair(term, row);
+        var (field, literal, literalFirst) = Pair(term, row);
         var value = Constant(literal, field.Type);
 
         try
         {
-            return compare(field, value);
+            // In the order written, so '5 < count' is the rows whose count is above 5.
+            return literalFirst ? compare(value, field) : compare(field, value);
         }
         catch (InvalidOperationException)
         {
@@ -142,7 +143,8 @@ public static class QueryableQuery
     /// </remarks>
     private static Expression Contains(QueryTerm term, Row row)
     {
-        var (field, literal) = Pair(term, row);
+        // Either order: the shape of the literal, not its place, says which reading is meant.
+        var (field, literal, _) = Pair(term, row);
 
         if (literal.ValueKind == JsonValueKind.Array)
         {
@@ -179,7 +181,7 @@ public static class QueryableQuery
     /// expressible in the notation and means nothing useful in a filter, so it is refused
     /// rather than half-supported.
     /// </remarks>
-    private static (MemberExpression Field, JsonElement Literal) Pair(
+    private static (MemberExpression Field, JsonElement Literal, bool LiteralFirst) Pair(
         QueryTerm term,
         Row row)
     {
@@ -199,7 +201,7 @@ public static class QueryableQuery
                 "A comparison must be between one field and one value.", "/filter");
         }
 
-        return (Member(row, named[0].Field!), literals[0].Value!.Value);
+        return (Member(row, named[0].Field!), literals[0].Value!.Value, term.Terms[0].Value is not null);
     }
 
     /// <remarks>
@@ -247,8 +249,10 @@ public static class QueryableQuery
         {
             if (target.IsEnum)
             {
-                // By published name, as everything else about an enumeration on the wire is.
-                return EnumValues.TryParse(target, literal.GetString() ?? string.Empty, out var member)
+                // By published name, as everything else about an enumeration on the wire is, so a
+                // number or a bool names no member.
+                return literal.ValueKind == JsonValueKind.String
+                       && EnumValues.TryParse(target, literal.GetString()!, out var member)
                     ? member
                     : throw new FormatException();
             }

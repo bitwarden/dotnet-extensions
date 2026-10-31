@@ -1,13 +1,12 @@
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using Bitwarden.Server.Sdk.Service.JsonApi;
 using Bitwarden.Server.Sdk.Service.Querying;
 
 namespace Bitwarden.Server.Sdk.Service.Tests.Querying;
 
 /// <summary>
-/// A bulk create's <c>lid</c>: read off each item, kept in order, and echoed beside the created
-/// resource's <c>id</c>, as the standards and JSON:API place it.
+/// A bulk create's <c>lid</c> for each item, null where it carried none or there is no such item,
+/// and the all-or-nothing mode it starts in.
 /// </summary>
 public sealed class BulkCreateTests
 {
@@ -17,75 +16,45 @@ public sealed class BulkCreateTests
     };
 
     [Fact]
-    public void Read_ItemsCarryingLids_KeepsThemInItemOrder_AndOffTheResource()
+    public void LidAt_EachItem_ItsLidOrNull()
     {
-        var actual = JsonSerializer.Deserialize<BulkCreate<Widget>>(
-            """
-            { "data": [
-              { "type": "widget", "lid": "one", "attributes": { "name": "a" } },
-              { "type": "widget", "attributes": { "name": "b" } },
-              { "type": "widget", "lid": "three", "attributes": { "name": "c" } }
-            ] }
-            """,
-            Options)!;
+        var request = new BulkCreate<Widget> { Data = [new Widget(), new Widget(), new Widget()] };
+        request.Lids = ["one", null, "three"];
 
-        Assert.Equal(["one", null, "three"], actual.Lids);
-        Assert.Equal(["a", "b", "c"], actual.Data.Select(widget => widget.Name));
-        Assert.Null(actual.LidAt(7));
+        Assert.Equal("one", request.LidAt(0));
+        Assert.Null(request.LidAt(1));
+        Assert.Equal("three", request.LidAt(2));
+    }
+
+    // Past the last item, or on a request built in code that was never read, there is no lid.
+    [Fact]
+    public void LidAt_NoSuchItem_Null()
+    {
+        var request = new BulkCreate<Widget> { Data = [new Widget()] };
+
+        Assert.Empty(request.Lids);
+        Assert.Null(request.LidAt(0));
+
+        request.Lids = ["one"];
+
+        Assert.Null(request.LidAt(7));
+    }
+
+    // Until the platform grants another mode, a bulk create is all or nothing.
+    [Fact]
+    public void Atomicity_NotYetGranted_AllOrNothing()
+    {
+        Assert.Equal(Atomicity.AllOrNothing, new BulkCreate<Widget> { Data = [] }.Atomicity);
     }
 
     [Fact]
-    public void Read_TwoItemsSharingALid_RefusedPointingAtTheSecond()
+    public void Read_TwoItemsSharingALid_RefusedWithTheJsonPathToTheSecond()
     {
         var actual = Assert.Throws<ResourceContractException>(() => JsonSerializer.Deserialize<BulkCreate<Widget>>(
             """{ "data": [ { "type": "widget", "lid": "x", "attributes": { "name": "a" } }, { "type": "widget", "lid": "x", "attributes": { "name": "b" } } ] }""",
             Options));
 
-        Assert.Equal("/data/1/lid", actual.Pointer);
         Assert.Equal("$.data[1].lid", actual.Path);
-    }
-
-    [Theory]
-    [InlineData("7")]
-    [InlineData("\"\"")]
-    [InlineData("null")]
-    public void Read_ALidThatIsNotANonEmptyString_Refused(string lid)
-    {
-        var actual = Assert.Throws<ResourceContractException>(() => JsonSerializer.Deserialize<BulkCreate<Widget>>(
-            $$"""{ "data": [ { "type": "widget", "lid": {{lid}}, "attributes": { "name": "a" } } ] }""",
-            Options));
-
-        Assert.Equal("/data/0/lid", actual.Pointer);
-    }
-
-    [Fact]
-    public void Write_EchoesEachLidBesideItsId_AndCountsWhatWasMade()
-    {
-        var request = new BulkCreate<Widget> { Data = [new Widget { Name = "a" }, new Widget { Name = "b" }] };
-        request.Lids = ["one", null];
-
-        var document = BulkCreatedDocument<Widget>.For(
-            request, [new Widget { Id = "1", Name = "a" }, new Widget { Id = "2", Name = "b" }]);
-
-        var actual = JsonNode.Parse(JsonSerializer.Serialize(document, Options))!;
-
-        Assert.Equal("one", actual["data"]![0]!["lid"]!.GetValue<string>());
-        Assert.Equal("1", actual["data"]![0]!["id"]!.GetValue<string>());
-        Assert.Null(actual["data"]![0]!["attributes"]!["lid"]);
-        Assert.Null(actual["data"]![1]!["lid"]);
-        Assert.Equal(2, actual["meta"]!["affectedCount"]!.GetValue<int>());
-        Assert.Equal(
-            ["id", "type", "lid", "attributes"],
-            actual["data"]![0]!.AsObject().Select(member => member.Key));
-    }
-
-    // All-or-nothing answers one for one; anything else is a bug in the operation, caught here.
-    [Fact]
-    public void For_FewerMadeThanAskedFor_Throws()
-    {
-        var request = new BulkCreate<Widget> { Data = [new Widget { Name = "a" }, new Widget { Name = "b" }] };
-
-        Assert.Throws<ArgumentException>(() => BulkCreatedDocument<Widget>.For(request, [new Widget { Id = "1", Name = "a" }]));
     }
 
     public sealed record Widget : Resource

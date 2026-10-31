@@ -128,6 +128,53 @@ public sealed class ErrorResponseExceptionHandlerTests
         ServiceUnavailableException.Answered("billing-service", 503),
     ];
 
+    // The one exception whose own message reaches the caller: it names what is missing.
+    [Fact]
+    public async Task Handle_PendingService_NotImplementedWithItsMessage()
+    {
+        var exception = new PendingServiceException("mail-provider", "send an email");
+
+        var (status, error) = await Handle(exception);
+
+        Assert.Equal(StatusCodes.Status501NotImplemented, status);
+        Assert.Equal("not-implemented", error.GetProperty("code").GetString());
+        Assert.Equal(exception.Message, error.GetProperty("detail").GetString());
+    }
+
+    [Fact]
+    public async Task Handle_NotImplemented_NotImplementedWithTheStandardDetail()
+    {
+        var (status, error) = await Handle(new NotImplementedException("internal note"));
+
+        Assert.Equal(StatusCodes.Status501NotImplemented, status);
+        Assert.Equal("not-implemented", error.GetProperty("code").GetString());
+        Assert.Equal(Bitwarden.Server.Sdk.Common.Errors.ErrorDetails.NotImplemented, error.GetProperty("detail").GetString());
+    }
+
+    // A stub being reached is worth noticing, but it is not a fault.
+    [Fact]
+    public async Task Handle_NotImplemented_LoggedAtWarning()
+    {
+        var logger = new RecordingLogger();
+
+        await Handle(new NotImplementedException(), logger: logger);
+
+        Assert.Equal(LogLevel.Warning, Assert.Single(logger.Levels));
+    }
+
+    // A second document written over a response already on its way would be malformed.
+    [Fact]
+    public async Task Handle_ResponseAlreadyStarted_LeftForTheHost()
+    {
+        var context = new DefaultHttpContext();
+        context.Features.Set<Microsoft.AspNetCore.Http.Features.IHttpResponseFeature>(new StartedResponse());
+
+        var handled = await new ErrorResponseExceptionHandler(NullLogger<ErrorResponseExceptionHandler>.Instance, [])
+            .TryHandleAsync(context, new InvalidOperationException(), TestContext.Current.CancellationToken);
+
+        Assert.False(handled);
+    }
+
     private static async Task<(int Status, JsonElement Error)> Handle(
         Exception exception,
         string traceIdentifier = "trace",
@@ -161,6 +208,11 @@ public sealed class ErrorResponseExceptionHandlerTests
     }
 
     private sealed class LibraryRefusal : Exception;
+
+    private sealed class StartedResponse : Microsoft.AspNetCore.Http.Features.HttpResponseFeature
+    {
+        public override bool HasStarted => true;
+    }
 
     private sealed class RecordingLogger : ILogger<ErrorResponseExceptionHandler>
     {

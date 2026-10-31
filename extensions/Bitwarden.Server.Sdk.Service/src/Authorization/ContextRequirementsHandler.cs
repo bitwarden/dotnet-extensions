@@ -78,14 +78,14 @@ internal sealed class ContextRequirementsHandler(IContext context, ICallerRole c
         if (options.OrganizationRole != OrganizationRole.None && caller.Role < options.OrganizationRole)
         {
             authorization.Fail(new AuthorizationFailureReason(
-                this, $"The caller must be at least a {options.OrganizationRole} of the organization."));
+                this, $"The caller must have at least the {options.OrganizationRole} role in the organization."));
             return Task.CompletedTask;
         }
 
         if (options.ProviderRole != ProviderRole.None && caller.ProviderRole < options.ProviderRole)
         {
             authorization.Fail(new AuthorizationFailureReason(
-                this, $"The caller must be at least a {options.ProviderRole} of the provider."));
+                this, $"The caller must have at least the {options.ProviderRole} role in the provider."));
             return Task.CompletedTask;
         }
 

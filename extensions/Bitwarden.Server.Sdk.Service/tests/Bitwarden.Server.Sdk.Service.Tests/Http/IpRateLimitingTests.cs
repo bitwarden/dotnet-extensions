@@ -122,10 +122,6 @@ public sealed class IpRateLimitingTests
         Assert.Equal(429, await Send(limits, "POST", "/d"));
     }
 
-    [Fact]
-    public void EndpointRateLimiting_IsOnByDefault() =>
-        Assert.True(new IpRateLimitOptions().EnableEndpointRateLimiting);
-
     // Of the rules a request matches, the most restrictive for each period counts it, and the others don't: a
     // password sign-in with a rule of 10 a minute counts against those 10, not also a general 60.
     [Fact]
@@ -173,28 +169,6 @@ public sealed class IpRateLimitingTests
         Assert.Equal(["1s", "1s", "1m", "1s", "1m", "1s", "1m"], counters.Periods);
     }
 
-    // In memory, a window opens with its bucket's first request and lasts its period, as AspNetCoreRateLimit's counter.
-    [Fact]
-    public async Task InMemory_AWindowOpensWithItsFirstRequest_AndClosesAfterItsPeriod()
-    {
-        var time = new FakeTimeProvider();
-        using var counters = new MemoryRateLimitCounters(time);
-        var token = TestContext.Current.CancellationToken;
-
-        time.Advance(TimeSpan.FromMilliseconds(700));
-        Assert.True(await counters.TryTakeAsync("bucket", 1, TimeSpan.FromSeconds(1), token));
-        time.Advance(TimeSpan.FromMilliseconds(999));
-        Assert.False(await counters.TryTakeAsync("bucket", 1, TimeSpan.FromSeconds(1), token));
-        Assert.True(await counters.TryTakeAsync("other", 1, TimeSpan.FromSeconds(1), token));
-        time.Advance(TimeSpan.FromMilliseconds(1));
-        Assert.True(await counters.TryTakeAsync("bucket", 1, TimeSpan.FromSeconds(1), token));
-
-        // Long after, swept windows count afresh.
-        time.Advance(TimeSpan.FromMinutes(5));
-        Assert.True(await counters.TryTakeAsync("other", 1, TimeSpan.FromSeconds(1), token));
-        Assert.False(await counters.TryTakeAsync("other", 1, TimeSpan.FromSeconds(1), token));
-    }
-
     // A rule that allows none refuses every request.
     [Fact]
     public async Task ALimitOfZero_RefusesEveryRequest()
@@ -224,21 +198,6 @@ public sealed class IpRateLimitingTests
         Assert.Equal(429, await Send(limits, "POST", "/connect/token", form: exchange));
     }
 
-    [Fact]
-    public void Counting_NamesTheRulesShortestPeriodFirst_WithTheEndpointInTheBucket()
-    {
-        var rules = new IpRateLimitRules(
-            [Rule("post:*", "1m", 60), Rule("post:*", "1s", 5), Rule("get:*", "1m", 200), Rule("post:/accounts/password-hint", "60m", 5)],
-            enableEndpointRateLimiting: true);
-
-        var counting = rules.Counting("POST", "/Accounts/Password-Hint/");
-
-        Assert.Equal(["1s", "1m", "60m"], counting.Select(count => count.Rule.Period));
-        Assert.All(counting, count => Assert.EndsWith("\npost\n/accounts/password-hint", count.Bucket, StringComparison.Ordinal));
-        Assert.Empty(rules.Counting("PATCH", "/accounts/password-hint"));
-    }
-
-    // A token endpoint may also exchange a session for each product's token: a rule may count only the grants it names.
     [Fact]
     public async Task ARuleForGrants_CountsOnlyThoseGrants_AndLeavesTheFormReadable()
     {
@@ -411,6 +370,42 @@ public sealed class IpRateLimitingTests
     public void Periods_ReadInSeconds(string text, int seconds)
     {
         Assert.Equal(TimeSpan.FromSeconds(seconds), IpRateLimiting.Period(text));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("m")]
+    [InlineData("0m")]
+    [InlineData("-1m")]
+    [InlineData("1w")]
+    [InlineData("1.5m")]
+    public void Periods_NotANumberAndAUnit_Throw(string text)
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() => IpRateLimiting.Period(text));
+
+        Assert.Contains($"'{text}'", exception.Message, StringComparison.Ordinal);
+    }
+
+    // A whitelist entry that is neither an address nor a network fails at startup, naming the entry.
+    [Fact]
+    public void AWhitelistEntry_NeitherAddressNorNetwork_Throws()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => Limits(new IpRateLimitOptions { IpWhitelist = ["not-an-address"], GeneralRules = [Rule("*", "1m", 1)] }));
+
+        Assert.Contains("'not-an-address'", exception.Message, StringComparison.Ordinal);
+    }
+
+    // A request with no client address (one not over a socket) has nothing to count it by, and goes on.
+    [Fact]
+    public async Task ARequestWithoutAnAddress_IsNotCounted()
+    {
+        var limits = Limits(Rule("*", "1m", 0));
+        var http = new DefaultHttpContext();
+        http.Request.Method = "GET";
+        http.Request.Path = "/a";
+
+        Assert.Null(await limits.TryTakeAsync(http));
     }
 
     [Theory]

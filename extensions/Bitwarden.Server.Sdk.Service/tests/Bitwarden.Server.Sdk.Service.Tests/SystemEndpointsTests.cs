@@ -7,6 +7,11 @@ namespace Bitwarden.Server.Sdk.Service.Tests;
 
 public sealed class SystemEndpointsTests
 {
+    // Startup asks only that the service answers.
+    [Fact]
+    public void Startup_Healthy() =>
+        Assert.Equal(SystemStatus.Healthy, SystemEndpoints.Startup().Value);
+
     [Fact]
     public async Task Readiness_NothingRegistered_Healthy()
     {

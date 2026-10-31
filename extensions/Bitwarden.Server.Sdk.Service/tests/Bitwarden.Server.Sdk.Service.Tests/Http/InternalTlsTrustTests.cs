@@ -82,6 +82,21 @@ public sealed class InternalTlsTrustTests : IAsyncLifetime
         Assert.Equal("alive", answer);
     }
 
+    // A client sending with an HttpClientHandler rather than the default SocketsHttpHandler is trusted the same way.
+    [Fact]
+    public async Task Call_ThroughAnHttpClientHandler_ToAServiceWhoseAuthorityIsTrusted_Succeeds()
+    {
+        var services = new ServiceCollection();
+        services.ConfigureHttpClientDefaults(http => http.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler()));
+        InternalTlsTrust.Add(services, new InternalTls { CertificateAuthorities = [Path.Combine(_directory, "authority.pem")] });
+        services.AddHttpClient("callee");
+        using var provider = services.BuildServiceProvider();
+
+        var answer = await provider.GetRequiredService<IHttpClientFactory>().CreateClient("callee").GetStringAsync($"{_address}/alive", Token);
+
+        Assert.Equal("alive", answer);
+    }
+
     // The bearer handler fetches Identity's discovery document and keys through a backchannel of its own, built by the
     // framework's post-configure: the trust is set before it, so an internally certified Identity's keys load.
     [Fact]

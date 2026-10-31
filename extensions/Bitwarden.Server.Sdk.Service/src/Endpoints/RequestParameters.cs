@@ -172,9 +172,16 @@ internal static class RequestParameters
     /// <summary>
     /// Whether the type has the framework's <c>BindAsync</c>, so binds itself.
     /// </summary>
-    internal static bool BindsItself(Type type) =>
-        type.GetMethod("BindAsync", BindingFlags.Public | BindingFlags.Static, [typeof(HttpContext), typeof(ParameterInfo)]) is not null
-        || type.GetMethod("BindAsync", BindingFlags.Public | BindingFlags.Static, [typeof(HttpContext)]) is not null;
+    /// <remarks>
+    /// A <see cref="Nullable{T}"/> binds through <c>T</c>'s, as the framework binds it.
+    /// </remarks>
+    internal static bool BindsItself(Type type)
+    {
+        var underlying = Nullable.GetUnderlyingType(type) ?? type;
+
+        return underlying.GetMethod("BindAsync", BindingFlags.Public | BindingFlags.Static, [typeof(HttpContext), typeof(ParameterInfo)]) is not null
+            || underlying.GetMethod("BindAsync", BindingFlags.Public | BindingFlags.Static, [typeof(HttpContext)]) is not null;
+    }
 
     /// <summary>
     /// The types a route, query or header value may be: what an MVC controller's binder converts from a string.

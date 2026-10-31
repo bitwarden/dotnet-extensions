@@ -16,9 +16,9 @@ public sealed class CursorQueryableTests
     [
         new() { Id = 5, Name = "c" },
         new() { Id = 1, Name = "a" },
-        new() { Id = 3, Name = "b" },
+        new() { Id = 3, Name = "b", Shade = Shade.DarkBlue },
         new() { Id = 2, Name = "b" },
-        new() { Id = 4, Name = "d" },
+        new() { Id = 4, Name = "d", Shade = Shade.DarkBlue },
     ];
 
     [Fact]
@@ -93,6 +93,38 @@ public sealed class CursorQueryableTests
         Assert.Equal([5, 4], Next(Encode("""{"s":"Name","k":["b",3]}""")).Select(row => row.Id));
     }
 
+    // Providers disagree about where nulls sort, so the same cursor would mean different rows.
+    [Fact]
+    public void Page_NullableSortField_IsAWiringError()
+    {
+        var actual = Assert.Throws<InvalidOperationException>(() =>
+            Collection.AsQueryable().Page(new CursorPage { Size = 2 }, Sort.By(SortBy.Ascending("Score")), row => row.Id).ToList());
+
+        Assert.Contains("Row.Score can be null", actual.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Page_NullableTieBreak_IsAWiringError()
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            Collection.AsQueryable().Page(new CursorPage { Size = 2 }, ByName, row => (int?)row.Id).ToList());
+    }
+
+    [Fact]
+    public void ToCursorPage_EnumerationSortField_ContinuesInItsOrder()
+    {
+        var byShade = Sort.By(SortBy.Descending("Shade"));
+        var page = new CursorPage { Size = 2 };
+        var first = Collection.AsQueryable().Page(page, byShade, row => row.Id).ToList()
+            .ToCursorPage(page, byShade, row => row.Id, row => row.Id);
+
+        var next = new CursorPage { Size = 10, After = first.Cursor };
+        var rest = Collection.AsQueryable().Page(next, byShade, row => row.Id).Select(row => row.Id);
+
+        Assert.Equal([3, 4], first.Items);
+        Assert.Equal([1, 2, 5], rest);
+    }
+
     private static List<Row> Next(string cursor) =>
         Collection.AsQueryable().Page(new CursorPage { Size = 2, After = cursor }, ByName, row => row.Id).ToList();
 
@@ -111,5 +143,15 @@ public sealed class CursorQueryableTests
         public int Id { get; init; }
 
         public string Name { get; init; } = "";
+
+        public int? Score { get; init; }
+
+        public Shade Shade { get; init; }
+    }
+
+    private enum Shade
+    {
+        Light,
+        DarkBlue,
     }
 }

@@ -95,6 +95,38 @@ public sealed class ServiceTests
         Assert.Contains(logged, line => line.Contains(Credential, StringComparison.Ordinal));
     }
 
+    // A name is a lowercase slug; the human-readable form, passed in its place, is refused at once, naming the title
+    // as where it belongs.
+    [Theory]
+    [InlineData("Widget Service")]
+    [InlineData("widget_service")]
+    [InlineData("-widgets")]
+    [InlineData("widgets-")]
+    [InlineData("widget--service")]
+    public void Construct_ANameThatIsNotASlug_Throws(string name)
+    {
+        var exception = Assert.Throws<ArgumentException>(() => new Named(name, "Widget Service"));
+
+        Assert.Equal("name", exception.ParamName);
+        Assert.Contains("title", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("", "Widget Service", "name")]
+    [InlineData(" ", "Widget Service", "name")]
+    [InlineData("widget-service", "", "title")]
+    public void Construct_ABlankNameOrTitle_Throws(string name, string title, string parameter) =>
+        Assert.Equal(parameter, Assert.ThrowsAny<ArgumentException>(() => new Named(name, title)).ParamName);
+
+    [Fact]
+    public void Construct_ASlugAndATitle_AreKept()
+    {
+        var service = new Named("widget-service2", "Widget Service");
+
+        Assert.Equal("widget-service2", service.GivenName);
+        Assert.Equal("Widget Service", service.GivenTitle);
+    }
+
     private static async Task<IReadOnlyCollection<string>> Logged(
         bool productService,
         IReadOnlyDictionary<string, string?>? configuration)
@@ -111,6 +143,13 @@ public sealed class ServiceTests
         }
 
         return lines.Lines;
+    }
+
+    private sealed class Named(string name, string title) : Service(name, title, [])
+    {
+        public string GivenName => Name;
+
+        public string GivenTitle => Title;
     }
 
     private sealed class LinesLogger : ILoggerProvider, ILogger

@@ -202,6 +202,21 @@ public sealed class ServiceAudienceTests
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    // Only the bearer scheme a service authenticates its callers with: another scheme's audiences are its own business.
+    [Fact]
+    public void AnotherScheme_LeftAlone()
+    {
+        var options = new JwtBearerOptions();
+        options.TokenValidationParameters.ValidAudience = "another-audience";
+        options.TokenValidationParameters.ValidateAudience = false;
+
+        new ServiceAudience(new Identity()).PostConfigure("another-scheme", options);
+
+        Assert.Equal("another-audience", options.TokenValidationParameters.ValidAudience);
+        Assert.Null(options.TokenValidationParameters.ValidAudiences);
+        Assert.False(options.TokenValidationParameters.ValidateAudience);
+    }
+
     private static async Task<HttpResponseMessage> Send(SessionHost service, string[] audiences, Guid? user)
     {
         using var request = ProductServiceAttributeTests.Get(
@@ -209,5 +224,12 @@ public sealed class ServiceAudienceTests
             SessionHost.AddressedToken(audiences, user, new Dictionary<string, object>(), SessionHost.Scope));
 
         return await service.Client().SendAsync(request, TestContext.Current.CancellationToken);
+    }
+
+    private sealed class Identity : IServiceIdentity
+    {
+        public string Name => SessionHost.ServiceName;
+
+        public string Title => "Session Test Service";
     }
 }

@@ -42,6 +42,9 @@ public class SsrfProtectionHandlerTests
             var response = _responses.Count > 0
                 ? _responses.Dequeue()
                 : new HttpResponseMessage(HttpStatusCode.OK);
+
+            // As a connection does: the answer names the request it answers.
+            response.RequestMessage ??= request;
             return response;
         }
 
@@ -466,6 +469,32 @@ public class SsrfProtectionHandlerTests
         Assert.Null(inner.AllRequests[1].Headers.Authorization);
     }
 
+    // Every hop that keeps the method carries the body, however many there are, and the answer's request is the
+    // last hop's, still readable.
+    [Fact]
+    public async Task SendAsync_307Then308_SendsTheBodyOnEveryHop()
+    {
+        var (client, inner) = CreateClient();
+        var temporary = new HttpResponseMessage(HttpStatusCode.TemporaryRedirect);
+        temporary.Headers.Location = new Uri("http://1.1.1.1/second");
+        inner.EnqueueResponse(temporary);
+        var permanent = new HttpResponseMessage(HttpStatusCode.PermanentRedirect);
+        permanent.Headers.Location = new Uri("http://9.9.9.9/final");
+        inner.EnqueueResponse(permanent);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "http://8.8.8.8/start")
+        {
+            Content = new StringContent("{\"event\":1}", System.Text.Encoding.UTF8, "application/json"),
+        };
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal([HttpMethod.Post, HttpMethod.Post, HttpMethod.Post], inner.AllRequests.Select(sent => sent.Method));
+        Assert.All(inner.Bodies, sent => Assert.Equal(("{\"event\":1}", "application/json; charset=utf-8"), sent));
+        Assert.Equal("/final", response.RequestMessage!.RequestUri!.AbsolutePath);
+        Assert.Equal("{\"event\":1}", await response.RequestMessage.Content!.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
     // A body read from a stream can be sent once only; the guard keeps a copy so the next hop carries it too.
     [Fact]
     public async Task SendAsync_307_Redirect_SendsAStreamedBodyAgain()
@@ -533,6 +562,37 @@ public class SsrfProtectionHandlerTests
 
         await Assert.ThrowsAsync<SsrfProtectionException>(
             () => client.GetAsync("http://8.8.8.8/start", TestContext.Current.CancellationToken));
+    }
+
+    // A request with no address is refused rather than handed on.
+    [Fact]
+    public async Task SendAsync_NoRequestUri_ThrowsSsrfProtectionException()
+    {
+        using var invoker = new HttpMessageInvoker(
+            new SsrfProtectionHandler(Microsoft.Extensions.Logging.Abstractions.NullLogger<SsrfProtectionHandler>.Instance)
+            {
+                InnerHandler = new TestInnerHandler(),
+            });
+        using var request = new HttpRequestMessage(HttpMethod.Get, (Uri?)null);
+
+        var exception = await Assert.ThrowsAsync<SsrfProtectionException>(
+            () => invoker.SendAsync(request, TestContext.Current.CancellationToken));
+
+        Assert.Equal("Request URI is null.", exception.Message);
+    }
+
+    // A host that resolves to nothing (here a reserved, never-resolving name) is refused: nothing is checked, so
+    // nothing is sent.
+    [Fact]
+    public async Task SendAsync_AHostThatDoesNotResolve_ThrowsSsrfProtectionException()
+    {
+        var (client, inner) = CreateClient();
+
+        var exception = await Assert.ThrowsAsync<SsrfProtectionException>(
+            () => client.GetAsync("http://no-such-host.invalid/", TestContext.Current.CancellationToken));
+
+        Assert.Contains("no-such-host.invalid", exception.Message, StringComparison.Ordinal);
+        Assert.Empty(inner.AllRequests);
     }
 
     /// <summary>

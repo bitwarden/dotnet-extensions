@@ -29,4 +29,13 @@ public sealed class EnumValuesTests
     {
         Assert.False(EnumValues.TryParse(typeof(Legacy), value, out _));
     }
+
+    // A query's filter is checked against the published names, without case.
+    [Theory]
+    [InlineData("USER_LOGGED_IN", true)]
+    [InlineData("promotional_credit", true)]
+    [InlineData("User_LoggedIn", false)]
+    [InlineData("", false)]
+    public void Recognises_OnlyAPublishedName(string value, bool expected) =>
+        Assert.Equal(expected, EnumValues.Recognises(typeof(Legacy), value));
 }

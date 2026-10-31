@@ -46,6 +46,37 @@ public sealed class QueryTests
         Assert.Equal(comparisons, query.Root.Terms.Count);
     }
 
+    [Theory]
+    [InlineData("{}", "applies none")]
+    [InlineData("""{ "==": [{ "var": "Name" }, "a"], "!=": [{ "var": "Name" }, "b"] }""", "applies 2: '==', '!='")]
+    public void Parse_ObjectNotApplyingExactlyOneOperator_IsRefusedAtIt(string filter, string expected)
+    {
+        var actual = Assert.Throws<InvalidRequestException>(() => Parse(filter));
+
+        Assert.Equal("/filter", actual.Pointer);
+        Assert.Contains(expected, actual.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_UnknownOperator_IsRefusedListingThePermittedOnes()
+    {
+        var actual = Assert.Throws<InvalidRequestException>(() => Parse("""{ "and": [{ "like": [{ "var": "Name" }, "a"] }, { "==": [{ "var": "Name" }, "a"] }] }"""));
+
+        Assert.Equal("/filter/and/0", actual.Pointer);
+        Assert.Contains("'like' is not an operator", actual.Message, StringComparison.Ordinal);
+        Assert.Contains("'=='", actual.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_AtAnotherPointer_RefusesAtIt()
+    {
+        using var document = JsonDocument.Parse("5");
+
+        var actual = Assert.Throws<InvalidRequestException>(() => Query.Parse(document.RootElement, "/data/filter"));
+
+        Assert.Equal("/data/filter", actual.Pointer);
+    }
+
     [Fact]
     public void Matching_ManyTerms_IsBalancedAndMatchesWhatAnyOfThemMatch()
     {

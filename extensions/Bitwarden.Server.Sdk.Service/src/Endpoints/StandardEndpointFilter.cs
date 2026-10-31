@@ -52,9 +52,7 @@ internal static class StandardEndpointFilter
             || declaring?.IsDefined(typeof(NotSelfHostedOnlyAttribute), true) == true;
         var namesOrganization = method.IsDefined(typeof(NamesOrganizationAttribute), true);
         var namesProvider = method.IsDefined(typeof(NamesProviderAttribute), true);
-        (Atomicity Supports, Targeting Targeting)? bulk = standard is StandardBulkUpdateAttribute or StandardBulkDeleteAttribute
-            or StandardBulkActionAttribute or StandardBulkCreateAttribute
-            or StandardBulkReplaceAttribute or StandardSearchAttribute
+        (Atomicity Supports, Targeting Targeting)? bulk = BulkChecks.ChecksFilter(standard)
             ? BulkChecks.Declared([standard])
             : null;
 

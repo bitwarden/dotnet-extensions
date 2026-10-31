@@ -14,10 +14,10 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-  <!-- The shared rate-limit counts' tests are left out: they map no handler, and need a Redis container. -->
+  <!-- The Redis counts' tests are left out: they map no handler, and need a Redis container. -->
   <ItemGroup>
     <Compile Include="..\Bitwarden.Server.Sdk.Service.Tests\**\*.cs"
-             Exclude="..\Bitwarden.Server.Sdk.Service.Tests\obj\**;..\Bitwarden.Server.Sdk.Service.Tests\bin\**;..\Bitwarden.Server.Sdk.Service.Tests\Http\RateLimitCountersTests.cs" />
+             Exclude="..\Bitwarden.Server.Sdk.Service.Tests\obj\**;..\Bitwarden.Server.Sdk.Service.Tests\bin\**;..\Bitwarden.Server.Sdk.Service.Tests\Http\RedisRateLimitCountersTests.cs" />
   </ItemGroup>
 
   <ItemGroup>

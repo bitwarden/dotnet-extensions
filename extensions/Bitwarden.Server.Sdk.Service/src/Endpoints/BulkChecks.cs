@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Bitwarden.Server.Sdk.Common;
 using Bitwarden.Server.Sdk.Service.JsonApi;
 using Bitwarden.Server.Sdk.Service.Querying;
@@ -9,6 +10,19 @@ namespace Bitwarden.Server.Sdk.Service.Endpoints;
 /// </summary>
 internal static class BulkChecks
 {
+    /// <summary>
+    /// Whether the standard filter checks the expression in a <see cref="Search{T}"/> or bulk request
+    /// on an operation: only on the search or bulk operation it is.
+    /// </summary>
+    /// <remarks>
+    /// The one list both the filter and the startup check read, so a handler the check lets take an
+    /// expression is always one whose expression the filter checks.
+    /// </remarks>
+    /// <param name="operation">The operation's standard attribute, if it has one.</param>
+    public static bool ChecksFilter([NotNullWhen(true)] IStandardOperation? operation) =>
+        operation is StandardSearchAttribute or StandardBulkUpdateAttribute or StandardBulkDeleteAttribute
+            or StandardBulkActionAttribute or StandardBulkCreateAttribute or StandardBulkReplaceAttribute;
+
     /// <summary>
     /// Checks one argument, if it is a bulk document.
     /// </summary>

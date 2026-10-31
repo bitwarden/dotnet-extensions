@@ -46,6 +46,24 @@ public sealed class StatusCodeErrorWriterTests
         Assert.Equal(ErrorDetails.UnsupportedMediaType, error.GetProperty("detail").GetString());
     }
 
+    [Theory]
+    [InlineData(StatusCodes.Status404NotFound, ErrorCodes.NotFound, ErrorTitles.NotFound, ErrorDetails.NoSuchRoute)]
+    [InlineData(StatusCodes.Status401Unauthorized, ErrorCodes.Unauthenticated, ErrorTitles.Unauthenticated, ErrorDetails.Unauthenticated)]
+    [InlineData(StatusCodes.Status403Forbidden, ErrorCodes.Forbidden, ErrorTitles.Forbidden, ErrorDetails.Forbidden)]
+    [InlineData(StatusCodes.Status500InternalServerError, ErrorCodes.InternalError, ErrorTitles.InternalError, ErrorDetails.InternalError)]
+    [InlineData(StatusCodes.Status502BadGateway, ErrorCodes.InternalError, ErrorTitles.InternalError, ErrorDetails.InternalError)]
+    [InlineData(StatusCodes.Status400BadRequest, ErrorCodes.InvalidRequest, ErrorTitles.InvalidRequest, ErrorDetails.InvalidRequest)]
+    [InlineData(StatusCodes.Status413PayloadTooLarge, ErrorCodes.InvalidRequest, ErrorTitles.InvalidRequest, ErrorDetails.InvalidRequest)]
+    public async Task Write_Status_DescribedByItsOwnCode(int status, string code, string title, string detail)
+    {
+        var error = await Write(status, HttpMethods.Get);
+
+        Assert.Equal(status.ToString(System.Globalization.CultureInfo.InvariantCulture), error.GetProperty("status").GetString());
+        Assert.Equal(code, error.GetProperty("code").GetString());
+        Assert.Equal(title, error.GetProperty("title").GetString());
+        Assert.Equal(detail, error.GetProperty("detail").GetString());
+    }
+
     private static async Task<JsonElement> Write(int status, string method)
     {
         var http = new DefaultHttpContext();

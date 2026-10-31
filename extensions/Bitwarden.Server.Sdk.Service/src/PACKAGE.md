@@ -32,6 +32,23 @@ Bitwarden.Server.Sdk.HealthChecks and Bitwarden.Server.Sdk.Authentication.
 dotnet add package Bitwarden.Server.Sdk.Service
 ```
 
+## Bitwarden.Server.Sdk and `UseBitwardenSdk()`
+
+The `Bitwarden.Server.Sdk` MSBuild SDK offers `UseBitwardenSdk()`, which layers in self-hosted
+settings, sets up OpenTelemetry and, depending on what the project turns on, adds authentication and
+feature flags. A service built on `Service` gets all of that from `Service`, so it does not call
+`UseBitwardenSdk()` as well: the two would register the bearer scheme twice, which fails with
+"Scheme already exists: Bearer".
+
+The settings both read mean the same thing in both:
+
+- `globalSettings:selfHosted` marks a self-hosted install and layers in
+  `appsettings.SelfHosted.json` after `appsettings.{Environment}.json`;
+- `OpenTelemetry:Enabled`, `OpenTelemetry:Tracing:Enabled` and `OpenTelemetry:Metrics:Enabled` turn
+  the exporters on or off, on by default in the cloud and off when self-hosted
+  (`OpenTelemetry:Logging:Enabled` is read by `Service` only);
+- the `DD_ENV` environment variable is added to the telemetry resource as `env`.
+
 ## Configuration
 
 Every setting is optional. A service with none of them runs in the cloud configuration, with no
@@ -889,6 +906,9 @@ var enabled = await cache.GetOrResolveOnceAsync(
 A failed or cancelled resolution is not kept, and no caller's cancellation token reaches the shared
 resolution, so one caller giving up fails nobody else. Use it only for answers from other services:
 an answer read from the request's own database belongs to that request's scope.
+
+It is a short in-process memo of one answer per key; for anything beyond that, such as a cache
+shared between instances, use Bitwarden.Server.Sdk.Caching.
 
 ### Answer health probes
 

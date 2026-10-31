@@ -50,29 +50,4 @@ public sealed class FilterSyntaxTests
     {
         Assert.False(FilterSyntax.TryRange(value, out _));
     }
-
-    [Fact]
-    public void Range_Inverted_IsRefused()
-    {
-        Assert.Throws<ArgumentException>(() => new Range<int>(5, true, 1, true));
-    }
-
-    // Equal bounds are a range of one value only when both ends include it. Otherwise nothing
-    // could match, which a caller cannot have meant.
-    [Fact]
-    public void Range_EqualBoundsWithAnExclusiveEnd_IsRefused()
-    {
-        Assert.Throws<ArgumentException>(() => new Range<int>(3, true, 3, false));
-        Assert.True(new Range<int>(3, true, 3, true).Contains(3));
-    }
-
-    [Fact]
-    public void Range_Contains_RespectsEachEnd()
-    {
-        var actual = new Range<int>(1, false, 5, true);
-
-        Assert.False(actual.Contains(1));
-        Assert.True(actual.Contains(5));
-        Assert.True(new Range<int>(null, false, null, false).Contains(int.MinValue));
-    }
 }

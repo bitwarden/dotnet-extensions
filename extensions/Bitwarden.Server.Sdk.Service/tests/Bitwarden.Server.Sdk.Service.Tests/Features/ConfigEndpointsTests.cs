@@ -1,13 +1,19 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Bitwarden.Server.Sdk.Common;
+using Bitwarden.Server.Sdk.Environment;
 using Bitwarden.Server.Sdk.Features;
 using Bitwarden.Server.Sdk.Service.Features;
 using Bitwarden.Server.Sdk.Service.Tests.TestHost;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using LdContext = LaunchDarkly.Sdk.Context;
 
 namespace Bitwarden.Server.Sdk.Service.Tests.Features;
@@ -240,6 +246,94 @@ public sealed class ConfigEndpointsTests
         using var document = await OpenApi(service);
 
         Assert.False(document.RootElement.GetProperty("paths").TryGetProperty(Path, out _));
+    }
+
+    // The environment's version first.
+    [Fact]
+    public void GetConfig_TheEnvironmentsVersion_IsTheVersion()
+    {
+        var config = ConfigEndpoints.GetConfig(new NoFlags(), new Install("2026.10.0"), new Application("No.Such.Assembly"), Empty()).Data;
+
+        Assert.Equal("2026.10.0", config.Version);
+    }
+
+    // Without one, the service assembly's informational version, without its build metadata.
+    [Fact]
+    public void GetConfig_NoEnvironmentVersion_TheServiceAssemblysVersion()
+    {
+        var assembly = typeof(ConfigEndpointsTests).Assembly;
+        var informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion;
+
+        var config = ConfigEndpoints.GetConfig(new NoFlags(), new Install(""), new Application(assembly.GetName().Name!), Empty()).Data;
+
+        Assert.Equal(informational.Split('+')[0], config.Version);
+        Assert.DoesNotContain('+', config.Version!);
+    }
+
+    // A service whose assembly can't be found has no version to report, and still answers.
+    [Fact]
+    public void GetConfig_NoVersionAnywhere_NoVersion()
+    {
+        var config = ConfigEndpoints.GetConfig(new NoFlags(), new Install(""), new Application("No.Such.Assembly"), Empty()).Data;
+
+        Assert.Null(config.Version);
+    }
+
+    // An empty value is no value, and a switch reads true only from "true".
+    [Fact]
+    public void GetConfig_EmptyValuesAndUnreadableSwitches_AreAbsentAndOff()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Service:Environment:CloudRegion"] = "",
+                ["Service:Settings:DisableUserRegistration"] = "yes",
+                ["Service:Settings:SuppressOnboardingInterstitials"] = "True",
+            })
+            .Build();
+
+        var config = ConfigEndpoints.GetConfig(new NoFlags(), new Install("1.0.0"), new Application("No.Such.Assembly"), configuration).Data;
+
+        Assert.Null(config.Environment.CloudRegion);
+        Assert.False(config.Settings.DisableUserRegistration);
+        Assert.True(config.Settings.SuppressOnboardingInterstitials);
+    }
+
+    private static IConfiguration Empty() =>
+        new ConfigurationBuilder().Build();
+
+    private sealed class NoFlags : IFeatureService
+    {
+        public bool IsEnabled(string key, bool defaultValue = false) => defaultValue;
+
+        public int GetIntVariation(string key, int defaultValue = 0) => defaultValue;
+
+        public string? GetStringVariation(string key, string? defaultValue = null) => defaultValue;
+
+        public IReadOnlyDictionary<string, JsonValue> GetAll() =>
+            new Dictionary<string, JsonValue>();
+    }
+
+    private sealed class Install(string version) : IBitwardenEnvironment
+    {
+        public string Version => version;
+
+        public string? GitHash => null;
+
+        public bool SelfHosted => false;
+
+        public string? SelfHostFlavor => null;
+    }
+
+    private sealed class Application(string applicationName) : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = "Production";
+
+        public string ApplicationName { get; set; } = applicationName;
+
+        public string ContentRootPath { get; set; } = "/";
+
+        public IFileProvider ContentRootFileProvider { get; set; } = null!;
     }
 
     private static Task<SessionHost> StartWithSpy(SpyContextBuilder spy) =>

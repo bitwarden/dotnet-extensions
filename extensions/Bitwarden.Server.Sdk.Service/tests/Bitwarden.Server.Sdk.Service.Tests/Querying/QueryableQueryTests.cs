@@ -15,7 +15,7 @@ public sealed class QueryableQueryTests
         new[]
         {
             new Row { Name = "a", Count = 1, Active = true, Secret = "s1" },
-            new Row { Name = "b", Count = 2, Active = false, Secret = "s2" },
+            new Row { Name = "b", Count = 2, Active = false, Secret = "s2", Shade = Shade.DarkBlue },
         }.AsQueryable();
 
     // Read from a request and never checked against a resource, an expression could name any
@@ -126,6 +126,139 @@ public sealed class QueryableQueryTests
         Assert.Throws<InvalidRequestException>(() => Rows.Matching(Checked("""{ "in": [{ "var": "name" }, 5] }""")).ToList());
     }
 
+    [Theory]
+    [InlineData("""{ "!=": [{ "var": "count" }, 1] }""", new[] { "b" })]
+    [InlineData("""{ ">=": [{ "var": "count" }, 2] }""", new[] { "b" })]
+    [InlineData("""{ "<": [{ "var": "count" }, 2] }""", new[] { "a" })]
+    [InlineData("""{ "<=": [{ "var": "count" }, 2] }""", new[] { "a", "b" })]
+    [InlineData("""{ "!": { "==": [{ "var": "name" }, "a"] } }""", new[] { "b" })]
+    [InlineData("""{ "or": [{ "==": [{ "var": "name" }, "a"] }, { "==": [{ "var": "count" }, 2] }] }""", new[] { "a", "b" })]
+    [InlineData("""{ "and": [{ "==": [{ "var": "active" }, true] }, { "==": [{ "var": "count" }, 2] }] }""", new string[0])]
+    [InlineData("""{ "in": [{ "var": "count" }, [2, 3]] }""", new[] { "b" })]
+    [InlineData("""{ "in": [{ "var": "name" }, "b"] }""", new[] { "b" })]
+    [InlineData("""{ "==": [5, { "var": "count" }] }""", new string[0])]
+    public void Matching_EachOperator_MatchesWhatItSays(string filter, string[] expected)
+    {
+        Assert.Equal(expected, Rows.Matching(Checked(filter)).Select(row => row.Name));
+    }
+
+    // The literal may come first or second, and each ordering reads as written: '2 < count' is
+    // the rows whose count is above 2, not below it.
+    [Theory]
+    [InlineData("""{ "<": [{ "var": "count" }, 2] }""", new[] { "a" })]
+    [InlineData("""{ "<": [2, { "var": "count" }] }""", new[] { "c" })]
+    [InlineData("""{ "<=": [{ "var": "count" }, 2] }""", new[] { "a", "b" })]
+    [InlineData("""{ "<=": [2, { "var": "count" }] }""", new[] { "b", "c" })]
+    [InlineData("""{ ">": [{ "var": "count" }, 2] }""", new[] { "c" })]
+    [InlineData("""{ ">": [2, { "var": "count" }] }""", new[] { "a" })]
+    [InlineData("""{ ">=": [{ "var": "count" }, 2] }""", new[] { "b", "c" })]
+    [InlineData("""{ ">=": [2, { "var": "count" }] }""", new[] { "a", "b" })]
+    [InlineData("""{ "==": [2, { "var": "count" }] }""", new[] { "b" })]
+    [InlineData("""{ "!=": [2, { "var": "count" }] }""", new[] { "a", "c" })]
+    public void Matching_OrderingWithTheLiteralFirstOrSecond_ReadsAsWritten(string filter, string[] expected)
+    {
+        var rows = new[]
+        {
+            new Row { Name = "a", Count = 1 },
+            new Row { Name = "b", Count = 2 },
+            new Row { Name = "c", Count = 3 },
+        }.AsQueryable();
+
+        Assert.Equal(expected, rows.Matching(Checked(filter)).Select(row => row.Name));
+    }
+
+    [Fact]
+    public void Matching_Enumeration_IsComparedByItsPublishedName()
+    {
+        Assert.Equal(["b"], Rows.Matching(Checked("""{ "==": [{ "var": "shade" }, "DARK_BLUE"] }""")).Select(row => row.Name));
+    }
+
+    [Theory]
+    [InlineData("""{ "==": [{ "var": "shade" }, "DarkBlue"] }""")]
+    [InlineData("""{ "==": [{ "var": "count" }, "x"] }""")]
+    [InlineData("""{ "in": [{ "var": "count" }, ["x"]] }""")]
+    [InlineData("""{ "==": [{ "var": "shade" }, 1] }""")]
+    [InlineData("""{ "==": [{ "var": "shade" }, true] }""")]
+    [InlineData("""{ "in": [{ "var": "shade" }, [1]] }""")]
+    public void Matching_LiteralTheFieldCannotHold_IsRefused(string filter)
+    {
+        var actual = Assert.Throws<InvalidRequestException>(() => Rows.Matching(Checked(filter)).ToList());
+
+        Assert.Equal("/filter", actual.Pointer);
+        Assert.Contains("is not a value this field can be compared against", actual.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("""{ "and": { "==": [{ "var": "name" }, "a"] } }""", "combines two or more terms")]
+    [InlineData("""{ "or": [] }""", "combines two or more terms")]
+    [InlineData("""{ "!": [{ "==": [{ "var": "name" }, "a"] }, { "==": [{ "var": "name" }, "b"] }] }""", "negates exactly one term")]
+    [InlineData("""{ "==": [{ "var": "name" }] }""", "compares exactly two operands")]
+    [InlineData("""{ "==": [{ "var": "name" }, "a", "b"] }""", "compares exactly two operands")]
+    [InlineData("""{ "==": [{ "var": "name" }, { "var": "name" }] }""", "between one field and one value")]
+    [InlineData("""{ "==": [1, 2] }""", "between one field and one value")]
+    public void Matching_OperatorGivenTheWrongNumberOrKindOfOperands_IsRefused(string filter, string expected)
+    {
+        var actual = Assert.Throws<InvalidRequestException>(() => Rows.Matching(Checked(filter)).ToList());
+
+        Assert.Equal("/filter", actual.Pointer);
+        Assert.Contains(expected, actual.Message, StringComparison.Ordinal);
+    }
+
+    // A query built in code is the service's own; a mistake in it is a wiring error, not a 422.
+    [Fact]
+    public void Matching_ExpressionBuiltInCodeNamingNoSuchProperty_IsAWiringError()
+    {
+        using var literal = JsonDocument.Parse("\"b\"");
+        var query = new Query
+        {
+            Root = new QueryTerm
+            {
+                Operator = QueryOperator.Equal,
+                Terms = [new QueryTerm { Operator = QueryOperator.Var, Field = "nope" }, new QueryTerm { Value = literal.RootElement.Clone() }],
+            },
+        };
+
+        var actual = Assert.Throws<InvalidOperationException>(() => Rows.Matching(query).ToList());
+
+        Assert.Contains("has no property 'nope'", actual.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Matching_ExpressionCheckedForAResourceNamingAFieldItDoesNotFilterOn_IsAWiringError()
+    {
+        using var literal = JsonDocument.Parse("\"s\"");
+        var query = new Query
+        {
+            Root = new QueryTerm
+            {
+                Operator = QueryOperator.Equal,
+                Terms = [new QueryTerm { Operator = QueryOperator.Var, Field = "secret" }, new QueryTerm { Value = literal.RootElement.Clone() }],
+            },
+            Resource = typeof(Item),
+        };
+
+        var actual = Assert.Throws<InvalidOperationException>(() => Rows.Matching(query).ToList());
+
+        Assert.Contains("'secret' is not a filterable field", actual.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(QueryOperator.Var)]
+    public void Matching_RootThatIsNotACondition_IsAWiringError(QueryOperator? root)
+    {
+        var query = new Query { Root = new QueryTerm { Operator = root, Field = "name" } };
+
+        Assert.Throws<InvalidOperationException>(() => Rows.Matching(query).ToList());
+    }
+
+    [Fact]
+    public void Matching_NoSourceOrQuery_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(() => ((IQueryable<Row>)null!).Matching(Checked("""{ "==": [{ "var": "count" }, 2] }""")));
+        Assert.Throws<ArgumentNullException>(() => Rows.Matching(null!));
+    }
+
     private static Query Read(string filter) => JsonSerializer.Deserialize<Query>(filter)!;
 
     private static Query Checked(string filter)
@@ -146,6 +279,14 @@ public sealed class QueryableQueryTests
         public bool Active { get; set; }
 
         public string Secret { get; set; } = "";
+
+        public Shade Shade { get; set; }
+    }
+
+    public enum Shade
+    {
+        Light,
+        DarkBlue,
     }
 
     private sealed record Item : Resource
@@ -161,5 +302,8 @@ public sealed class QueryableQueryTests
 
         [Filterable]
         public bool Active { get; init; }
+
+        [Filterable]
+        public Shade Shade { get; init; }
     }
 }

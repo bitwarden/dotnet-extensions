@@ -44,6 +44,13 @@ public sealed class FieldsTests
     }
 
     [Fact]
+    public void ToString_IsTheFieldsetAsSent_OrEmptyWhenNoneWas()
+    {
+        Assert.Equal("note", new Fields<Probe>(["note"]).ToString());
+        Assert.Equal(string.Empty, default(Fields<Probe>).ToString());
+    }
+
+    [Fact]
     public void Constructor_UnknownAttribute_Refused()
     {
         var refusal = Assert.Throws<InvalidFieldsException>(() => new Fields<Probe>(["note", "nope"]));

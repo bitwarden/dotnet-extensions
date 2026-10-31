@@ -166,7 +166,7 @@ internal static class FilterBinding
             // and saying so is the answer the caller can act on.
             throw raw.Contains(',', StringComparison.Ordinal)
                 ? new InvalidFilterException(parameter, raw, "accepts one value")
-                : new InvalidFilterException(parameter, raw, $"expects a {Describe(shape.Element)}");
+                : new InvalidFilterException(parameter, raw, $"expects {WithArticle(Describe(shape.Element))}");
         }
 
         return Activator.CreateInstance(typeof(Filter<>).MakeGenericType(shape.Element), converted)!;
@@ -196,4 +196,8 @@ internal static class FilterBinding
     }
 
     private static string Describe(Type type) => type == typeof(Guid) ? "identifier" : type.Name.ToLowerInvariant();
+
+    // By the described word's first letter, so it reads "an identifier", "an int32", "a string".
+    private static string WithArticle(string described) =>
+        ("aeiou".Contains(described[0], StringComparison.Ordinal) ? "an " : "a ") + described;
 }

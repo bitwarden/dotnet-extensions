@@ -62,13 +62,16 @@ internal class SsrfProtectionHandler : DelegatingHandler
         var currentMethod = request.Method;
 
         // A redirect keeping the method sends the body again, and a body read from a stream can be sent only once:
-        // buffered here, it can be read for each hop.
+        // its bytes and content headers are kept here, and every hop that keeps the method gets fresh content
+        // built from them (each hop's request, and its content, is disposed once the next hop replaces it).
+        byte[]? body = null;
+        KeyValuePair<string, IEnumerable<string>>[] bodyHeaders = [];
         if (FollowRedirects && request.Content is not null)
         {
             await request.Content.LoadIntoBufferAsync(cancellationToken).ConfigureAwait(false);
+            body = await request.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+            bodyHeaders = [.. request.Content.Headers];
         }
-
-        var currentContent = request.Content;
 
         var response = await ValidateAndSendAsync(request, cancellationToken).ConfigureAwait(false);
 
@@ -77,8 +80,10 @@ internal class SsrfProtectionHandler : DelegatingHandler
             return response;
         }
 
-        // Manually follow redirects with SSRF validation on each hop
+        // Manually follow redirects with SSRF validation on each hop. The last hop's request is left undisposed:
+        // the response returned refers to it as its RequestMessage.
         var redirectCount = 0;
+        HttpRequestMessage? hop = null;
         while (_redirectStatusCodes.Contains(response.StatusCode) &&
                response.Headers.Location is not null &&
                redirectCount < _maxRedirects)
@@ -103,20 +108,33 @@ internal class SsrfProtectionHandler : DelegatingHandler
 
             // A redirect that keeps the method keeps the body; one that changes it to GET leaves it behind. The
             // original request's headers (Authorization among them) are never carried to the next hop.
-            var redirectContent = redirectMethod == currentMethod && currentContent is not null
-                ? await CopyAsync(currentContent, cancellationToken).ConfigureAwait(false)
-                : null;
+            if (redirectMethod != currentMethod)
+            {
+                body = null;
+            }
 
             response.Dispose();
+            hop?.Dispose();
 
-            using var redirectRequest = new HttpRequestMessage(redirectMethod, redirectUri) { Content = redirectContent };
-            response = await ValidateAndSendAsync(redirectRequest, cancellationToken).ConfigureAwait(false);
+            hop = new HttpRequestMessage(redirectMethod, redirectUri)
+            {
+                Content = body is null ? null : Content(body, bodyHeaders),
+            };
+
+            try
+            {
+                response = await ValidateAndSendAsync(hop, cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                hop.Dispose();
+                throw;
+            }
 
             // Update tracking for next iteration: use the pre-rewrite URI
             // (redirectUri is not mutated by ValidateAndSendAsync)
             currentUri = redirectUri;
             currentMethod = redirectMethod;
-            currentContent = redirectContent;
         }
 
         return response;
@@ -192,17 +210,17 @@ internal class SsrfProtectionHandler : DelegatingHandler
     }
 
     /// <summary>
-    /// A copy of a buffered body, with its content headers, for the next hop of a redirect.
+    /// Fresh content for the next hop of a redirect, from the original body's bytes and content headers.
     /// </summary>
-    private static async Task<HttpContent> CopyAsync(HttpContent content, CancellationToken cancellationToken)
+    private static ByteArrayContent Content(byte[] body, KeyValuePair<string, IEnumerable<string>>[] headers)
     {
-        var copy = new ByteArrayContent(await content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false));
-        foreach (var header in content.Headers)
+        var content = new ByteArrayContent(body);
+        foreach (var header in headers)
         {
-            copy.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            content.Headers.TryAddWithoutValidation(header.Key, header.Value);
         }
 
-        return copy;
+        return content;
     }
 
     /// <summary>

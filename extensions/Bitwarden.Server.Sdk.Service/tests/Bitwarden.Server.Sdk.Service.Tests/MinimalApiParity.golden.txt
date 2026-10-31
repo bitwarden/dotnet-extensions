@@ -69,7 +69,7 @@ list range
 list bad range
 422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"'filter[createdAt]' expects a range such as [begin,end), with datetimeoffset bounds or * for no limit, not '[2026-01-01'.","source":{"parameter":"filter[createdAt]"}}]}
 list bad filter
-422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"'filter[id]' expects a identifier, not 'nope'.","source":{"parameter":"filter[id]"}}]}
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"'filter[id]' expects an identifier, not 'nope'.","source":{"parameter":"filter[id]"}}]}
 list filter twice
 422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"'filter[id]' accepts one value, not 'a0000000-0000-4000-8000-0000000000aa,a0000000-0000-4000-8000-0000000000ab'.","source":{"parameter":"filter[id]"}}]}
 list bad sort
@@ -95,7 +95,7 @@ list empty flag
 required filter missing
 422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"The organizationId field is required.","source":{"pointer":"/data"}}]}
 required filter bad
-422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"'filter[organizationId]' expects a identifier, not 'nope'.","source":{"parameter":"filter[organizationId]"}}]}
+422 application/json; charset=utf-8  {"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"'filter[organizationId]' expects an identifier, not 'nope'.","source":{"parameter":"filter[organizationId]"}}]}
 required filter given
 200 application/json; charset=utf-8  {"data":[{"id":"one","type":"parity-item","attributes":{"name":"item","note":"a0000000-0000-4000-8000-0000000000aa","quantity":1}}]}
 guid route valid

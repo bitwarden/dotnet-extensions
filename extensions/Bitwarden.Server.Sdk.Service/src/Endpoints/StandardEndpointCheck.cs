@@ -128,12 +128,10 @@ internal static class StandardEndpointCheck
     /// only on an operation marked as the search or bulk operation it is. Anywhere else it would
     /// reach the handler unchecked, free to name any property of the entity.
     /// </remarks>
-    private static void Unchecked(MethodInfo method, bool standardized, List<string> problems)
+    internal static void Unchecked(MethodInfo method, bool standardized, List<string> problems)
     {
         var checks = standardized
-            && method.GetCustomAttributes(inherit: true).OfType<IStandardOperation>().FirstOrDefault()
-                is StandardSearchAttribute or StandardBulkUpdateAttribute or StandardBulkDeleteAttribute
-                or StandardBulkActionAttribute or StandardBulkCreateAttribute or StandardBulkReplaceAttribute;
+            && BulkChecks.ChecksFilter(method.GetCustomAttributes(inherit: true).OfType<IStandardOperation>().FirstOrDefault());
 
         foreach (var parameter in method.GetParameters())
         {
