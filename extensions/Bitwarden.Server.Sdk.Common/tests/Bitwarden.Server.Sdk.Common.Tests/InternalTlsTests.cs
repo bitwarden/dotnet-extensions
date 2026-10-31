@@ -6,6 +6,10 @@ namespace Bitwarden.Server.Sdk.Common.Tests;
 
 public sealed class InternalTlsTests : IDisposable
 {
+    private const string ServerAuthentication = "1.3.6.1.5.5.7.3.1";
+    private const string ClientAuthentication = "1.3.6.1.5.5.7.3.2";
+    private const string CodeSigning = "1.3.6.1.5.5.7.3.3";
+
     private readonly string _directory = Directory.CreateTempSubdirectory().FullName;
 
     public void Dispose()
@@ -59,6 +63,30 @@ public sealed class InternalTlsTests : IDisposable
     }
 
     [Fact]
+    public void LoadAuthorities_AFileThatIsNotPem_Throws()
+    {
+        var path = Write("broken.pem", "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n");
+
+        var exception = Assert.Throws<InvalidOperationException>(() => new InternalTls { CertificateAuthorities = [path] }.LoadAuthorities());
+
+        Assert.Contains(path, exception.Message);
+    }
+
+    [Fact]
+    public void LoadAuthorities_ADirectory_Throws()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() => new InternalTls { CertificateAuthorities = [_directory] }.LoadAuthorities());
+
+        Assert.Contains(_directory, exception.Message);
+    }
+
+    [Fact]
+    public void LoadAuthorities_APathThatIsNotAPath_Throws()
+    {
+        Assert.Throws<InvalidOperationException>(() => new InternalTls { CertificateAuthorities = ["ca\0.pem"] }.LoadAuthorities());
+    }
+
+    [Fact]
     public void Trusts_WhatTheSystemTrusts()
     {
         Assert.True(InternalTls.Trusts([], null, null, SslPolicyErrors.None));
@@ -105,6 +133,63 @@ public sealed class InternalTlsTests : IDisposable
     }
 
     [Fact]
+    public void Trusts_ACertificateForServers()
+    {
+        using var authority = Authority("Internal");
+        using var server = Issue(authority, ServerAuthentication);
+
+        Assert.True(InternalTls.Trusts([authority], server, null, SslPolicyErrors.RemoteCertificateChainErrors));
+    }
+
+    [Theory]
+    [InlineData(ClientAuthentication)]
+    [InlineData(CodeSigning)]
+    public void Trusts_NotACertificateForAnotherPurpose(string purpose)
+    {
+        using var authority = Authority("Internal");
+        using var server = Issue(authority, purpose);
+
+        Assert.False(InternalTls.Trusts([authority], server, null, SslPolicyErrors.RemoteCertificateChainErrors));
+    }
+
+    [Fact]
+    public void Trusts_NotAnExpiredCertificate()
+    {
+        using var authority = Authority("Internal");
+        using var server = Issue(authority, notBefore: DateTimeOffset.UtcNow.AddHours(-2), notAfter: DateTimeOffset.UtcNow.AddHours(-1));
+
+        Assert.False(InternalTls.Trusts([authority], server, null, SslPolicyErrors.RemoteCertificateChainErrors));
+    }
+
+    [Fact]
+    public void Trusts_AnIntermediateTheSystemsChainCarries()
+    {
+        using var authority = Authority("Internal");
+        using var intermediate = Intermediate(authority);
+        using var server = Issue(intermediate);
+        using var system = new X509Chain();
+        system.ChainPolicy.ExtraStore.Add(intermediate);
+        system.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+        system.Build(server);
+
+        Assert.True(InternalTls.Trusts([authority], server, system, SslPolicyErrors.RemoteCertificateChainErrors));
+        Assert.False(InternalTls.Trusts([authority], server, null, SslPolicyErrors.RemoteCertificateChainErrors));
+    }
+
+    [Theory]
+    [InlineData(X509RevocationMode.NoCheck, true)]
+    [InlineData(X509RevocationMode.Offline, false)]
+    public void Trusts_ChecksRevocationAsTheSystemsChainDoes(X509RevocationMode mode, bool trusted)
+    {
+        using var authority = Authority("Internal");
+        using var server = Issue(authority);
+        using var system = new X509Chain();
+        system.ChainPolicy.RevocationMode = mode;
+
+        Assert.Equal(trusted, InternalTls.Trusts([authority], server, system, SslPolicyErrors.RemoteCertificateChainErrors));
+    }
+
+    [Fact]
     public void Trusts_NoCertificate_IsRefused()
     {
         using var authority = Authority("Internal");
@@ -134,11 +219,34 @@ public sealed class InternalTlsTests : IDisposable
         return request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
     }
 
-    private static X509Certificate2 Issue(X509Certificate2 authority)
+    private static X509Certificate2 Intermediate(X509Certificate2 authority)
+    {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var request = new CertificateRequest("CN=Intermediate", key, HashAlgorithmName.SHA256);
+        request.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
+        request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.KeyCertSign, true));
+        using var certificate = request.Create(authority, DateTimeOffset.UtcNow.AddHours(-1), DateTimeOffset.UtcNow.AddHours(12), [5, 6, 7, 8]);
+        return certificate.CopyWithPrivateKey(key);
+    }
+
+    private static X509Certificate2 Issue(
+        X509Certificate2 authority,
+        string? purpose = null,
+        DateTimeOffset? notBefore = null,
+        DateTimeOffset? notAfter = null)
     {
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var request = new CertificateRequest("CN=widget-service", key, HashAlgorithmName.SHA256);
         request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, true));
-        return request.Create(authority, DateTimeOffset.UtcNow.AddHours(-1), DateTimeOffset.UtcNow.AddHours(12), [1, 2, 3, 4]);
+        if (purpose is not null)
+        {
+            request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension([new Oid(purpose)], false));
+        }
+
+        return request.Create(
+            authority,
+            notBefore ?? DateTimeOffset.UtcNow.AddHours(-1),
+            notAfter ?? DateTimeOffset.UtcNow.AddHours(12),
+            [1, 2, 3, 4]);
     }
 }

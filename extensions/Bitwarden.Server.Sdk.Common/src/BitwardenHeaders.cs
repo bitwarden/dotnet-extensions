@@ -10,10 +10,10 @@ namespace Bitwarden.Server.Sdk.Common;
 /// these headers. An edge proxy should strip them from every request it forwards.
 /// </para>
 /// <para>
-/// These are context, not authentication: who the caller is comes from its token. A domain service
-/// believes them only as <see cref="Delegation"/> signs them, and refuses a plain header that
-/// disagrees. A context a service asserted on its own authority is still only that service's word,
-/// so the receiving service enforces its own access rules.
+/// These are context, not authentication: who the caller is comes from its token. A host believes
+/// them only as <see cref="Delegation"/> signs them, and refuses a plain header that disagrees. A
+/// context a service asserted on its own authority is still only that service's word, so the
+/// receiving service enforces its own access rules.
 /// </para>
 /// </remarks>
 public static class BitwardenHeaders
@@ -40,8 +40,8 @@ public static class BitwardenHeaders
     public const string Context = "Bitwarden-Context";
 
     /// <summary>
-    /// The signed form of the four headers above: a <see cref="CallerContextToken"/> Identity issued
-    /// for this call's caller and callee.
+    /// The signed form of the four headers above: a <see cref="CallerContextToken"/> issued for this
+    /// call's caller and callee.
     /// </summary>
     public const string Delegation = "Bitwarden-Delegation";
 

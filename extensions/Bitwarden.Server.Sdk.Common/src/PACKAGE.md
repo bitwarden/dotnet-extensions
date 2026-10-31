@@ -123,6 +123,41 @@ public required string Notes { get; init; }
 
 Only the length is checked. The value is never read or decrypted.
 
+### Trust an internal certificate authority
+
+If your services' certificates come from an internal authority, name its root certificate under
+`Tls:CertificateAuthorities` and check each server's certificate with `InternalTls.Trusts`:
+
+```csharp
+var tls = configuration.GetSection(InternalTls.Section).Get<InternalTls>() ?? new InternalTls();
+var authorities = tls.LoadAuthorities();
+
+var handler = new SocketsHttpHandler
+{
+    SslOptions =
+    {
+        RemoteCertificateValidationCallback = (_, certificate, chain, errors) =>
+            InternalTls.Trusts(authorities, certificate, chain, errors),
+    },
+};
+```
+
+A certificate is trusted if the system trusts it, or if it chains to a named authority, is valid
+now and is allowed for server authentication. A name that doesn't match is never trusted.
+
+### Key a cached answer by text
+
+When a cached answer is keyed by text such as an email address, store only its digest. The service
+and its clients reach the same subject from the same normalized text:
+
+```csharp
+var subject = OwnedAnswerKey.Of("account-by-email", email.Trim().ToLowerInvariant());
+var key = OwnedCacheEntry.Key(OwnedAnswerKey.Template("identity-service", "account-by-email"), subject);
+```
+
+The digest keeps the address out of the cache, but anyone who can read the cache and guess an
+address can confirm it, so treat the cache as holding personal data.
+
 ## Types
 
 | Type                                                                     | Purpose                                                                                        |

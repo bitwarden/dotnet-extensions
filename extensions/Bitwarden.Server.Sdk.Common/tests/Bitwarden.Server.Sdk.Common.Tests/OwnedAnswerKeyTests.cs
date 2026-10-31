@@ -3,9 +3,12 @@ namespace Bitwarden.Server.Sdk.Common.Tests;
 public sealed class OwnedAnswerKeyTests
 {
     [Fact]
-    public void Of_IsTheFirstSixteenBytesOfTheDigest()
+    public void Of_IsTheFirstSixteenBytesOfTheDigest_InOrder()
     {
-        Assert.Equal(Guid.Parse("c1ad8722-1ab8-838a-04c7-0bfd109b5d4a"), OwnedAnswerKey.Of("account-by-email", "user@example.com"));
+        var subject = OwnedAnswerKey.Of("account-by-email", "user@example.com");
+
+        Assert.Equal(Guid.Parse("2287adc1-b81a-8a83-04c7-0bfd109b5d4a"), subject);
+        Assert.Equal("2287adc1b81a8a8304c70bfd109b5d4a", subject.ToString("N"));
     }
 
     [Fact]
@@ -27,6 +30,14 @@ public sealed class OwnedAnswerKeyTests
     public void Of_WithoutAnAnswer_Throws(string? answer)
     {
         Assert.ThrowsAny<ArgumentException>(() => OwnedAnswerKey.Of(answer!, "user@example.com"));
+    }
+
+    [Theory]
+    [InlineData("account\nby-email")]
+    [InlineData("account:by-email")]
+    public void Of_AnAnswerThatCouldBeConfused_Throws(string answer)
+    {
+        Assert.Throws<ArgumentException>(() => OwnedAnswerKey.Of(answer, "user@example.com"));
     }
 
     [Fact]

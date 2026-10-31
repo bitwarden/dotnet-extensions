@@ -17,8 +17,8 @@ namespace Bitwarden.Server.Sdk.Common;
 /// </para>
 /// <para>
 /// Bound from <see cref="Section"/>: <c>Tls:CertificateAuthorities</c>, PEM files, and
-/// <c>Tls:RequireHttps</c>. Neither is needed on a developer's machine, where services can speak
-/// plain HTTP inside one network.
+/// <c>Tls:RequireHttps</c>. A host applies them to its calls. Neither is needed on a developer's
+/// machine, where services can speak plain HTTP inside one network.
 /// </para>
 /// </remarks>
 public sealed class InternalTls
@@ -29,19 +29,22 @@ public sealed class InternalTls
     public const string Section = "Tls";
 
     /// <summary>
-    /// PEM files of the certificate authorities trusted for calls, besides the system's roots.
+    /// PEM files of the root certificate authorities trusted for calls, besides the system's roots.
+    /// An intermediate authority alone is not enough: name the root it chains to.
     /// </summary>
     public string[] CertificateAuthorities { get; set; } = [];
 
     /// <summary>
-    /// Whether a service refuses to start with a plain <c>http://</c> address for another service or Identity.
+    /// Whether calls to other services must use <c>https://</c>, so a host refuses a plain address.
     /// </summary>
     public bool RequireHttps { get; set; }
+
+    private const string ServerAuthentication = "1.3.6.1.5.5.7.3.1";
 
     /// <summary>
     /// Reads every certificate in every named file.
     /// </summary>
-    /// <returns>The certificates, none when no file is named.</returns>
+    /// <returns>The certificates, none when no file is named. The caller disposes them.</returns>
     /// <exception cref="InvalidOperationException">A file is missing, can't be read or holds no certificate.</exception>
     public X509Certificate2Collection LoadAuthorities()
     {
@@ -55,7 +58,7 @@ public sealed class InternalTls
             {
                 authorities.ImportFromPemFile(path);
             }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or CryptographicException)
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or CryptographicException or ArgumentException)
             {
                 throw new InvalidOperationException($"{Section}:CertificateAuthorities names '{path}', which can't be read as PEM certificates.", exception);
             }
@@ -71,11 +74,13 @@ public sealed class InternalTls
 
     /// <summary>
     /// Whether a server's certificate is trusted, by the system or else by a chain to one of
-    /// <paramref name="authorities"/>. The name must match either way.
+    /// <paramref name="authorities"/>. The name must match either way, and a certificate from one of
+    /// the authorities must be valid now and allowed for server authentication. Revocation is checked
+    /// as the system's chain checks it.
     /// </summary>
     /// <param name="authorities">The certificate authorities trusted besides the system's.</param>
     /// <param name="certificate">The server's certificate.</param>
-    /// <param name="chain">The chain the system built, whose extra certificates are reused.</param>
+    /// <param name="chain">The chain the system built, whose certificates and revocation settings are reused.</param>
     /// <param name="errors">What the system found wrong.</param>
     public static bool Trusts(
         X509Certificate2Collection authorities,
@@ -98,7 +103,9 @@ public sealed class InternalTls
         using var custom = new X509Chain();
         custom.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
         custom.ChainPolicy.CustomTrustStore.AddRange(authorities);
-        custom.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+        custom.ChainPolicy.ApplicationPolicy.Add(new Oid(ServerAuthentication));
+        custom.ChainPolicy.RevocationMode = chain?.ChainPolicy.RevocationMode ?? X509RevocationMode.NoCheck;
+        custom.ChainPolicy.RevocationFlag = chain?.ChainPolicy.RevocationFlag ?? X509RevocationFlag.ExcludeRoot;
 
         if (chain is not null)
         {

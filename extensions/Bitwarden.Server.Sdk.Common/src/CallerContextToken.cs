@@ -1,15 +1,15 @@
 namespace Bitwarden.Server.Sdk.Common;
 
 /// <summary>
-/// The signed form of a call's caller context: a short-lived JWT that Identity issues by RFC 8693
-/// token exchange, which a callee believes in place of the plain <see cref="BitwardenHeaders"/>.
+/// The signed form of a call's caller context: a short-lived JWT obtained by RFC 8693 token
+/// exchange, which a callee believes in place of the plain <see cref="BitwardenHeaders"/>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The calling service asks Identity for one per callee and context, presenting a subject token:
-/// the person's token it validated, the context token it was itself called with, or its own service
-/// token when nobody but the service is behind the call. Identity checks that what the call asserts
-/// agrees with what the subject proves, and signs the context for that callee and caller alone.
+/// The calling service exchanges a subject token for one per callee and context: the person's token
+/// it validated, the context token it was itself called with, or its own service token when nobody
+/// but the service is behind the call. The issuer checks that what the call asserts agrees with what
+/// the subject proves, and signs the context for that callee and caller alone.
 /// </para>
 /// <para>
 /// It carries identifiers only, as <see cref="BitwardenHeaders.Context"/> does. Never a key, an
