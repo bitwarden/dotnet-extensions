@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
 using Bitwarden.Server.Sdk.Common;
@@ -7,6 +6,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
@@ -22,7 +22,7 @@ namespace Bitwarden.Server.Sdk.Service.Tests.TestHost;
 /// since an attribute cannot be switched at run time), so that a test comparing the two is
 /// comparing the opt-in and nothing else. Everything between the request and the handler is the
 /// platform's own: authentication, the refusal, authorization, binding and validation. Only the far
-/// side of a downstream call is a double, which records what it was sent.
+/// side of a downstream call is a double, which answers every call.
 /// </remarks>
 public sealed class SessionHost : IAsyncDisposable
 {
@@ -62,16 +62,6 @@ public sealed class SessionHost : IAsyncDisposable
     public const string Downstream = "downstream-service";
 
     /// <summary>
-    /// What the fake Identity issues the service, standing in for its real credential.
-    /// </summary>
-    public const string ServiceToken = "service-token-issued-to-the-service";
-
-    /// <summary>
-    /// What the fake Identity's exchange issues the service, standing in for a context token.
-    /// </summary>
-    public const string ContextToken = "context-token-issued-to-the-service";
-
-    /// <summary>
     /// The issuer of every token the host signs.
     /// </summary>
     public const string Issuer = "https://identity.session.test";
@@ -87,16 +77,10 @@ public sealed class SessionHost : IAsyncDisposable
 
     private readonly WebApplication _app;
 
-    private SessionHost(WebApplication app, Recorder recorder)
+    private SessionHost(WebApplication app)
     {
         _app = app;
-        Recorded = recorder;
     }
-
-    /// <summary>
-    /// Everything the service sent beyond itself.
-    /// </summary>
-    public Recorder Recorded { get; }
 
     /// <summary>
     /// A client presenting nothing; a test adds the token and headers it means.
@@ -127,15 +111,14 @@ public sealed class SessionHost : IAsyncDisposable
         IReadOnlyDictionary<string, string?>? configuration = null,
         Action<IServiceCollection>? services = null)
     {
-        var recorder = new Recorder();
         var settings = configuration ?? new Dictionary<string, string?>();
         ProbeService service = productService
-            ? new ProductProbeService(recorder, settings, services)
-            : new DomainProbeService(recorder, settings, services);
+            ? new ProductProbeService(settings, services)
+            : new DomainProbeService(settings, services);
         var app = service.Build();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
-        return new SessionHost(app, recorder);
+        return new SessionHost(app);
     }
 
     /// <summary>
@@ -143,11 +126,10 @@ public sealed class SessionHost : IAsyncDisposable
     /// </summary>
     public static async Task<SessionHost> StartDerivedFromProductServiceAsync()
     {
-        var recorder = new Recorder();
-        var app = new DerivedProductProbeService(recorder, new Dictionary<string, string?>()).Build();
+        var app = new DerivedProductProbeService(new Dictionary<string, string?>()).Build();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
-        return new SessionHost(app, recorder);
+        return new SessionHost(app);
     }
 
     /// <summary>
@@ -377,23 +359,20 @@ public sealed class SessionHost : IAsyncDisposable
 
     [ProductService]
     private class ProductProbeService(
-        Recorder recorder,
         IReadOnlyDictionary<string, string?> configuration,
         Action<IServiceCollection>? services = null)
-        : ProbeService(recorder, configuration, services);
+        : ProbeService(configuration, services);
 
     // Deliberately unmarked: it is a product service only through its base.
-    private sealed class DerivedProductProbeService(Recorder recorder, IReadOnlyDictionary<string, string?> configuration)
-        : ProductProbeService(recorder, configuration);
+    private sealed class DerivedProductProbeService(IReadOnlyDictionary<string, string?> configuration)
+        : ProductProbeService(configuration);
 
     private sealed class DomainProbeService(
-        Recorder recorder,
         IReadOnlyDictionary<string, string?> configuration,
         Action<IServiceCollection>? services)
-        : ProbeService(recorder, configuration, services);
+        : ProbeService(configuration, services);
 
     private abstract class ProbeService(
-        Recorder recorder,
         IReadOnlyDictionary<string, string?> configuration,
         Action<IServiceCollection>? extra)
         : Service(ServiceName, "Session Test Service", [])
@@ -415,10 +394,8 @@ public sealed class SessionHost : IAsyncDisposable
 
             builder.WebHost.UseTestServer();
 
-            // Addresses that resolve nowhere, so a call escaping the recorder fails loudly.
+            // An address that resolves nowhere, so a call escaping the answering handler fails loudly.
             builder.Configuration[$"Services:{Downstream}:BaseAddress"] = "http://downstream.invalid";
-            builder.Configuration[$"Services:{Downstream}:IdentityUri"] = "http://identity.invalid";
-            builder.Configuration[$"Services:{Downstream}:CallerSecret"] = "not-a-secret";
 
             foreach (var (key, value) in configuration)
             {
@@ -430,13 +407,12 @@ public sealed class SessionHost : IAsyncDisposable
 
         protected override void ConfigureServices(IServiceCollection services)
         {
-            services.AddSingleton(recorder);
-
-            // Every outbound connection, the token request included, lands in the recorder.
+            // Every outbound connection lands in the answering handler.
             services.ConfigureHttpClientDefaults(client =>
-                client.ConfigurePrimaryHttpMessageHandler(() => new RecordingHandler(recorder)));
+                client.ConfigurePrimaryHttpMessageHandler(() => new DownstreamHandler()));
 
-            services.AddBitwardenClient<DownstreamClient, DownstreamClient>(Downstream, ["downstream.read"]);
+            services.AddHttpClient<DownstreamClient>((provider, client) =>
+                client.BaseAddress = new Uri(provider.GetRequiredService<IConfiguration>()[$"Services:{Downstream}:BaseAddress"]!));
 
             // The real handler, pointed at a key this process holds (as the platform's own test
             // factory does), so validation is everything a deployed service applies.
@@ -530,9 +506,9 @@ public sealed record NamedProvider : INamesProvider
 }
 
 /// <summary>
-/// A client for a domain service, as a generated one would be registered.
+/// A client for a domain service, registered as a typed client.
 /// </summary>
-/// <param name="http">Configured by the platform with the credential and the caller context.</param>
+/// <param name="http">Addressed to the downstream service the host's configuration names.</param>
 public sealed class DownstreamClient(HttpClient http)
 {
     /// <summary>
@@ -547,66 +523,12 @@ public sealed class DownstreamClient(HttpClient http)
 }
 
 /// <summary>
-/// What left the service, by where it went.
+/// Answers every outbound connection the service makes, so no call leaves the process.
 /// </summary>
-public sealed class Recorder
+internal sealed class DownstreamHandler : HttpMessageHandler
 {
-    /// <summary>
-    /// Calls to the downstream service, with the headers each carried.
-    /// </summary>
-    public ConcurrentQueue<IReadOnlyDictionary<string, string>> Downstream { get; } = new();
-
-    /// <summary>
-    /// The <c>client_id</c> each token request named. The secret is never kept.
-    /// </summary>
-    public ConcurrentQueue<string?> TokenRequests { get; } = new();
-
-    /// <summary>
-    /// Each context token exchange's form, but the secret.
-    /// </summary>
-    public ConcurrentQueue<Dictionary<string, string>> ContextExchanges { get; } = new();
-}
-
-/// <summary>
-/// Answers every outbound connection the service makes, and records it.
-/// </summary>
-internal sealed class RecordingHandler(Recorder recorder) : HttpMessageHandler
-{
-    protected override async Task<HttpResponseMessage> SendAsync(
+    protected override Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
-        CancellationToken cancellationToken)
-    {
-        if (request.RequestUri!.AbsolutePath.EndsWith("/connect/token", StringComparison.Ordinal))
-        {
-            var form = (await request.Content!.ReadAsStringAsync(cancellationToken)).Split('&')
-                .Select(pair => pair.Split('=', 2))
-                .ToDictionary(pair => Uri.UnescapeDataString(pair[0]), pair => Uri.UnescapeDataString(pair[1].Replace('+', ' ')));
-            var exchange = form.GetValueOrDefault("requested_token_type") == CallerContextToken.TokenType;
-
-            if (exchange)
-            {
-                form.Remove("client_secret");
-                recorder.ContextExchanges.Enqueue(form);
-            }
-            else
-            {
-                recorder.TokenRequests.Enqueue(form.GetValueOrDefault("client_id"));
-            }
-
-            return new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(
-                    $$"""{"access_token":"{{(exchange ? SessionHost.ContextToken : SessionHost.ServiceToken)}}","expires_in":300,"token_type":"Bearer"}""",
-                    Encoding.UTF8,
-                    "application/json"),
-            };
-        }
-
-        recorder.Downstream.Enqueue(request.Headers.ToDictionary(
-            header => header.Key,
-            header => string.Join(',', header.Value),
-            StringComparer.OrdinalIgnoreCase));
-
-        return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") };
-    }
+        CancellationToken cancellationToken) =>
+        Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") });
 }

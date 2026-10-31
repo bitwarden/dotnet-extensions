@@ -19,11 +19,6 @@ public static class Probes
     public const string FlaggedProbeFlag = "probe-flag";
 
     /// <summary>
-    /// The organization the creating probes create.
-    /// </summary>
-    public static readonly Guid CreatedOrganization = new("c0000000-0000-4000-8000-0000000000c1");
-
-    /// <summary>
     /// Maps the probes.
     /// </summary>
     /// <param name="endpoints">The service's endpoints.</param>
@@ -46,9 +41,6 @@ public static class Probes
         probes.MapGet("credential-downstream", GetCredentialDownstreamProbe);
         probes.MapPost("current/actions/named", NameOrganization);
         probes.MapPost("current/actions/named-provider", NameProvider);
-        probes.MapGet("creates", GetCreatesProbe);
-        probes.MapGet("creates-two", GetCreatesTwoProbe);
-        probes.MapGet("creates-undeclared", GetCreatesUndeclaredProbe);
         probes.MapGet("send", GetSendProbe);
         probes.MapGet("any-scope", GetAnyScopeProbe);
         probes.MapPost("", CreateProbe);
@@ -298,79 +290,6 @@ public static class Probes
     public static async Task NameProvider(NamedProvider request, DownstreamClient downstream, CancellationToken cancellationToken)
     {
         await downstream.CallAsync(cancellationToken);
-    }
-
-    /// <summary>
-    /// Create an organization, then call downstream about it
-    /// </summary>
-    /// <param name="context">The caller context.</param>
-    /// <param name="downstream">A domain service this one calls.</param>
-    /// <param name="cancellationToken">Cancels the request.</param>
-    /// <returns>The probe</returns>
-    [StandardReadOne("creates")]
-    [Authorization(Organization = ContextRequirement.Forbidden, User = ContextRequirement.Required)]
-    [CreatesOrganization]
-    public static async Task<ResourceDocument<Probe>> GetCreatesProbe(
-        IContext context,
-        DownstreamClient downstream,
-        CancellationToken cancellationToken)
-    {
-        using (Bitwarden.Server.Sdk.Client.OutgoingCall.AboutCreatedOrganization(Probes.CreatedOrganization))
-        {
-            await downstream.CallAsync(cancellationToken);
-        }
-
-        return ReadOneResponse(new Probe { Id = "creates", ActingUser = context.UserId });
-    }
-
-    /// <summary>
-    /// Create an organization, then call downstream about it and about another
-    /// </summary>
-    /// <param name="context">The caller context.</param>
-    /// <param name="downstream">A domain service this one calls.</param>
-    /// <param name="cancellationToken">Cancels the request.</param>
-    /// <returns>The probe, never: the second call is refused</returns>
-    [StandardReadOne("creates-two")]
-    [Authorization(Organization = ContextRequirement.Forbidden, User = ContextRequirement.Required)]
-    [CreatesOrganization]
-    public static async Task<ResourceDocument<Probe>> GetCreatesTwoProbe(
-        IContext context,
-        DownstreamClient downstream,
-        CancellationToken cancellationToken)
-    {
-        using (Bitwarden.Server.Sdk.Client.OutgoingCall.AboutCreatedOrganization(Probes.CreatedOrganization))
-        {
-            await downstream.CallAsync(cancellationToken);
-        }
-
-        using (Bitwarden.Server.Sdk.Client.OutgoingCall.AboutCreatedOrganization(Guid.NewGuid()))
-        {
-            await downstream.CallAsync(cancellationToken);
-        }
-
-        return ReadOneResponse(new Probe { Id = "creates-two", ActingUser = context.UserId });
-    }
-
-    /// <summary>
-    /// Name an organization as created, on an operation that doesn't create one
-    /// </summary>
-    /// <param name="context">The caller context.</param>
-    /// <param name="downstream">A domain service this one calls.</param>
-    /// <param name="cancellationToken">Cancels the request.</param>
-    /// <returns>The probe, never: the call is refused</returns>
-    [StandardReadOne("creates-undeclared")]
-    [Authorization(Organization = ContextRequirement.Forbidden, User = ContextRequirement.Required)]
-    public static async Task<ResourceDocument<Probe>> GetCreatesUndeclaredProbe(
-        IContext context,
-        DownstreamClient downstream,
-        CancellationToken cancellationToken)
-    {
-        using (Bitwarden.Server.Sdk.Client.OutgoingCall.AboutCreatedOrganization(Probes.CreatedOrganization))
-        {
-            await downstream.CallAsync(cancellationToken);
-        }
-
-        return ReadOneResponse(new Probe { Id = "creates-undeclared", ActingUser = context.UserId });
     }
 
     /// <summary>

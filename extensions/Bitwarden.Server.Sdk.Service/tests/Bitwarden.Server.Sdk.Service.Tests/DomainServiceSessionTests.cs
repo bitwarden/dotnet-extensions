@@ -48,18 +48,6 @@ public sealed class DomainServiceSessionTests : IAsyncLifetime
         Assert.Null(await ProductServiceAttributeTests.ActingUser(response));
     }
 
-    [Fact]
-    public async Task GetDownstreamProbe_HeaderNamingAUser_CarriesTheHeadersUser()
-    {
-        using var request = ProductServiceAttributeTests.Get("/api/v1/probes/downstream", SessionHost.Token(user: null, SessionHost.Scope));
-        request.Headers.Add(BitwardenHeaders.User, Named.ToString());
-
-        using var response = await _service.Client().SendAsync(request, TestContext.Current.CancellationToken);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(Named.ToString(), Assert.Single(_service.Recorded.Downstream)[BitwardenHeaders.User]);
-    }
-
     // A person's token is not a service's: a service a browser can reach would otherwise believe a
     // forged header. A domain service believes the headers from another service alone.
     [Fact]
@@ -72,38 +60,6 @@ public sealed class DomainServiceSessionTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Null(await ProductServiceAttributeTests.ActingUser(response));
-    }
-
-    // Nothing from a caller who isn't a service is carried onward either.
-    [Fact]
-    public async Task GetDownstreamProbe_PersonsTokenWithHeaders_CarriesNone()
-    {
-        using var request = ProductServiceAttributeTests.Get("/api/v1/probes/downstream", SessionHost.Token(Named, SessionHost.Scope));
-        request.Headers.Add(BitwardenHeaders.User, Guid.NewGuid().ToString());
-        request.Headers.Add(BitwardenHeaders.Context, """{"v":1,"clientIp":"198.51.100.66","credential":"USER"}""");
-
-        using var response = await _service.Client().SendAsync(request, TestContext.Current.CancellationToken);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var sent = Assert.Single(_service.Recorded.Downstream);
-        Assert.False(sent.ContainsKey(BitwardenHeaders.User));
-        Assert.Equal("""{"v":1}""", sent[BitwardenHeaders.Context]);
-    }
-
-    // From a service, the context travels on unchanged.
-    [Fact]
-    public async Task GetDownstreamProbe_ContextFromAService_CarriesItOn()
-    {
-        using var request = ProductServiceAttributeTests.Get("/api/v1/probes/downstream", SessionHost.Token(user: null, SessionHost.Scope));
-        request.Headers.Add(BitwardenHeaders.User, Named.ToString());
-        request.Headers.Add(BitwardenHeaders.Context, """{"v":1,"clientIp":"203.0.113.9","deviceType":"10","credential":"USER"}""");
-
-        using var response = await _service.Client().SendAsync(request, TestContext.Current.CancellationToken);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(
-            """{"v":1,"clientIp":"203.0.113.9","deviceType":"10","credential":"USER"}""",
-            Assert.Single(_service.Recorded.Downstream)[BitwardenHeaders.Context]);
     }
 
     // Parsed strictly, and refused before anything reads it.
@@ -120,7 +76,6 @@ public sealed class DomainServiceSessionTests : IAsyncLifetime
         using var response = await _service.Client().SendAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Empty(_service.Recorded.Downstream);
         using var document = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var error = document.RootElement.GetProperty("errors")[0];
         Assert.Equal(BitwardenHeaders.Context, error.GetProperty("source").GetProperty("header").GetString());

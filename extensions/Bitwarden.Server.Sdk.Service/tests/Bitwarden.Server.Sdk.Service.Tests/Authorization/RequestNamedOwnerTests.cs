@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using Bitwarden.Server.Sdk.Common;
 using Bitwarden.Server.Sdk.Service.Tests.TestHost;
 
 namespace Bitwarden.Server.Sdk.Service.Tests.Authorization;
@@ -10,7 +9,7 @@ namespace Bitwarden.Server.Sdk.Service.Tests.Authorization;
 /// <summary>
 /// [NamesOrganization] and [NamesProvider]: an operation about an organization or provider the
 /// person can't hold a session for yet names it in its path or body. It never enters
-/// the service's own context, grants nothing by role, and is carried on every downstream call.
+/// the service's own context and grants nothing by role.
 /// </summary>
 public sealed class RequestNamedOwnerTests : IAsyncLifetime
 {
@@ -35,24 +34,6 @@ public sealed class RequestNamedOwnerTests : IAsyncLifetime
         Assert.Equal(" None False", await Note(response));
     }
 
-    // Every call the operation makes carries it, with the person.
-    [Fact]
-    public async Task Path_Downstream_EveryCallCarriesTheOrganizationAndThePerson()
-    {
-        using var response = await _service.Client().SendAsync(
-            ProductServiceAttributeTests.Get($"/api/v1/organizations/{OrganizationA}/probe", SessionHost.Token(Person, SessionHost.Scope)),
-            TestContext.Current.CancellationToken);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var sent = _service.Recorded.Downstream.TakeLast(2).ToList();
-        Assert.Equal(2, sent.Count);
-        Assert.All(sent, call =>
-        {
-            Assert.Equal(OrganizationA.ToString(), call[BitwardenHeaders.Organization]);
-            Assert.Equal(Person.ToString(), call[BitwardenHeaders.User]);
-        });
-    }
-
     // A session for an organization names that one, and only that one: it can't name another here.
     [Fact]
     public async Task Path_ASessionForAnOrganization_Forbidden()
@@ -62,42 +43,22 @@ public sealed class RequestNamedOwnerTests : IAsyncLifetime
             TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        Assert.Empty(_service.Recorded.Downstream);
     }
 
     [Fact]
-    public async Task Body_Downstream_CarriesTheOrganizationAndThePerson()
+    public async Task Body_Organization_Accepted()
     {
         using var response = await Post("/api/v1/probes/current/actions/named", new { organizationId = OrganizationA });
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        var sent = _service.Recorded.Downstream.Last();
-        Assert.Equal(OrganizationA.ToString(), sent[BitwardenHeaders.Organization]);
-        Assert.Equal(Person.ToString(), sent[BitwardenHeaders.User]);
     }
 
     [Fact]
-    public async Task Body_Provider_CarriesTheProviderAndThePerson()
+    public async Task Body_Provider_Accepted()
     {
         using var response = await Post("/api/v1/probes/current/actions/named-provider", new { providerId = Provider });
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        var sent = _service.Recorded.Downstream.Last();
-        Assert.Equal(Provider.ToString(), sent[BitwardenHeaders.Provider]);
-        Assert.Equal(Person.ToString(), sent[BitwardenHeaders.User]);
-        Assert.False(sent.ContainsKey(BitwardenHeaders.Organization));
-    }
-
-    // Any other operation's calls carry what the session names, and nothing a body says.
-    [Fact]
-    public async Task Undeclared_Downstream_CarriesNoOrganization()
-    {
-        using var response = await _service.Client().SendAsync(
-            ProductServiceAttributeTests.Get("/api/v1/probes/downstream", SessionHost.Token(Person, SessionHost.Scope)),
-            TestContext.Current.CancellationToken);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.False(_service.Recorded.Downstream.Last().ContainsKey(BitwardenHeaders.Organization));
     }
 
     [Fact]

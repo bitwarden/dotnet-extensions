@@ -71,18 +71,6 @@ public sealed class OrganizationCredentialTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, other.StatusCode);
     }
 
-    // Recorded as the organization's credential wherever the call goes.
-    [Fact]
-    public async Task Credential_CallingDownstream_CarriesTheOrganizationCredential()
-    {
-        using var response = await Send("/api/v1/probes/credential-downstream", Credential(Organization));
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var sent = Assert.Single(_service.Recorded.Downstream);
-        Assert.True(CallerContextHeader.TryParse(sent[BitwardenHeaders.Context], out var carried, out var problem), problem);
-        Assert.Equal(CallerCredential.Organization, carried.Credential);
-    }
-
     // An owner meets every role and permission requirement.
     [Fact]
     public async Task Credential_ToAnOwnersOperationNeedingAPermission_Accepted()
@@ -102,20 +90,6 @@ public sealed class OrganizationCredentialTests : IAsyncLifetime
         // Nothing in the probe but its identifier: no acting user to report.
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.DoesNotContain("actingUser", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-    }
-
-    // Downstream: the organization, never a user, and the service's own credential rather than
-    // the customer's token.
-    [Fact]
-    public async Task Credential_CallingDownstream_CarriesTheOrganizationAndNoUser()
-    {
-        using var response = await Send("/api/v1/probes/credential-downstream", Credential(Organization));
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var sent = Assert.Single(_service.Recorded.Downstream);
-        Assert.Equal(Organization.ToString(), sent[BitwardenHeaders.Organization]);
-        Assert.False(sent.ContainsKey(BitwardenHeaders.User));
-        Assert.Equal($"Bearer {SessionHost.ServiceToken}", sent["Authorization"]);
     }
 
     // A person's session still works on an operation that also accepts the credential, under the

@@ -8,8 +8,7 @@ using Bitwarden.Server.Sdk.Service.Tests.TestHost;
 namespace Bitwarden.Server.Sdk.Service.Tests;
 
 /// <summary>
-/// A product service takes the acting user from the person's session, and calls domain
-/// services as itself on that person's behalf.
+/// A product service takes the acting user from the person's session.
 /// </summary>
 /// <remarks>
 /// The hole this closes: a domain service trusts an asserted <c>Bitwarden-User</c>,
@@ -87,55 +86,6 @@ public sealed class ProductServiceAttributeTests : IAsyncLifetime
         using var response = await _service.Client().SendAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task GetDownstreamProbe_TokenForA_CarriesAFromTheToken()
-    {
-        using var request = Get("/api/v1/probes/downstream", SessionHost.Token(PersonA, SessionHost.Scope));
-
-        using var response = await _service.Client().SendAsync(request, TestContext.Current.CancellationToken);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var sent = Assert.Single(_service.Recorded.Downstream);
-        Assert.Equal(PersonA.ToString(), sent[BitwardenHeaders.User]);
-        Assert.False(sent.ContainsKey(BitwardenHeaders.Organization));
-        Assert.False(sent.ContainsKey(BitwardenHeaders.Provider));
-    }
-
-    // The credential is the kind of token the product service validated, and the device the
-    // session's signed claim; both travel in Bitwarden-Context.
-    [Fact]
-    public async Task GetDownstreamProbe_PersonsSession_CarriesTheCredentialAndDeviceInTheContextHeader()
-    {
-        var token = SessionHost.Token(PersonA, new Dictionary<string, object> { ["device"] = "device-1" }, SessionHost.Scope);
-        using var request = Get("/api/v1/probes/downstream", token);
-        request.Headers.Add("Device-Type", "10");
-
-        using var response = await _service.Client().SendAsync(request, TestContext.Current.CancellationToken);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var sent = Assert.Single(_service.Recorded.Downstream);
-        Assert.True(CallerContextHeader.TryParse(sent[BitwardenHeaders.Context], out var carried, out var problem), problem);
-        Assert.Equal(CallerCredential.User, carried.Credential);
-        Assert.Equal("device-1", carried.DeviceIdentifier);
-        Assert.Equal("10", carried.DeviceType);
-        Assert.Null(carried.RecordedUser);
-    }
-
-    [Fact]
-    public async Task GetDownstreamProbe_AnyPerson_CarriesTheServicesOwnCredentialNeverThePersons()
-    {
-        var personsToken = SessionHost.Token(PersonA, SessionHost.Scope);
-        using var request = Get("/api/v1/probes/downstream", personsToken);
-
-        using var response = await _service.Client().SendAsync(request, TestContext.Current.CancellationToken);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var sent = Assert.Single(_service.Recorded.Downstream);
-        Assert.Equal($"Bearer {SessionHost.ServiceToken}", sent["Authorization"]);
-        Assert.DoesNotContain(sent.Values, value => value.Contains(personsToken, StringComparison.Ordinal));
-        Assert.Equal($"internal.{SessionHost.ServiceName}", Assert.Single(_service.Recorded.TokenRequests));
     }
 
     // Ciphertext a few thousand characters long (the shape an EncString has), and well past the

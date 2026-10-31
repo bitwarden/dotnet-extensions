@@ -230,7 +230,6 @@ public sealed class TelemetryTests
         var configuration = new Dictionary<string, string?>(NoExport)
         {
             [$"Services:{SessionHost.Downstream}:BaseAddress"] = downstream.Address,
-            [$"Services:{SessionHost.Downstream}:IdentityUri"] = downstream.Address,
         };
         await using var service = await SessionHost.StartAsync(
             productService: true,
@@ -325,8 +324,7 @@ public sealed class TelemetryTests
     }
 
     /// <summary>
-    /// A downstream service and its Identity on a loopback port, recording the traceparent of each
-    /// call that isn't for a token.
+    /// A downstream service on a loopback port, recording the traceparent of each call.
     /// </summary>
     private sealed class Downstream : IAsyncDisposable
     {
@@ -353,14 +351,6 @@ public sealed class TelemetryTests
 
             app.Run(async http =>
             {
-                if (http.Request.Path.Value?.EndsWith("/connect/token", StringComparison.Ordinal) == true)
-                {
-                    http.Response.ContentType = "application/json";
-                    await http.Response.WriteAsync(
-                        $$"""{"access_token":"{{SessionHost.ServiceToken}}","expires_in":300,"token_type":"Bearer"}""");
-                    return;
-                }
-
                 traceParents.Enqueue(http.Request.Headers["traceparent"].ToString());
                 http.Response.ContentType = "application/json";
                 await http.Response.WriteAsync("{}");

@@ -29,7 +29,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.Service.csproj" />
-    <ProjectReference Include="..\..\..\Bitwarden.Server.Sdk.Client\src\Bitwarden.Server.Sdk.Client.csproj" />
   </ItemGroup>
 
 </Project>

@@ -13,7 +13,7 @@ namespace Bitwarden.Server.Sdk.Service.Tests.Authorization;
 
 /// <summary>
 /// A domain service believes another service's call only as the context token Identity signed for
-/// it says (<see cref="BitwardenHeaders.Delegation"/>), and its own calls carry one on.
+/// it says (<see cref="BitwardenHeaders.Delegation"/>).
 /// </summary>
 public sealed class CallerDelegationTests : IAsyncLifetime
 {
@@ -236,44 +236,6 @@ public sealed class CallerDelegationTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Null(await ProductServiceAttributeTests.ActingUser(response));
-    }
-
-    // Onward, the call's own context token is the subject the next one is exchanged from, for the next callee.
-    [Fact]
-    public async Task Downstream_ExchangesTheCallsContextTokenForTheNextCallee()
-    {
-        var signed = SessionHost.SignedContext(user: Named, context: """{"v":1,"credential":"USER"}""");
-        using var request = ProductServiceAttributeTests.Get("/api/v1/probes/downstream", SessionHost.Token(user: null, SessionHost.Scope));
-        request.Headers.Add(BitwardenHeaders.Delegation, signed);
-
-        using var response = await _domain.Client().SendAsync(request, Token);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var exchange = Assert.Single(_domain.Recorded.ContextExchanges);
-        Assert.Equal(signed, exchange["subject_token"]);
-        Assert.Equal(CallerContextToken.TokenType, exchange["subject_token_type"]);
-        Assert.Equal(SessionHost.Downstream, exchange["audience"]);
-        Assert.Equal(Named.ToString(), exchange[CallerContextToken.Parameters.User]);
-        Assert.Equal("""{"v":1,"credential":"USER"}""", exchange[CallerContextToken.Parameters.Context]);
-        var sent = Assert.Single(_domain.Recorded.Downstream);
-        Assert.Equal(SessionHost.ContextToken, sent[BitwardenHeaders.Delegation]);
-    }
-
-    // A product service's own calls are exchanged from the person's token it validated.
-    [Fact]
-    public async Task Downstream_FromAProductService_ExchangesThePersonsToken()
-    {
-        await using var product = await SessionHost.StartAsync(productService: true);
-        var person = SessionHost.Token(Named, SessionHost.Scope);
-        using var request = ProductServiceAttributeTests.Get("/api/v1/probes/downstream", person);
-
-        using var response = await product.Client().SendAsync(request, Token);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var exchange = Assert.Single(product.Recorded.ContextExchanges);
-        Assert.Equal(person, exchange["subject_token"]);
-        Assert.Equal(CallerContextToken.AccessTokenType, exchange["subject_token_type"]);
-        Assert.Equal(Named.ToString(), exchange[CallerContextToken.Parameters.User]);
     }
 
     // From outside, a product service refuses it as it refuses the other four.
