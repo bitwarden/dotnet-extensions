@@ -1,0 +1,2893 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "Session Test Service",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/dated-probes/current": {
+      "get": {
+        "tags": [
+          "Dated Probes"
+        ],
+        "operationId": "getCurrent",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatedProbeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Liveness: reports whether the process is running and able to serve.",
+        "description": "An orchestrator restarts the container when this fails, so it must not depend on anything a\nrestart would not fix. A failing database is a readiness concern, not a liveness one.",
+        "operationId": "System_Health",
+        "responses": {
+          "200": {
+            "description": "Always \u0060HEALTHY\u0060: nothing is evaluated beyond the process answering.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/install-probes/cloud-only": {
+      "get": {
+        "tags": [
+          "Install Probes"
+        ],
+        "operationId": "getCloudOnly",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallProbeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/install-probes/self-hosted-only": {
+      "get": {
+        "tags": [
+          "Install Probes"
+        ],
+        "operationId": "getSelfHostedOnly",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallProbeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/probe": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "getNamedProbe",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/parity-items": {
+      "post": {
+        "tags": [
+          "Parity"
+        ],
+        "operationId": "createParityItem",
+        "requestBody": {
+          "description": "The parity-item to create.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParityItemDocument"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParityItemDocument"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/ParityItemDocument"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParityItemDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Parity"
+        ],
+        "operationId": "listParityItems",
+        "parameters": [
+          {
+            "name": "filter[id]",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "filter[createdAt]",
+            "in": "query",
+            "description": "A range: [ or ( to include or exclude the lower bound, then the two bounds separated by a comma, then ] or ) for the upper. Each bound is a date-time, or * for no limit, so [2000-01-01T00:00:00Z,2001-01-01T00:00:00Z) is the year 2000.",
+            "schema": {
+              "pattern": "^[\\[(].\u002B,.\u002B[\\])]$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "filter[tag]",
+            "in": "query",
+            "description": "May be repeated, comma-delimited, or both.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Comma-delimited, in order of precedence; prefix a field with \u0060-\u0060 to sort it descending. Sortable fields: \u0060name\u0060. Defaults to \u0060name\u0060.",
+            "schema": {
+              "type": "string",
+              "default": "name"
+            }
+          },
+          {
+            "name": "permanent",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "grant",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            }
+          },
+          {
+            "name": "X-Request-Email",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page[number]",
+            "in": "query",
+            "description": "Which page to return, from 1.",
+            "schema": {
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "page[size]",
+            "in": "query",
+            "description": "How many resources the page holds. Values above 200 are treated as 200.",
+            "schema": {
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParityItemPagedListDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/parity-items/by-guid/{id}": {
+      "get": {
+        "tags": [
+          "Parity"
+        ],
+        "operationId": "getParityItemByGuid",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParityItemDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/parity-items/by-query": {
+      "get": {
+        "tags": [
+          "Parity"
+        ],
+        "operationId": "listParityItemsByQuery",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "schema": {
+              "maxLength": 5,
+              "minLength": 0,
+              "type": "string"
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "schema": {
+              "maximum": 3,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParityItemListDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/parity-items/form": {
+      "post": {
+        "tags": [
+          "Parity"
+        ],
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "grant_type": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "maxLength": 10,
+                    "minLength": 0,
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParityAddress"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/parity-items/required": {
+      "get": {
+        "tags": [
+          "Parity"
+        ],
+        "operationId": "listRequiredParityItems",
+        "parameters": [
+          {
+            "name": "filter[organizationId]",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParityItemListDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/parity-items/{id}": {
+      "get": {
+        "tags": [
+          "Parity"
+        ],
+        "operationId": "getParityItem",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fields[parity-item]",
+            "in": "query",
+            "description": "A sparse fieldset: the attributes to return, comma separated. Every attribute when omitted. One of: address, createdAt, createdBy, deletedAt, deletedBy, name, note, others, quantity, secret, updatedAt, updatedBy, version.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParityItemDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Parity"
+        ],
+        "operationId": "updateParityItem",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "What the parity-item should become. An attribute left unset is cleared, not kept.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParityItemDocument"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParityItemDocument"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/ParityItemDocument"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParityItemDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Parity"
+        ],
+        "operationId": "deleteParityItem",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/parity-items/{id}/actions/submit": {
+      "post": {
+        "tags": [
+          "Parity"
+        ],
+        "operationId": "submit",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Arguments for the submit action.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParityInput"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParityInput"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/ParityInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParityItemDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/parity-items/{id}/actions/submit-optionally": {
+      "post": {
+        "tags": [
+          "Parity"
+        ],
+        "operationId": "submitOptionally",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Arguments for the submit-optionally action.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "enum": [
+                      null
+                    ],
+                    "nullable": true
+                  },
+                  {
+                    "$ref": "#/components/schemas/ParityInput"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "enum": [
+                      null
+                    ],
+                    "nullable": true
+                  },
+                  {
+                    "$ref": "#/components/schemas/ParityInput"
+                  }
+                ]
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "enum": [
+                      null
+                    ],
+                    "nullable": true
+                  },
+                  {
+                    "$ref": "#/components/schemas/ParityInput"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/parity-items/{id}/file": {
+      "put": {
+        "tags": [
+          "Parity"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParityAddress"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/parity-items:bulk-delete": {
+      "post": {
+        "tags": [
+          "Parity"
+        ],
+        "operationId": "bulkDeleteParityItems",
+        "parameters": [
+          {
+            "name": "atomic",
+            "in": "query",
+            "description": "All-or-nothing: no resource changes unless every resource succeeds. This operation supports no other mode, and refuses \u0027false\u0027 with 422.",
+            "schema": {
+              "enum": [
+                true
+              ],
+              "type": "boolean",
+              "default": true
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Which parity-item resources to delete, named by \u0027ids\u0027.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkDeleteOfParityItem"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkDeleteOfParityItem"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkDeleteOfParityItem"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/parity-raw/echo": {
+      "post": {
+        "tags": [
+          "Parity Raw"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "enum": [
+                      null
+                    ],
+                    "nullable": true
+                  },
+                  {
+                    "$ref": "#/components/schemas/ParityInput"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "enum": [
+                      null
+                    ],
+                    "nullable": true
+                  },
+                  {
+                    "$ref": "#/components/schemas/ParityInput"
+                  }
+                ]
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "enum": [
+                      null
+                    ],
+                    "nullable": true
+                  },
+                  {
+                    "$ref": "#/components/schemas/ParityInput"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/parity-raw/fault": {
+      "get": {
+        "tags": [
+          "Parity Raw"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/parity-raw/form": {
+      "post": {
+        "tags": [
+          "Parity Raw"
+        ],
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "grant_type": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "maxLength": 10,
+                    "minLength": 0,
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/parity-raw/gated": {
+      "post": {
+        "tags": [
+          "Parity Raw"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "enum": [
+                      null
+                    ],
+                    "nullable": true
+                  },
+                  {
+                    "$ref": "#/components/schemas/ParityInput"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "enum": [
+                      null
+                    ],
+                    "nullable": true
+                  },
+                  {
+                    "$ref": "#/components/schemas/ParityInput"
+                  }
+                ]
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "enum": [
+                      null
+                    ],
+                    "nullable": true
+                  },
+                  {
+                    "$ref": "#/components/schemas/ParityInput"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/parity-raw/nothing": {
+      "post": {
+        "tags": [
+          "Parity Raw"
+        ],
+        "responses": {
+          "204": {
+            "description": "The request succeeded. There is no response body."
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/parity-raw/unread": {
+      "post": {
+        "tags": [
+          "Parity Raw"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "enum": [
+                      null
+                    ],
+                    "nullable": true
+                  },
+                  {
+                    "$ref": "#/components/schemas/ParityInput"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "enum": [
+                      null
+                    ],
+                    "nullable": true
+                  },
+                  {
+                    "$ref": "#/components/schemas/ParityInput"
+                  }
+                ]
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "enum": [
+                      null
+                    ],
+                    "nullable": true
+                  },
+                  {
+                    "$ref": "#/components/schemas/ParityInput"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/probes": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "listProbes",
+        "parameters": [
+          {
+            "name": "page[number]",
+            "in": "query",
+            "description": "Which page to return, from 1.",
+            "schema": {
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "page[size]",
+            "in": "query",
+            "description": "How many resources the page holds. Values above 200 are treated as 200.",
+            "schema": {
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          },
+          {
+            "name": "fields[probe]",
+            "in": "query",
+            "description": "A sparse fieldset: the attributes to return, comma separated. Every attribute when omitted. One of: actingUser, costly, createdAt, createdBy, deletedAt, deletedBy, note, secret, updatedAt, updatedBy, version.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbePagedListDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "createProbe",
+        "requestBody": {
+          "description": "The probe to create.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProbeDocument"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProbeDocument"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/ProbeDocument"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/probes/another-system-about-person": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "getAnotherSystemProbe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/probes/any-scope": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "getAnyScopeProbe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/probes/credential": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "getCredentialProbe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/probes/credential-downstream": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "getCredentialDownstreamProbe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/probes/credential-owners": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "getCredentialOwnersProbe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/probes/credential-person": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "getCredentialPersonProbe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/probes/current": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "getProbe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/probes/current/actions/mark": {
+      "post": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "mark",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/probes/current/actions/named": {
+      "post": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "nameOrganization",
+        "requestBody": {
+          "description": "Arguments for the named action.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NamedOrganization"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NamedOrganization"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/NamedOrganization"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/probes/current/actions/named-provider": {
+      "post": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "nameProvider",
+        "requestBody": {
+          "description": "Arguments for the named-provider action.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NamedProvider"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NamedProvider"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/NamedProvider"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/probes/downstream": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "getDownstreamProbe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/probes/flagged": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "getFlaggedProbe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/probes/owners": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "getOwnersProbe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/probes/provider-role": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "getProviderRoleProbe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/probes/role": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "getRoleProbe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/probes/send": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "getSendProbe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/probes/sparse": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "getSparseProbe",
+        "parameters": [
+          {
+            "name": "fields[probe]",
+            "in": "query",
+            "description": "A sparse fieldset: the attributes to return, comma separated. Every attribute when omitted. One of: actingUser, costly, createdAt, createdBy, deletedAt, deletedBy, note, secret, updatedAt, updatedBy, version.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/probes/system-about-person": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "getSystemProbe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/readiness": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Readiness: reports whether the service can currently accept traffic.",
+        "description": "An orchestrator takes the instance out of rotation when this fails, without restarting it.\nEvery registered health check is asked, and any that is unhealthy makes this a \u0060503\u0060\nnaming what is missing. A degraded check still serves. A check that throws is reported\nwithout its exception text, because the probe needs no credential.",
+        "operationId": "System_Readiness",
+        "responses": {
+          "200": {
+            "description": "\u0060HEALTHY\u0060, or \u0060UNHEALTHY\u0060 with what is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/startup": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Startup: reports whether the service has finished initialising.",
+        "description": "While this fails, an orchestrator suppresses the liveness and readiness probes, which stops a\nslow start from being mistaken for a fault and restarted in a loop.",
+        "operationId": "System_Startup",
+        "responses": {
+          "200": {
+            "description": "Always \u0060HEALTHY\u0060: nothing is evaluated beyond the service answering.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BulkDeleteOfParityItem": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The resources to act on, by identifier.",
+            "nullable": true
+          },
+          "filter": {
+            "oneOf": [
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              },
+              {
+                "$ref": "#/components/schemas/Query"
+              }
+            ]
+          }
+        },
+        "description": "The removal of every resource an expression matches."
+      },
+      "BulkResult": {
+        "required": [
+          "meta"
+        ],
+        "type": "object",
+        "properties": {
+          "meta": {
+            "type": "object",
+            "description": "How many resources succeeded, and on a best-effort run how many did not."
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "description": "Why each failed resource failed. Best-effort only.",
+            "nullable": true
+          }
+        },
+        "description": "What a bulk operation did."
+      },
+      "DatedProbe": {
+        "required": [
+          "attributes",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The resource\u0027s identifier. Absent on a resource being created, where the server assigns it.",
+            "nullable": true
+          },
+          "type": {
+            "enum": [
+              "dated-probe"
+            ],
+            "type": "string",
+            "description": "The resource type: the singular name of the resource, such as \u0060user\u0060."
+          },
+          "attributes": {
+            "$ref": "#/components/schemas/DatedProbeAttributes"
+          }
+        }
+      },
+      "DatedProbeAttributes": {
+        "required": [
+          "at",
+          "whole"
+        ],
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "whole": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "maybe": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "The date and time the resource was created, in ISO 8601.",
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true
+          },
+          "createdBy": {
+            "maxLength": 255,
+            "type": "string",
+            "description": "The ID of the user that created the resource.",
+            "nullable": true,
+            "readOnly": true
+          },
+          "deletedAt": {
+            "type": "string",
+            "description": "The date and time the resource was deleted, in ISO 8601.",
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true
+          },
+          "deletedBy": {
+            "maxLength": 255,
+            "type": "string",
+            "description": "The ID of the user that deleted the resource.",
+            "nullable": true,
+            "readOnly": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "The date and time the resource was last updated, in ISO 8601.",
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true
+          },
+          "updatedBy": {
+            "maxLength": 255,
+            "type": "string",
+            "description": "The ID of the user that last updated the resource.",
+            "nullable": true,
+            "readOnly": true
+          },
+          "version": {
+            "maxLength": 255,
+            "type": "string",
+            "description": "The current version of the resource.",
+            "nullable": true
+          }
+        },
+        "description": "The resource\u0027s attributes."
+      },
+      "DatedProbeDocument": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DatedProbe"
+          },
+          "meta": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Information about the response rather than the resources in it. May carry fields beyond those named here.",
+            "nullable": true,
+            "readOnly": true
+          }
+        },
+        "description": "A JSON:API document whose \u0060data\u0060 is a single resource."
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "A unique identifier for this particular occurrence of the problem.",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "description": "The HTTP status code applicable to this problem, as a string.",
+            "nullable": true
+          },
+          "code": {
+            "type": "string",
+            "description": "A stable, machine-readable error code.",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "description": "A short, human-readable summary that does not change from occurrence to occurrence.",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "description": "A human-readable explanation specific to this occurrence. May be localized.",
+            "nullable": true
+          },
+          "source": {
+            "$ref": "#/components/schemas/ErrorSource"
+          },
+          "meta": {
+            "type": "object",
+            "description": "Anything else that identifies what went wrong.",
+            "nullable": true
+          }
+        },
+        "description": "One problem that occurred while handling a request."
+      },
+      "ErrorResponse": {
+        "required": [
+          "errors"
+        ],
+        "type": "object",
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "description": "The errors that occurred. Always at least one."
+          }
+        },
+        "description": "The body of every unsuccessful response."
+      },
+      "ErrorSource": {
+        "type": "object",
+        "properties": {
+          "pointer": {
+            "type": "string",
+            "description": "A JSON Pointer to the field in error, such as \u0060/data/attributes/email\u0060.",
+            "nullable": true
+          },
+          "parameter": {
+            "type": "string",
+            "description": "The query parameter that caused the error.",
+            "nullable": true
+          },
+          "header": {
+            "type": "string",
+            "description": "The name of the request header that caused the error.",
+            "nullable": true
+          }
+        },
+        "description": "Where an error came from."
+      },
+      "InstallProbe": {
+        "required": [
+          "type",
+          "attributes"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The resource\u0027s identifier. Absent on a resource being created, where the server assigns it.",
+            "nullable": true
+          },
+          "type": {
+            "enum": [
+              "install-probe"
+            ],
+            "type": "string",
+            "description": "The resource type: the singular name of the resource, such as \u0060user\u0060."
+          },
+          "attributes": {
+            "$ref": "#/components/schemas/InstallProbeAttributes"
+          }
+        }
+      },
+      "InstallProbeAttributes": {
+        "type": "object",
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "description": "The date and time the resource was created, in ISO 8601.",
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true
+          },
+          "createdBy": {
+            "maxLength": 255,
+            "type": "string",
+            "description": "The ID of the user that created the resource.",
+            "nullable": true,
+            "readOnly": true
+          },
+          "deletedAt": {
+            "type": "string",
+            "description": "The date and time the resource was deleted, in ISO 8601.",
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true
+          },
+          "deletedBy": {
+            "maxLength": 255,
+            "type": "string",
+            "description": "The ID of the user that deleted the resource.",
+            "nullable": true,
+            "readOnly": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "The date and time the resource was last updated, in ISO 8601.",
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true
+          },
+          "updatedBy": {
+            "maxLength": 255,
+            "type": "string",
+            "description": "The ID of the user that last updated the resource.",
+            "nullable": true,
+            "readOnly": true
+          },
+          "version": {
+            "maxLength": 255,
+            "type": "string",
+            "description": "The current version of the resource.",
+            "nullable": true
+          }
+        },
+        "description": "The resource\u0027s attributes."
+      },
+      "InstallProbeDocument": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/InstallProbe"
+          },
+          "meta": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Information about the response rather than the resources in it. May carry fields beyond those named here.",
+            "nullable": true,
+            "readOnly": true
+          }
+        },
+        "description": "A JSON:API document whose \u0060data\u0060 is a single resource."
+      },
+      "NamedOrganization": {
+        "required": [
+          "organizationId"
+        ],
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "NamedProvider": {
+        "required": [
+          "providerId"
+        ],
+        "type": "object",
+        "properties": {
+          "providerId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "PageMeta": {
+        "required": [
+          "pageCount",
+          "pageNumber",
+          "pageSize",
+          "totalCount"
+        ],
+        "type": "object",
+        "properties": {
+          "pageCount": {
+            "type": "integer",
+            "description": "How many pages there are. At least one: an empty collection is one empty page.",
+            "format": "int32"
+          },
+          "pageNumber": {
+            "type": "integer",
+            "description": "Which page this is, from 1.",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "description": "How many resources a page holds.",
+            "format": "int32"
+          },
+          "totalCount": {
+            "type": "integer",
+            "description": "How many resources match, across every page.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": {},
+        "description": "Information about the response rather than the resources in it. May carry fields beyond those named here.",
+        "nullable": true,
+        "readOnly": true
+      },
+      "ParityAddress": {
+        "required": [
+          "city"
+        ],
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string"
+          },
+          "zip": {
+            "maxLength": 5,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ParityInput": {
+        "required": [
+          "subject",
+          "count"
+        ],
+        "type": "object",
+        "properties": {
+          "subject": {
+            "type": "string"
+          },
+          "count": {
+            "maximum": 10,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "oneOf": [
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              },
+              {
+                "$ref": "#/components/schemas/ParityAddress"
+              }
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ParityAddress"
+            },
+            "nullable": true
+          }
+        }
+      },
+      "ParityItem": {
+        "required": [
+          "attributes",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The resource\u0027s identifier. Absent on a resource being created, where the server assigns it.",
+            "nullable": true
+          },
+          "type": {
+            "enum": [
+              "parity-item"
+            ],
+            "type": "string",
+            "description": "The resource type: the singular name of the resource, such as \u0060user\u0060."
+          },
+          "attributes": {
+            "$ref": "#/components/schemas/ParityItemAttributes"
+          }
+        }
+      },
+      "ParityItemAttributes": {
+        "required": [
+          "name",
+          "quantity"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "maxLength": 10,
+            "minLength": 0,
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 255,
+            "type": "string",
+            "nullable": true
+          },
+          "quantity": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          },
+          "address": {
+            "oneOf": [
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              },
+              {
+                "$ref": "#/components/schemas/ParityAddress"
+              }
+            ]
+          },
+          "others": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ParityAddress"
+            },
+            "nullable": true
+          },
+          "secret": {
+            "maxLength": 50,
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "The date and time the resource was created, in ISO 8601.",
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true
+          },
+          "createdBy": {
+            "maxLength": 255,
+            "type": "string",
+            "description": "The ID of the user that created the resource.",
+            "nullable": true,
+            "readOnly": true
+          },
+          "deletedAt": {
+            "type": "string",
+            "description": "The date and time the resource was deleted, in ISO 8601.",
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true
+          },
+          "deletedBy": {
+            "maxLength": 255,
+            "type": "string",
+            "description": "The ID of the user that deleted the resource.",
+            "nullable": true,
+            "readOnly": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "The date and time the resource was last updated, in ISO 8601.",
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true
+          },
+          "updatedBy": {
+            "maxLength": 255,
+            "type": "string",
+            "description": "The ID of the user that last updated the resource.",
+            "nullable": true,
+            "readOnly": true
+          },
+          "version": {
+            "maxLength": 255,
+            "type": "string",
+            "description": "The current version of the resource.",
+            "nullable": true
+          }
+        },
+        "description": "The resource\u0027s attributes."
+      },
+      "ParityItemDocument": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ParityItem"
+          },
+          "meta": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Information about the response rather than the resources in it. May carry fields beyond those named here.",
+            "nullable": true,
+            "readOnly": true
+          }
+        },
+        "description": "A JSON:API document whose \u0060data\u0060 is a single resource."
+      },
+      "ParityItemListDocument": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ParityItem"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Information about the response rather than the resources in it. May carry fields beyond those named here.",
+            "nullable": true,
+            "readOnly": true
+          }
+        },
+        "description": "A collection of resources, returned whole."
+      },
+      "ParityItemPagedListDocument": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ParityItem"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMeta"
+          },
+          "links": {
+            "type": "object",
+            "properties": {
+              "first": {
+                "type": "string",
+                "description": "The first page."
+              },
+              "prev": {
+                "type": "string",
+                "description": "The page before this one."
+              },
+              "next": {
+                "type": "string",
+                "description": "The page after this one."
+              },
+              "last": {
+                "type": "string",
+                "description": "The last page."
+              }
+            },
+            "description": "Where the rest of the collection is. A link that would not go anywhere is absent.",
+            "readOnly": true
+          }
+        },
+        "description": "A page of a collection, with the means to reach the rest of it."
+      },
+      "Probe": {
+        "required": [
+          "type",
+          "attributes"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The resource\u0027s identifier. Absent on a resource being created, where the server assigns it.",
+            "nullable": true
+          },
+          "type": {
+            "enum": [
+              "probe"
+            ],
+            "type": "string",
+            "description": "The resource type: the singular name of the resource, such as \u0060user\u0060."
+          },
+          "attributes": {
+            "$ref": "#/components/schemas/ProbeAttributes"
+          }
+        }
+      },
+      "ProbeAttributes": {
+        "type": "object",
+        "properties": {
+          "actingUser": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "readOnly": true
+          },
+          "note": {
+            "maxLength": 255,
+            "type": "string",
+            "nullable": true
+          },
+          "secret": {
+            "maxLength": 10000,
+            "type": "string",
+            "nullable": true
+          },
+          "costly": {
+            "maxLength": 255,
+            "type": "string",
+            "nullable": true,
+            "readOnly": true
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "The date and time the resource was created, in ISO 8601.",
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true
+          },
+          "createdBy": {
+            "maxLength": 255,
+            "type": "string",
+            "description": "The ID of the user that created the resource.",
+            "nullable": true,
+            "readOnly": true
+          },
+          "deletedAt": {
+            "type": "string",
+            "description": "The date and time the resource was deleted, in ISO 8601.",
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true
+          },
+          "deletedBy": {
+            "maxLength": 255,
+            "type": "string",
+            "description": "The ID of the user that deleted the resource.",
+            "nullable": true,
+            "readOnly": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "The date and time the resource was last updated, in ISO 8601.",
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true
+          },
+          "updatedBy": {
+            "maxLength": 255,
+            "type": "string",
+            "description": "The ID of the user that last updated the resource.",
+            "nullable": true,
+            "readOnly": true
+          },
+          "version": {
+            "maxLength": 255,
+            "type": "string",
+            "description": "The current version of the resource.",
+            "nullable": true
+          }
+        },
+        "description": "The resource\u0027s attributes."
+      },
+      "ProbeDocument": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Probe"
+          },
+          "meta": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Information about the response rather than the resources in it. May carry fields beyond those named here.",
+            "nullable": true,
+            "readOnly": true
+          }
+        },
+        "description": "A JSON:API document whose \u0060data\u0060 is a single resource."
+      },
+      "ProbePagedListDocument": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Probe"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMeta"
+          },
+          "links": {
+            "type": "object",
+            "properties": {
+              "first": {
+                "type": "string",
+                "description": "The first page."
+              },
+              "prev": {
+                "type": "string",
+                "description": "The page before this one."
+              },
+              "next": {
+                "type": "string",
+                "description": "The page after this one."
+              },
+              "last": {
+                "type": "string",
+                "description": "The last page."
+              }
+            },
+            "description": "Where the rest of the collection is. A link that would not go anywhere is absent.",
+            "readOnly": true
+          }
+        },
+        "description": "A page of a collection, with the means to reach the rest of it."
+      },
+      "Query": {
+        "description": "A validated query expression, as sent in a \u0060filter\u0060 field."
+      },
+      "SortBy": {
+        "required": [
+          "field",
+          "direction",
+          "isDescending"
+        ],
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "description": "The field\u0027s published name, as it appears in the resource\u0027s schema."
+          },
+          "direction": {
+            "enum": [
+              "ASCENDING",
+              "DESCENDING"
+            ],
+            "type": "string",
+            "description": "Which way it is ordered."
+          },
+          "isDescending": {
+            "type": "boolean",
+            "description": "Whether the field is ordered largest first."
+          }
+        },
+        "description": "One field of a sort, and the direction it is ordered in."
+      },
+      "SystemStatus": {
+        "required": [
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "The service\u0027s status as a stable, machine-readable token, for example \u0060HEALTHY\u0060. Callers\nare orchestrators rather than people, so this is an enumerated token and not prose."
+          },
+          "detail": {
+            "type": "string",
+            "description": "Why, when the status is not \u0060HEALTHY\u0060: what the service is missing, for whoever is looking\nat the probe. Absent when healthy.",
+            "nullable": true
+          }
+        },
+        "description": "The outcome of a system probe."
+      }
+    },
+    "securitySchemes": {
+      "organization": {
+        "type": "apiKey",
+        "description": "The organization this request concerns. Leave empty for data that belongs to no organization. Believed from a service\u0027s own credential only.",
+        "name": "Bitwarden-Organization",
+        "in": "header"
+      },
+      "user": {
+        "type": "apiKey",
+        "description": "The user this request is made on behalf of. Leave empty for background work with no user. Believed from a service\u0027s own credential only.",
+        "name": "Bitwarden-User",
+        "in": "header"
+      },
+      "provider": {
+        "type": "apiKey",
+        "description": "The provider on whose authority this request is made. Leave empty unless the operation takes a provider; refused where it doesn\u0027t. Believed from a service\u0027s own credential only.",
+        "name": "Bitwarden-Provider",
+        "in": "header"
+      },
+      "context": {
+        "type": "apiKey",
+        "description": "Where the originating request came from and how it was made: a closed JSON object, version 1, \u0060{\u0022v\u0022:1,\u0022clientIp\u0022:\u0022\u2026\u0022,\u0022deviceType\u0022:\u0022\u2026\u0022,\u0022deviceIdentifier\u0022:\u0022\u2026\u0022,\u0022credential\u0022:\u0022USER|ORGANIZATION|MACHINE|SYSTEM\u0022,\u0022recordedUser\u0022:\u0022\u2026\u0022,\u0022organizations\u0022:[\u0022\u2026\u0022]}\u0060, every member but \u0060v\u0060 optional and \u0060recordedUser\u0060 only with \u0060SYSTEM\u0060. An unknown or repeated member, or more than 16384 bytes, is refused 400. Audit-only, but \u0060organizations\u0060, read for feature flags alone: nothing is authorized on it. Believed from a service\u0027s own credential only.",
+        "name": "Bitwarden-Context",
+        "in": "header"
+      }
+    }
+  },
+  "security": [
+    {
+      "organization": [],
+      "user": [],
+      "provider": [],
+      "context": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Dated Probes"
+    },
+    {
+      "name": "Install Probes"
+    },
+    {
+      "name": "Parity"
+    },
+    {
+      "name": "Parity Raw"
+    },
+    {
+      "name": "Probes"
+    },
+    {
+      "name": "System",
+      "description": "The probes every Bitwarden service answers, for the infrastructure that runs it: whether the process is alive, ready for traffic, and finished starting. Anonymous, and they carry no Vault Data or account information."
+    }
+  ]
+}

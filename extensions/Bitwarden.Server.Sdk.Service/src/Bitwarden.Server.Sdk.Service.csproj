@@ -1,0 +1,87 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- This package maps its own endpoints: source-generates the endpoint
+         delegate binding so MapGet handlers satisfy the repo's IsAotCompatible analyzers. -->
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
+    <!-- The JSON:API attributes envelope is applied by a reflection-based JsonConverterFactory,
+         which cannot be proven trim- or AOT-safe. Declared honestly rather than suppressed: this
+         package is not AOT-compatible, and native AOT is already ruled out for any service with a
+         database (EF Core has no AOT path). -->
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <PreReleaseVersionLabel>alpha</PreReleaseVersionLabel>
+    <PreReleaseVersionIteration>1</PreReleaseVersionIteration>
+    <VersionSuffix Condition="'$(VersionSuffix)' == '' AND '$(IsPreRelease)' == 'true'">$(PreReleaseVersionLabel).$(PreReleaseVersionIteration)</VersionSuffix>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Description>Bitwarden service base class and startup sequence.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Common\src\Bitwarden.Server.Sdk.Common.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.HealthChecks\src\Bitwarden.Server.Sdk.HealthChecks.csproj" />
+    <!-- Feature flags, so a product service can publish them in its config resource and every
+         service can ask one. A project reference, like Common, so the services that reference
+         this package by path see the same flag evaluation the package is tested with. -->
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Features\src\Bitwarden.Server.Sdk.Features.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The Bearer scheme and Bitwarden's token-validation rules. Consumed rather than
+         hand-rolled: registering AddJwtBearer here as well produces "Scheme already exists". -->
+    <PackageReference Include="Bitwarden.Server.Sdk.Authentication" Version="0.6.0" />
+    <!-- The bearer handler's IdentityModel packages, raised so the whole family resolves to one
+         version without AIKIDO-2026-11109 (fixed in 7.7.2) or AIKIDO-2026-11098 (fixed in 8.19.0);
+         the handler and SqlClient bring 7.x. Every service references this package. -->
+    <PackageReference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="8.23.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.23.0" />
+    <!-- Every service documents its API. Referenced outright rather than switched on by an
+         MSBuild property: a service that does not describe itself is not one we want to ship. -->
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
+    <!-- Swagger UI only. The document itself comes from Microsoft.AspNetCore.OpenApi;
+         Swashbuckle here is the embedded static UI, so docs are served by the service
+         itself with no external asset fetch. -->
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.3.0" />
+    <!-- Per-address request counts shared by every instance of a service, in the
+         globalSettings:distributedIpRateLimiting Redis (Http/RedisRateLimitCounters.cs). The version
+         Sdk.Client uses. -->
+    <PackageReference Include="StackExchange.Redis" Version="2.13.17" />
+
+    <!-- Traces, metrics and logs over OTLP (Observability/Telemetry.cs). No Entity
+         Framework instrumentation: it is a prerelease, which a stable package can't depend on
+         (NU5104). SqlClient's spans cover SQL Server's commands without it. -->
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.19.1" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.19.1" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.19.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.19.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.19.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.SqlClient" Version="1.19.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Branding for the documentation UI, served by the service from this assembly so no asset
+         is fetched from an external origin. -->
+    <EmbeddedResource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Service.Tests" />
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Service.MinimalApi.Tests" />
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Service.Testing" />
+    <!-- The platform's read by identifier and the service-owned cache name resources and settle
+         authorization exactly as the standard operations do. -->
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Data" />
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Caching" />
+  </ItemGroup>
+
+</Project>

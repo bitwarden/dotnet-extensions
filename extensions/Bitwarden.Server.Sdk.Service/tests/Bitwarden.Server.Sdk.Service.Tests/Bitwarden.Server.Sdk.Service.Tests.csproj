@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- The handlers here are compiled with the request delegate generator, as a service compiles
+         its Map calls. The MinimalApi suite compiles the same handlers without it, so the
+         framework's runtime factory is covered as well. -->
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.Http.Generated</InterceptorsNamespaces>
+    <!-- A form model is one the generator can't compile, so it leaves that endpoint to the runtime factory. -->
+    <NoWarn>$(NoWarn);RDG003</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Hosts a service in-process for the tests that need the whole pipeline: a session's
+         subject and the asserted-user refusal. -->
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="[10.0.13]" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="[10.11.0]" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="[18.12.0]" />
+    <PackageReference Include="xunit.v3.mtp-v2" Version="[3.2.2]" />
+    <!-- A Redis of its own, for the per-address counts every instance of a service shares. -->
+    <PackageReference Include="Testcontainers" Version="[4.16.0]" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.Service.csproj" />
+  </ItemGroup>
+
+</Project>
