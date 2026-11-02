@@ -139,7 +139,8 @@ One glob covers all of it, because the directory nesting is what selects the pha
 
 `Transition/x.sql` becomes `<namespace>.SqlServer.Transition.x.sql`, and the initial phase excludes
 that segment explicitly — a transition script's name contains the root segment too, so without the
-exclusion both sets would apply together. `Archive/` is excluded from both phases. Since a
+exclusion both sets would apply together. `Archive/` and `HelperScripts/` are excluded from both
+phases; helper scripts only run when a migration asks for one by name. Since a
 transition run is unjournaled, those names are never recorded and are free to change; only the
 initial phase's names have to stay stable.
 

@@ -71,15 +71,18 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
         var root = $"{scriptPrefix.TrimEnd('.')}.";
         var transition = $"{root}Transition.";
         var archive = $"{root}Archive.";
+        var helperScripts = $"{root}HelperScripts.";
 
         return phase switch
         {
-            // Transition and archived scripts start with the root prefix too, so the initial phase
-            // has to exclude them explicitly or it would apply every set at once.
+            // Transition, archived and helper scripts start with the root prefix too, so the initial
+            // phase has to exclude them explicitly or it would apply every set at once. Helper scripts
+            // only run when a migration asks for one by name.
             MigrationPhase.Initial => name =>
                 name.StartsWith(root, StringComparison.Ordinal)
                 && !name.StartsWith(transition, StringComparison.Ordinal)
-                && !name.StartsWith(archive, StringComparison.Ordinal),
+                && !name.StartsWith(archive, StringComparison.Ordinal)
+                && !name.StartsWith(helperScripts, StringComparison.Ordinal),
             MigrationPhase.Transition => name =>
                 name.StartsWith(transition, StringComparison.Ordinal),
             _ => throw new ArgumentOutOfRangeException(nameof(phase), phase, "Unknown migration phase."),

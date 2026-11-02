@@ -6,6 +6,7 @@ public class SqlServerMigrationPhaseTests
     private const string Root = $"{Prefix}.2026-08-12_00_CreateOrders.sql";
     private const string Transition = $"{Prefix}.Transition.2026-08-19_00_Backfill.sql";
     private const string Archived = $"{Prefix}.Archive.2020-01-01_00_Old.sql";
+    private const string HelperScript = $"{Prefix}.HelperScripts.2026-08-19_00_Backfill.sql";
 
     private static Func<string, bool> Filter(MigrationPhase phase, string prefix = Prefix)
         => SqlServerMigrator.ScriptFilterFor(phase, prefix);
@@ -37,6 +38,15 @@ public class SqlServerMigrationPhaseTests
     public void InitialPhase_ExcludesArchivedScripts()
     {
         Assert.False(Filter(MigrationPhase.Initial)(Archived));
+    }
+
+    [Fact]
+    public void HelperScripts_AreNeverMigrations()
+    {
+        // A helper script under Migrations/SqlServer/HelperScripts/ is embedded with the root
+        // prefix like any other script, but it runs only when a migration asks for it by name.
+        Assert.False(Filter(MigrationPhase.Initial)(HelperScript));
+        Assert.False(Filter(MigrationPhase.Transition)(HelperScript));
     }
 
     [Fact]

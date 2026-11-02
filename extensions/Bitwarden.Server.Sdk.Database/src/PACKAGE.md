@@ -243,7 +243,8 @@ SQL Server uses [DbUp](https://dbup.readthedocs.io/) with hand-authored `.sql` s
 EF Core migrations. Each script must be:
 
 1. Placed under `Migrations/SqlServer/`, or `Migrations/SqlServer/Transition/` for a transition
-   phase backfill. `Migrations/SqlServer/Archive/` is excluded from every phase.
+   phase backfill. `Migrations/SqlServer/Archive/` and `Migrations/SqlServer/HelperScripts/` are excluded
+   from every phase.
 2. Named with a sortable timestamp prefix so DbUp applies them in order:
    `2026-08-12_00_CreateOrdersTable.sql`
 
