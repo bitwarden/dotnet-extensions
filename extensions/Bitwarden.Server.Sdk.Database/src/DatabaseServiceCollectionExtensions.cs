@@ -32,7 +32,7 @@ public static class DatabaseServiceCollectionExtensions
     /// </param>
     /// <param name="configureProvider">
     /// Configures the EF Core database provider on the <see cref="DbContextOptionsBuilder"/>.
-    /// Supplied by the generated <c>Add{Schema}Database</c> extension method, which emits
+    /// Supplied by the generated <c>Add{Schema}</c> extension method, which emits
     /// only the provider cases that are referenced in the consuming project.
     /// </param>
     /// <param name="sqlServerMigrations">

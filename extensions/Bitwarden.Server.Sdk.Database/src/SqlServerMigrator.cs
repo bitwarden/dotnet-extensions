@@ -63,7 +63,7 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
         if (string.IsNullOrWhiteSpace(scriptPrefix))
         {
             throw new InvalidOperationException(
-                "No script prefix is configured. The generated Add{Schema}Database sets it from the "
+                "No script prefix is configured. The generated Add{Schema} sets it from the "
                 + "BitSqlServerScriptPrefix build property; set SqlServerMigrationOptions.ScriptPrefix "
                 + "when registering the runtime types by hand.");
         }

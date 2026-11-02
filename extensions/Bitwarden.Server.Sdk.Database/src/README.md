@@ -70,8 +70,8 @@ where relevant):
 
 | Generated type | Scope | Purpose |
 |---|---|---|
-| `SqliteContext`, `PostgreSqlContext`, `MySqlContext` | `internal` | Provider subcontexts; `internal` so EF Designer files can reference them via `[DbContext(typeof(...))]`. No SQL Server subcontext — DbUp owns that schema |
-| `SqliteContextFactory`, `PostgreSqlContextFactory`, `MySqlContextFactory` | `file` | EF design-time factories discovered by `dotnet ef` tooling |
+| `SqliteContext`, `PostgreSqlContext`, `MySqlContext` | `internal` | Provider subcontexts; `internal` so EF Designer files can reference them via `[DbContext(typeof(...))]`. By default there's no SQL Server subcontext, since DbUp owns that schema; `SqlServerMigrations = SqlServerMigrations.EfCore` adds a `SqlServerContext` |
+| `SqliteContextFactory`, `PostgreSqlContextFactory`, `MySqlContextFactory` | `file` | EF design-time factories discovered by `dotnet ef` tooling, plus `SqlServerContextFactory` when SQL Server uses EF Core migrations |
 | `VaultDatabaseMigrationsAssembly` | `file` | Concrete `MigrationsAssemblyBase` with compile-time migration lists; used by EF Core's `IMigrationsAssembly`. Dispatches on an exact `IDatabaseProvider.Name` match, and throws for SQL Server |
 | `VaultDatabaseServiceCollectionExtensions` | `public` | `AddVaultDatabase()` extension method |
 | `VaultDatabaseMigrationProgram` | `internal` | CLI entry point; called from `Program.Main` |
@@ -107,7 +107,7 @@ never recorded.
 Where a single naming scheme can't match every recorded row — an instance upgrading from far enough
 back that its journal predates the current one — `BitPreviousSqlServerScriptPrefix` names the prefix
 those rows carry, and the recorded names are rewritten onto `BitSqlServerScriptPrefix`. The generated
-`Add{Schema}Database` passes both through to `SqlServerMigrationOptions`. It is opt-in because it mutates deployment
+`Add{Schema}` passes both through to `SqlServerMigrationOptions`. It is opt-in because it mutates deployment
 history, which the other properties never do.
 
 Author SQL scripts in a `.sqlproj` (SQL Server Data Tools) for IntelliSense and schema diffing —
@@ -143,8 +143,10 @@ exclusion both sets would apply together. `Archive/` is excluded from both phase
 transition run is unjournaled, those names are never recorded and are free to change; only the
 initial phase's names have to stay stable.
 
-SQL Server has no EF Core migrations, and the generated code closes both routes to pretending
-otherwise. No subcontext or design-time factory is emitted, so there is no `SqlServerContext` for
+By default SQL Server has no EF Core migrations, and the generated code closes both routes to
+pretending otherwise. (A schema that sets `SqlServerMigrations = SqlServerMigrations.EfCore` instead
+gets a `SqlServerContext`, its design-time factory, `add-migration` support and a dispatcher that
+serves its migrations, like the other engines.) No subcontext or design-time factory is emitted, so there is no `SqlServerContext` for
 `dotnet ef` to target and nothing to scaffold into `Migrations/SqlServer/`. The migrations-assembly
 dispatcher throws for a SQL Server-configured context rather than reporting an empty set, so
 `DbContext.Database.Migrate()` fails with a message pointing at the migrator instead of quietly
@@ -174,9 +176,8 @@ forget, and these cover the paths that touch a live database.
 ## SDK integration
 
 The MSBuild side of this — one `BitIncludeDatabase` property setting up the package references,
-compiler-visible properties, script naming, and the migrator-build switch — is written but parked
-in a stash (`Server.Sdk database integration`), waiting on `Bitwarden.Server.Sdk` shipping with the
-analyzer support it depends on. Until then PACKAGE.md documents the same setup as project
+compiler-visible properties, script naming, and the migrator-build switch — is not part of this
+package yet: it waits on `Bitwarden.Server.Sdk` shipping with the analyzer support it depends on. Until then PACKAGE.md documents the same setup as project
 configuration a consumer writes themselves, using the property names the SDK will set, so nothing
 has to change when it lands.
 
@@ -214,8 +215,9 @@ Implemented:
 - `--phase` on the generated SQL Server CLI, replacing the coupled `-f`/`-r` pair. `Repeatable` and
   `FolderName` are gone: the phase expresses both, and neither was used independently.
 - The startup runner refuses any phase but `Initial`.
-- Scripts under `Migrations/SqlServer` and under any `HelperScripts` folder are embedded by
-  convention, with `Exclude="@(EmbeddedResource)"` so a project declaring its own items keeps them.
+- Scripts under `Migrations/SqlServer` and under any `HelperScripts` folder will be embedded by
+  convention once the SDK integration lands, with `Exclude="@(EmbeddedResource)"` so a project
+  declaring its own items keeps them. Until then the consumer declares them, as PACKAGE.md shows.
   The script folder is fixed: `BitSqlServerScriptPrefix` describes the recorded name, not the
   layout, so an adopted schema moves its scripts like any other.
 - Providers are declared on the attribute's constructor, so leaving them out is a compiler error
@@ -254,7 +256,7 @@ Implemented:
   production journal. `SqlServerMigrator` throws on the same condition, for options configured by
   hand rather than by the generator.
 - `BitSqlServerScriptPrefix` and `BitPreviousSqlServerScriptPrefix` are read from `CompilerVisibleProperty`
-  items, and the generated `Add{Schema}Database` bakes them into `SqlServerMigrationOptions` — so the folder scripts are embedded under and the folder
+  items, and the generated `Add{Schema}` bakes them into `SqlServerMigrationOptions` — so the folder scripts are embedded under and the folder
   the migrator reads come from one property. The rename is unconditional for database projects,
   which is what makes that guarantee hold.
 

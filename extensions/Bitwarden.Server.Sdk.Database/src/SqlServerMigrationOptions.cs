@@ -34,7 +34,7 @@ public sealed class SqlServerMigrationOptions
     /// <see cref="MigrationPhase.Transition"/> reads the <c>Transition</c> folder within it.
     /// </summary>
     /// <remarks>
-    /// Set for you by the generated <c>Add{Schema}Database</c> from the
+    /// Set for you by the generated <c>Add{Schema}</c> from the
     /// <c>BitSqlServerScriptPrefix</c> build property, so the name scripts are embedded under and
     /// the name the migrator looks for can't drift. Override only when registering the runtime
     /// types by hand.

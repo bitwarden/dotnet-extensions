@@ -52,7 +52,7 @@
       },
       "MySqlConnector": {
         "type": "Direct",
-        "requested": "[2.6.1, )",
+        "requested": "[2.6.1, 2.6.1]",
         "resolved": "2.6.1",
         "contentHash": "MzNSfnHWBc0Mo3zVbYxG+556zuex9obs8NYtwcPCwFahel40e49stH+osjX4k/doEHp4LT/zTtGdax4nlGWhcw=="
       },

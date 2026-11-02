@@ -90,7 +90,7 @@ internal sealed class EmptyMigrationsAssembly : IMigrationsAssembly
 }
 
 /// <summary>
-/// Registers a Sqlite-backed schema, standing in for the generated <c>Add{Schema}Database</c>
+/// Registers a Sqlite-backed schema, standing in for the generated <c>Add{Schema}</c>
 /// extension that normally supplies the provider callback.
 /// </summary>
 internal static class TestDatabaseExtensions

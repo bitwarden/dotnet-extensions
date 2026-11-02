@@ -55,12 +55,14 @@ the same for both; reference whichever one you use. Referencing both is a build 
 since they define the same types. This package targets EF Core 9, so use a 9.x version of
 whichever provider you pick.
 
-Scripts need no csproj entry: `.sql` under `Migrations/SqlServer/` and under any `HelperScripts/`
-folder is embedded by convention, so adding a script is just adding a file.
+Scripts aren't embedded for you yet. Until `Bitwarden.Server.Sdk` can do it, [project
+setup](#project-setup) declares the `EmbeddedResource` items for `.sql` under `Migrations/SqlServer/`
+and under any `HelperScripts/` folder, with the `LogicalName` the migrator expects. Without them the
+SQL Server migrator finds no scripts and applies nothing.
 
 > The rest of the project — turning the pipeline on, wiring the generator, and naming the embedded
-> scripts — is [project setup](#project-setup), a single property under the SDK. Everything below
-> assumes it is in place.
+> scripts — is [project setup](#project-setup), which becomes a single property once the SDK supports
+> it. Everything below assumes it is in place.
 
 ### 2. Define your DbContext and apply the attribute
 
@@ -116,7 +118,9 @@ public class OrderDatabaseContext(DbContextOptions<OrderDatabaseContext> options
 Only design-time tooling uses these registrations; the application resolves its context from its own
 services as usual. A constructor whose extra parameters all have defaults needs none. One with a
 parameter nothing could supply is `BWDB008`, and a `DesignTimeServices` type that doesn't implement
-`IDatabaseDesignTimeServices` is `BWDB006`.
+`IDatabaseDesignTimeServices` is `BWDB006`. A context with no non-private constructor taking a single
+`DbContextOptions` or `DbContextOptions<TContext>` is `BWDB005`, since there is nothing to derive the
+provider contexts from.
 
 ### 3. Register in your host application
 
@@ -335,7 +339,7 @@ rewriting at all — point `BitSqlServerScriptPrefix` at the name the journal al
 
 It is a build property rather than a runtime setting because it describes the schema's history, not
 a deployment: every host that migrates this schema needs it, and one forgetting to configure it
-would silently lose the protection. The generated `Add{Schema}Database` applies it.
+would silently lose the protection. The generated `Add{Schema}` applies it.
 
 The rewrite is part of preparing the database, so it runs before each migration — and before a dry
 run, as in the migrator this replaces. It touches only rows containing the old namespace and is a
@@ -408,11 +412,11 @@ New migrations scaffolded after the move go under the generated provider subcont
 (`SqliteContext`, `PostgreSqlContext`, …) and land in `Migrations/<Provider>/`, so a project can
 hold both the old and new namespaces indefinitely.
 
-### Providers are generated from package references
+### Declare every provider the original projects supported
 
-A provider subcontext, design-time factory, and switch case are emitted only for EF provider
-packages the schema project actually references. Reference the same provider packages the original
-projects did, or that provider silently disappears from the generated code.
+Code is generated only for the providers declared on `[DatabaseSetup]`. List every provider the
+original projects supported, and reference each one's package: a declared provider without its
+package is `BWDB003`, and a referenced provider that isn't declared is ignored.
 
 ### Replacing the old registration
 
@@ -438,11 +442,15 @@ Before pointing anything at a real database, confirm the generator found what yo
 dotnet ef migrations list --context SqliteContext
 
 # Should report no pending scripts against an already-migrated database
-dotnet run -- <connectionString> --dry-run
+dotnet run --property:SqlServerMigratorBuild=true -- <connectionString> --dry-run
 
 # Should list only what sits under Transition/
-dotnet run -- <connectionString> --dry-run --phase Transition
+dotnet run --property:SqlServerMigratorBuild=true -- <connectionString> --dry-run --phase Transition
 ```
+
+`--dry-run` and `--phase` belong to the SQL Server migrator build (see [Building a SQL Server migrator
+image](#building-a-sql-server-migrator-image)); the default build's command only takes the provider
+options.
 
 A dry run that lists scripts you know are already applied means the journal names changed; a
 `migrations list` that comes back empty means the namespaces did not resolve.
@@ -475,7 +483,7 @@ dotnet run -- \
 dotnet run -- "Server=…;Database=orders"
 ```
 
-The option names are the providers your project references, lowercased: `--sqlite`, `--sqlserver`,
+The option names are the providers declared on `[DatabaseSetup]`, lowercased: `--sqlite`, `--sqlserver`,
 `--postgresql`, `--mysql`. A provider you leave out is skipped. The SQL Server migrator is a separate
 build of the same project (see [Building a SQL Server migrator image](#building-a-sql-server-migrator-image)) and takes its
 connection string as a positional argument rather than an option.
