@@ -29,7 +29,9 @@ namespace Bitwarden.Server.Sdk.Database;
 public sealed class DatabaseSetupAttribute<TContext> : Attribute
     where TContext : DbContext
 {
-    /// <summary>Declares a schema and the database engines it supports.</summary>
+    /// <summary>
+    /// Declares a schema and the database engines it supports.
+    /// </summary>
     /// <param name="providers">The engines this schema supports; see <see cref="Providers"/>.</param>
     public DatabaseSetupAttribute(DatabaseProvider[] providers)
     {

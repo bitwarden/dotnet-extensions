@@ -1,6 +1,8 @@
 namespace Bitwarden.Server.Sdk.Database;
 
-/// <summary>How a schema migrates SQL Server, set with <see cref="DatabaseSetupAttribute{TContext}.SqlServerMigrations"/>.</summary>
+/// <summary>
+/// How a schema migrates SQL Server, set with <see cref="DatabaseSetupAttribute{TContext}.SqlServerMigrations"/>.
+/// </summary>
 public enum SqlServerMigrations
 {
     /// <summary>

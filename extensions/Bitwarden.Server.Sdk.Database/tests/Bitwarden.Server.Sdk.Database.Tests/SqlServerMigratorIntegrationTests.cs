@@ -12,7 +12,9 @@ public class SqlServerMigratorIntegrationTests(SqlServerFixture sqlServer) : ICl
     private const string CreateOrders = "2026-08-12_00_CreateOrders.sql";
     private const string SeedOrder = "2026-08-13_00_SeedOrder.sql";
 
-    /// <summary>Each test gets its own database, which also exercises creating one.</summary>
+    /// <summary>
+    /// Each test gets its own database, which also exercises creating one.
+    /// </summary>
     private async Task<(IDatabaseMigrator Migrator, string ConnectionString, FakeLogCollector Logs)> BuildMigratorAsync(
         string databaseName,
         Action<SqlServerMigrationOptions>? configure = null,

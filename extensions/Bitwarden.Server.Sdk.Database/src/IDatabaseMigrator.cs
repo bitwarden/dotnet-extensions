@@ -1,6 +1,8 @@
 namespace Bitwarden.Server.Sdk.Database;
 
-/// <summary>Applies pending migrations to a database schema.</summary>
+/// <summary>
+/// Applies pending migrations to a database schema.
+/// </summary>
 public interface IDatabaseMigrator
 {
     /// <summary>

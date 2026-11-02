@@ -8,7 +8,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Bitwarden.Server.Sdk.Database.Tests;
 
-/// <summary>Minimal DbContext used in tests. Contains no entities or migrations.</summary>
+/// <summary>
+/// Minimal DbContext used in tests. Contains no entities or migrations.
+/// </summary>
 internal class TestDbContext(DbContextOptions<TestDbContext> options) : DbContext(options);
 
 /// <summary>
@@ -22,7 +24,9 @@ internal sealed class Order
     public string Name { get; set; } = string.Empty;
 }
 
-/// <summary>DbContext over <see cref="Order"/>, for querying a DbUp-migrated SQL Server schema.</summary>
+/// <summary>
+/// DbContext over <see cref="Order"/>, for querying a DbUp-migrated SQL Server schema.
+/// </summary>
 internal class OrdersDbContext : DbContext
 {
     public OrdersDbContext(DbContextOptions<OrdersDbContext> options) : base(options)
@@ -32,7 +36,9 @@ internal class OrdersDbContext : DbContext
     public DbSet<Order> Orders => Set<Order>();
 }
 
-/// <summary>Second minimal DbContext for multi-schema tests.</summary>
+/// <summary>
+/// Second minimal DbContext for multi-schema tests.
+/// </summary>
 internal class AnotherTestDbContext(DbContextOptions<AnotherTestDbContext> options) : DbContext(options);
 
 /// <summary>
@@ -105,7 +111,9 @@ internal static class TestDatabaseExtensions
             static (opts, builder) => builder.UseSqlite(opts.ConnectionString));
 }
 
-/// <summary>Builds a Sqlite-backed provider for a schema, with the connection kept alive.</summary>
+/// <summary>
+/// Builds a Sqlite-backed provider for a schema, with the connection kept alive.
+/// </summary>
 internal static class SqliteTestDatabase
 {
     public static DatabaseFixture Create<TContext, TMigrationsAssembly>(
@@ -135,7 +143,9 @@ internal static class SqliteTestDatabase
     }
 }
 
-/// <summary>Creates a <c>Widgets</c> table, so a migration run has observable effects.</summary>
+/// <summary>
+/// Creates a <c>Widgets</c> table, so a migration run has observable effects.
+/// </summary>
 [Migration(CreateWidgets.MigrationId)]
 internal sealed class CreateWidgets : Migration
 {
@@ -155,7 +165,9 @@ internal sealed class CreateWidgets : Migration
         => migrationBuilder.DropTable("Widgets");
 }
 
-/// <summary>Runs a helper script, so a migration's effect comes from a <c>.sql</c> file.</summary>
+/// <summary>
+/// Runs a helper script, so a migration's effect comes from a <c>.sql</c> file.
+/// </summary>
 [Migration(SeedWidgets.MigrationId)]
 internal sealed class SeedWidgets : Migration
 {

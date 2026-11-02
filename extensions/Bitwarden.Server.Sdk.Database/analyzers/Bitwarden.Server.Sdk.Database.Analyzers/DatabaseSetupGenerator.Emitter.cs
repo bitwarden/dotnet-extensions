@@ -361,7 +361,9 @@ public sealed partial class DatabaseSetupGenerator
         {{constants}}
 
         #if SQLSERVER_MIGRATOR_BUILD
-            /// <summary>Registers {{attr.SchemaName}} SQL Server migration services against the named options key {{Literal(attr.MigratorKey)}}.</summary>
+            /// <summary>
+            /// Registers {{attr.SchemaName}} SQL Server migration services against the named options key {{Literal(attr.MigratorKey)}}.
+            /// </summary>
             public static IServiceCollection Add{{attr.SchemaName}}(this IServiceCollection services)
             {
                 services.Configure<SqlServerMigrationOptions>({{Literal(attr.MigratorKey)}}, o =>
@@ -371,7 +373,9 @@ public sealed partial class DatabaseSetupGenerator
                 return services.AddSqlServerDatabaseMigrator({{Literal(attr.MigratorKey)}}, typeof({{attr.TypeName}}).Assembly);
             }
         #else
-            /// <summary>Registers {{attr.SchemaName}} migration services against the named options key {{Literal(attr.MigratorKey)}}.</summary>
+            /// <summary>
+            /// Registers {{attr.SchemaName}} migration services against the named options key {{Literal(attr.MigratorKey)}}.
+            /// </summary>
             public static IServiceCollection Add{{attr.SchemaName}}(this IServiceCollection services)
             {
                 services.Configure<SqlServerMigrationOptions>({{Literal(attr.MigratorKey)}}, o =>
@@ -399,7 +403,9 @@ public sealed partial class DatabaseSetupGenerator
     private static string EmitEfCoreDiExtension(AttributeInfo attr, string cases) => $$"""
         public static class {{attr.SchemaName}}ServiceCollectionExtensions
         {
-            /// <summary>Registers {{attr.SchemaName}} migration services against the named options key {{Literal(attr.MigratorKey)}}.</summary>
+            /// <summary>
+            /// Registers {{attr.SchemaName}} migration services against the named options key {{Literal(attr.MigratorKey)}}.
+            /// </summary>
             public static IServiceCollection Add{{attr.SchemaName}}(this IServiceCollection services)
                 => services.AddDatabase<{{attr.TypeName}}, {{attr.SchemaName}}MigrationsAssembly>({{Literal(attr.MigratorKey)}},
                     static (opts, builder) =>

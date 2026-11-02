@@ -7,9 +7,13 @@ namespace Bitwarden.Server.Sdk.Database;
 /// </summary>
 public sealed class DatabaseOptions
 {
-    /// <summary>The database engine to connect to.</summary>
+    /// <summary>
+    /// The database engine to connect to.
+    /// </summary>
     public DatabaseProvider Provider { get; set; }
 
-    /// <summary>The connection string for the target database.</summary>
+    /// <summary>
+    /// The connection string for the target database.
+    /// </summary>
     public string ConnectionString { get; set; } = string.Empty;
 }

@@ -14,7 +14,9 @@ public sealed class DatabaseMigrationHostedServiceIntegrationTests : IClassFixtu
 {
     private const string ScriptPrefix = "Bitwarden.Server.Sdk.Database.Tests.Migrations.SqlServer";
 
-    /// <summary>A value of the kind SQL Server puts in its error messages, e.g. a duplicate key.</summary>
+    /// <summary>
+    /// A value of the kind SQL Server puts in its error messages, e.g. a duplicate key.
+    /// </summary>
     private const string RowValue = "alice@example.com";
 
     private readonly SqlServerFixture _sqlServer;
@@ -73,7 +75,9 @@ public sealed class DatabaseMigrationHostedServiceIntegrationTests : IClassFixtu
         return connectionString;
     }
 
-    /// <summary>Starts a host that auto-migrates the schema, and returns how its start ended.</summary>
+    /// <summary>
+    /// Starts a host that auto-migrates the schema, and returns how its start ended.
+    /// </summary>
     private static async Task<(Exception? Error, FakeLogCollector Logs)> StartHostAsync(string connectionString)
     {
         var time = new FakeTimeProvider();

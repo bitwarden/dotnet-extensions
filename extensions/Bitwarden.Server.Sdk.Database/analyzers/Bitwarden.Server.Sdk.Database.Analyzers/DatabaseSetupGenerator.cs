@@ -353,7 +353,9 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
         return generic;
     }
 
-    /// <summary>A parameter's default value as C# source, or null when it has none.</summary>
+    /// <summary>
+    /// A parameter's default value as C# source, or null when it has none.
+    /// </summary>
     private static string? DefaultOf(IParameterSymbol parameter)
     {
         if (!parameter.HasExplicitDefaultValue)
@@ -622,13 +624,17 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
                 System.Text.Encoding.UTF8));
     }
 
-    /// <summary>Whether EF Core migrates the provider: every engine but SQL Server, unless the schema opts it in.</summary>
+    /// <summary>
+    /// Whether EF Core migrates the provider: every engine but SQL Server, unless the schema opts it in.
+    /// </summary>
     private static bool IsEfCore(AttributeInfo attr, ProviderSpec provider)
         => provider.Name != "SqlServer" || attr.SqlServerEfCore;
 
     // Provider call shapes shared with the emitter
 
-    /// <summary>Returns the DbContextOptionsBuilder extension method call for a given provider.</summary>
+    /// <summary>
+    /// Returns the DbContextOptionsBuilder extension method call for a given provider.
+    /// </summary>
     private static string ProviderUseCall(string providerName) => providerName switch
     {
         "Sqlite" => "UseSqlite(opts.ConnectionString)",
@@ -639,7 +645,9 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
     };
 
 
-    /// <summary>Returns the user-facing description for a provider's connection string option.</summary>
+    /// <summary>
+    /// Returns the user-facing description for a provider's connection string option.
+    /// </summary>
     private static string ProviderDescription(string name) => name switch
     {
         "Sqlite" => "SQLite connection string",

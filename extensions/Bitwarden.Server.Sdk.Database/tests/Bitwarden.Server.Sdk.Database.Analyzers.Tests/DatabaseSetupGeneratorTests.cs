@@ -167,7 +167,9 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                 private const string ScriptPrefix = "My.App.SqlServer";
 
             #if SQLSERVER_MIGRATOR_BUILD
-                /// <summary>Registers MyDatabase SQL Server migration services against the named options key "My".</summary>
+                /// <summary>
+                /// Registers MyDatabase SQL Server migration services against the named options key "My".
+                /// </summary>
                 public static IServiceCollection AddMyDatabase(this IServiceCollection services)
                 {
                     services.Configure<SqlServerMigrationOptions>("My", o =>
@@ -177,7 +179,9 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                     return services.AddSqlServerDatabaseMigrator("My", typeof(MyDatabaseContext).Assembly);
                 }
             #else
-                /// <summary>Registers MyDatabase migration services against the named options key "My".</summary>
+                /// <summary>
+                /// Registers MyDatabase migration services against the named options key "My".
+                /// </summary>
                 public static IServiceCollection AddMyDatabase(this IServiceCollection services)
                 {
                     services.Configure<SqlServerMigrationOptions>("My", o =>
@@ -473,7 +477,9 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                 private const string ScriptPrefix = "Foo.Bar.SqlServer";
 
             #if SQLSERVER_MIGRATOR_BUILD
-                /// <summary>Registers FooDatabase SQL Server migration services against the named options key "Custom".</summary>
+                /// <summary>
+                /// Registers FooDatabase SQL Server migration services against the named options key "Custom".
+                /// </summary>
                 public static IServiceCollection AddFooDatabase(this IServiceCollection services)
                 {
                     services.Configure<SqlServerMigrationOptions>("Custom", o =>
@@ -483,7 +489,9 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                     return services.AddSqlServerDatabaseMigrator("Custom", typeof(FooDatabaseContext).Assembly);
                 }
             #else
-                /// <summary>Registers FooDatabase migration services against the named options key "Custom".</summary>
+                /// <summary>
+                /// Registers FooDatabase migration services against the named options key "Custom".
+                /// </summary>
                 public static IServiceCollection AddFooDatabase(this IServiceCollection services)
                 {
                     services.Configure<SqlServerMigrationOptions>("Custom", o =>
@@ -757,7 +765,9 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                 private const string ScriptPrefix = "My.App.SqlServer";
 
             #if SQLSERVER_MIGRATOR_BUILD
-                /// <summary>Registers MyDatabase SQL Server migration services against the named options key "My".</summary>
+                /// <summary>
+                /// Registers MyDatabase SQL Server migration services against the named options key "My".
+                /// </summary>
                 public static IServiceCollection AddMyDatabase(this IServiceCollection services)
                 {
                     services.Configure<SqlServerMigrationOptions>("My", o =>
@@ -767,7 +777,9 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                     return services.AddSqlServerDatabaseMigrator("My", typeof(MyDatabaseContext).Assembly);
                 }
             #else
-                /// <summary>Registers MyDatabase migration services against the named options key "My".</summary>
+                /// <summary>
+                /// Registers MyDatabase migration services against the named options key "My".
+                /// </summary>
                 public static IServiceCollection AddMyDatabase(this IServiceCollection services)
                 {
                     services.Configure<SqlServerMigrationOptions>("My", o =>
@@ -1076,7 +1088,9 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                 private const string ScriptPrefix = "My.App.SqlServer";
 
             #if SQLSERVER_MIGRATOR_BUILD
-                /// <summary>Registers MyDatabase SQL Server migration services against the named options key "My".</summary>
+                /// <summary>
+                /// Registers MyDatabase SQL Server migration services against the named options key "My".
+                /// </summary>
                 public static IServiceCollection AddMyDatabase(this IServiceCollection services)
                 {
                     services.Configure<SqlServerMigrationOptions>("My", o =>
@@ -1086,7 +1100,9 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                     return services.AddSqlServerDatabaseMigrator("My", typeof(MyDatabaseContext).Assembly);
                 }
             #else
-                /// <summary>Registers MyDatabase migration services against the named options key "My".</summary>
+                /// <summary>
+                /// Registers MyDatabase migration services against the named options key "My".
+                /// </summary>
                 public static IServiceCollection AddMyDatabase(this IServiceCollection services)
                 {
                     services.Configure<SqlServerMigrationOptions>("My", o =>
@@ -1622,7 +1638,9 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
         Assert.Equal(1L, await cmd.ExecuteScalarAsync(TestContext.Current.CancellationToken));
     }
 
-    /// <summary>The compilation with the generated source added to it.</summary>
+    /// <summary>
+    /// The compilation with the generated source added to it.
+    /// </summary>
     [Fact]
     public async Task MigratorBuild_Compiles()
     {
@@ -1950,7 +1968,9 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
     private static Task<int> InvokeCliAsync(Assembly generated, params string[] args)
         => InvokeCliAsync(generated, new StringWriter(), args);
 
-    /// <summary>Runs the generated entry point, keeping its console output out of the test log.</summary>
+    /// <summary>
+    /// Runs the generated entry point, keeping its console output out of the test log.
+    /// </summary>
     private static async Task<int> InvokeCliAsync(Assembly generated, StringWriter output, params string[] args)
     {
         var program = generated.GetType("My.App.MyDatabaseMigrationProgram");
@@ -1972,7 +1992,9 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
         }
     }
 
-    /// <summary>Registers the generated schema exactly as a consuming host would.</summary>
+    /// <summary>
+    /// Registers the generated schema exactly as a consuming host would.
+    /// </summary>
     private static ServiceProvider BuildProviderFor(
         Assembly generated,
         DatabaseProvider databaseProvider,
@@ -2252,7 +2274,9 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
         return singleGeneratedSource.SourceText.ToString();
     }
 
-    /// <summary>Returns the body of a generated <c>_{provider}Entries</c> array.</summary>
+    /// <summary>
+    /// Returns the body of a generated <c>_{provider}Entries</c> array.
+    /// </summary>
     private static string EntriesFor(string generated, string provider)
     {
         var start = generated.IndexOf($"_{provider}Entries =", StringComparison.Ordinal);

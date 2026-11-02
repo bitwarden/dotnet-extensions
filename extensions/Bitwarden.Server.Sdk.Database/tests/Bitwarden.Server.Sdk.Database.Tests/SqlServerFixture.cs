@@ -18,7 +18,9 @@ public sealed class SqlServerFixture : IAsyncLifetime
     private readonly SemaphoreSlim _gate = new(1, 1);
     private MsSqlContainer? _container;
 
-    /// <summary>Connection string for a database of the given name, created if it doesn't exist.</summary>
+    /// <summary>
+    /// Connection string for a database of the given name, created if it doesn't exist.
+    /// </summary>
     public async Task<string> ConnectionStringForAsync(string databaseName)
     {
         var container = await EnsureStartedAsync();

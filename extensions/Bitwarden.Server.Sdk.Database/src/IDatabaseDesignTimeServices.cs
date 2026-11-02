@@ -11,7 +11,9 @@ namespace Bitwarden.Server.Sdk.Database;
 /// </remarks>
 public interface IDatabaseDesignTimeServices
 {
-    /// <summary>Adds the context's constructor dependencies to <see cref="DesignTimeContext.Services"/>.</summary>
+    /// <summary>
+    /// Adds the context's constructor dependencies to <see cref="DesignTimeContext.Services"/>.
+    /// </summary>
     /// <param name="context">What the design-time factory is building.</param>
     static abstract void ConfigureServices(DesignTimeContext context);
 }

@@ -9,6 +9,8 @@ namespace Bitwarden.Server.Sdk.Database;
 /// </summary>
 public sealed class DesignTimeContext
 {
-    /// <summary>The design-time service collection the context's constructor is resolved from.</summary>
+    /// <summary>
+    /// The design-time service collection the context's constructor is resolved from.
+    /// </summary>
     public required IServiceCollection Services { get; init; }
 }

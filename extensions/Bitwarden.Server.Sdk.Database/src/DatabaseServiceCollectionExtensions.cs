@@ -11,7 +11,9 @@ using Microsoft.Extensions.Options;
 
 namespace Bitwarden.Server.Sdk.Database;
 
-/// <summary>Extension methods for registering database migration services.</summary>
+/// <summary>
+/// Extension methods for registering database migration services.
+/// </summary>
 public static class DatabaseServiceCollectionExtensions
 {
     /// <summary>

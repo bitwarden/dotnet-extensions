@@ -167,7 +167,9 @@ public class DatabaseMigrationHostedServiceTests
         await migrator.Received(1).MigrateAsync(Arg.Any<CancellationToken>());
     }
 
-    /// <summary>A migrator whose server refuses connections for a while, and whose migration may fail.</summary>
+    /// <summary>
+    /// A migrator whose server refuses connections for a while, and whose migration may fail.
+    /// </summary>
     private sealed class FlakyServerMigrator : IDatabaseMigrator, IDatabaseAvailability
     {
         private readonly int _refusedChecks;
@@ -194,7 +196,9 @@ public class DatabaseMigrationHostedServiceTests
         }
     }
 
-    /// <summary>Advances the clock until startup settles; the waits between checks vary.</summary>
+    /// <summary>
+    /// Advances the clock until startup settles; the waits between checks vary.
+    /// </summary>
     private static async Task SettleAsync(FakeTimeProvider time, Task starting)
     {
         for (var i = 0; i < 100 && !starting.IsCompleted; i++)
