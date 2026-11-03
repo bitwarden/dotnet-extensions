@@ -1,24 +1,14 @@
 # Per-resource rules
 
-Targeting decides which resources a bulk request reaches; per-resource rules decide what it may do
-to each. The standard holds every targeted resource to the single-resource API's authorization,
-validation and business rules, and requires the same side effects for each resource that changes.
-The package checks the request as a whole; applying these rules to each resource is your handler's
-job. The standard:
-[Per-resource rules](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations/per-resource-rules).
+A bulk operation does to each resource what the single-resource API would: the same
+authorization, validation, business rules and side effects. The package checks the request as a
+whole; applying these rules to each resource is your handler's job, and `BulkFailure.At` reports
+each failure as the single-resource API would.
 
-## What the package does
+## Share one set of rules between the single and bulk operation
 
-| The standard's rule                                                        | The package                                                                                                                                                                                                 |
-| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Each resource held to the single-resource API's rules (`MUST`)             | Not enforced. The operation's own authorization (its scope and caller context, settled by the attribute) is checked once for the request. Each resource's rules are yours.                                  |
-| Each change produces the same side effects (`MUST`)                        | Not enforced. Raise the same events, notifications and audit records as the single-resource API.                                                                                                            |
-| The outcome is indistinguishable from one resource at a time (`MAY` batch) | `BulkFailure.At(exception, pointer)` describes a failed resource with the status, code and detail the single-resource API's exception would have produced, using the same mapping as the exception handler. |
-
-## Example
-
-Put the rules in one place that both the single-resource action and its bulk form call. Here the
-endpoints are thin:
+Put the rules in one class that both the single-resource action and its bulk form call. The
+endpoints stay thin:
 
 ```csharp
 using Bitwarden.Server.Sdk.Common;
@@ -62,8 +52,8 @@ public static class WidgetsEndpoints
 }
 ```
 
-and `WidgetArchiving` applies the same check, the same change and the same event whether it is
-given one widget or many:
+`WidgetArchiving` applies the same check, the same change and the same event whether it is given
+one widget or many:
 
 ```csharp
 /// <summary>
@@ -132,25 +122,24 @@ public sealed class WidgetArchiving(IWidgetStore store, IWidgetEvents events)
 }
 ```
 
-Archiving a widget that is already archived fails as it would one at a time, against its position
-in the request:
+- **`BulkFailure.At(exception, pointer)`** turns the exception the single action would throw into
+  an error with the same status, code and detail, using the same mapping as the exception handler.
+  Point it at the resource's position, such as `/ids/1`.
+- **`BulkRefusedException(failures)`** refuses an all-or-nothing request with every failure.
+- **The operation's own authorization** (its scope and caller context, set by the attribute) is
+  checked once for the request. Each resource's authorization is yours.
 
-```http
-HTTP/1.1 422 Unprocessable Entity
-Content-Type: application/json; charset=utf-8
+## Things to know
 
-{"errors":[{"status":"422","code":"already-archived","title":"A field has an invalid value.","detail":"The widget is already archived.","source":{"pointer":"/ids/1"}}]}
-```
-
-## What you decide
-
-- **How to implement it.** A single set-based statement is allowed, provided the outcome, including
-  which resources fail and why, matches applying the rules one resource at a time. Check the rules
-  against the loaded rows first, then write the changes together.
+- **Set-based writes are fine** as long as the outcome, including which resources fail and why,
+  matches applying the rules one resource at a time. Check the rules against the loaded rows first,
+  then write the changes together.
 - **Rules that depend on state,** such as which transitions are allowed, are checked against each
-  resource as it is. For a bulk update, check it both as it is and as it would be after the change.
-- **Side effects at scale.** One event per changed resource is what the single-resource API would
-  produce. Where that is costly, consider whether the operation should be smaller.
+  resource as it is. For a bulk update, check each resource both as it is and as it would be after
+  the change.
+- **Side effects.** Raise the same events, notifications and audit records for each changed
+  resource as the single-resource API does. The package raises none. Where that is costly, make the
+  operation's maximum smaller.
 
 ## See also
 
@@ -158,5 +147,4 @@ Content-Type: application/json; charset=utf-8
 - [Targeting](./targeting.md)
 - [All-or-nothing and best-effort](./all-or-nothing-and-best-effort.md)
 - [Bulk actions](./bulk-actions.md)
-- The standard:
-  [Per-resource rules](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations/per-resource-rules)
+- [Errors](../../payloads-and-responses/errors.md)

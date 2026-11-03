@@ -1,15 +1,10 @@
 # Bitwarden.Server.Sdk.Service developer guide
 
 How to build a Bitwarden service with `Bitwarden.Server.Sdk.Service`, one topic per page. New to the
-package? Start with [Getting started](../src/README.md#getting-started) in the README.
+package? Start with [Getting started](../README.md#getting-started) in the README.
 
-Bitwarden's [service-to-service API standards](https://contributing.bitwarden.com/architecture/server/apis)
-say how a service's API looks and behaves. This guide follows their structure. Each page takes one
-standard and shows:
-
-- **What the package does** for it, so you don't write it yourself.
-- **Code**, compiled against the package, showing how a service uses it.
-- **What you decide**: what the standard leaves to the service, or what the package doesn't do.
+Each page shows the code to write, compiled against the package, and what you need to know about
+it: what the package does for you, what stops the service starting, and what is left to you.
 
 The examples share one small service: a `widget-service` whose people keep widgets. A `Widget` has a
 `Name` and `Notes` the person encrypts on their device. Types named `Widget...`, such as
@@ -82,27 +77,28 @@ Working on many resources in one request.
     - [Bulk actions](bulk-and-asynchronous-work/bulk-operations/bulk-actions.md)
 - [Jobs](bulk-and-asynchronous-work/jobs.md)
 
-## Beyond the API standards
+## Running a service
 
-What every service needs that the API standards don't cover.
+Defining the service itself, securing it, configuring it and running it.
 
-- [Defining a service](beyond-the-standards/defining-a-service.md): the `Service` class, its hooks,
+- [Defining a service](running-a-service/defining-a-service.md): the `Service` class, its hooks,
   the middleware order and the three kinds of service.
-- [Authentication and authorization](beyond-the-standards/authentication-and-authorization.md):
+- [Authentication and authorization](running-a-service/authentication-and-authorization.md):
   scopes, organization, user and provider requirements, roles, and token audiences.
-- [Caller context](beyond-the-standards/caller-context.md): whom a call between services concerns,
+- [Caller context](running-a-service/caller-context.md): whom a call between services concerns,
   and how a service knows to believe it.
-- [Configuration and self-hosting](beyond-the-standards/configuration-and-self-hosting.md):
+- [Configuration and self-hosting](running-a-service/configuration-and-self-hosting.md):
   settings, self-hosted installs, feature flags and the config resource.
-- [Network and request limits](beyond-the-standards/network-and-request-limits.md): trusted proxies,
+- [Network and request limits](running-a-service/network-and-request-limits.md): trusted proxies,
   per-address rate limits and browser origins.
-- [Outbound HTTP](beyond-the-standards/outbound-http.md): calls guarded against SSRF, and internal
+- [Outbound HTTP](running-a-service/outbound-http.md): calls guarded against SSRF, and internal
   TLS.
-- [Observability and health](beyond-the-standards/observability-and-health.md): traces, metrics,
+- [Observability and health](running-a-service/observability-and-health.md): traces, metrics,
   logs and health probes.
-- [Caching and extensions](beyond-the-standards/caching-and-extensions.md): a short in-process memo,
+- [Caching and extensions](running-a-service/caching-and-extensions.md): a short in-process memo,
   and extending the platform from a package.
 
 ## Working on the package
 
-See [Contributing](contributing.md).
+See [Contributing](contributing.md). [Open issues](../OPEN-ISSUES.md) lists the package's known gaps;
+each page here describes what it does today.

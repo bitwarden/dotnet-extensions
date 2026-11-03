@@ -1,67 +1,14 @@
 # OpenAPI
 
-The standard asks every API to be documented in OpenAPI, written for the caller, with required,
-nullable and read-only fields marked and an explicit, stable operation identifier on every
-operation. The package generates the document from your handlers and types, serves it with a
-documentation UI, names standard operations for you, and refuses to start a service whose operation
-identifiers collide. The standard:
-[OpenAPI](https://contributing.bitwarden.com/architecture/server/apis/openapi).
+The package builds your service's OpenAPI document from your handlers, their XML documentation and
+your resource types. You write `<summary>` and `<remarks>` on handlers, `[ApiTag]` on endpoints
+classes, and attributes such as `[ReadOnly]` on resources; the package does the rest.
 
-## What the package does
+## Turn on the document
 
-| The standard asks                                     | The package                                                                                                                                                                       |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| APIs `MUST` be documented in OpenAPI                  | Serves an OpenAPI 3.0 document at `/api/openapi.json` and a documentation UI at `/docs`, both anonymous. `GET /` and `HEAD /` redirect (`302`) to `/docs/index.html`.             |
-| A description written for the caller                  | Takes each operation's summary and description from the handler's XML `<summary>` and `<remarks>`, and each section's description from `[ApiTag(Description = ...)]`.             |
-| Filterable and sortable attributes `SHOULD` be listed | Publishes each `Filter<T>` parameter as `filter[name]`, lists the sortable fields and the default order in `sort`'s description, and lists the attributes `fields[type]` accepts. |
-| Always-present fields `MUST` be `required`            | A non-nullable member is `required`; a nullable one is optional.                                                                                                                  |
-| Nullable fields `MUST` be `nullable`                  | Writes OpenAPI 3.0, where a nullable member carries `nullable: true`.                                                                                                             |
-| Server-set fields `MUST` be `readOnly`, but `version` | Marks `[ReadOnly]` members and the inherited `createdAt`, `createdBy`, `updatedAt`, `updatedBy`, `deletedAt` and `deletedBy` `readOnly`. `version` is not.                        |
-| A read-only field in a request `MUST` be ignored      | Drops read-only members, and members the resource doesn't have, from a single resource's request document before the handler sees it.                                             |
-| Every operation `MUST` carry an `operationId`         | Derives one for every standard operation from the handler's name and the route's version (below). An explicit `.WithName(...)` or `[EndpointName]` wins.                          |
-| Example JSON `SHOULD` be provided                     | Not generated. Add examples with a document transformer (below).                                                                                                                  |
-
-The document also describes the wire rather than your records: a resource's members appear under
-`attributes`, every operation has one `default` response with the standard error document, and
-paths and sections are sorted alphabetically so the committed file diffs cleanly.
-
-### Operation identifiers
-
-A standard operation's identifier is the handler's name in camel case, plus the route's version
-when it is not `v1`:
-
-| Handler                          | Route            | `operationId`            |
-| -------------------------------- | ---------------- | ------------------------ |
-| `GetWidget`                      | `api/v1/widgets` | `getWidget`              |
-| `GetWidget`                      | `api/v2/widgets` | `getWidgetV2`            |
-| `CreateWidget`                   | `api/v1/widgets` | `createWidget`           |
-| `GetWidgetSummary`, not standard | `api/v1/widgets` | none, unless you name it |
-
-Because the identifier comes from the method name, renaming a handler renames the operation. Treat a
-handler's name as part of the contract.
-
-### Startup checks
-
-`Build()` checks every endpoint once they are all mapped, and refuses to start with every problem
-listed at once:
-
-- Two endpoints would publish the same operation identifier.
-- A standard endpoint is excluded from the document (`ExcludeFromDescription()`): every API a
-  service exposes is published.
-- A standard endpoint is mapped with a verb or route other than its attribute's.
-
-Two handlers called `GetWidget` on `v1` routes, in two endpoints classes, would collide:
-
-```text
-System.InvalidOperationException: The service's endpoints do not meet the standards:
-  - 'WidgetsEndpoints.GetWidget' and 'SharedWidgetsEndpoints.GetWidget' would both be published as 'getWidget', and an operation identifier must be unique across the service.
-```
-
-## Example
-
-The XML documentation reaches the document only when the service turns on the documentation file,
-lets the OpenAPI source generator intercept, and calls `AddOpenApi()` itself. Without the call the
-document has no summaries or descriptions. In the project file:
+The XML documentation reaches the document only when the project produces a documentation file,
+lets the OpenAPI source generator intercept, and the service calls `AddOpenApi()` itself. In the
+project file:
 
 ```xml
 <PropertyGroup>
@@ -91,7 +38,14 @@ internal sealed class WidgetService(string[] args) : Service("widget-service", "
 }
 ```
 
-The resource documents its members. `PolishCount` is set by the service, so it is `[ReadOnly]`:
+- The document is served at `/api/openapi.json` and a documentation UI at `/docs`, both without
+  authentication. `GET /` redirects to `/docs/index.html`.
+- Without the `AddOpenApi()` call the document is still served, but has no summaries or
+  descriptions.
+
+## Describe a resource
+
+Document each member with `<summary>`. Mark members the service sets with `[ReadOnly]`:
 
 ```csharp
 using System.ComponentModel.DataAnnotations;
@@ -123,11 +77,19 @@ public sealed record Widget : Resource
 }
 ```
 
-In the document, `name` and `polishCount` are `required`, `notes` is `nullable`, and `polishCount`
-and the inherited audit fields are `readOnly`.
+- Nullability decides what is required. `Name` and `PolishCount` are non-nullable, so they are
+  required; `Notes` is nullable, so it is optional and marked nullable.
+- `[ReadOnly]` members, and the inherited `createdAt`, `createdBy`, `updatedAt`, `updatedBy`,
+  `deletedAt` and `deletedBy`, are marked read-only. `version` is not.
+- A read-only member sent in a request, or a member the resource doesn't have, is dropped before
+  your handler sees the resource.
+- A `Sort` parameter's description lists the `[Sortable]` fields and the default order. Each
+  `Filter<T>` parameter appears as `filter[name]`, and `Fields<T>` lists the attributes it accepts.
 
-The endpoints class names its section with `[ApiTag]`. Standard operations are named for you; the
-one handler without a standard attribute is named with `WithName`:
+## Describe the operations
+
+Name the section with `[ApiTag(Description = ...)]` on the endpoints class, and give each handler a
+`<summary>` and, where useful, `<remarks>`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Common;
@@ -189,14 +151,35 @@ public static class WidgetsEndpoints
 }
 ```
 
-The operations are published as `createWidget`, `listWidgets`, `getWidget` and `getWidgetSummary`,
-under a "Widgets" section. `listWidgets` documents `sort` as accepting `createdAt` and `name`, with
-`-createdAt` by default.
+- `<summary>` becomes the operation's summary and `<remarks>` its description. Write both for the
+  caller, free of implementation detail.
+- These operations appear as `createWidget`, `listWidgets`, `getWidget` and `getWidgetSummary` under
+  a "Widgets" section.
+- Every operation is documented with one `default` response carrying the error document. Paths and
+  sections are sorted alphabetically, so a committed document diffs cleanly.
 
-### Examples
+## Operation identifiers
 
-The package writes no example JSON. A document transformer added in your `AddOpenApi` call runs
-after the package's, so it sees each schema in its published, enveloped shape:
+An operation with a standard attribute (`[StandardCreate]`, `[StandardReadOne]` and the rest) is
+named for you: the handler's name in camel case, plus the route's version when it is not `v1`.
+
+| Handler                          | Route            | Operation identifier     |
+| -------------------------------- | ---------------- | ------------------------ |
+| `GetWidget`                      | `api/v1/widgets` | `getWidget`              |
+| `GetWidget`                      | `api/v2/widgets` | `getWidgetV2`            |
+| `CreateWidget`                   | `api/v1/widgets` | `createWidget`           |
+| `GetWidgetSummary`, no attribute | `api/v1/widgets` | none, unless you name it |
+
+- An explicit `.WithName(...)` or `[EndpointName]` wins over the derived name.
+- Give every endpoint without a standard attribute a name with `.WithName(...)` or
+  `[EndpointName]`. The service starts without one, so check the document.
+- Renaming a handler, or moving it to a `v2` route, renames its operation and every generated
+  client's method. Treat a handler's name as part of the contract.
+
+## Add examples
+
+The package writes no examples. To add one, register a document transformer in your `AddOpenApi`
+call. It runs after the package's transformers, so it sees each schema in its published shape:
 
 ```csharp
 using System.Text.Json.Nodes;
@@ -233,39 +216,44 @@ public sealed class WidgetExamples : IOpenApiDocumentTransformer
 }
 ```
 
-### Committing the contract
+- A resource's schema is named after its record (`Widget`), and the document wrapping it
+  `WidgetDocument`.
+- Never put real Vault Data in an example. An encrypted member's example is made-up ciphertext.
 
-Run the service with `--emit-openapi <path>` to write the document and exit without serving. The
-service's own hosted services don't run and options validated on start aren't checked, so no
-database, queue or Identity needs to be reachable. `dotnet run --project` runs the service from the
-project's directory, so pass an absolute path. The log names the full path written:
+## Commit the document
+
+Run the service with `--emit-openapi <path>` to write the document and exit without serving:
 
 ```bash
 dotnet run --project src/WidgetService -- --emit-openapi "$PWD/openapi/widget-service.json"
 ```
 
-Writing fails when a section has no description: give every endpoints class an
-`[ApiTag(Description = ...)]`. The served document doesn't need one; the committed one does.
+- Your hosted services don't run and options validated on start aren't checked, so no database,
+  queue or identity server needs to be reachable.
+- `dotnet run --project` runs from the project's directory, so pass an absolute path. The log names
+  the full path written.
+- Writing fails when a section has no description. Give every endpoints class an
+  `[ApiTag(Description = ...)]`. The served document doesn't need one.
 
-## What you decide
+To catch contract changes in review, regenerate the document in CI and fail on a difference. See
+[Breaking changes and versioning](breaking-changes-and-versioning.md#catch-a-breaking-change).
 
-- **Words.** Summaries, remarks, `<param>` text and section descriptions are yours. Write them for
-  a caller, free of implementation detail. A service publishes one document, holding every version
-  of every API it serves.
-- **Operations outside the standard attributes.** Only standard operations are named for you. Give
-  any other endpoint you publish an identifier with `.WithName(...)` or `[EndpointName]`. The
-  service starts without one, so check the committed document.
-- **Handler names.** Renaming a handler, or moving it to a `v2` route, changes its `operationId`
-  and every generated client's method. Rename only when you mean to change the contract.
-- **Examples.** Add them with a transformer, as above. Never put real Vault Data in one: an
-  encrypted member's example is ciphertext.
-- **Where the committed document lives,** and whether CI regenerates it and fails on a difference.
+## Things to know
+
+- **The service refuses to start** when two endpoints would get the same operation identifier, when
+  a standard endpoint is hidden with `ExcludeFromDescription()`, or when a standard endpoint is
+  mapped with a verb or route other than its attribute's. Every problem is listed at once. Two
+  handlers called `GetWidget` on `v1` routes in two endpoints classes collide; rename one or name
+  it with `.WithName(...)`.
+- **One document per service.** It holds every version of every operation the service serves.
+- **The schema shows what callers send and receive, not your record.** A resource's members appear
+  under `attributes`.
+- **Examples are yours,** as are summaries, remarks, `<param>` text and section descriptions.
 
 ## See also
 
 - [API paths](api-paths.md)
 - [Breaking changes and versioning](breaking-changes-and-versioning.md)
-- [Deprecation](deprecation.md): marking an operation `deprecated` in the document.
+- [Deprecation](deprecation.md): marking an operation deprecated in the document.
 - [Verbs](../operations/verbs.md): the standard attributes and how routes are checked.
 - [Standard fields](../payloads-and-responses/standard-fields.md)
-- The standard: [OpenAPI](https://contributing.bitwarden.com/architecture/server/apis/openapi)

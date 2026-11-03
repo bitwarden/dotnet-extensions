@@ -1,23 +1,11 @@
 # Deprecation
 
-The standard asks a deprecated API to say so twice: `deprecated: true` in the OpenAPI document with
-a description naming the replacement, and `Deprecation` and `Sunset` headers, ideally with a `Link`
-to the replacement, on every response. The package provides neither. It doesn't read
-`[Obsolete]`, and adds no headers, so a service writes both itself: one attribute, one middleware
-and one document transformer, shown below. The standard:
-[Deprecation](https://contributing.bitwarden.com/architecture/server/apis/deprecation).
+The package doesn't mark operations deprecated: it doesn't read `[Obsolete]`, adds no
+`Deprecation`, `Sunset` or `Link` headers, and writes no `deprecated` flag in the OpenAPI document.
+To deprecate an operation, add one attribute, one middleware and one document transformer, as this
+page shows.
 
-## What the package does
-
-| The standard asks                            | The package                                                                                                                                                   |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `deprecated: true` in the OpenAPI document   | Not provided. `[Obsolete]` on a handler doesn't mark the operation deprecated, and with warnings as errors its `Map` line no longer compiles.                 |
-| A `description` naming the replacement       | Not provided. The handler's `<remarks>` become the description; a transformer can prepend to it.                                                              |
-| `Deprecation` and `Sunset` on every response | Not provided. `OnConfiguringPipeline` runs middleware outside the package's, so a service can add headers to every response, the package's refusals included. |
-| A `Link` to the replacement                  | Not provided.                                                                                                                                                 |
-| The replacement exists                       | A `v2` maps beside the `v1`, with its own operation identifiers. See [Breaking changes and versioning](breaking-changes-and-versioning.md).                   |
-
-## Example
+## Record the deprecation on the operation
 
 An attribute records when the operation was deprecated, when it stops working and what replaces
 it:
@@ -46,8 +34,7 @@ public sealed class DeprecatedOperationAttribute(
 }
 ```
 
-The `v1` handler carries it, or the `v1` endpoints class does for every handler in it. Either way
-the attribute is in the endpoint's metadata, where the middleware and the document find it:
+Put it on the `v1` handler:
 
 ```csharp
 using Bitwarden.Server.Sdk.Common;
@@ -73,9 +60,16 @@ public static class WidgetsEndpoints
 }
 ```
 
-Middleware adds the headers when the response starts. Registered in `OnConfiguringPipeline`, it
-wraps the package's middleware, so a `401`, a `422` or a `404` from the package carries the headers
-as a `200` does:
+- The attribute ends up in the endpoint's metadata, where the middleware and the transformer below
+  find it.
+- On the endpoints class instead, it deprecates every operation in the class. The package copies an
+  endpoints class's attributes onto each of its standard endpoints.
+- Don't use `[Obsolete]` for this. The package ignores it, and with warnings as errors the handler's
+  `Map` line stops compiling.
+
+## Add the headers to every response
+
+Middleware adds `Deprecation`, `Sunset` and `Link` when the response starts:
 
 ```csharp
 using System.Globalization;
@@ -110,8 +104,15 @@ public sealed class DeprecationHeaders(RequestDelegate next)
 }
 ```
 
-A document transformer marks the operation and names its replacement. It runs after the package's
-transformers and the XML documentation's, so it prepends to the description they wrote:
+- `Deprecation` carries the deprecation time as a Unix timestamp (`@1793491200`), `Sunset` the
+  sunset date as an HTTP date, and `Link` the replacement's path with the route's `{id}` filled in.
+- Registered in `OnConfiguringPipeline` (below), the middleware wraps the package's, so a `401`,
+  `404` or `422` from the package carries the headers as a `200` does.
+
+## Mark the operation in the document
+
+A document transformer sets the operation's `deprecated` flag and names its replacement at the
+start of its description:
 
 ```csharp
 using System.Globalization;
@@ -147,7 +148,14 @@ public sealed class DeprecationDocumentTransformer : IOpenApiDocumentTransformer
 }
 ```
 
-The service registers both, beside its `v1` and `v2` endpoints:
+- It runs after the package's transformers and the XML documentation, so it prepends to the
+  description your `<remarks>` produced rather than replacing it.
+- `getWidget` is then published as deprecated, with the description "Deprecated: call
+  `getWidgetV2` instead. This operation stops working on Sat, 01 May 2027 00:00:00 GMT."
+
+## Register both
+
+The service registers the transformer and the middleware, beside its `v1` and `v2` endpoints:
 
 ```csharp
 using Bitwarden.Server.Sdk.Service;
@@ -172,56 +180,22 @@ internal sealed class WidgetService(string[] args) : Service("widget-service", "
 }
 ```
 
-A caller of the `v1` operation sees:
+The replacement, `WidgetsV2Endpoints`, is an ordinary `v2` endpoints class. See
+[Breaking changes and versioning](breaking-changes-and-versioning.md).
 
-```http
-GET /api/v1/widgets/w1 HTTP/1.1
-Authorization: Bearer ...
-```
+## Things to know
 
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json; charset=utf-8
-Deprecation: @1793491200
-Sunset: Sat, 01 May 2027 00:00:00 GMT
-Link: </api/v2/widgets/w1>; rel="successor-version"
-
-{"data":{"id":"w1","type":"widget","attributes":{"name":"Desk lamp"}}}
-```
-
-And the document publishes:
-
-```json
-"/api/v1/widgets/{id}": {
-  "get": {
-    "tags": ["Widgets"],
-    "summary": "Get a widget",
-    "description": "Deprecated: call `getWidgetV2` instead. This operation stops working on Sat, 01 May 2027 00:00:00 GMT.",
-    "operationId": "getWidget",
-    "deprecated": true
-  }
-}
-```
-
-The fragment leaves out the parameters and responses.
-
-## What you decide
-
-- **The dates.** `Sunset` must be a real date, and it must not pass without the operation being
-  removed or a new date published. Nothing in the package watches it: put the date where your team
-  will see it, and remove the `v1` endpoints class, or move the date, before it passes.
-- **The replacement** each deprecated operation names, in its `Link` and its description.
-- **One operation or a whole resource.** The package copies an endpoints class's attributes onto
-  each of its standard endpoints, so the attribute on the `v1` endpoints class deprecates every
-  operation in it, in the headers and in the document.
-- **Telling callers.** The headers reach only callers that read them. Find who still calls a
-  deprecated operation from your traces before its sunset.
+- **Nothing watches the sunset date.** Put it where your team will see it, and remove the `v1`
+  endpoints class, or publish a new date, before it passes. Never let `Sunset` pass with the
+  operation still working.
+- **Name a real replacement** in both the `Link` path and the successor's operation identifier, and
+  map it before you deprecate.
+- **Headers reach only callers that read them.** Find who still calls a deprecated operation from
+  your traces before its sunset.
 
 ## See also
 
 - [Breaking changes and versioning](breaking-changes-and-versioning.md): publishing the replacement.
-- [OpenAPI](openapi.md): document transformers and the committed contract.
-- [Defining a service](../beyond-the-standards/defining-a-service.md): `OnConfiguringPipeline` and
+- [OpenAPI](openapi.md): document transformers and the committed document.
+- [Defining a service](../running-a-service/defining-a-service.md): `OnConfiguringPipeline` and
   the middleware order.
-- The standard:
-  [Deprecation](https://contributing.bitwarden.com/architecture/server/apis/deprecation)

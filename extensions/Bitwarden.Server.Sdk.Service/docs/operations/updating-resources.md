@@ -1,31 +1,12 @@
 # Updating resources
 
-The standard replaces a resource with a `PUT` to `/api/v1/{plural}/{id}`, refuses a document whose
-`type` or `id` isn't the resource's with `422`, and answers `200` with the resource as it now
-stands. The package checks the verb and the `type`; checking the `id` is left to your handler. The
-standard:
-[Updating resources](https://contributing.bitwarden.com/architecture/server/apis/updating-resources).
+To replace a resource, write a handler with `[StandardUpdate]` that takes the `{id}` and a
+`ResourceDocument<T>`, and returns `UpdateResponse(...)`. The same attribute serves a `PUT` that
+creates the resource when it doesn't exist.
 
-## What the package does
+## Replace a resource
 
-| The standard                                            | The package                                                                                                  |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| The verb `MUST` be `PUT`                                | `[StandardUpdate]` is a `PUT`; the service won't start if its `Map` line uses another verb.                  |
-| The path `SHOULD` be `/{plural}/{id}`                   | `[StandardUpdate]` defaults to `{id}`; the `Map` line must use it.                                           |
-| A `type` that isn't the resource's: `422`               | Refused `422` with `invalid-resource-type` at `/data/type`, before the handler runs.                         |
-| An `id` that isn't the one in the path: `422`           | Not checked. The body's `id` reaches the handler as `request.Data.Id`; refuse it yourself.                   |
-| Success `SHOULD` be `200`, or `201` if it created one   | `200` when the handler returns a document. A handler that sets `201` itself keeps it.                        |
-| `MAY` be `204`                                          | `204` when the handler returns nothing.                                                                      |
-| Resources `SHOULD` carry `updatedBy` and `revisionDate` | Every `Resource` has read-only `UpdatedBy` and `UpdatedAt` (`updatedAt` on the wire). The service sets them. |
-
-- **Completely replace.** The document is validated like a create's: every required attribute must
-  be present, and read-only members and undeclared attributes are dropped. An attribute the caller
-  leaves out is absent from `request.Data`, so replacing with it clears the stored value.
-- **`UpdateResponse`** builds the response document.
-
-## Example
-
-The handler refuses a mismatched `id`, then replaces:
+Map the handler at `{id}` with `MapPut`. Check that the body's `id` matches the path, then replace:
 
 ```csharp
 using Bitwarden.Server.Sdk.Common;
@@ -66,64 +47,19 @@ public static class WidgetsEndpoints
 }
 ```
 
-```http
-PUT /api/v1/widgets/62bed180-1f78-45d4-8a56-c996936a2947
-Accept: application/json
-Content-Type: application/json
-```
+- **The body is validated like a create's.** Every required attribute must be present, and a
+  document whose `type` isn't `widget` is refused with `422` before your handler runs.
+- **It is a full replace.** Read-only members and undeclared attributes are dropped. An attribute
+  the caller leaves out is absent from `request.Data`, so replacing with it clears the stored value.
+  For changing some members only, see [Partial updates](partial-updates.md).
+- **`UpdateResponse` answers `200`** with the resource as it now stands. A handler that returns
+  nothing answers `204`.
+- **Throw `NotFoundException`** when there is no such resource, for `404`.
 
-```json
-{
-    "data": {
-        "id": "62bed180-1f78-45d4-8a56-c996936a2947",
-        "type": "widget",
-        "attributes": {
-            "name": "Sprocket",
-            "notes": "2.AAAA|BBBB|CCCC"
-        }
-    }
-}
-```
+## Create or update
 
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json; charset=utf-8
-```
-
-```json
-{
-    "data": {
-        "id": "62bed180-1f78-45d4-8a56-c996936a2947",
-        "type": "widget",
-        "attributes": {
-            "name": "Sprocket",
-            "notes": "2.AAAA|BBBB|CCCC",
-            "updatedAt": "2026-11-03T14:05:00Z"
-        }
-    }
-}
-```
-
-The same request with another widget's `id` in the body:
-
-```json
-{
-    "errors": [
-        {
-            "status": "422",
-            "code": "invalid-value",
-            "title": "A field has an invalid value.",
-            "detail": "The resource's id 'cacba8c1-29fa-4018-8950-acd400ec76b7' is not the one in the path.",
-            "source": { "pointer": "/data/id" }
-        }
-    ]
-}
-```
-
-### Create-or-update
-
-A service that lets a caller create a resource at an identifier it chooses does so with `PUT`. The
-handler sets `201` itself when it created the resource, and passes the `Location`:
+To let a caller create a resource at an identifier it chooses, use the same `PUT`. Set `201`
+yourself when the resource was created, and pass the `Location`:
 
 ```csharp
 /// <summary>
@@ -147,25 +83,28 @@ public static async Task<ResourceDocument<Widget>> PutWidget(
 }
 ```
 
-A `PUT` to `/api/v1/widgets/new-one` that creates the widget answers `201` with
-`Location: /api/v1/widgets/new-one`. The OpenAPI document shows only the `200` response.
+- A status your handler sets is kept, so a `PUT` that creates answers `201`.
+- Always pass `location`. The one the package derives for a `201` is the request path followed by
+  the `id`, which suits only a create on the collection; `PUT /api/v1/widgets/new-one` would get
+  `/api/v1/widgets/new-one/new-one`.
+- The OpenAPI document shows only the `200` response for this operation.
 
-## What you decide
+## Things to know
 
-- **Check the `id`.** As above, until the package does.
-- **Fill `UpdatedAt` and `UpdatedBy`.** The package drops what a caller sends for them and doesn't
-  set them. `IContext.UserId` names the acting user. The standard's names are `revisionDate` and
-  `updatedBy`; the package's member is `UpdatedAt`.
-- **Detect conflicting updates.** See [Optimistic concurrency](optimistic-concurrency.md).
-- **`202` for an update that is scheduled.** Return an `IResult` of your own. See
-  [Jobs](../bulk-and-asynchronous-work/jobs.md).
-- **Don't decrypt.** Replace an `[Encrypted]` member with the ciphertext the caller sent.
+- **The package doesn't compare the body's `id` with the path's.** The body's `id` reaches your
+  handler as `request.Data.Id`. Refuse a mismatch yourself, as `UpdateWidget` does, with
+  `InvalidRequestException` and `ErrorCodes.InvalidValue`, which answers `422`.
+- **You fill `UpdatedAt` and `UpdatedBy`.** The package drops what a caller sends for them and
+  doesn't set them. Set them in the store; `IContext.UserId` names the acting user.
+- **Conflicting updates aren't detected for you.** See [Optimistic
+  concurrency](optimistic-concurrency.md).
+- **There is no response for an update that is scheduled.** To answer `202`, return an `IResult` of
+  your own. See [Jobs](../bulk-and-asynchronous-work/jobs.md).
+- **Never decrypt.** Replace an `[Encrypted]` member with the ciphertext the caller sent.
 
 ## See also
 
 - [Partial updates](partial-updates.md) and [Acting upon resources](acting-upon-resources.md)
 - [Standard fields](../payloads-and-responses/standard-fields.md)
-- [Bulk updates](../bulk-and-asynchronous-work/bulk-operations/bulk-updates.md) and
-  [Bulk replaces](../bulk-and-asynchronous-work/bulk-operations/bulk-replaces.md)
-- The standard:
-  [Updating resources](https://contributing.bitwarden.com/architecture/server/apis/updating-resources)
+- [Bulk updates](../bulk-and-asynchronous-work/bulk-operations/bulk-updates.md) and [Bulk
+  replaces](../bulk-and-asynchronous-work/bulk-operations/bulk-replaces.md)

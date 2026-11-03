@@ -1,30 +1,12 @@
 # Deleting resources
 
-The standard deletes a resource with `DELETE /api/v1/{plural}/{id}` and answers `204`. A service may
-soft delete instead, with `permanent=true` for a hard delete and `includeDeleted=true` to see what
-was deleted. The package gives `[StandardDelete]` and every resource `DeletedAt` and `DeletedBy`;
-soft deletes are the service's to build. The standard:
-[Deleting resources](https://contributing.bitwarden.com/architecture/server/apis/deleting-resources).
+To delete a resource, write a handler with `[StandardDelete]` that takes the `{id}` and returns
+nothing. Every `Resource` also has `DeletedAt` and `DeletedBy` for a soft delete, which you build
+with ordinary query parameters.
 
-## What the package does
+## Delete a resource
 
-| The standard                          | The package                                                                                |
-| ------------------------------------- | ------------------------------------------------------------------------------------------ |
-| The verb `MUST` be `DELETE`           | `[StandardDelete]` is a `DELETE`; the service won't start if its `Map` line uses another.  |
-| The path `SHOULD` be `/{plural}/{id}` | `[StandardDelete]` defaults to `{id}`; the `Map` line must use it.                         |
-| Success `SHOULD` be `204`             | `204` when the handler returns nothing (`Task` or `void`).                                 |
-| `MAY` be `202` with a job             | Return an `IResult` of your own. See [Jobs](../bulk-and-asynchronous-work/jobs.md).        |
-| Soft deletes                          | Not built in. A `bool` query parameter, a filter in your store and the fields below do it. |
-| `deletedBy` and `deletedDate` fields  | Every `Resource` has read-only `DeletedBy` and `DeletedAt` (`deletedAt` on the wire).      |
-
-- **A missing resource is `404`.** Throw `NotFoundException`; the package answers in the standard
-  error document.
-- **Query flags are checked.** A `bool` parameter that doesn't parse (`permanent=maybe`) is refused
-  `422`, naming the parameter.
-
-## Example
-
-A hard delete:
+Map the handler at `{id}` with `MapDelete`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Common;
@@ -54,18 +36,15 @@ public static class WidgetsEndpoints
 }
 ```
 
-```http
-DELETE /api/v1/widgets/62bed180-1f78-45d4-8a56-c996936a2947
-```
-
-```http
-HTTP/1.1 204 No Content
-```
+- A handler that returns nothing (`Task` or `void`) answers `204`.
+- Throw `NotFoundException` when there is no such resource, for `404` in the standard error
+  document.
+- A delete demands the service's write scope.
 
 ## Soft deletes
 
 A soft delete records when and by whom the resource was deleted, and reads leave it out unless the
-caller asks. The delete takes `permanent`, and the reads take `includeDeleted`:
+caller asks. Give the delete a `permanent` flag and the reads an `includeDeleted` flag:
 
 ```csharp
 using Bitwarden.Server.Sdk.Common;
@@ -149,79 +128,32 @@ public static class SoftDeletingWidgetsEndpoints
 }
 ```
 
-After `DELETE /api/v1/widgets/62bed180-1f78-45d4-8a56-c996936a2947` (`204`), a plain read answers
-`404`, and a read that asks for deleted widgets finds it. (This call named no person, so
-`IContext.UserId` was null and there is no `deletedBy`.)
+- **The flags are plain `bool` query parameters.** One that doesn't parse, such as
+  `permanent=maybe`, is refused with `422`, naming the parameter.
+- **Paging links keep `includeDeleted`,** so a caller following the next link stays in the same
+  query.
+- **A soft delete is the default** and `permanent=true` removes the resource for good. Reads leave
+  out soft-deleted resources unless `includeDeleted=true`.
+- **`IContext.UserId` names the acting user.** It is null for a call that names no person, and then
+  `DeletedBy` stays empty.
 
-```http
-GET /api/v1/widgets/62bed180-1f78-45d4-8a56-c996936a2947?includeDeleted=true
-Accept: application/json
-```
+## Things to know
 
-```json
-{
-    "data": {
-        "id": "62bed180-1f78-45d4-8a56-c996936a2947",
-        "type": "widget",
-        "attributes": {
-            "name": "Sprocket",
-            "deletedAt": "2026-11-03T14:10:00Z"
-        }
-    }
-}
-```
-
-The paging links carry `includeDeleted`, so a caller following `next` stays in the same query:
-
-```http
-GET /api/v1/widgets?includeDeleted=true
-```
-
-```json
-{
-    "data": [
-        {
-            "id": "62bed180-1f78-45d4-8a56-c996936a2947",
-            "type": "widget",
-            "attributes": {
-                "name": "Sprocket",
-                "deletedAt": "2026-11-03T14:10:00Z"
-            }
-        }
-    ],
-    "meta": {
-        "pageCount": 1,
-        "pageNumber": 1,
-        "pageSize": 50,
-        "totalCount": 1
-    },
-    "links": {
-        "first": "/api/v1/widgets?includeDeleted=true&page[number]=1&page[size]=50",
-        "last": "/api/v1/widgets?includeDeleted=true&page[number]=1&page[size]=50"
-    }
-}
-```
-
-`DELETE /api/v1/widgets/62bed180-1f78-45d4-8a56-c996936a2947?permanent=true` removes it for good.
-
-## What you decide
-
-- **Whether to soft delete.** The standard leaves it to the service. If you do, a delete is soft by
-  default and reads exclude soft-deleted resources by default.
-- **Who may see and purge deleted resources.** `includeDeleted` and `permanent` are ordinary
-  parameters. Refuse them, or give them a scope of their own, where a caller shouldn't have them.
-- **Filling `DeletedAt` and `DeletedBy`.** The package drops what a caller sends for them and
-  doesn't set them. `IContext.UserId` names the acting user. The standard calls the date
-  `deletedDate`; the package's member is `DeletedAt`.
-- **Restoring.** An undelete changes a resource without being an update: make it an
+- **The package doesn't soft delete for you.** The flags, the filter in your store and filling
+  `DeletedAt` and `DeletedBy` are yours, as above. The package drops what a caller sends for those
+  two members and doesn't set them.
+- **`includeDeleted` and `permanent` are open to every caller with the write or read scope.** Refuse
+  them, or give the operation a scope of its own, where a caller shouldn't have them. See
+  [Authentication and authorization](../running-a-service/authentication-and-authorization.md).
+- **Restore with an action.** An undelete changes a resource without being an update: make it an
   [action](acting-upon-resources.md), such as `POST /api/v1/widgets/{id}/actions/restore`.
-- **Encrypted data in the trash** stays as the ciphertext it was. Delete it for good when the
-  standard's `permanent=true` or your retention rule says so.
+- **There is no response for a delete that is scheduled.** To answer `202`, return an `IResult` of
+  your own. See [Jobs](../bulk-and-asynchronous-work/jobs.md).
+- **Encrypted data in the trash stays as the ciphertext it was.** Remove it for good on
+  `permanent=true` or when your retention rule says so.
 
 ## See also
 
 - [Reading resources](reading-resources.md)
 - [Standard fields](../payloads-and-responses/standard-fields.md)
 - [Bulk deletes](../bulk-and-asynchronous-work/bulk-operations/bulk-deletes.md)
-- The standard:
-  [Deleting resources](https://contributing.bitwarden.com/architecture/server/apis/deleting-resources)

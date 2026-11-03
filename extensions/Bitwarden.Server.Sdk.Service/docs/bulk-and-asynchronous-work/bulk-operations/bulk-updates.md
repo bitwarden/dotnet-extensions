@@ -1,29 +1,14 @@
 # Bulk updates
 
-A bulk update applies one change, `update`, to every targeted resource, with partial-update
-semantics: an absent field is left alone and an explicit `null` clears it. The package reads the
-targeting and requires `update`; reading and validating `update`, and applying it, is your
-handler's job. The standard:
-[Bulk updates](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations/bulk-updates).
+A bulk update applies one change, `update`, to every targeted resource. A field left out of
+`update` is left alone, and an explicit `null` clears it. Declare it with
+`[StandardBulkUpdate(collection)]` and take a `BulkUpdate<T>`; reading, validating and applying
+`update` is your handler's job.
 
-## What the package does
-
-| The standard's rule                                                                      | The package                                                                                                                                                                                                                  |
-| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `update` is present (`MUST`)                                                             | `BulkUpdate<T>.Update` is required; a request without it is refused `422`.                                                                                                                                                   |
-| Partial-update semantics                                                                 | `Update` is an `IReadOnlyDictionary<string, JsonElement>`, by the fields' published names, exactly as sent. An absent field is absent from it, and an explicit `null` is a `JsonValueKind.Null` value. Applying it is yours. |
-| Only fields the single update accepts; a read-only field is refused `422` (`MUST`)       | Not enforced. Refuse any field you do not accept, as below.                                                                                                                                                                  |
-| The single update's rules apply to each resource, as it is and after the change (`MUST`) | Not enforced. `update` is raw JSON, so even the resource's data annotations (`[StringLength]`, `[Encrypted(MaxLength = ...)]`) are not applied to it. Check each value yourself.                                             |
-| No version check, but the version increments on every changed resource (`MUST`)          | Not enforced. Increment it as you save.                                                                                                                                                                                      |
-| An `update` including `version` is refused `422` (`MUST`)                                | Not enforced. Refuse it with the other read-only fields.                                                                                                                                                                     |
-
-Targeting is `ids` or `filter`, as `Targeting` on `[StandardBulkUpdate(collection)]` allows, and
-`Supports` sets the atomicity modes. See [Targeting](./targeting.md).
-
-## Example
+## Apply one change to many resources
 
 The endpoint reads the change first, so a bad `update` refuses the request before any widget is
-looked at, then holds each matched widget to the single update's rules:
+looked at. Then it holds each matched widget to the single update's rules:
 
 ```csharp
 using System.Text.Json;
@@ -91,8 +76,22 @@ public static class WidgetsEndpoints
 }
 ```
 
-`WidgetChange` accepts only the fields a single update may change, checks each value as the
-resource's own annotations would, and keeps the difference between an absent field and a `null`:
+What the package does for you:
+
+- **Maps `POST {collection}:bulk-update`.** `Targeting` picks `ids` or `filter`, and `Supports`
+  the atomicity modes. See [Targeting](./targeting.md).
+- **Requires `update`.** A request without it is refused with `422`.
+- **Hands you `update` as sent.** `request.Update` is an
+  `IReadOnlyDictionary<string, JsonElement>` keyed by the fields' published names. An absent field
+  is absent from it, and an explicit `null` is a `JsonValueKind.Null` value.
+
+## Read and validate the change
+
+The package applies none of the single update's rules to `update`. It doesn't refuse read-only
+fields or `version`, it doesn't apply the resource's annotations (`[StringLength]`,
+`[Encrypted(MaxLength = ...)]`), and it doesn't increment the version. `WidgetChange` does all of
+that: it accepts only the fields a single update may change, checks each value as the resource's
+annotations would, and keeps the difference between an absent field and a `null`:
 
 ```csharp
 /// <summary>
@@ -167,44 +166,21 @@ public sealed class WidgetChange
 }
 ```
 
-`notes` holds Protected Data, ciphertext the person's device produced. The service checks only its
-length, stores it as sent, and never decrypts or inspects it.
+- Refuse every field the single update doesn't accept, including `version`, `id` and `createdAt`,
+  with `422` at `/update/{field}`.
+- Increment the version of every resource that changes. A bulk update makes no version check.
+- `notes` holds Protected Data, ciphertext the person's device produced. The service checks only
+  its length, stores it as sent, and never decrypts or inspects it.
 
-An `update` naming `version` is refused before any widget is changed:
+## Things to know
 
-```http
-POST /api/v1/widgets:bulk-update
-Content-Type: application/json
-
-{"filter":{"==":[{"var":"name"},"Gear"]},"update":{"version":"3"}}
-```
-
-```http
-HTTP/1.1 422 Unprocessable Entity
-Content-Type: application/json; charset=utf-8
-
-{"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"'version' cannot be changed by a bulk update.","source":{"pointer":"/update/version"}}]}
-```
-
-A matched widget that breaks a rule is identified by `meta.resource`, since a filter gives it no
-position in the request:
-
-```http
-HTTP/1.1 422 Unprocessable Entity
-Content-Type: application/json; charset=utf-8
-
-{"errors":[{"status":"422","code":"archived","title":"A field has an invalid value.","detail":"An archived widget cannot be changed.","meta":{"resource":{"type":"widget","id":"0d4d2a6e-8a0f-4d55-9d0c-0f8f8b3b2f10"}}}]}
-```
-
-## What you decide
-
-- **Which fields a bulk update may change.** Only those the single update accepts. A field that
-  changes only through an action, such as a status, is read-only here: changing it for many
-  resources is a [bulk action](./bulk-actions.md).
-- **How each value is validated.** Repeat the resource's own rules: required members can't be
-  cleared, lengths and `[Encrypted]` bounds hold, and enumerations take their published names.
-- **Targeting.** A large `filter` match is loaded and checked before it is written, so set a
-  maximum on what one request may change, or offer `ids` targeting only.
+- **Fields that change through an action are read-only here.** Changing a status for many
+  resources is a [bulk action](./bulk-actions.md), such as `:bulk-archive`, not a bulk update.
+- **Check each resource as it is and after the change.** Rules that depend on state apply to both.
+- **A failure matched by a filter has no position.** Identify it by `meta.resource`, as above. See
+  [Bulk responses](./bulk-responses.md).
+- **A large `filter` match is loaded and checked before it is written.** Cap what one request may
+  change, or offer `ids` targeting only.
 
 ## See also
 
@@ -212,6 +188,4 @@ Content-Type: application/json; charset=utf-8
 - [Targeting](./targeting.md)
 - [Bulk responses](./bulk-responses.md)
 - [Bulk actions](./bulk-actions.md)
-- The standard:
-  [Bulk updates](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations/bulk-updates)
-  and [Partial updates](https://contributing.bitwarden.com/architecture/server/apis/partial-updates)
+- [Partial updates](../../operations/partial-updates.md)

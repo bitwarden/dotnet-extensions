@@ -1,45 +1,10 @@
 # JSON
 
-Dates are ISO 8601 with a time zone, preferably UTC; a fixed set of values is written in capitals
-and read without regard to case; strings are trimmed, an empty string counts as absent, absent
-counts as `null`, and responses leave `null` out. The package configures the serializer every
-endpoint uses to do most of this, and some of it only for resource attributes. The standard:
-[JSON](https://contributing.bitwarden.com/architecture/server/apis/json).
+The package configures the serializer every endpoint uses. You declare members with ordinary .NET
+types (`DateTimeOffset`, an `enum`, `string`, `JsonElement`) and the package writes and reads them
+in one consistent way. This page shows what it does with each, and what it leaves to you.
 
-## What the package does
-
-| The standard says                                                 | The package                                                                                                                                                                                                                                                                                           |
-| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Dates `MUST` be ISO 8601 with a zone, and `SHOULD` be UTC         | `DateTimeOffset` and `DateTime` are written in UTC with a literal `Z` (`2027-03-01T07:30:00Z`), the fraction to the tick with trailing zeros left off (`UtcDates`). Any ISO 8601 offset is read; a `DateTime` without a zone is taken as UTC. The OpenAPI document types them as `date-time` strings. |
-| Fixed values `SHOULD` be all caps, and `MUST` be read in any case | Enumerations are written as their names in upper snake case (`SpecialEdition` is `SPECIAL_EDITION`), in the JSON and in the OpenAPI document's `enum` lists (`EnumValues`). Reading them is uneven: see [Enumerations](#enumerations).                                                                |
-| Strings `SHOULD` be trimmed                                       | A resource's string attributes are trimmed before validation. Strings inside a nested object, and in a body that isn't a resource document, are not.                                                                                                                                                  |
-| An empty string `MUST` count as absent                            | A resource attribute that is `""` or blank is dropped before validation, so a required one is refused `field-required` and an optional one is `null`. Inside a nested object, and in a body that isn't a resource document, `""` is kept as sent.                                                     |
-| Absent `MUST` count as `null`                                     | An absent member binds as `null`. A non-nullable member of a resource is required. In a plain body an absent value type binds as its default (`0`, `false`), so declare it nullable and `[Required]` to refuse its absence.                                                                           |
-| Responses `SHOULD NOT` include `null` fields                      | Every response, error documents included, leaves out members whose value is `null`.                                                                                                                                                                                                                   |
-
-Two more things the serializer does:
-
-- **Field names** are camel case. See [Naming conventions](naming-conventions.md).
-- **A member typed `JsonElement` or a `JsonNode`** takes any JSON value as sent: not trimmed, not
-  type-checked, not validated. The service checks it itself.
-
-### Enumerations
-
-How a value is read depends on where it arrives:
-
-| Where                                    | What is read                                                                                                                                                                                    |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A `filter[...]` parameter (`Filter<T>`)  | The upper snake case name in any case. Anything else is refused `422`.                                                                                                                          |
-| A resource attribute                     | The upper snake case name exactly. A name that is not the enumeration's is refused `422` with the permitted values; the right name in another case passes that check and then fails as a `500`. |
-| A plain JSON body                        | The upper snake case name exactly, or a number (any number, defined or not). Anything else is refused `422` with the serializer's message.                                                      |
-| A plain route, query or header parameter | The C# member name exactly, or a number (any number), as ASP.NET Core parses an enumeration. Anything else, the upper snake case name included, is refused `422` or `400`.                      |
-
-Until the package reads every one of them without regard to case, use `Filter<T>` for a filter, and
-for any other parameter or plain-body member take a `string` and read it with
-`EnumValues.TryParse`, which matches the published names in any case. A resource attribute keeps its
-enumeration type, and callers must send the name in capitals.
-
-## Example
+## Declare dates, enumerations and free-form members
 
 A resource with a date, an enumeration and a free-form member. `WidgetKind` needs nothing to be
 written as `PLAIN` and `SPECIAL_EDITION`:
@@ -83,6 +48,31 @@ public sealed record Widget : Resource
     public JsonElement? Settings { get; init; }
 }
 ```
+
+What the package does with these:
+
+- **Dates.** `DateTimeOffset` and `DateTime` are written in UTC with a literal `Z`
+  (`2027-03-01T07:30:00Z`), to the tick with trailing zeros left off. Any ISO 8601 offset is read,
+  and a `DateTime` without a zone is taken as UTC. The offset a caller sent is not kept. Use
+  `DateTimeOffset` for an instant.
+- **Enumerations.** Members are written as their names in upper snake case (`SpecialEdition` is
+  `SPECIAL_EDITION`), in the JSON and in the OpenAPI document. How they are read depends on where
+  they arrive; see [Read enumerations in any case](#read-enumerations-in-any-case).
+- **Strings in a resource.** A resource's string attributes are trimmed before validation. One that
+  is `""` or blank is dropped, so a required one is refused `422` `field-required` and an optional
+  one is `null`. Mark a string `[Verbatim]` to keep it exactly as sent (see
+  [Standard fields](standard-fields.md)).
+- **Absent members.** An absent member binds as `null`. A non-nullable member of a resource is
+  required.
+- **Nulls in responses.** Every response, error documents included, leaves out members whose value
+  is `null`.
+- **Field names.** Camel case. See [Naming conventions](naming-conventions.md).
+- **Free-form members.** A `JsonElement` or a `JsonNode` takes any JSON value as sent: not trimmed,
+  not type-checked, not validated.
+- **Protected Data.** `Notes` is encrypted on the client. The service stores and returns it as it
+  came and never reads it.
+
+## Check free-form members, and write dates in messages
 
 The handlers check the free-form member, filter by the enumeration, and write a date into a message
 the way the JSON writes one, with `UtcDates.Text`:
@@ -160,57 +150,70 @@ public static class WidgetsEndpoints
 }
 ```
 
-A create with a padded name, an empty `notes` and a date at another offset:
+- Check the kind and shape of a `JsonElement` before you store it, as `CreateWidget` does, and throw
+  `InvalidRequestException` at its pointer when it is wrong.
+- Use `UtcDates.Text` whenever a date appears in text you write, so it matches the JSON.
 
-```http
-POST /api/v1/widgets
-Content-Type: application/json
+## Read enumerations in any case
 
-{"data":{"type":"widget","attributes":{"name":"  Sprocket ","notes":"","kind":"SPECIAL_EDITION","expirationDate":"2027-03-01T09:30:00+02:00","settings":{"theme":"dark"}}}}
-```
+The package reads an enumeration value differently depending on where it arrives:
 
-The name comes back trimmed, `notes` was absent and so is left out, and the date is in UTC:
+- **A `filter[...]` parameter (`Filter<T>`):** the upper snake case name, in any case. Anything else
+  is refused `422`.
+- **A resource attribute:** the upper snake case name, exactly. A name the enumeration doesn't have
+  is refused `422` with the permitted values. The right name in another case passes that check and
+  then fails with `500`.
+- **A plain JSON body:** the upper snake case name exactly, or any number, defined or not. Anything
+  else is refused `422`.
+- **A plain route, query or header parameter:** the C# member name exactly, or any number, as
+  ASP.NET Core parses an enumeration. The upper snake case name is refused.
 
-```http
-HTTP/1.1 201 Created
-Content-Type: application/json; charset=utf-8
-Location: /api/v1/widgets/62bed180-1f78-45d4-8a56-c996936a2947
+The package doesn't read every enumeration value in any case. To do it, use `Filter<T>` for a
+filter. For any other parameter or plain-body member, take a `string` and read it with
+`EnumValues.TryParse`, which matches the published names in any case:
 
-{"data":{"id":"62bed180-1f78-45d4-8a56-c996936a2947","type":"widget","attributes":{"name":"Sprocket","kind":"SPECIAL_EDITION","expirationDate":"2027-03-01T07:30:00Z","settings":{"theme":"dark"}}}}
-```
+```csharp
+/// <summary>
+/// The arguments of the reclassify action. The kind is a string, so any case is read.
+/// </summary>
+public sealed record ReclassifyWidget(string Kind);
 
-A value the enumeration doesn't have is refused with the ones it does:
-
-```json
+public static class ReclassifyEndpoints
 {
-    "errors": [
+    /// <summary>
+    /// Change how a widget is made
+    /// </summary>
+    [StandardAction]
+    public static async Task<ResourceDocument<Widget>> Reclassify(
+        string id, ReclassifyWidget request, IWidgetStore store, CancellationToken cancellationToken)
+    {
+        // EnumValues.TryParse matches the published names (PLAIN, SPECIAL_EDITION) in any case.
+        if (!EnumValues.TryParse(typeof(WidgetKind), request.Kind, out var kind))
         {
-            "status": "422",
-            "code": "invalid-value",
-            "title": "A field has an invalid value.",
-            "detail": "The 'kind' field must be one of: PLAIN, SPECIAL_EDITION.",
-            "source": { "pointer": "/data/attributes/kind" }
+            var permitted = string.Join(", ", EnumValues.Of(typeof(WidgetKind)));
+            throw new InvalidRequestException($"The 'kind' field must be one of: {permitted}.", "/kind");
         }
-    ]
+
+        return ActionResponse(await store.ReclassifyAsync(id, (WidgetKind)kind!, cancellationToken));
+    }
 }
 ```
 
-## What you decide
+A resource attribute keeps its enumeration type. Tell callers to send its value in capitals.
 
-- **`DateTimeOffset` or `DateTime`.** Both are written the same way. Keep `DateTimeOffset` for an
-  instant; the offset a caller sent is not kept, and is not sent back.
-- **A string kept as sent.** Mark it `[Verbatim]` and it is neither trimmed nor dropped when blank.
-  See [Standard fields](standard-fields.md).
-- **Nested objects and plain bodies.** Trim their strings, and treat `""` as absent, in the handler.
-  A declared `[Required]` refuses `""` and blank strings, where the implied one does not.
-- **Free-form members.** Check the kind and shape of a `JsonElement` before you store it, as
-  `CreateWidget` does.
-- **Enumerations outside resource attributes.** Take them as `Filter<T>`, or as a string read with
-  `EnumValues.TryParse` (see [Enumerations](#enumerations)).
+## Things to know
+
+- **Nested objects and plain bodies are not cleaned up.** Trimming and dropping `""` happen only on
+  a resource's top-level string attributes. Strings inside a nested object, and in a body that isn't
+  a resource document, keep `""` and padding. Trim them, and treat `""` as absent, in the handler. A
+  declared `[Required]` refuses `""` and blank strings, where the implied one does not.
+- **Absent value types in a plain body.** An absent `int` or `bool` binds as `0` or `false`. To
+  refuse its absence, declare it nullable and `[Required]`.
+- **Free-form members are yours to check.** Nothing about a `JsonElement` is validated.
 
 ## See also
 
 - [Naming conventions](naming-conventions.md): field names and enumeration values.
 - [Request validation](request-validation.md): what is refused, and how.
+- [Standard fields](standard-fields.md): `[Verbatim]` and the inherited members.
 - [Filtering](../querying/filtering.md): `Filter<T>` and ranges of dates.
-- The standard: [JSON](https://contributing.bitwarden.com/architecture/server/apis/json).

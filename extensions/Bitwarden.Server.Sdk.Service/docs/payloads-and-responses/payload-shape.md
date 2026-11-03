@@ -1,37 +1,13 @@
 # Payload shape
 
-Every body that carries resources holds them in a top-level `data`, with response metadata in
-`meta` and failures in `errors`; each resource has an `id`, a `type` and its `attributes`. You write
-a resource as a flat record and the package applies that envelope on the wire, in both directions.
-The standard:
-[Payload shape](https://contributing.bitwarden.com/architecture/server/apis/payload-shape).
+You write a resource as a flat record that derives from `Resource`, and your handlers take and
+return documents such as `ResourceDocument<T>`. The package wraps and unwraps the envelope (`data`,
+`attributes`, `meta`, `errors`) for you, in both directions.
 
-## What the package does
+## Declare a resource
 
-| The standard says                                                     | The package                                                                                                                                                                                                              |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Resources `MUST` be held in `data`: one, or an array                  | `ResourceDocument<T>` carries one resource; `ResourceListDocument<T>`, `PagedResourceListDocument<T>` and `CursorPagedResourceListDocument<T>` carry an array. Handlers take and return these, never raw `data` objects. |
-| Response metadata `MUST` go in a top-level `meta`                     | Each document has a `Meta` dictionary. Paged lists put their paging fields there. `meta` is left out when empty.                                                                                                         |
-| Errors are a top-level `errors` array                                 | Every refusal is the standard error document. See [Errors](errors.md).                                                                                                                                                   |
-| Every resource `MUST` have `id`, `type` and `attributes`              | A resource derives from `Resource`, which declares `Id` and `Type`. Every other member is written under `attributes`, which is always present, as `{}` when no member has a value.                                       |
-| `id` `MUST` be a string                                               | `Resource.Id` is a `string?`. Format a `Guid` or a number yourself.                                                                                                                                                      |
-| `id` `MUST` be omitted on a create where the server assigns it        | An `Id` that is null is left out. The package does not refuse a create that sends one: the handler decides (see the example).                                                                                            |
-| `type` is the singular name of the resource                           | `Type` is the record's name in kebab case, or what `[ResourceType]` says. See [Naming conventions](naming-conventions.md).                                                                                               |
-| Each kind of resource `MUST` have its own `type`                      | Not checked. Keep the names, and any `[ResourceType]` values, unique within the service.                                                                                                                                 |
-| In a request, `type` and `id` are checked against the path            | `type` is checked: absent is `422` `field-required`, another type is `422` `invalid-resource-type`, both at `/data/type`. `id` is not compared with the path: the handler does it.                                       |
-| Other bodies (actions, bulk targeting, searches) have their own shape | A handler parameter that is not a resource document binds as plain JSON, with no envelope.                                                                                                                               |
-
-On the way in, the package also:
-
-- drops attributes the resource doesn't declare, and read-only ones (see
-  [Standard fields](standard-fields.md)), rather than refusing the request;
-- prefers `id` and `type` outside `attributes` to the same names inside it;
-- answers a body that isn't JSON at all `400` `malformed-json`, and a JSON value that isn't an
-  object, or has no `data` object, `422`.
-
-## Example
-
-The resource is a flat record. Nothing in it mentions `data` or `attributes`:
+Derive a record from `Resource` and declare its members. Nothing in it mentions `data` or
+`attributes`:
 
 ```csharp
 using System.ComponentModel.DataAnnotations;
@@ -54,8 +30,19 @@ public sealed record Widget : Resource
 }
 ```
 
-The handlers take and return documents. The two checks the package leaves to you are here: whether a
-create may name its own `id`, and whether a replace's `id` is the one in the path.
+- `Resource` gives you `Id` and `Type`. Every other member goes under `attributes` on the wire, and
+  `attributes` is always written, as `{}` when no member has a value.
+- `Id` is a `string?`. If your store uses a `Guid` or a number, format it yourself. A null `Id` is
+  left out of the response.
+- `Type` is the record's name in kebab case (`widget`), or what `[ResourceType]` says. See
+  [Naming conventions](naming-conventions.md).
+- `Notes` holds Protected Data: the client encrypts it, and the service stores and returns it as it
+  came. See [JSON](json.md).
+
+## Take and return documents
+
+Handlers take a `ResourceDocument<T>` and return one of the documents. The response helpers in
+`StandardResponses` build them:
 
 ```csharp
 using Bitwarden.Server.Sdk.Common;
@@ -124,43 +111,39 @@ public static class WidgetsEndpoints
 }
 ```
 
-A create, and what the caller gets back. The `attributes` envelope appears on the wire only:
+- `ResourceDocument<T>` carries one resource. `ResourceListDocument<T>`,
+  `PagedResourceListDocument<T>` and `CursorPagedResourceListDocument<T>` carry a list.
+- Before your handler runs, the package checks the body's `type`. A missing `type` is refused `422`
+  `field-required`, and another type `422` `invalid-resource-type`, both at `/data/type`.
+- A body that isn't JSON is refused `400` `malformed-json`. A JSON value that isn't an object, or
+  has no `data` object, is refused `422`.
+- Attributes the resource doesn't declare, and read-only ones (see
+  [Standard fields](standard-fields.md)), are dropped, not refused.
+- If a body sends `id` or `type` both outside and inside `attributes`, the outside one wins.
 
-```http
-POST /api/v1/widgets
-Content-Type: application/json
+## Check the id yourself
 
-{"data":{"type":"widget","attributes":{"name":"Sprocket","notes":"2.AAAAAAAAAAAAAAAAAAAAAA==|AAAAAAAAAAAAAAAAAAAAAA==|AAAAAAAAAAAAAAAAAAAAAA=="}}}
-```
+The package checks `type` but never looks at the `id` in a body. Do it in the handler, as the
+example does:
 
-```http
-HTTP/1.1 201 Created
-Content-Type: application/json; charset=utf-8
-Location: /api/v1/widgets/62bed180-1f78-45d4-8a56-c996936a2947
+- **On an update or replace**, compare `request.Data.Id` with the path and throw
+  `InvalidRequestException` at `/data/id` when they differ.
+- **On a create**, decide whether a caller may name its own `id`. Refuse it, as `CreateWidget` does,
+  or ignore it. The package passes it through either way.
 
-{"data":{"id":"62bed180-1f78-45d4-8a56-c996936a2947","type":"widget","attributes":{"name":"Sprocket","notes":"2.AAAAAAAAAAAAAAAAAAAAAA==|AAAAAAAAAAAAAAAAAAAAAA==|AAAAAAAAAAAAAAAAAAAAAA=="}}}
-```
+## Add response metadata
 
-A body that declares another type is refused before the handler runs:
+Each document has a `Meta` dictionary, left out of the response when it is empty. Paged lists fill
+in their paging fields for you. To add anything else about the response, such as a count on an
+unpaged list, pass it as the response helper's `meta` argument, as `ListWidgets` does.
 
-```http
-HTTP/1.1 422 Unprocessable Entity
-Content-Type: application/json; charset=utf-8
+## Things to know
 
-{"errors":[{"status":"422","code":"invalid-resource-type","title":"The resource type is not the one this endpoint serves.","detail":"A resource of type 'widget' was expected, but 'gadget' was declared.","source":{"pointer":"/data/type"}}]}
-```
-
-## What you decide
-
-- **An `id` in a request.** Compare it with the path on every operation that names a resource, as
-  `UpdateWidget` does. On a create, refuse it or ignore it; the package passes it through either
-  way.
-- **Unique types.** Two records with the same name in different namespaces, or the same
-  `[ResourceType]`, share a `type`. Nothing stops the service starting.
-- **What goes in `meta`.** Paging fills it for you. Anything else about the response, such as a
-  count of an unpaged list, is yours to add through the response helper's `meta` argument.
-- **Shapes of other bodies.** An action's arguments, a bulk operation's targeting and a search are
-  plain JSON objects, set by their own pages:
+- **Each kind of resource needs its own `type`.** Nothing checks this, and the service still starts
+  if two records share one. Two records with the same name in different namespaces, or the same
+  `[ResourceType]` value, collide. Keep them unique within the service.
+- **Other bodies have no envelope.** A handler parameter that isn't a resource document binds as
+  plain JSON. An action's arguments, a bulk operation's targeting and a search use this; see
   [Acting upon resources](../operations/acting-upon-resources.md),
   [Bulk operations](../bulk-and-asynchronous-work/bulk-operations/index.md) and
   [Advanced queries](../querying/advanced-queries.md).
@@ -171,5 +154,4 @@ Content-Type: application/json; charset=utf-8
 - [JSON](json.md): how values inside `attributes` are written and read.
 - [Request validation](request-validation.md): everything checked before a handler runs.
 - [Standard responses](standard-responses.md): the helpers that build each document.
-- The standard:
-  [Payload shape](https://contributing.bitwarden.com/architecture/server/apis/payload-shape).
+- [Errors](errors.md): how a refusal reaches the caller.

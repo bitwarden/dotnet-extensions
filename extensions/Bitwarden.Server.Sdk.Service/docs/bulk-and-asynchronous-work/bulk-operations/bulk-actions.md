@@ -1,24 +1,11 @@
 # Bulk actions
 
 A bulk action invokes a single-resource action (`{collection}/{id}/actions/{action}`) on every
-targeted resource, at `{collection}:bulk-{action}`, with `data` holding exactly what the single
-action takes as its body. The package maps the route, reserves the names of the other bulk
-operations, and reads one body for every resource or one per resource. The standard:
-[Bulk actions](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations/bulk-actions).
+targeted resource, at `{collection}:bulk-{action}`. Declare it with
+`[StandardBulkAction(collection, action)]` and take a `BulkAction<T>`, or a `BulkAction<T, TInput>`
+when the action takes a body.
 
-## What the package does
-
-| The standard's rule                                                                                 | The package                                                                                                                                                                                                                                                                               |
-| --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Path `{collection}:bulk-{action}`, named after the single action (`MUST`)                           | `[StandardBulkAction(collection, action)]`. The action's name is kebab-cased; left out, it is the method's name, so name the method after the action or pass the name.                                                                                                                    |
-| Not named `create`, `update`, `replace` or `delete` (`MUST NOT`)                                    | The attribute refuses those names, so the service fails to start.                                                                                                                                                                                                                         |
-| `data` is the single action's body, applied to every resource; may be omitted                       | `BulkAction<T, TInput>.Data` is a `BulkInput<TInput>`: a JSON object is `Every`, the same body for every resource. `BulkAction<T>` is for an action with no body.                                                                                                                         |
-| Per-resource bodies: `data` items each carrying `id` and `body`, with no `ids` or `filter` (`MUST`) | Not as the standard shapes it. The package reads a `data` array as one body per resource, paired by position with `ids`. An array with a `filter`, or of a different length from `ids`, is refused `422` at `/data`. A request with `data` items and no `ids` is refused `422` at `/ids`. |
-| A per-resource failure is reported against `/data/{n}`                                              | Yours. With the package's shape, point at `/ids/{n}`, the position that names the resource.                                                                                                                                                                                               |
-
-Targeting is `ids` or `filter`, as `Targeting` allows, and `Supports` sets the atomicity modes.
-
-## Example
+## Act on many resources
 
 `BulkInput<TInput>.At(index)` returns the shared body, or the one in the same position as the
 resource, so one loop handles both shapes:
@@ -98,54 +85,35 @@ public static class WidgetsEndpoints
 public sealed record PolishWidget(int Shine);
 ```
 
-One polish for every widget:
+What the package does for you:
 
-```http
-POST /api/v1/widgets:bulk-polish
-Content-Type: application/json
+- **Maps the route.** The action's name is kebab-cased. Left out, it is the method's name, so name
+  the method after the action or pass the name.
+- **Reserves the other operations' names.** A bulk action named `create`, `update`, `replace` or
+  `delete` stops the service from starting.
+- **Reads `data`.** `request.Data` is a `BulkInput<TInput>`. A JSON object is one body for every
+  resource (`Every`). A JSON array is one body per resource, paired by position with `ids`.
+- **Refuses mismatched bodies with `422`.** An array with a `filter`, or of a different length
+  from `ids`, is refused at `/data`. An array with no `ids` is refused at `/ids`.
 
-{"ids":["62bed180-1f78-45d4-8a56-c996936a2947","7c1d9a3e-0000-4000-8000-000000000000"],"data":{"shine":3}}
-```
+`Targeting` picks `ids` or `filter`, and `Supports` sets the atomicity modes.
 
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json; charset=utf-8
+## Things to know
 
-{"meta":{"affectedCount":1,"failedCount":1},"errors":[{"status":"404","code":"not-found","title":"The resource does not exist.","detail":"No widget with ID '7c1d9a3e-0000-4000-8000-000000000000' exists.","source":{"pointer":"/ids/1"}}]}
-```
-
-A polish each, in the order `ids` names the widgets:
-
-```http
-POST /api/v1/widgets:bulk-polish
-Content-Type: application/json
-
-{"ids":["62bed180-1f78-45d4-8a56-c996936a2947","cacba8c1-29fa-4018-8950-acd400ec76b7"],"data":[{"shine":3},{"shine":5}]}
-```
-
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json; charset=utf-8
-
-{"meta":{"affectedCount":2,"failedCount":0}}
-```
-
-## What you decide
-
-- **One body or one per resource.** Per-resource bodies are for input the server cannot compute,
+- **Per-resource bodies pair with `ids` by position.** The package doesn't read `data` items that
+  carry their own `id` and `body`. To give each resource its own body, send `ids` and a `data`
+  array of the same length, and point failures at `/ids/{n}`.
+- **`data` is optional.** If the action needs it, refuse its absence yourself, as above.
+- **One body or one per resource.** Per-resource bodies are for input the server can't compute,
   such as a key the client wraps for each user: the server never holds the key, so only the client
   can produce one per resource. Everything else takes one body for all.
 - **The same rules as the single action.** Each resource goes through the single action's
   authorization, transition rules and side effects. Share one implementation between the two, as
   on [Per-resource rules](./per-resource-rules.md).
-- **Status changes in bulk.** A field governed by an action is read-only to a bulk update, so a
-  status change for many resources is a bulk action (`:bulk-archive`), not a bulk update.
 
 ## See also
 
 - [Bulk operations](./index.md)
 - [Per-resource rules](./per-resource-rules.md)
 - [Bulk updates](./bulk-updates.md)
-- The standard:
-  [Bulk actions](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations/bulk-actions)
-  and [Acting upon resources](https://contributing.bitwarden.com/architecture/server/apis/acting-upon-resources)
+- [Acting upon resources](../../operations/acting-upon-resources.md)

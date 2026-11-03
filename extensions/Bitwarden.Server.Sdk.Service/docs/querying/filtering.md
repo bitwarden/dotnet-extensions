@@ -1,42 +1,14 @@
 # Filtering
 
-A read-many operation that lets a caller narrow the collection takes one `filter[{name}]` query
-parameter per criterion, with comma-delimited lists for several values and a bracketed form for
-ranges. The package binds and validates each filter as a `Filter<T>` handler parameter; you apply
-it to your query. The standard: [Filtering](https://contributing.bitwarden.com/architecture/server/apis/filtering).
+A read-many operation lets a caller narrow the collection with `filter[{name}]` query parameters.
+You declare each filter as a `Filter<T>` handler parameter; the package binds and checks the value,
+and you apply it to your query.
 
-## What the package does
+## Declare filters on a list
 
-| The standard                                                   | The package                                                                                                                                                                                               |
-| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Criteria `MUST` arrive as `filter[{name}]` parameters          | A `Filter<T>? name` parameter reads `filter[name]`. The parameter's name is the filter's, `T` is what it accepts, and nullability makes it optional. The OpenAPI document publishes it as `filter[name]`. |
-| Several values `MUST` be a comma-delimited list                | When `T` is a collection (`List<T>`, `T[]`, `IReadOnlyList<T>` and the other list interfaces), repeated parameters and comma-delimited lists are both accepted, in any combination.                       |
-| Several values `MUST` mean "or"                                | Yours to apply, usually with `Contains`. The package hands you the values.                                                                                                                                |
-| A comma in a value `MUST` be escaped as `\,`, a backslash `\\` | On a list or a range, `\,` is a comma and `\\` a backslash. A value ending in a lone `\` is refused `422`. A single-value filter is never split, so its value is taken whole.                             |
-| Ranges `MUST` use `[`, `]`, `(`, `)` and `MAY` use `*`         | `Filter<Range<T>>` reads `[begin,end)` and its variants, for any `T` that is a comparable value type (dates, numbers). `Within` applies it to a query and `Range<T>.Contains` tests a value.              |
-| A filter naming an unsupported field `MUST` be refused `422`   | Not enforced. A `filter[...]` parameter that no handler parameter declares is ignored. See [What you decide](#what-you-decide).                                                                           |
-| `MAY` support `*` wildcards, documenting which attributes do   | Not supported. A `*` reaches a `Filter<string>` as a literal character.                                                                                                                                   |
-| `MAY` use dot-notation (`address.city`)                        | Not supported: a filter's name is a C# parameter name.                                                                                                                                                    |
-
-Values are converted with the type's converter in the invariant culture, and enumerations by their
-published upper snake case names. What happens to a value that doesn't convert depends on the
-filter:
-
-- **A single-value filter** refuses it `422` (`'filter[id]' expects an identifier, not 'nope'.`),
-  and refuses the parameter sent twice (`accepts one value`).
-- **A list filter** drops it and keeps the rest. A list is a set to intersect with, so an
-  identifier that can't exist simply matches nothing.
-- **A range** refuses anything it can't read exactly: a malformed range, a bound that doesn't
-  convert, a lower bound above the upper, or equal bounds with one excluded.
-
-`[Filterable]` is not part of `filter[...]` parameters. It marks the fields a caller may name in a
-JSON Logic expression, on a search or a bulk operation; see
-[Advanced queries](advanced-queries.md).
-
-## Example
-
-A list of widgets filtered by identifier, by name and by when each was created, read with Entity
-Framework Core:
+Add one `Filter<T>?` parameter per filter. Its C# name is the filter's name, and `T` is what it
+accepts. This list, read with Entity Framework Core, filters by identifier, by name and by when each
+widget was created:
 
 ```csharp
 using Bitwarden.Server.Sdk.Service;
@@ -104,75 +76,49 @@ public static class WidgetsEndpoints
 }
 ```
 
-`Within` builds the comparison as an expression tree with the bound as a parameter, so it runs in
-the database.
+- `Filter<string>? name` reads `filter[name]`. A nullable parameter is optional: it is `null` when
+  the caller didn't send it. The OpenAPI document publishes it as `filter[name]`, with the
+  `<param>` text as its description.
+- A non-nullable parameter (`Filter<Guid> organizationId`) is required; a request without it is
+  refused with `422`.
+- Values convert with the type's converter in the invariant culture. Enumerations convert from
+  their published upper snake case names.
+- The page links in the response carry the caller's filters, so following one stays in the same
+  query.
 
-A caller asks for the widgets created in the second half of January:
+## Accept several values
 
-```http
-GET /api/v1/widgets?filter[createdAt]=[2026-01-15T00:00:00Z,2026-02-01T00:00:00Z)
-```
+Make `T` a collection (`List<T>`, `T[]`, `IReadOnlyList<T>` or another list interface).
+`Filter<List<Guid>>? id` above accepts `filter[id]=a,b`, the parameter repeated, or both.
 
-```json
-{
-    "data": [
-        {
-            "id": "a0000000-0000-4000-8000-000000000003",
-            "type": "widget",
-            "attributes": {
-                "name": "Smith, Jr",
-                "notes": "2.AAAA|BBBB|CCCC",
-                "createdAt": "2026-01-31T00:00:00Z"
-            }
-        },
-        {
-            "id": "a0000000-0000-4000-8000-000000000002",
-            "type": "widget",
-            "attributes": {
-                "name": "Round widget",
-                "notes": "2.AAAA|BBBB|CCCC",
-                "createdAt": "2026-01-21T00:00:00Z"
-            }
-        }
-    ],
-    "meta": {
-        "pageCount": 1,
-        "pageNumber": 1,
-        "pageSize": 50,
-        "totalCount": 2
-    },
-    "links": {
-        "first": "/api/v1/widgets?filter%5BcreatedAt%5D=%5B2026-01-15T00%3A00%3A00Z%2C2026-02-01T00%3A00%3A00Z%29&page[number]=1&page[size]=50",
-        "last": "/api/v1/widgets?filter%5BcreatedAt%5D=%5B2026-01-15T00%3A00%3A00Z%2C2026-02-01T00%3A00%3A00Z%29&page[number]=1&page[size]=50"
-    }
-}
-```
+- The package hands you the values. Matching any of them is yours to write, usually with
+  `Contains`, as the sample does.
+- In a list, `\,` is a comma inside a value and `\\` a backslash. A value ending in a lone `\` is
+  refused with `422`.
+- A value that doesn't convert is dropped and the rest are kept. An identifier that can't exist
+  would match nothing anyway.
 
-The page links carry the caller's filters, so following them stays in the same query. A range that
-can't be read is refused at the parameter:
+A single-value filter is different: it takes its value whole, never split on commas. A value that
+doesn't convert, or the parameter sent twice, is refused with `422`.
 
-```http
-GET /api/v1/widgets?filter[createdAt]=[2026-01-01
-```
+## Accept a range
 
-```json
-{
-    "errors": [
-        {
-            "status": "422",
-            "code": "invalid-value",
-            "title": "A field has an invalid value.",
-            "detail": "'filter[createdAt]' expects a range such as [begin,end), with datetimeoffset bounds or * for no limit, not '[2026-01-01'.",
-            "source": { "parameter": "filter[createdAt]" }
-        }
-    ]
-}
-```
+`Filter<Range<T>>` reads a range such as `[2026-01-15T00:00:00Z,2026-02-01T00:00:00Z)`, for any
+comparable value type `T` (dates, numbers). `[` and `]` include a bound, `(` and `)` exclude it,
+and `*` leaves a side open.
 
-### In memory
+- `Within(selector, range)` applies the range to a query, as an expression tree with the bounds as
+  parameters, so it runs in the database. It leaves the query unchanged when the range is `null`.
+- `Range<T>.Contains(value)` tests one value, and `Lower` and `Upper` give you the bounds.
+- A range the package can't read exactly is refused with `422`: a malformed range, a bound that
+  doesn't convert, a lower bound above the upper, or equal bounds with one excluded.
+- To limit a range (for example "a year at most"), read `Lower` and `Upper` and throw
+  `InvalidFilterException`, which refuses the request with `422` at the parameter.
 
-The filter types don't need a database. `Range<T>.Contains` tests one value, and the rest of the
-query works on any `IQueryable`, including `AsQueryable()` over a list:
+## Filter in memory
+
+The filter types don't need a database. `Range<T>.Contains` tests a value, and the rest of the query
+works on any `IQueryable`, including `AsQueryable()` over a list:
 
 ```csharp
 public static PagedResourceListDocument<Widget> ListWidgets(
@@ -201,93 +147,94 @@ public static PagedResourceListDocument<Widget> ListWidgets(
 }
 ```
 
-## What you decide
+## Refuse a filter you don't offer
 
-- **Which filters an operation offers.** Each one has to be indexed and authorized, so declare only
-  what a caller needs. Name each after the resource attribute it filters.
-- **A required filter.** Declare the parameter non-nullable (`Filter<Guid> organizationId`) and a
-  request without it is refused `422`.
-- **How much of a range is allowed.** A rule such as "a year at most" is yours: read
-  `Range<T>.Lower` and `Upper`, and throw `InvalidFilterException` to refuse with `422` at the
-  parameter.
-- **Refusing a filter you don't support.** The standard requires a `422` for a `filter[...]`
-  parameter naming a field the operation doesn't filter on, and the package ignores one today. Until
-  it does, check the query string yourself:
+The package ignores a `filter[...]` parameter that no handler parameter declares. To refuse it with
+`422` instead, check the query string yourself:
 
-    ```csharp
-    public static class DeclaredFilters
+```csharp
+public static class DeclaredFilters
+{
+    /// <summary>
+    /// Refuses any <c>filter[...]</c> parameter the operation does not declare.
+    /// </summary>
+    public static void Require(HttpRequest request, params string[] declared)
     {
-        /// <summary>
-        /// Refuses any <c>filter[...]</c> parameter the operation does not declare.
-        /// </summary>
-        public static void Require(HttpRequest request, params string[] declared)
+        foreach (var key in request.Query.Keys)
         {
-            foreach (var key in request.Query.Keys)
+            if (key.StartsWith("filter[", StringComparison.Ordinal)
+                && !declared.Any(name => key == $"filter[{name}]"))
             {
-                if (key.StartsWith("filter[", StringComparison.Ordinal)
-                    && !declared.Any(name => key == $"filter[{name}]"))
-                {
-                    throw InvalidFilterException.Because(
-                        key,
-                        $"'{key}' is not a filter this collection supports. "
-                        + $"The filters are {string.Join(", ", declared.Select(name => $"'filter[{name}]'"))}.");
-                }
+                throw InvalidFilterException.Because(
+                    key,
+                    $"'{key}' is not a filter this collection supports. "
+                    + $"The filters are {string.Join(", ", declared.Select(name => $"'filter[{name}]'"))}.");
             }
         }
     }
-    ```
+}
+```
 
-    Take `HttpRequest request` as a handler parameter and call
-    `DeclaredFilters.Require(request, nameof(name))` first. `GET /api/v1/widgets?filter[colour]=red`
-    is then refused `422` with `"source": { "parameter": "filter[colour]" }`.
+Take `HttpRequest request` as a handler parameter and call
+`DeclaredFilters.Require(request, nameof(name))` first. A request with `filter[colour]` is then
+refused with `422` at that parameter. `InvalidFilterException.Because(parameter, detail)` works for
+any query parameter, despite its name.
 
-- **Wildcards.** If an attribute accepts `*`, document which, and read the value yourself from a
-  `Filter<string>`. The standard requires `\*` for a literal asterisk and `\\` for a backslash
-  wherever wildcards apply. A prefix match, refusing a `*` anywhere but the end:
+## Match with a wildcard
 
-    ```csharp
-    public static IQueryable<WidgetEntity> Matching(IQueryable<WidgetEntity> widgets, string value)
+The package doesn't support wildcards: a `*` reaches a `Filter<string>` as a literal character. To
+accept one, read the value yourself and document which filters take it. This prefix match treats
+`\*` as a literal asterisk and `\\` as a backslash, and refuses a `*` anywhere but the end:
+
+```csharp
+public static IQueryable<WidgetEntity> Matching(IQueryable<WidgetEntity> widgets, string value)
+{
+    var text = new System.Text.StringBuilder();
+    var prefix = false;
+
+    for (var i = 0; i < value.Length; i++)
     {
-        var text = new System.Text.StringBuilder();
-        var prefix = false;
-
-        for (var i = 0; i < value.Length; i++)
+        if (value[i] == '\\' && i + 1 < value.Length)
         {
-            if (value[i] == '\\' && i + 1 < value.Length)
-            {
-                text.Append(value[++i]);
-            }
-            else if (value[i] == '*' && i == value.Length - 1)
-            {
-                prefix = true;
-            }
-            else if (value[i] is '*' or '\\')
-            {
-                throw new InvalidFilterException(
-                    "filter[name]", value, "takes a name, or the start of one followed by *");
-            }
-            else
-            {
-                text.Append(value[i]);
-            }
+            text.Append(value[++i]);
         }
-
-        var name = text.ToString();
-
-        return prefix
-            ? widgets.Where(widget => widget.Name.StartsWith(name))
-            : widgets.Where(widget => widget.Name == name);
+        else if (value[i] == '*' && i == value.Length - 1)
+        {
+            prefix = true;
+        }
+        else if (value[i] is '*' or '\\')
+        {
+            throw new InvalidFilterException(
+                "filter[name]", value, "takes a name, or the start of one followed by *");
+        }
+        else
+        {
+            text.Append(value[i]);
+        }
     }
-    ```
 
-- **Never filter on an encrypted member.** An `[Encrypted]` value is Protected Data, encrypted on
-  the client. Its ciphertext means nothing to the server, so offer no filter on it.
+    var name = text.ToString();
+
+    return prefix
+        ? widgets.Where(widget => widget.Name.StartsWith(name))
+        : widgets.Where(widget => widget.Name == name);
+}
+```
+
+## Things to know
+
+- **Declare only the filters callers need.** Each one needs an index and has to respect what the
+  caller may see. Name each after the resource attribute it filters.
+- **Never filter on an `[Encrypted]` member.** Its value is Protected Data, encrypted on the client,
+  and its ciphertext means nothing to the server.
+- **No dot-notation.** A filter's name is a C# parameter name, so `filter[address.city]` can't be
+  declared. Flatten the name (`addressCity`) instead.
+- **"Or" across filters, and long expressions,** need a search. `[Filterable]` marks fields for
+  those expressions; it has nothing to do with `filter[...]` parameters. See
+  [Advanced queries](advanced-queries.md).
 
 ## See also
 
 - [Paging](paging.md), [Sorting](sorting.md) and [Sparse fieldsets](sparse-fieldsets.md): the other
   query parameters.
-- [Advanced queries](advanced-queries.md): `:search` and JSON Logic, for "or" and long expressions.
-- The standards: [Filtering](https://contributing.bitwarden.com/architecture/server/apis/filtering)
-  and
-  [Unrecognized fields, query parameters, and headers](https://contributing.bitwarden.com/architecture/server/apis/unrecognized-fields-query-parameters-and-headers).
+- [Advanced queries](advanced-queries.md): searches with filter expressions.

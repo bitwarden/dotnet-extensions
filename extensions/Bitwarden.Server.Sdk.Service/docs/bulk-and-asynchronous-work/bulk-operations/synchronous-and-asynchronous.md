@@ -1,27 +1,13 @@
 # Synchronous and asynchronous
 
-A synchronous bulk operation answers with its outcome. An asynchronous one answers `202 Accepted`
-with a job the caller follows. The package provides synchronous execution only: every bulk
-operation answers when the work is done. The standard:
-[Synchronous and asynchronous](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations/synchronous-and-asynchronous).
+Every bulk operation the package provides is synchronous: it answers when the work is done, with
+what your handler returns. The package has no asynchronous execution: no `202 Accepted`, no job,
+and no handling of `Prefer: respond-async`.
 
-## What the package does
+## Keep a bulk operation bounded
 
-| The standard's rule                                                                                       | The package                                                                                                                                       |
-| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Synchronous: the response carries the outcome                                                             | Every bulk operation answers `200 OK` with what the handler returns, or `204` when it returns nothing. See [Bulk responses](./bulk-responses.md). |
-| Asynchronous: `202` and a [job](../jobs.md)                                                               | Not provided. No bulk attribute documents `202`, and the package has no job resource.                                                             |
-| A service supporting both responds synchronously unless the caller sends `Prefer: respond-async` (`MUST`) | Not applicable: the package supports one mode. It does not read `Prefer`, and a request carrying it is answered synchronously.                    |
-| `Preference-Applied: respond-async` when honoring the preference (`SHOULD`)                               | Not provided.                                                                                                                                     |
-| Respond asynchronously above a documented size (`MAY`)                                                    | Not provided. Refuse an oversized request instead, with `BulkRequests.RequireAtMost`.                                                             |
-
-`Prefer` is a preference (RFC 7240), so a synchronous-only operation that ignores it still answers
-the caller correctly. The standard requires callers to handle every response the API documents.
-
-## Example
-
-Keep each operation bounded so that answering synchronously stays cheap, and say so in its
-documentation:
+To keep answering synchronously cheap, cap the work with `BulkRequests.RequireAtMost` and say in
+the handler's documentation that the operation responds synchronously:
 
 ```csharp
 using Bitwarden.Server.Sdk.Service;
@@ -58,32 +44,22 @@ public static class WidgetsEndpoints
 }
 ```
 
-A request over the maximum is refused before any widget is touched:
+- A request over the maximum is refused with `422` before any widget is touched.
+- A request carrying `Prefer: respond-async` is answered synchronously like any other.
 
-```http
-HTTP/1.1 422 Unprocessable Entity
-Content-Type: application/json; charset=utf-8
+## Things to know
 
-{"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"501 were named and this operation takes at most 500 at a time.","source":{"pointer":"/ids"}}]}
-```
-
-## What you decide
-
-- **The maximum.** Choose one that keeps the slowest request well inside the time a caller and
-  the infrastructure in front of the service will wait. Each resource that raises events or calls
+- **Choose a maximum** that keeps the slowest request well inside the time a caller, and the
+  infrastructure in front of the service, will wait. A resource that raises events or calls
   another service counts for more.
-- **Documenting execution.** The standard requires every bulk API to say whether it responds
-  synchronously, asynchronously or both. The package does not write this for you; put it in the
-  handler's XML documentation, as above.
-- **Work that cannot be bounded.** The standard's answer is an asynchronous operation and a job,
-  and neither the package nor the standard defines the job resource yet. See [Jobs](../jobs.md)
-  before designing one. Where the work is another service reacting to a change, the standard
-  prefers events on the messaging plane.
+- **The package doesn't document execution.** Write "Responds synchronously" in the handler's
+  `<remarks>`, as above.
+- **For work you can't bound,** the package has no answer yet. Don't design an asynchronous
+  operation of your own; see [Jobs](../jobs.md). Where the later work is another service reacting
+  to a change, publish an event instead.
 
 ## See also
 
 - [Bulk operations](./index.md)
 - [Bulk responses](./bulk-responses.md)
 - [Jobs](../jobs.md)
-- The standard:
-  [Synchronous and asynchronous](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations/synchronous-and-asynchronous)

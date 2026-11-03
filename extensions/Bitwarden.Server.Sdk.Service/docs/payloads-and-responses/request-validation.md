@@ -1,41 +1,11 @@
 # Request validation
 
-A request is validated in full before anything acts on it, and all its errors are returned at
-once. The package binds and validates every request before the handler runs, from the handler's
-parameter types, their nullability and their DataAnnotations, and refuses a request that fails with
-`422` (or `400` for a resource document that isn't JSON). The standard:
-[Request validation](https://contributing.bitwarden.com/architecture/server/apis/request-validation).
+The package binds and validates every request before your handler runs. It reads the rules from your
+parameter types, their nullability and their DataAnnotations attributes, and refuses a request that
+fails with `422` (or `400` for a resource document that isn't JSON). Your handler checks only what
+needs data.
 
-## What the package does
-
-| The standard's check                                                          | The package                                                                                                                                                                                                                                                                                                                                     |
-| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Every required field, parameter and header is present, not null and not empty | A non-nullable member is required: a resource's attributes, a plain body's reference-typed members, and members of nested objects. A resource attribute that is `null`, `""` or blank counts as absent. Elsewhere `""` passes the implied rule; declare `[Required]` to refuse it. A non-nullable parameter (route, query, header) is required. |
-| Every value has the right type, and a parameter converts to it                | A resource attribute of the wrong JSON kind is refused `invalid-type`. A plain body that doesn't deserialize is refused with the serializer's message. A route, query or header value that doesn't convert is refused.                                                                                                                          |
-| `sort` and `fields` name real fields                                          | Yes. See [Sorting](../querying/sorting.md) and [Sparse fieldsets](../querying/sparse-fieldsets.md).                                                                                                                                                                                                                                             |
-| Constrained values are among the enumerated values                            | Yes, unevenly. See [JSON](json.md#enumerations).                                                                                                                                                                                                                                                                                                |
-| Values are within their minimum, maximum and length                           | Every DataAnnotations attribute runs (`[Range]`, `[StringLength]`, `[RegularExpression]`, `[EmailAddress]` and the rest), on nested objects and list items too. A resource's own string members are limited to 255 characters unless they declare `[StringLength]`, `[MaxLength]` or `[Encrypted(MaxLength = ...)]`.                            |
-| References to other resources are valid                                       | Not done: only the service can look. Throw `InvalidRequestException`.                                                                                                                                                                                                                                                                           |
-| `type` is accepted, and `id` matches the path                                 | `type` is checked. `id` is not; see [Payload shape](payload-shape.md).                                                                                                                                                                                                                                                                          |
-| All errors at once                                                            | Within a level, yes, up to 200. A resource document is checked a level at a time: its shape, then each attribute's presence and kind, then the declared rules, then each object's `IValidatableObject`. A request that fails one level is not checked at the next, so an absent `name` is reported without the over-long `colour` beside it.    |
-
-Every refusal is the standard error document, each error pointing at what failed: `source.pointer`
-into the body (`/data/attributes/part/code`), or `source.parameter` for a query parameter. The same
-rules apply to `[FromForm]` and `[AsParameters]` models.
-
-`[Encrypted(MaxLength = ...)]` (Bitwarden.Server.Sdk.Common) checks ciphertext's length and nothing
-else: the value is never decrypted or inspected. Its `MaxLength` must be positive, or validating the
-resource and writing the OpenAPI document both fail.
-
-Known gaps in what is checked:
-
-- A member of a nested object declared with C#'s `required` keyword, when absent, or of the wrong
-  JSON kind, is a `500`, not a `422`. Declare nested members nullable, or non-nullable without
-  `required` (`= null!`), and they are reported like any other.
-- The 255-character default doesn't apply to nested objects or plain bodies. Bound their strings
-  yourself.
-
-## Example
+## Declare the rules on a resource
 
 A resource with constraints on its own members, on a nested object, and across members:
 
@@ -88,35 +58,33 @@ public sealed record WidgetPart
 }
 ```
 
-A create with three members out of bounds gets all three back:
+What the package does with these:
 
-```json
-{
-    "errors": [
-        {
-            "status": "422",
-            "code": "invalid-value",
-            "title": "A field has an invalid value.",
-            "detail": "The field Size must be between 1 and 500.",
-            "source": { "pointer": "/data/attributes/size" }
-        },
-        {
-            "status": "422",
-            "code": "invalid-value",
-            "title": "A field has an invalid value.",
-            "detail": "The field Colour must be a string with a maximum length of 255.",
-            "source": { "pointer": "/data/attributes/colour" }
-        },
-        {
-            "status": "422",
-            "code": "invalid-value",
-            "title": "A field has an invalid value.",
-            "detail": "The field Code must match the regular expression '^[A-Z]{3}$'.",
-            "source": { "pointer": "/data/attributes/part/code" }
-        }
-    ]
-}
-```
+- **Required.** A non-nullable member is required: a resource's attributes, a plain body's
+  reference-typed members, and members of nested objects. A resource attribute that is `null`, `""`
+  or blank counts as absent. A non-nullable route, query or header parameter is required too.
+- **Type.** A resource attribute of the wrong JSON kind is refused `invalid-type`. A route, query or
+  header value that doesn't convert is refused.
+- **Bounds.** Every DataAnnotations attribute runs (`[Range]`, `[StringLength]`,
+  `[RegularExpression]`, `[EmailAddress]` and the rest), on nested objects and list items too.
+- **Default length.** A resource's own string attributes are limited to 255 characters unless they
+  declare `[StringLength]`, `[MaxLength]` or `[Encrypted(MaxLength = ...)]`.
+- **Protected Data.** `[Encrypted(MaxLength = ...)]` (`Bitwarden.Server.Sdk.Common`) checks only the
+  ciphertext's length. The value is never decrypted or inspected. Ciphertext is longer than the text
+  it hides, so give it a larger bound than you would the text.
+- **Cross-member rules.** `IValidatableObject.Validate` runs once every member passes its own rules.
+- **Errors.** Each points at what failed: `source.pointer` into the body
+  (`/data/attributes/part/code`), or `source.parameter` for a query parameter. Up to 200 are
+  returned at once. See [Errors](errors.md).
+
+A resource document is checked a level at a time: its shape, then each attribute's presence and
+kind, then the declared rules, then each object's `IValidatableObject`. A request that fails one
+level is not checked at the next, so an absent `name` is reported without the over-long `colour`
+beside it.
+
+The same rules apply to `[FromForm]` and `[AsParameters]` models.
+
+## Check what needs data, and validate a plain body
 
 What only the service can know, it checks in the handler, after everything declared has passed. An
 action's plain body is validated the same way:
@@ -178,29 +146,20 @@ public static class WidgetsEndpoints
 }
 ```
 
-`POST /api/v1/widgets/{id}/actions/polish` with `{}` is refused before `Polish` runs:
+- For a rule that needs data (a name already taken, a reference that doesn't resolve, a state change
+  that isn't allowed), throw `InvalidRequestException` with a pointer. Add a code such as
+  `ErrorCodes.AlreadyExists` where a caller branches on it.
+- In a plain body, an absent number or flag reads as `0` or `false`. Make one that must be sent
+  nullable and `[Required]`, as `PolishWidget` does. A body of `{}` is then refused `422` at
+  `/shine` before `Polish` runs.
+- A plain body that doesn't deserialize is refused `422` with the serializer's message.
+- The package checks a body's `type` but not its `id`. Compare the `id` with the path yourself; see
+  [Payload shape](payload-shape.md).
 
-```json
-{
-    "errors": [
-        {
-            "status": "422",
-            "code": "invalid-value",
-            "title": "A field has an invalid value.",
-            "detail": "The Shine field is required.",
-            "source": { "pointer": "/shine" }
-        }
-    ]
-}
-```
-
-### A route whose shape somebody else fixed
+## Keep a route that answers bad requests its own way
 
 `[AcceptsInvalidRequests]`, on a handler or its class, runs the handler even when binding or
-validation failed, for a route that must answer a bad request in its own shape. A body it can't
-read binds as `null`, and its bytes are in the request's `UnreadableRequestBody` feature. A body
-that isn't JSON is still refused `415`, and a route, query or header value that doesn't convert is
-still refused `400`.
+validation failed. Use it only for a route whose existing clients expect their own shape of answer:
 
 ```csharp
 using Bitwarden.Server.Sdk.Service;
@@ -215,7 +174,7 @@ public sealed record LegacyWidgetRename(string NewName);
 /// </summary>
 public sealed record LegacyAnswer(bool Ok, string? Message);
 
-[ApiTag(Description = "Routes kept for clients that predate the standards.")]
+[ApiTag(Description = "Routes kept in the shape existing clients expect.")]
 [AcceptsInvalidRequests]
 public static class LegacyWidgetsEndpoints
 {
@@ -242,18 +201,41 @@ public static class LegacyWidgetsEndpoints
 }
 ```
 
-## What you decide
+- A body the package can't read binds as `null`, and its bytes are in the request's
+  `UnreadableRequestBody` feature.
+- A body that isn't JSON is still refused `415`, and a route, query or header value that doesn't
+  convert is still refused `400`.
+- The handler validates everything else itself.
 
-- **Bounds.** Give every string the bound its data needs: `[StringLength]` for text,
-  `[Encrypted(MaxLength = ...)]` for ciphertext, which is longer than the text it hides.
-- **Rules that need data.** A name already taken, a reference that doesn't resolve, a state change
-  that isn't allowed: throw `InvalidRequestException` with a pointer and, where a caller branches on
-  it, a code such as `ErrorCodes.AlreadyExists`.
-- **The `id` in a request.** Compare it with the path yourself.
-- **Plain bodies.** Make a number or flag that must be sent nullable and `[Required]`, as
-  `PolishWidget` does; otherwise its absence reads as `0` or `false`.
-- **`[AcceptsInvalidRequests]`.** Only for routes whose contract predates the standards. The
-  handler then validates everything itself.
+## Declare nested members without `required`
+
+A member of a nested object declared with C#'s `required` keyword fails with `500` when it is absent
+or of the wrong JSON kind, not `422`. The package doesn't report it at the member. To have it
+reported like any other member, declare it non-nullable without `required`, or nullable:
+
+```csharp
+public sealed record WidgetPart
+{
+    // Non-nullable without `required`: an absent label is refused 422 at its pointer.
+    [StringLength(20)]
+    public string Label { get; init; } = null!;
+
+    [RegularExpression("^[A-Z]{3}$")]
+    public string? Code { get; init; }
+}
+```
+
+## Things to know
+
+- **Bound every string.** The 255-character default applies only to a resource's top-level string
+  attributes. Give strings in nested objects and plain bodies a `[StringLength]` yourself.
+- **`""` outside a resource's attributes.** In a nested object or plain body, `""` passes the
+  implied required rule. Declare `[Required]` to refuse it.
+- **`[Encrypted]` needs a positive `MaxLength`.** Without one, the service still starts, but
+  validating the resource and writing the OpenAPI document both fail with `500`.
+- **Enumerations are read unevenly.** See [JSON](json.md#read-enumerations-in-any-case).
+- **Query parameters.** `sort` and `fields` are checked against real fields; see
+  [Sorting](../querying/sorting.md) and [Sparse fieldsets](../querying/sparse-fieldsets.md).
 
 ## See also
 
@@ -262,5 +244,3 @@ public static class LegacyWidgetsEndpoints
 - [Unrecognized fields, query parameters, and headers](../contracts/unrecognized-fields-query-parameters-and-headers.md):
   what is dropped rather than refused.
 - [Filtering](../querying/filtering.md): how filter values are checked.
-- The standard:
-  [Request validation](https://contributing.bitwarden.com/architecture/server/apis/request-validation).

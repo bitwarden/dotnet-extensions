@@ -1,25 +1,24 @@
 # All-or-nothing and best-effort
 
-When some of the targeted resources fail, an all-or-nothing operation changes nothing and reports
-every failure, and a best-effort operation lets each resource succeed or fail on its own. The caller
-chooses with the `atomic` query parameter. The package reads `atomic`, refuses a mode the operation
-does not support, and gives you the result types for both outcomes. The standard:
-[All-or-nothing and best-effort](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations/all-or-nothing-and-best-effort).
+When some targeted resources fail, an all-or-nothing operation changes nothing and reports every
+failure, and a best-effort operation lets each resource succeed or fail on its own. You choose
+which modes an operation offers with `Supports` on its attribute, and read the caller's choice
+from `request.Atomicity`.
 
-## What the package does
+## Offer one mode or both
 
-| The standard's rule                                                              | The package                                                                                                                                                                                                                     |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A service may support either mode or both                                        | `Supports` on every bulk attribute: `Atomicity.AllOrNothing` (the default), `Atomicity.BestEffort`, or both (`Atomicity.AllOrNothing \| Atomicity.BestEffort`).                                                                 |
-| Default to all-or-nothing when both are supported (`MUST`)                       | An absent `atomic` means all-or-nothing wherever it is supported, and the operation's only mode otherwise.                                                                                                                      |
-| Recognize `atomic`, and refuse an unsupported value with `422` (`MUST`)          | `atomic=true` or `atomic=false` is checked against `Supports`; an unsupported mode is refused `422`, and anything other than `true` or `false` is refused `422`. The parameter is published in the OpenAPI document either way. |
-| All-or-nothing reports every failure, not just the first                         | Collect them and throw `BulkRefusedException(errors)`. The response is the standard error document carrying each one, with status `422`.                                                                                        |
-| Best-effort: one failure never prevents or undoes another's success (`MUST NOT`) | `BulkResult.BestEffort(affected, failures)` answers `200` with `meta.affectedCount`, `meta.failedCount` (present even when zero) and an `errors` entry for each failure.                                                        |
-| Problems with the request itself reject it whole, in either mode                 | `BulkRequests.RequireAtMost` and `RequireDistinct` throw before any resource is touched, and the platform's targeting and expression checks run before your handler.                                                            |
+Set `Supports` on any bulk attribute to `Atomicity.AllOrNothing` (the default),
+`Atomicity.BestEffort`, or both (`Atomicity.AllOrNothing | Atomicity.BestEffort`). The caller picks
+with the `atomic` query parameter: `true` for all-or-nothing, `false` for best-effort.
 
-The mode the caller chose, already checked, is `request.Atomicity` on every bulk request type.
+- With no `atomic`, the operation is all-or-nothing where it supports that, and its only mode
+  otherwise.
+- An `atomic` the operation doesn't support, or a value other than `true` or `false`, is refused
+  with `422` before your handler runs.
+- `request.Atomicity` holds the checked mode on every bulk request type.
+- The `atomic` parameter and its default are published in the OpenAPI document.
 
-## Example
+## Handle both modes in one handler
 
 This bulk delete supports both modes. The request-level checks come first; then each widget is
 looked at, and the outcome depends on the mode:
@@ -84,68 +83,29 @@ public static class WidgetsEndpoints
 }
 ```
 
-All-or-nothing, the default, with one identifier that names nothing. Nothing changes, and the
-response carries every failure:
+- **Request-level problems refuse the whole request** in either mode. `RequireAtMost`,
+  `RequireDistinct` and the platform's targeting checks all throw before any resource is touched.
+- **All-or-nothing:** collect every failure and throw `BulkRefusedException(failures)`. The caller
+  gets `422` with one error per failure, and nothing changes.
+- **Best-effort:** return `BulkResult.BestEffort(affected, failures)`. The caller gets `200` with
+  the counts and one error per failure.
 
-```http
-POST /api/v1/widgets:bulk-delete
-Content-Type: application/json
+## Things to know
 
-{"ids":["62bed180-1f78-45d4-8a56-c996936a2947","7c1d9a3e-0000-4000-8000-000000000000"]}
-```
-
-```http
-HTTP/1.1 422 Unprocessable Entity
-Content-Type: application/json; charset=utf-8
-
-{"errors":[{"status":"404","code":"not-found","title":"The resource does not exist.","detail":"No widget with ID '7c1d9a3e-0000-4000-8000-000000000000' exists.","source":{"pointer":"/ids/1"}}]}
-```
-
-The same request, best-effort. The widget that exists is deleted, and the failure is reported:
-
-```http
-POST /api/v1/widgets:bulk-delete?atomic=false
-Content-Type: application/json
-
-{"ids":["62bed180-1f78-45d4-8a56-c996936a2947","7c1d9a3e-0000-4000-8000-000000000000"]}
-```
-
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json; charset=utf-8
-
-{"meta":{"affectedCount":1,"failedCount":1},"errors":[{"status":"404","code":"not-found","title":"The resource does not exist.","detail":"No widget with ID '7c1d9a3e-0000-4000-8000-000000000000' exists.","source":{"pointer":"/ids/1"}}]}
-```
-
-A value that is neither `true` nor `false` is refused whatever the operation supports:
-
-```http
-HTTP/1.1 422 Unprocessable Entity
-Content-Type: application/json; charset=utf-8
-
-{"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"'perhaps' is not a value 'atomic' accepts. It is 'true' for all-or-nothing or 'false' for best-effort.","source":{"pointer":"/atomic"}}]}
-```
-
-## What you decide
-
-- **Which modes to offer.** All-or-nothing when a partial result would leave related resources
-  inconsistent, or the caller treats the set as one. Best-effort when each resource stands alone
-  and the caller can report or retry individual failures.
-- **Making all-or-nothing atomic.** The package does not open a transaction. Check every resource
+- **The package doesn't open a transaction.** To make all-or-nothing hold, check every resource
   before writing any, and write the changes in one transaction, so a failure part way through
   leaves nothing changed.
-- **An all-or-nothing failure made only of version conflicts.** The standard wants `409` for it.
-  `BulkRefusedException` always answers `422`; see [Bulk responses](./bulk-responses.md) for how to
-  answer `409`.
-- **Which exceptions are per-resource failures.** Catch the ones your rules throw
-  (`NotFoundException`, `ConflictException`, `InvalidRequestException` and so on) and pass them to
-  `BulkFailure.At`. Anything else is a fault: let it propagate, or note that `BulkFailure.At`
-  describes an unrecognized exception as a `500` without its message.
+- **`BulkRefusedException` always answers `422`.** To answer `409` when every failure is a version
+  conflict, use the `BulkRefusals.For` helper on [Bulk responses](./bulk-responses.md).
+- **Catch only per-resource failures.** Pass the exceptions your rules throw (`NotFoundException`,
+  `ConflictException`, `InvalidRequestException` and so on) to `BulkFailure.At`. Let anything else
+  propagate: `BulkFailure.At` describes an unrecognized exception as a `500` without its message.
+- **Choosing a mode.** All-or-nothing when a partial result would leave related resources
+  inconsistent, or the caller treats the set as one. Best-effort when each resource stands alone
+  and the caller can report or retry individual failures.
 
 ## See also
 
 - [Bulk operations](./index.md)
 - [Bulk responses](./bulk-responses.md)
 - [Targeting](./targeting.md)
-- The standard:
-  [All-or-nothing and best-effort](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations/all-or-nothing-and-best-effort)

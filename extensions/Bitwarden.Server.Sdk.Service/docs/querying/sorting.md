@@ -1,41 +1,13 @@
 # Sorting
 
-A caller chooses the order of a collection with one `sort` parameter: a comma-delimited list of
-fields, each descending when it starts with `-`. The package reads the sortable fields from the
-resource, binds and validates `sort` against them, and applies the order to a query. The standard:
-[Sorting](https://contributing.bitwarden.com/architecture/server/apis/sorting).
+A caller chooses the order of a collection with a `sort` parameter: a comma-delimited list of
+fields, each descending when it starts with `-`. You mark sortable fields with `[Sortable]` on the
+resource and take a `Sort? sort` parameter; `SortedBy` applies the order to a query.
 
-## What the package does
+## Declare the sortable fields
 
-| The standard                                                 | The package                                                                                                                                                                |
-| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| One `sort` parameter, a comma-delimited list of fields       | A `Sort? sort` handler parameter. Null means the caller didn't ask; `Sort.Fields` is the list of `SortBy` (field and `SortDirection`) in order of precedence.              |
-| A leading `-` `MUST` mean descending                         | It does.                                                                                                                                                                   |
-| A `sort` naming an unsupported field `MUST` be refused `422` | Only fields the resource marks `[Sortable]` are accepted; anything else is refused `422`, listing the sortable fields. So is a field named twice, or a `sort` naming none. |
-
-A few things go beyond the standard:
-
-- **The contract is declared once, on the resource.** `[Sortable]` on a property marks it;
-  `[Sortable(nameof(CreatedAt))]` on the record marks an inherited field such as `CreatedAt`. The
-  binder knows the resource from the handler's return type, and the OpenAPI document lists the
-  sortable fields and the default under `sort`.
-- **Every sortable resource has a default.** Exactly one sortable field sets `Default = true`, and
-  `Descending = true` makes the default run largest first. `Sort.Default<Widget>()` returns it.
-- **Names match without regard to case** (`sort=NAME` is `name`) and are recorded under the
-  published name.
-- **Fields map to storage.** `SortedBy` finds each field on the entity as the property of the same
-  name; `MappedTo` names a different one.
-
-A mistake in the declarations (no default, two defaults, a field declared twice, a `MappedTo` the
-entity doesn't have) throws `InvalidOperationException` the first time the declarations are read or
-resolved against an entity: when the OpenAPI document is built, a `sort` is bound, or the first
-query is sorted. It doesn't stop the service starting, so a test that lists or sorts each resource
-catches it.
-
-## Example
-
-The resource declares its sortable fields, its default order, and where an inherited field is
-stored:
+Mark each sortable property `[Sortable]`. Mark an inherited field, such as `CreatedAt`, with
+`[Sortable(nameof(CreatedAt))]` on the record. Exactly one field sets `Default = true`:
 
 ```csharp
 using System.ComponentModel.DataAnnotations;
@@ -62,8 +34,16 @@ public sealed record Widget : Resource
 }
 ```
 
-The operation takes `Sort? sort`, falls back to the default, and breaks ties on the identifier,
-here with Entity Framework Core:
+- `Descending = true` makes the default order run largest first. `Sort.Default<Widget>()` returns
+  the default.
+- `MappedTo` names the entity property a field is stored under, when it differs from the resource's.
+  Without it, `SortedBy` looks for an entity property of the same name.
+- The OpenAPI document lists the sortable fields and the default under `sort`.
+
+## Sort a list
+
+Take `Sort? sort`, fall back to the default, and break ties on the identifier. Here with Entity
+Framework Core:
 
 ```csharp
 using Bitwarden.Server.Sdk.Service;
@@ -99,35 +79,23 @@ public static async Task<PagedResourceListDocument<Widget>> ListWidgets(
 }
 ```
 
-`SortedBy` builds `OrderBy` and `ThenBy` calls as an expression tree, so the order runs in the
-database. Always pass the tie-break when the result is paged: without a unique last field, the
-database may order rows that share a value differently on each request.
+- The binder knows the resource from the handler's return type. `sort` is `null` when the caller
+  didn't send it.
+- Only fields the resource marks `[Sortable]` are accepted. Anything else is refused with `422`,
+  listing the sortable fields, and so is a field named twice or a `sort` naming no field.
+- Names match without regard to case, so `NAME` is `name`.
+- `Sort.Fields` lists the requested `SortBy` values (a field and a `SortDirection`) in order of
+  precedence.
+- `SortedBy` builds `OrderBy` and `ThenBy` calls as an expression tree, so the order runs in the
+  database. With `sort=-updatedAt,name`, this sample orders by `ModifiedAt` descending, then by
+  name, then by identifier.
+- Always pass the tie-break when the result is paged. Without a unique last field, the database may
+  order rows that share a value differently on each request.
 
-`GET /api/v1/widgets?sort=-updatedAt,name` orders by `ModifiedAt` descending, then by name, then
-by identifier. A field the resource doesn't mark sortable is refused:
+## Sort in memory
 
-```http
-GET /api/v1/widgets?sort=colour
-```
-
-```json
-{
-    "errors": [
-        {
-            "status": "422",
-            "code": "invalid-value",
-            "title": "A field has an invalid value.",
-            "detail": "'colour' cannot be used to sort: 'colour' is not a field this collection sorts by. Sortable fields are 'createdAt', 'name', 'updatedAt'.",
-            "source": { "parameter": "sort" }
-        }
-    ]
-}
-```
-
-### In memory
-
-`SortedBy` works on any `IQueryable`, so `AsQueryable()` sorts a list in memory. It resolves the
-fields on the type it sorts, through `MappedTo`, so sort the stored rows when a field is mapped:
+`SortedBy` works on any `IQueryable`, so `AsQueryable()` sorts a list in memory. It resolves fields
+on the type it sorts, through `MappedTo`, so sort the stored rows when a field is mapped:
 
 ```csharp
 public static List<WidgetEntity> Sorted(IReadOnlyList<WidgetEntity> rows, Sort? sort) =>
@@ -136,10 +104,10 @@ public static List<WidgetEntity> Sorted(IReadOnlyList<WidgetEntity> rows, Sort? 
         .ToList();
 ```
 
-A list of resources sorts the same way when every sortable field is a property of the resource
-under its own name.
+A list of resources sorts the same way when every sortable field is a property of the resource under
+its own name.
 
-### A sort built in code
+## Build a sort in code
 
 `Sort.By` builds a sort without a request. It isn't tied to a resource, so its fields are the
 entity's own property names:
@@ -150,21 +118,23 @@ public static IQueryable<WidgetEntity> NewestFirst(WidgetDatabase database) =>
     database.Widgets.SortedBy(Sort.By(SortBy.Descending(nameof(WidgetEntity.CreatedAt))), widget => widget.Id);
 ```
 
-## What you decide
+## Things to know
 
-- **Which fields sort.** Each one needs an index, so mark only what callers need. Don't mark an
-  `[Encrypted]` member: its ciphertext is Protected Data and has no meaningful order.
-- **The default order,** and which way it runs.
+- **Mistakes in the declarations throw late.** No default, two defaults, a field declared twice, or
+  a `MappedTo` the entity doesn't have throws `InvalidOperationException` the first time the
+  declarations are read: when the OpenAPI document is built, a `sort` is bound, or the first query
+  is sorted. The service still starts, so write a test that lists or sorts each resource.
+- **Mark only what callers need.** Each sortable field needs an index.
+- **Never mark an `[Encrypted]` member.** Its value is Protected Data, encrypted on the client, and
+  its ciphertext has no meaningful order.
 - **An order that isn't a column.** `SortedBy` is a convenience. When a field is computed or lives
   on a joined row, read `sort.Fields` and order the query yourself; the binder has already refused
   anything the resource doesn't declare.
-- **A `sort` on an operation that doesn't sort.** An operation without a `Sort` parameter ignores
-  `sort`; the standard asks for `422` when it names a field the operation doesn't support. Refuse
-  it yourself if the operation must not be sorted, as [Filtering](filtering.md#what-you-decide)
-  does for an undeclared filter.
+- **An operation without a `Sort` parameter ignores `sort`.** To refuse it with `422`, call
+  `UnsupportedParameters.Refuse(request, "sort")` from
+  [Paging](paging.md#refuse-paging-parameters-an-operation-doesnt-take).
 
 ## See also
 
 - [Paging](paging.md): sorting is what makes a page stable.
 - [Filtering](filtering.md) and [Advanced queries](advanced-queries.md): a search takes `sort` too.
-- The standard: [Sorting](https://contributing.bitwarden.com/architecture/server/apis/sorting).

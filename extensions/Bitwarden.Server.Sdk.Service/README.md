@@ -8,10 +8,9 @@ the rest in a fixed, reviewed order:
 
 - **Secure by default.** Every request is authenticated, token audiences are always checked, and
   each operation is authorized by scope and by the organization, user and provider it concerns.
-- **The API standards, built in.** Requests and responses follow Bitwarden's
-  [service-to-service API standards](https://contributing.bitwarden.com/architecture/server/apis):
-  standard documents, validation, error responses, filtering, sorting, paging, sparse fieldsets and
-  bulk operations.
+- **Consistent APIs with little code.** Declare a resource and a handler, and the package binds and
+  validates the request, shapes the response and its errors, and gives you filtering, sorting,
+  paging, sparse fieldsets and bulk operations.
 - **Documented as you write it.** An OpenAPI document and a documentation UI are generated from your
   handlers' signatures and XML comments.
 - **Ready to run.** Traces, metrics and logs over OpenTelemetry, health probes, per-address rate
@@ -163,26 +162,9 @@ dotnet run
 }
 ```
 
-With a token, creating a widget looks like this:
-
-```http
-POST /api/v1/widgets
-Authorization: Bearer eyJhbGciOi...
-Content-Type: application/json
-
-{"data":{"type":"widget","attributes":{"name":"Desk lamp"}}}
-```
-
-```http
-HTTP/1.1 201 Created
-Content-Type: application/json; charset=utf-8
-Location: /api/v1/widgets/0b6e6a3c-6f0e-4f7e-9d43-2c1f5e8a7d10
-
-{"data":{"id":"0b6e6a3c-6f0e-4f7e-9d43-2c1f5e8a7d10","type":"widget","attributes":{"name":"Desk lamp","createdAt":"2026-11-03T15:04:05.5Z"}}}
-```
-
-A name longer than 100 characters is refused `422` with a standard error document pointing at
-`/data/attributes/name`, before your handler runs.
+With a token, `POST /api/v1/widgets` creates a widget and answers `201` with a `Location` header.
+The request is validated before your handler runs: a name longer than 100 characters is refused
+`422`, and the error says which field is wrong.
 
 ## Examples
 
@@ -234,8 +216,8 @@ public static async Task<PagedResourceListDocument<Widget>> ListWidgets(
 
 A sort field the resource doesn't mark `[Sortable]`, or a range that doesn't parse, is refused
 `422`. A page size above 200 is reduced to 200, and the response's links carry the caller's filters
-and sort to the next page. See [Filtering](../docs/querying/filtering.md),
-[Sorting](../docs/querying/sorting.md) and [Paging](../docs/querying/paging.md).
+and sort to the next page. See [Filtering](docs/querying/filtering.md),
+[Sorting](docs/querying/sorting.md) and [Paging](docs/querying/paging.md).
 
 ### Require an organization and a scope for one operation
 
@@ -255,24 +237,23 @@ public static Task DeleteSharedWidget(string id, IContext context, IWidgetStore 
     store.DeleteAsync(context.OrganizationId!.Value, id, cancellationToken);
 ```
 
-A caller without the scope, or naming no organization, is refused `403` with a standard error
-document saying which requirement was not met, before the handler runs. See [Authentication and authorization](../docs/beyond-the-standards/authentication-and-authorization.md).
+A caller without the scope, or naming no organization, is refused `403`, with an error saying
+which requirement was not met, before the handler runs. See [Authentication and authorization](docs/running-a-service/authentication-and-authorization.md).
 
 ## Developer guide
 
-The [developer guide](../docs/README.md) covers everything else, one topic per page, each with code
-you can copy. It follows the structure of Bitwarden's API standards, so for every standard you can
-see what the package does for you and what is left to your service:
+The [developer guide](docs/README.md) covers everything else, one topic per page, each with code
+you can copy:
 
-- [Contracts](../docs/README.md#contracts): OpenAPI, API paths, versioning, deprecation.
-- [Payloads and responses](../docs/README.md#payloads-and-responses): resources, JSON, standard
+- [Contracts](docs/README.md#contracts): OpenAPI, API paths, versioning, deprecation.
+- [Payloads and responses](docs/README.md#payloads-and-responses): resources, JSON, standard
   fields, responses, validation, errors.
-- [Operations](../docs/README.md#operations): create, read, update, partial updates, optimistic
+- [Operations](docs/README.md#operations): create, read, update, partial updates, optimistic
   concurrency, delete, actions.
-- [Querying](../docs/README.md#querying): filtering, paging, sorting, sparse fieldsets, searches.
-- [Bulk and asynchronous work](../docs/README.md#bulk-and-asynchronous-work): bulk operations and
+- [Querying](docs/README.md#querying): filtering, paging, sorting, sparse fieldsets, searches.
+- [Bulk and asynchronous work](docs/README.md#bulk-and-asynchronous-work): bulk operations and
   jobs.
-- [Beyond the API standards](../docs/README.md#beyond-the-api-standards): defining a service,
+- [Running a service](docs/README.md#running-a-service): defining a service,
   authentication and caller context, configuration and self-hosting, network limits, outbound HTTP,
   observability, caching and extensions.
 
@@ -287,5 +268,6 @@ see what the package does for you and what is left to your service:
 
 ## Contributing
 
-To work on the package itself, see [Contributing to Bitwarden.Server.Sdk.Service](../docs/contributing.md):
-how to run its tests, and the rules a change has to keep.
+To work on the package itself, see [Contributing to Bitwarden.Server.Sdk.Service](docs/contributing.md):
+how to run its tests, and the rules a change has to keep. [Open issues](OPEN-ISSUES.md) lists the
+package's known gaps.

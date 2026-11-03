@@ -1,51 +1,15 @@
 # Advanced queries
 
-When `filter[...]` parameters can't say enough ("or", or an expression too long for a URL), an API
-exposes a search: `POST /api/v1/{resources}:search` with a JSON Logic expression in a top-level
-`filter` field, answered like the read-many. The package provides the operation, parses and
-validates the expression against the fields the resource marks `[Filterable]`, and compiles it into
-a query predicate. The standard:
-[Advanced queries](https://contributing.bitwarden.com/architecture/server/apis/advanced-queries).
+When `filter[...]` parameters can't say enough ("or", or an expression too long for a URL), offer a
+search: a `POST` to `{collection}:search` whose body holds a filter expression in JSON Logic. You
+mark the fields an expression may name with `[Filterable]`, add a `[StandardSearch]` operation that
+takes a `Search<T>` body, and apply the expression with `Matching`.
 
-## What the package does
+## Mark the filterable fields
 
-| The standard                                                         | The package                                                                                                                                                                      |
-| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The verb `MUST` be `POST`, the path `/api/v1/{resources}:search`     | `[StandardSearch(Collection)]` is a `POST` to `{collection}:search`. The service refuses to start when the `Map` line's verb or route disagrees with it.                         |
-| The expression is JSON Logic in a top-level `filter` field           | A `Search<T>` body, whose required `Filter` is a `Query`. A body without `filter` is refused `422`.                                                                              |
-| Only `var`, `==`, `!=`, `>`, `>=`, `<`, `<=`, `in`, `and`, `or`, `!` | Any other operator is refused `422` at `/filter`, naming the permitted ones.                                                                                                     |
-| A field the API doesn't support `MUST` be refused `422`              | Only fields the resource marks `[Filterable]` may be named; anything else is refused `422` at `/filter`, listing the filterable fields. This is checked before the handler runs. |
-| The response `MUST` be identical in shape to the read-many           | Return the same `PagedResourceListDocument<T>`. `sort`, `page[...]` and `fields[...]` bind on a search as on a list.                                                             |
-| Success `MUST` be `200`                                              | It is.                                                                                                                                                                           |
-
-How the expression is read:
-
-- **Comparisons are between one field and one literal**, in either order: `{"<": [5, {"var":
-"size"}]}` is the widgets whose size is above 5. Two fields, or two literals, are refused.
-- **`in`** is membership when the literal is an array (`{"in": [{"var": "size"}, [15, 20]]}`) and a
-  substring match when it is a string and the field is text (`{"in": ["Round", {"var": "name"}]}`).
-- **`>`, `>=`, `<`, `<=`** need a field with an order: numbers and dates. Text, booleans and
-  enumerations compare only with `==`, `!=` and `in`.
-- **`and` and `or`** take two or more conditions, and `!` exactly one. A literal or a bare field
-  where a condition belongs is refused.
-- **Literals** are converted to the field's type: dates as ISO 8601 strings, enumerations by their
-  published names. `null` is allowed only against a field that can be null.
-- **An expression holds at most 500 terms** (`Query.MaxTerms`), counting every operator, field and
-  literal.
-
-Every refusal is a `422` with a pointer to `/filter`.
-
-`Matching` compiles the expression to an expression tree, so on Entity Framework Core it runs in the
-database. A field marked `[Filterable]` is found on the entity as the property of the same name, or
-the one `MappedTo` names. The first expression matched against an entity resolves every filterable
-field at once, and throws `InvalidOperationException` naming any without a property.
-
-The same expressions select resources for bulk updates, deletes and actions.
-
-## Example
-
-The resource marks what an expression may name, including the inherited `CreatedAt`, and a field
-stored under another name:
+Mark each property an expression may name `[Filterable]`. Mark an inherited field with
+`[Filterable(nameof(CreatedAt))]` on the record, and use `MappedTo` when the entity stores a field
+under another name:
 
 ```csharp
 using System.ComponentModel.DataAnnotations;
@@ -79,8 +43,12 @@ public sealed record Widget : Resource
 }
 ```
 
-The search shares its read with the list, so the two answer alike. Its `Map` line is on the route
-builder, not the group, because the path is the collection's plus a suffix:
+A resource with no `[Filterable]` field can't be searched.
+
+## Add a search
+
+Give the search the same read as the list, so the two answer alike. Map it on the route builder,
+not the group, because its path is the collection's plus a suffix:
 
 ```csharp
 using Bitwarden.Server.Sdk.Service;
@@ -160,75 +128,42 @@ public static class WidgetsEndpoints
 }
 ```
 
-The round widgets that hold at least ten gadgets, sorted by name, one at a time:
+- `[StandardSearch(Collection)]` makes the operation a `POST` to `{collection}:search`. The service
+  refuses to start when the `Map` line's verb or route disagrees with it.
+- `Search<Widget>` is the body. Its required `Filter` is a `Query`, read from a top-level `filter`
+  field; a body without one is refused with `422`.
+- The expression is checked before your handler runs. Every problem is refused with `422`, pointing
+  at `/filter`.
+- `sort`, `page[...]` and `fields[...]` bind on a search as on a list, and a successful search
+  answers `200`.
+- `Matching` compiles the expression to an expression tree, so on Entity Framework Core it runs in
+  the database.
+- Page links carry the query string only. The expression is in the body, so a caller follows a link
+  with a `POST` of the same body.
 
-```http
-POST /api/v1/widgets:search?sort=name&page[size]=1
-Content-Type: application/json
-```
+## What an expression may contain
 
-```json
-{
-    "filter": {
-        "and": [
-            { "in": ["Round", { "var": "name" }] },
-            { ">=": [{ "var": "size" }, 10] }
-        ]
-    }
-}
-```
+The package accepts these JSON Logic operators: `var`, `==`, `!=`, `>`, `>=`, `<`, `<=`, `in`,
+`and`, `or` and `!`. Any other operator is refused, naming the permitted ones.
 
-```json
-{
-    "data": [
-        {
-            "id": "a0000000-0000-4000-8000-000000000002",
-            "type": "widget",
-            "attributes": {
-                "name": "Round widget 2",
-                "size": 10,
-                "notes": "2.AAAA|BBBB|CCCC",
-                "createdAt": "2026-01-03T00:00:00Z"
-            }
-        }
-    ],
-    "meta": { "pageCount": 2, "pageNumber": 1, "pageSize": 1, "totalCount": 2 },
-    "links": {
-        "first": "/api/v1/widgets:search?sort=name&page[number]=1&page[size]=1",
-        "next": "/api/v1/widgets:search?sort=name&page[number]=2&page[size]=1",
-        "last": "/api/v1/widgets:search?sort=name&page[number]=2&page[size]=1"
-    }
-}
-```
+- **Fields:** only fields the resource marks `[Filterable]`. Anything else is refused, listing the
+  filterable fields.
+- **Comparisons** are between one field and one literal, in either order. Two fields, or two
+  literals, are refused.
+- **`in`** is membership when the literal is an array, and a substring match when it is a string
+  and the field is text.
+- **`>`, `>=`, `<`, `<=`** need a field with an order: numbers and dates. Text, booleans and
+  enumerations compare only with `==`, `!=` and `in`.
+- **`and` and `or`** take two or more conditions, and `!` exactly one. A literal or a bare field
+  where a condition belongs is refused.
+- **Literals** convert to the field's type: dates from ISO 8601 strings, enumerations from their
+  published names. `null` is allowed only against a field that can be null.
+- **Size:** an expression holds at most 500 terms (`Query.MaxTerms`), counting every operator, field
+  and literal.
 
-The links carry the query string only. The expression is in the body, so a caller follows `next`
-with a `POST` of the same body.
+The same expressions select resources for bulk updates, deletes and actions.
 
-An expression naming a field the resource doesn't mark `[Filterable]` is refused before the handler
-runs:
-
-```json
-{ "filter": { "==": [{ "var": "notes" }, "x"] } }
-```
-
-```json
-{
-    "errors": [
-        {
-            "status": "422",
-            "code": "invalid-value",
-            "title": "A field has an invalid value.",
-            "detail": "'notes' is not a field this resource may be filtered on. The fields available are 'createdAt', 'name', 'size'.",
-            "source": { "pointer": "/filter" }
-        }
-    ]
-}
-```
-
-And so is an operator outside the permitted set, such as `{"+": [{"var": "size"}, 1]}`:
-`"'+' is not an operator a query may use. The permitted operators are 'var', '==', '!=', '>', '>=', '<', '<=', 'in', 'and', 'or', '!'."`
-
-### In memory
+## Search in memory
 
 `Matching` works on any `IQueryable`, so the same expression runs over rows in memory. It resolves
 fields through `MappedTo`, so match the stored rows, then map them:
@@ -248,7 +183,7 @@ public static PagedResourceListDocument<Widget> Search(
 }
 ```
 
-### An expression built in code
+## Build an expression in code
 
 A `Query` built from `QueryTerm`s, rather than read from a request, names the entity's own
 properties:
@@ -276,32 +211,28 @@ public static IQueryable<WidgetEntity> Large(WidgetDatabase database)
 }
 ```
 
-An expression a caller sent is matched only after the platform has checked it against the
-resource. `Query.Parse` reads one from JSON, but `Matching` throws `InvalidOperationException` for
-it unless it arrived as a `Search<T>` or bulk body on its standard operation. The service refuses to
-start when a handler takes a `Search<T>` (or a bulk body with a filter) on any other kind of
-operation.
+## Things to know
 
-## What you decide
-
-- **Whether to offer a search.** A resource with no `[Filterable]` field can't be searched. Mark
-  only fields that are indexed and that callers may see, and never an `[Encrypted]` member: its
-  value is Protected Data, encrypted on the client, and its ciphertext means nothing to the server.
-- **An expression that is too costly.** The package bounds its size, not its cost. A rule such as
-  "a substring match needs another condition" is yours; throw `InvalidRequestException` with the
-  pointer `/filter` to refuse it with `422`.
-- **Fields that aren't columns.** `Matching` is a convenience. A field that is computed or lives on
-  a joined row needs you to walk `request.Filter.Root` and build the predicate yourself; the
-  platform has already refused anything the resource doesn't declare.
-- **Paging.** A search pages like a list; see [Paging](paging.md). A caller following a page link
-  sends the same body again.
+- **A caller's expression is matched only after it has been checked.** `Query.Parse` reads one from
+  JSON, but `Matching` throws `InvalidOperationException` for it unless it arrived as a `Search<T>`
+  or bulk body on its own kind of operation. The service refuses to start when a handler takes a
+  `Search<T>`, or a bulk body with a filter, on any other kind of operation.
+- **Every filterable field needs an entity property.** The first expression matched against an
+  entity resolves every filterable field, by name or `MappedTo`, and throws
+  `InvalidOperationException` naming any without a property. A test that searches each resource
+  catches it.
+- **Mark only fields that are indexed and that callers may see.**
+- **Never mark an `[Encrypted]` member.** Its value is Protected Data, encrypted on the client, and
+  its ciphertext means nothing to the server.
+- **The package bounds an expression's size, not its cost.** A rule such as "a substring match needs
+  another condition" is yours: throw `InvalidRequestException` with the pointer `/filter` to refuse
+  it with `422`.
+- **Fields that aren't columns.** `Matching` is a convenience. For a field that is computed or lives
+  on a joined row, walk `request.Filter.Root` and build the predicate yourself; the package has
+  already refused anything the resource doesn't declare.
 
 ## See also
 
 - [Filtering](filtering.md): simple `filter[...]` parameters.
 - [Sorting](sorting.md), [Paging](paging.md) and [Sparse fieldsets](sparse-fieldsets.md): the query
   parameters a search shares with the list.
-- The standards:
-  [Advanced queries](https://contributing.bitwarden.com/architecture/server/apis/advanced-queries)
-  and
-  [Bulk operations: targeting](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations/targeting).

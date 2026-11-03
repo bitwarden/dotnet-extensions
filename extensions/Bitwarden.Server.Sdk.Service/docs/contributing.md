@@ -1,7 +1,7 @@
 # Contributing to Bitwarden.Server.Sdk.Service
 
 This page is for working on the package itself. To build a service with it, start at the
-[README](../src/README.md) and the [developer guide](README.md).
+[README](../README.md) and the [developer guide](README.md).
 
 ## Running the tests
 
@@ -53,14 +53,15 @@ Testcontainers, so they need Docker. The MinimalApi project leaves them out.
 
 ## Changing the documentation
 
-- **`src/README.md`** introduces the package to someone building a service: what it is, how to start
+- **`README.md`**, at the package root, introduces the package to someone building a service: what it is, how to start
   and two short examples.
-- **`docs/`** is the developer guide. Its pages follow the structure of the
-  [API standards](https://contributing.bitwarden.com/architecture/server/apis): one page per
-  standard, saying what the package does for it, with samples, and what is left to the service.
-  Pages for what the standards don't cover are under `docs/beyond-the-standards/`.
+- **`docs/`** is the developer guide: how to write code with the package, one topic per page. Each
+  page is code a service writes and what the developer needs to know about it. It doesn't restate
+  or link the API standards, and it shows no example requests or responses.
 - **`src/PACKAGE.md`** is the readme shown on nuget.org. It stays short and links to the guide with
   absolute URLs, because nuget.org doesn't resolve relative links.
 - **Samples must compile.** A sample shows code as a service writes it. Before changing one, build
   it against the package in a scratch web project with `EnableRequestDelegateGenerator` on.
 - A behaviour change that a page describes updates that page in the same pull request.
+- **`OPEN-ISSUES.md`** lists the package's known gaps. A fix removes its
+  entry and updates the guide page that described the workaround.

@@ -1,33 +1,10 @@
 # Observability and health
 
 Every service exports traces, metrics and logs over OTLP, tags them with whom a request concerns,
-and answers the health probes an orchestrator asks. Health checks follow their own external
-conventions, so they sit outside the
-[API standards' scope](https://contributing.bitwarden.com/architecture/server/apis#scope).
+and answers the health probes an orchestrator asks. Name your own sources `Bitwarden.*` and register
+health checks the usual way; the package does the rest.
 
-## What the package does
-
-- **OpenTelemetry over OTLP**, with the resource named by the service's identifier (and `env` from
-  the `DD_ENV` environment variable). The exporter reads the standard `OTEL_*` variables, such as
-  `OTEL_EXPORTER_OTLP_ENDPOINT`.
-- **Traces** from ASP.NET Core (exceptions recorded as span events), `HttpClient`, SqlClient, and
-  every `Bitwarden.*` and `Azure.*` activity source. A caller's W3C `traceparent` continues in the
-  service, and every outgoing `HttpClient` call carries it.
-- **Metrics** from ASP.NET Core, `HttpClient`, SqlClient, the runtime, and every `Bitwarden.*` and
-  `Bit.*` meter.
-- **Logs** with their formatted message and scopes.
-- **A log scope per request** naming `OrganizationId`, `UserId` and `ProviderId`, only those
-  present. The same values are set on the request's span as `bitwarden.organization_id`,
-  `bitwarden.user_id` and `bitwarden.provider_id`. The scope reads `IContext` as each message is
-  written, so a message logged before authentication carries nothing.
-- **Request lines kept out of the logs.** ASP.NET Core's "Request starting" and "Request finished"
-  lines carry the query string, which can carry a credential (a sign-in link's token, a download
-  link's token). The package defaults their category to `Warning`.
-- **Health probes** at `/api/v1/health`, `/api/v1/readiness` and `/api/v1/startup`: anonymous,
-  tagged `System` in the OpenAPI document, and never traced.
-- **Nothing exported** while the process only writes its OpenAPI document (`--emit-openapi`).
-
-## Example
+## Add traces, metrics and logs
 
 Name your own activity sources and meters `Bitwarden.*`, and the platform exports them without
 further registration. Register health checks the usual way, and readiness asks them:
@@ -76,7 +53,32 @@ internal sealed class WidgetStoreHealthCheck : IHealthCheck
 }
 ```
 
-### Health probes
+What the package exports for you:
+
+- **The resource** is named by the service's identifier, with `env` from the `DD_ENV` environment
+  variable. The exporter reads the standard `OTEL_*` variables, such as
+  `OTEL_EXPORTER_OTLP_ENDPOINT`.
+- **Traces** from ASP.NET Core (exceptions recorded as span events), `HttpClient`, SqlClient, and
+  every `Bitwarden.*` and `Azure.*` activity source. A caller's W3C `traceparent` continues in the
+  service, and every outgoing `HttpClient` call carries it.
+- **Metrics** from ASP.NET Core, `HttpClient`, SqlClient, the runtime, and every `Bitwarden.*` and
+  `Bit.*` meter.
+- **Logs** with their formatted message and scopes.
+- **Nothing** while the process only writes its OpenAPI document (`--emit-openapi`).
+
+## Know who a record concerns
+
+Each request gets a log scope naming `OrganizationId`, `UserId` and `ProviderId`, only those
+present. The same values are set on the request's span as `bitwarden.organization_id`,
+`bitwarden.user_id` and `bitwarden.provider_id`. You don't add them yourself.
+
+The scope reads `IContext` as each message is written, so a message logged before authentication
+carries nothing.
+
+## Answer the health probes
+
+The package maps three probes. They are anonymous, tagged `System` in the OpenAPI document, and
+never traced.
 
 | Probe                   | Answers                                                                                       |
 | ----------------------- | --------------------------------------------------------------------------------------------- |
@@ -84,25 +86,14 @@ internal sealed class WidgetStoreHealthCheck : IHealthCheck
 | `GET /api/v1/startup`   | `200` once the process is serving. Asks no health check.                                      |
 | `GET /api/v1/readiness` | `200` when every registered health check is healthy or degraded, `503` when any is unhealthy. |
 
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json; charset=utf-8
+- The package doesn't check your dependencies. Add a check for each dependency the service can't
+  serve without.
+- When readiness answers `503`, its detail joins the descriptions of the unhealthy checks. Write a
+  description an operator can act on.
+- A check that failed with an exception, or has no description, is reported as "A dependency is not
+  ready.", so exception text never reaches the answer.
 
-{"status":"HEALTHY"}
-```
-
-```http
-HTTP/1.1 503 Service Unavailable
-Content-Type: application/json; charset=utf-8
-
-{"status":"UNHEALTHY","detail":"The widget store is not reachable."}
-```
-
-The `detail` joins the descriptions of the unhealthy checks. A check that failed with an exception,
-or has no description, is reported as "A dependency is not ready.", so exception text never reaches
-the answer.
-
-## Configuration
+## Settings
 
 | Setting                                                     | Default                                       | What it does                                                                        |
 | ----------------------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------- |
@@ -117,28 +108,27 @@ the answer.
 The switches turn exporters on or off only. Spans are created either way, so a trace continues
 through a service that exports nothing.
 
-### Security trade-offs
+## Security trade-offs
 
-- **Request lines.** Set `Microsoft.AspNetCore.Hosting.Diagnostics` lower only where no query string
-  ever carries a credential.
+- **Request lines.** ASP.NET Core's "Request starting" and "Request finished" lines carry the query
+  string, which can carry a credential (a sign-in link's token, a download link's token). The
+  package defaults their category to `Warning`. Set it lower only where no query string ever
+  carries a credential.
 - **Log scopes** carry organization, user and provider identifiers into every log record and span.
   They are identifiers, not Vault Data, but they say who did what: protect the log and trace
   backends accordingly.
 
-## What you decide
+## Things to know
 
-- **What you log.** The package adds identifiers; your messages add the rest. Never log a token, a
-  key or the value of an `[Encrypted]` member: Vault Data reaches a service only as Protected Data,
-  and must not leave it in a log.
-- **Health checks.** The package doesn't check your dependencies. Add a check per dependency the
-  service can't serve without, with a description an operator can act on.
-- **Instrumentation the package lacks.** Entity Framework Core and StackExchange.Redis are not
-  instrumented. SqlClient's spans cover SQL Server. Add other instrumentation with OpenTelemetry's
-  own registration in `ConfigureServices` if you need it.
+- **What you log is up to you.** The package adds identifiers; your messages add the rest. Never log
+  a token, a key or the value of an `[Encrypted]` member. Vault Data reaches a service only as
+  Protected Data, and must not leave it in a log.
+- **Some libraries aren't instrumented.** Entity Framework Core and StackExchange.Redis are not.
+  SqlClient's spans cover SQL Server. To add other instrumentation, use OpenTelemetry's own
+  registration in `ConfigureServices`.
 
 ## See also
 
 - [Defining a service](defining-a-service.md)
 - [Caller context](caller-context.md)
 - [Configuration and self-hosting](configuration-and-self-hosting.md)
-- [API standards](https://contributing.bitwarden.com/architecture/server/apis)

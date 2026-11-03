@@ -1,32 +1,10 @@
 # Authentication and authorization
 
-Every operation a service maps is authenticated and authorized unless it says otherwise. How a
-caller proves its identity and how a service authorizes an operation are the subject of a
-[forthcoming standard](https://contributing.bitwarden.com/architecture/server/apis#authentication-and-authorization);
-until it exists, this page describes what the package enforces.
+Every operation a service maps is authenticated and authorized unless it says otherwise. You
+declare what operations demand with `AuthorizationDefaults` on the service and `[Authorization]` on
+a handler or its class.
 
-## What the package does
-
-- **Closed by default.** A fallback authorization policy holds every endpoint to the service's
-  `Authorization` defaults, so a new endpoint is closed until someone opens it. A request without a
-  valid token is refused `401`; an authenticated caller who doesn't meet the requirements, `403`.
-- **Bearer tokens** are validated by Bitwarden.Server.Sdk.Authentication from
-  `Authentication:Schemes:Bearer:*`, as `at+jwt` access tokens.
-- **Token audiences are always checked.** A token is accepted only when its `aud` names the service
-  (`IServiceIdentity.Audience`, the identifier passed to `Service`). This is not a setting. A token
-  naming several audiences is accepted when one is this service's.
-- **Three levels of requirements,** most specific winning: the service's `AuthorizationDefaults`, an
-  `[Authorization]` on the handler class, and one on the handler.
-- **Scopes by kind of operation.** With `ReadScope` and `WriteScope` set, every read demands the
-  first and everything else (creates, updates, deletes, actions and their bulk forms) the second.
-- **Context requirements.** `Organization`, `User` and `Provider` are each `Required`, `Optional` or
-  `Forbidden`. The defaults are organization required, user optional and provider forbidden.
-- **Roles and permissions** (`OrganizationRole`, `Permission`, `ProviderRole`), read from a product
-  service's session through `ICallerRole`.
-- **The startup check** refuses to start a service when a declaration contradicts the operation's
-  authorization, for example a handler taking `Person` that doesn't require a user.
-
-## Example
+## Set the service's defaults
 
 Declare what most operations demand once, on the service:
 
@@ -60,8 +38,28 @@ internal sealed class WidgetService(string[] args) : Service("widget-service", "
 }
 ```
 
-Then say on an operation only where it differs. `Person` is the acting user as a parameter, and
-`IContext` (Bitwarden.Server.Sdk.Common) says whom the request concerns:
+- **Closed by default.** Every endpoint is held to these defaults, so a new endpoint is closed until
+  you open it. A request without a valid token is refused with `401`; an authenticated caller who
+  doesn't meet the requirements, with `403`.
+- **Scopes by kind of operation.** With `ReadScope` and `WriteScope` set, every read demands the
+  first, and everything else (creates, updates, deletes, actions and their bulk forms) the second.
+  Set both: without them, an operation that declares no scope demands none.
+- **Context requirements.** `Organization`, `User` and `Provider` are each `Required`, `Optional` or
+  `Forbidden`. Unless you set them, an organization is required, a user optional and a provider
+  forbidden. A missing or unwanted context is refused with `403`, naming what is wrong.
+- **Tokens.** Bitwarden.Server.Sdk.Authentication validates bearer tokens from
+  `Authentication:Schemes:Bearer:*`, as `at+jwt` access tokens.
+- **Audiences are always checked.** A token is accepted only when its `aud` names the service
+  (`IServiceIdentity.Audience`, the identifier passed to `Service`). This is not a setting. A token
+  naming several audiences is accepted when one is this service's.
+- **Extra audiences** you add, as above, are accepted at every endpoint. Keeping one to the surface
+  that needs it is up to you.
+
+## Declare what an operation needs
+
+Say on an operation only where it differs from the defaults. The most specific declaration wins: a
+handler's `[Authorization]`, then its class's, then the service's defaults. `Person` is the acting
+user as a parameter, and `IContext` (Bitwarden.Server.Sdk.Common) says whom the request concerns:
 
 ```csharp
 using Bitwarden.Server.Sdk.Common;
@@ -110,31 +108,22 @@ public static class WidgetsEndpoints
 }
 ```
 
-A caller without a token, and one missing the scope, see:
+- A caller without a token gets `401`. A caller without `widgets.admin` gets `403` from
+  `DeleteSharedWidget`, naming the scope.
+- The service doesn't start when a declaration contradicts the operation's authorization, for
+  example a handler taking `Person` that doesn't require a user.
+- Authorization decides whether a caller may invoke an operation, not which rows it reaches. Filter
+  your queries by `IContext`, as `GetWidget` does, or replace `IRowOwnership`
+  (Bitwarden.Server.Sdk.Common).
 
-```http
-HTTP/1.1 401 Unauthorized
-Content-Type: application/json; charset=utf-8
+## Require roles and permissions (product services)
 
-{"errors":[{"status":"401","code":"unauthenticated","title":"The caller is not authenticated.","detail":"A valid access token is required."}]}
-```
+Roles and permissions come from a person's session, read through `ICallerRole`, so they apply in a
+product service. Set `OrganizationRole`, `Permission` or `ProviderRole` on `[Authorization]`.
 
-```http
-HTTP/1.1 403 Forbidden
-Content-Type: application/json; charset=utf-8
-
-{"errors":[{"status":"403","code":"forbidden","title":"The caller is not permitted to do this.","detail":"The 'widgets.admin' scope is required."}]}
-```
-
-A missing or unwanted context is refused `403` too, naming what is wrong: in a domain service "The
-'Bitwarden-Organization' header is required.", in a product service "The session must name an
-organization."
-
-### Roles, permissions and `IAuthorizesOperation` (product services)
-
-Roles and permissions come from a person's session, so they apply in a product service. A role is
-satisfied by it or any role above it (`User`, `Custom`, `Admin`, `Owner`), and an owner or
-administrator holds every permission. A role counts only in the organization the session names.
+- A role is satisfied by it or any role above it (`User`, `Custom`, `Admin`, `Owner`).
+- An owner or administrator holds every permission.
+- A role counts only in the organization the session names.
 
 For a check `[Authorization]` can't express, write an attribute implementing `IAuthorizesOperation`.
 It runs after authorization and before anything is bound or validated, on a handler or its class.
@@ -196,11 +185,11 @@ public static class SharedWidgetsEndpoints
 }
 ```
 
-### Tokens from another issuer
+## Validate a token from another issuer
 
-`DiscoveredIssuerTokens` verifies an access token another OpenID Connect issuer signed: a key its
-discovery document publishes, the issuer the document names, the lifetime with five minutes' skew,
-and the type `at+jwt`. It does not check the audience; check it yourself if the issuer sets one.
+`DiscoveredIssuerTokens` verifies an access token another OpenID Connect issuer signed. It checks
+that a key the issuer's discovery document publishes signed it, the issuer the document names, the
+lifetime with five minutes' skew, and the type `at+jwt`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Service;
@@ -213,13 +202,16 @@ var result = await issuer.ValidateAsync(token, cancellationToken);
 var subject = result.IsValid ? result.ClaimsIdentity.FindFirst("sub")?.Value : null;
 ```
 
-### Other declarations
+It doesn't check the audience. If the issuer sets one, compare `aud` in `result.ClaimsIdentity`
+with the value you expect before you trust the token.
 
-These go on one handler each, and the service refuses to start when one contradicts the operation's
-authorization:
+## Other declarations
 
-- **`Anonymous = true`** opens an operation to callers with no token. Nothing that touches a
-  caller's data should set it.
+These go on one handler each. The service doesn't start when one contradicts the operation's
+authorization.
+
+- **`Anonymous = true`** on `[Authorization]` opens an operation to callers with no token. Nothing
+  that touches a caller's data should set it.
 - **`[AnyScope("a.read", "a.invitations")]`** admits a caller holding any one of several scopes. The
   operation then decides what each scope may ask, with `CallerScopes.Holds(principal, scope)`.
 - **`[AcceptsOrganizationCredential(scope)]`** and **`[AcceptsSendCredential]`** (product services)
@@ -229,7 +221,7 @@ authorization:
 - **`[AcceptsAssertedContext(reason, callers)]`** (domain services): see
   [Caller context](caller-context.md).
 
-## Configuration
+## Settings
 
 | Setting                                   | Default | What it does                                                                                                                                   |
 | ----------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -238,24 +230,21 @@ authorization:
 | `Tls:RequireHttps`                        | `false` | When true, the bearer authority must be `https://`, or the service does not start.                                                             |
 | `Service:PublicIdentityUrl`               | None    | Where a browser reaches Identity, for the documentation UI's token request. Must be absolute `http` or `https`, or the service does not start. |
 
-## What you decide
+## Things to know
 
-- **Scopes.** Set `ReadScope` and `WriteScope`. Without them an operation that declares no scope
-  demands none, a gap nobody sees.
-- **Extra audiences.** A service accepting another audience is responsible for keeping it to the one
-  surface that needs it: the package adds it for every endpoint.
-- **Row ownership.** Authorization says whether a caller may invoke an operation, not which rows it
-  reaches. Filter your queries by `IContext` (or replace `IRowOwnership`, from
-  Bitwarden.Server.Sdk.Common).
-- **Roles in a domain service.** `ICallerRole` answers `None` there, so an operation demanding a
-  role refuses every call. The package does not refuse such a declaration at startup; keep roles on
-  product services.
-- **Zero knowledge.** A token carries identifiers and scopes, never a key. Authorization never needs
-  to read Vault Data, which reaches the service only as Protected Data.
+- **Roles don't work in a domain service.** `ICallerRole` answers `None` there, so an operation
+  demanding a role refuses every call with `403`. The package doesn't refuse such a declaration at
+  startup. Keep role requirements on product services, and in a domain service authorize by scope
+  and context instead.
+- **Extra audiences reach every endpoint.** If only one surface should accept another audience,
+  check `aud` yourself in an `IAuthorizesOperation` on the other operations, or host that surface in
+  its own service.
+- **Tokens carry no keys.** A token carries identifiers and scopes. Authorization never needs to
+  read Vault Data, which reaches the service only as Protected Data.
 
 ## See also
 
 - [Caller context](caller-context.md)
 - [Defining a service](defining-a-service.md)
 - [Outbound HTTP](outbound-http.md)
-- [API standards: Authentication and authorization](https://contributing.bitwarden.com/architecture/server/apis#authentication-and-authorization)
+- [Errors](../payloads-and-responses/errors.md)

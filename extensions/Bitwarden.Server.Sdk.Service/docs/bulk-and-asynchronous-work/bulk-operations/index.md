@@ -1,60 +1,26 @@
 # Bulk operations
 
-The standard lets a caller create, update, replace, delete or act on many resources in one
-request, as shorthand for calling the single-resource API once per resource. The package gives
-each bulk operation an attribute and a request type, checks the request's targeting and atomicity
-before your handler runs, and publishes both in the OpenAPI document. Every bulk operation it
-provides responds synchronously. The standard:
-[Bulk operations](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations).
+A bulk operation lets a caller create, update, replace, delete or act on many resources in one
+request. You declare each one with a bulk attribute and take its request type in the handler; the
+package checks the request's targeting and atomicity before your handler runs.
 
-## What the package does
+## Declare bulk operations
 
-Each operation is a `POST` to a suffix on the collection. The attribute names the collection's path
-and the handler takes the matching request type, all in
-`Bitwarden.Server.Sdk.Service.Querying` except the attributes, which are in
-`Bitwarden.Server.Sdk.Service`.
+Each bulk operation is a `POST` to a suffix on the collection, such as `api/v1/widgets:bulk-delete`.
+The attributes are in `Bitwarden.Server.Sdk.Service`; the request and result types are in
+`Bitwarden.Server.Sdk.Service.Querying`.
 
-| Operation                          | Attribute                                    | Request type                               | Route                        | Targeting                                  |
-| ---------------------------------- | -------------------------------------------- | ------------------------------------------ | ---------------------------- | ------------------------------------------ |
-| [Bulk create](./bulk-creates.md)   | `[StandardBulkCreate(collection)]`           | `BulkCreate<T>`                            | `{collection}:bulk-create`   | `data`                                     |
-| [Bulk update](./bulk-updates.md)   | `[StandardBulkUpdate(collection)]`           | `BulkUpdate<T>`                            | `{collection}:bulk-update`   | `ids` or `filter`, plus `update`           |
-| [Bulk replace](./bulk-replaces.md) | `[StandardBulkReplace(collection)]`          | `BulkReplace<T>`                           | `{collection}:bulk-replace`  | `data`                                     |
-| [Bulk delete](./bulk-deletes.md)   | `[StandardBulkDelete(collection)]`           | `BulkDelete<T>`                            | `{collection}:bulk-delete`   | `ids` or `filter`                          |
-| [Bulk action](./bulk-actions.md)   | `[StandardBulkAction(collection, "action")]` | `BulkAction<T>` or `BulkAction<T, TInput>` | `{collection}:bulk-{action}` | `ids` or `filter`, plus an optional `data` |
+| Operation                          | Attribute                                    | Request type                               | Route                        |
+| ---------------------------------- | -------------------------------------------- | ------------------------------------------ | ---------------------------- |
+| [Bulk create](./bulk-creates.md)   | `[StandardBulkCreate(collection)]`           | `BulkCreate<T>`                            | `{collection}:bulk-create`   |
+| [Bulk update](./bulk-updates.md)   | `[StandardBulkUpdate(collection)]`           | `BulkUpdate<T>`                            | `{collection}:bulk-update`   |
+| [Bulk replace](./bulk-replaces.md) | `[StandardBulkReplace(collection)]`          | `BulkReplace<T>`                           | `{collection}:bulk-replace`  |
+| [Bulk delete](./bulk-deletes.md)   | `[StandardBulkDelete(collection)]`           | `BulkDelete<T>`                            | `{collection}:bulk-delete`   |
+| [Bulk action](./bulk-actions.md)   | `[StandardBulkAction(collection, "action")]` | `BulkAction<T>` or `BulkAction<T, TInput>` | `{collection}:bulk-{action}` |
 
-The standard gives every bulk operation three properties. This is how the package handles each:
-
-| Property                                         | The standard                | The package                                                                                                                                                                            |
-| ------------------------------------------------ | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Targeting](./targeting.md)                      | `data`, `ids` or `filter`   | `Targeting` on the update, delete and action attributes (`Ids`, `Filter`, or `Either`, the default). Exactly one form is accepted, and a `filter` may name only `[Filterable]` fields. |
-| [Atomicity](./all-or-nothing-and-best-effort.md) | All-or-nothing, best-effort | `Supports` on every bulk attribute (`Atomicity.AllOrNothing` by default). The caller's `atomic` parameter is checked against it and handed to you as `request.Atomicity`.              |
-| [Execution](./synchronous-and-asynchronous.md)   | Synchronous, asynchronous   | Synchronous only. The package has no `202 Accepted`, no [job](../jobs.md) and no handling of `Prefer: respond-async`.                                                                  |
-
-- **Documentation.** The standard requires every bulk API to document its targeting, its atomicity
-  modes and default, and whether it responds synchronously. The package publishes the `atomic`
-  query parameter with its default and, for a single-mode operation, its only allowed value. It
-  writes the request body's description from the attribute, naming the targeting it accepts
-  ("named by 'ids'", for example). Say that the operation responds synchronously, and its maximum,
-  in the handler's XML documentation.
-- **Checked before your handler runs,** and refused `422`:
-    - both `ids` and `filter`, neither, or a form the operation does not accept;
-    - a `filter` that is empty, uses an operator outside the eleven the standard allows, or names a
-      field the resource does not mark `[Filterable]`;
-    - an `atomic` value the operation does not support.
-- **Success.** A bulk operation answers `200 OK` with what its handler returns: a `BulkResult`
-  (counts and, for best-effort, errors) or, for a bulk create, a `BulkCreatedDocument<T>`. A
-  handler that returns nothing answers `204`. See [Bulk responses](./bulk-responses.md).
-- **The service refuses to start** when a bulk endpoint's `Map` line disagrees with its attribute's
-  route, when a handler takes a `BulkUpdate<T>`, `BulkDelete<T>`, `BulkAction<T>` or `Search<T>`
-  without the matching attribute (its filter would reach the handler unchecked), and when a bulk
-  action is named `create`, `update`, `replace` or `delete`.
-
-## Example
-
-The routes are a suffix on the collection (`api/v1/widgets:bulk-delete`) rather than a segment
-beneath it, and a route group can only join with a slash. So declare the collection's path as a
-constant, pass it to each bulk attribute, and map bulk endpoints on the route builder itself,
-each with `WithStandards()`:
+A route group can only join with a slash, so a suffix can't hang off a group. Declare the
+collection's path as a constant, pass it to each bulk attribute, and map each bulk endpoint on the
+route builder itself with `WithStandards()`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Service;
@@ -145,35 +111,49 @@ public static class WidgetsEndpoints
 }
 ```
 
-A caller asking for a mode an operation does not support is refused before the handler runs:
+- **Targeting.** `Targeting` on the update, delete and action attributes picks `Targeting.Ids`,
+  `Targeting.Filter` or `Targeting.Either` (the default). Creates and replaces take `data`. See
+  [Targeting](./targeting.md).
+- **Atomicity.** `Supports` on every bulk attribute picks `Atomicity.AllOrNothing` (the default),
+  `Atomicity.BestEffort`, or both. The caller's choice reaches you as `request.Atomicity`. See
+  [All-or-nothing and best-effort](./all-or-nothing-and-best-effort.md).
+- **The result.** Return a `BulkResult`, or a `BulkCreatedDocument<T>` from a bulk create, and the
+  operation answers `200`. Return nothing (`Task`) and it answers `204`. See
+  [Bulk responses](./bulk-responses.md).
+- **The maximum.** Call `BulkRequests.RequireAtMost(count, maximum, pointer)` before touching any
+  resource. The package has no default maximum.
 
-```http
-POST /api/v1/widgets:bulk-archive?atomic=false
-Content-Type: application/json
+## What the package checks for you
 
-{"ids":[]}
-```
+Before your handler runs, the package refuses with `422`:
 
-```http
-HTTP/1.1 422 Unprocessable Entity
-Content-Type: application/json; charset=utf-8
+- a request with both `ids` and `filter`, with neither, or with a form the attribute's `Targeting`
+  excludes;
+- a `filter` that is empty, uses an operator the expression language doesn't have, or names a
+  field the resource doesn't mark `[Filterable]`;
+- an `atomic` value the operation doesn't support, or one that is neither `true` nor `false`.
 
-{"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"This operation is all-or-nothing and does not support 'atomic=false'. Every resource it touches succeeds, or none of them does.","source":{"pointer":"/atomic"}}]}
-```
+It also publishes the `atomic` query parameter, with its default, in the OpenAPI document, and
+describes the request body with the targeting it accepts.
 
-## What you decide
+## When the service refuses to start
 
-- **Which combination each operation offers.** Targeting, atomicity and execution are each the
-  operation's choice. The standard's guide: all-or-nothing when a partial result would leave
-  related resources inconsistent, best-effort when each resource stands alone (as in an import),
-  and synchronous when the set is small, bounded and cheap to process.
-- **The maximum.** Each operation documents how many items it takes and refuses more with
-  `BulkRequests.RequireAtMost`. See [Targeting](./targeting.md).
-- **The per-resource rules.** The package checks the request. Holding each resource to the
-  single-resource API's authorization, validation, business rules and side effects is your
-  handler's job. See [Per-resource rules](./per-resource-rules.md).
-- **Asynchronous execution.** Not provided. See
-  [Synchronous and asynchronous](./synchronous-and-asynchronous.md) and [Jobs](../jobs.md).
+- A bulk endpoint's `Map` route disagrees with its attribute's route.
+- A handler takes `BulkUpdate<T>`, `BulkDelete<T>`, `BulkAction<T>` or `Search<T>` without the
+  matching attribute. Its filter would otherwise reach the handler unchecked.
+- A bulk action is named `create`, `update`, `replace` or `delete`.
+
+## Things to know
+
+- **Per-resource rules are yours.** The package checks the request as a whole. Holding each
+  resource to the single-resource API's authorization, validation, business rules and side effects
+  is your handler's job. See [Per-resource rules](./per-resource-rules.md).
+- **Say how the operation behaves.** The package doesn't document the maximum or that the
+  operation responds synchronously. Write both in the handler's XML documentation `<remarks>`.
+- **Every bulk operation is synchronous.** The package has no asynchronous execution and no job
+  resource. See [Synchronous and asynchronous](./synchronous-and-asynchronous.md).
+- **Choosing a mode.** Offer all-or-nothing when a partial result would leave related resources
+  inconsistent, and best-effort when each resource stands alone, as in an import.
 
 ## See also
 
@@ -185,8 +165,5 @@ Content-Type: application/json; charset=utf-8
   [Bulk replaces](./bulk-replaces.md), [Bulk deletes](./bulk-deletes.md) and
   [Bulk actions](./bulk-actions.md)
 - [Jobs](../jobs.md)
-- The standard:
-  [Bulk operations](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations)
-- `[StandardSearch]` and `Search<T>`, the read-only `POST {collection}:search`, share the
-  expression language:
-  [Advanced queries](https://contributing.bitwarden.com/architecture/server/apis/advanced-queries)
+- [Advanced queries](../../querying/advanced-queries.md), for the filter expressions and for
+  `[StandardSearch]`, which shares them

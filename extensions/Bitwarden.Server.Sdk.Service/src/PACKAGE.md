@@ -98,8 +98,8 @@ The packages this one registers read their own settings: `Features:*` for featur
 variables, such as `OTEL_EXPORTER_OTLP_ENDPOINT`.
 
 The settings that carry a security trade-off are explained where they're used:
-[trusted proxies, rate limits and browser origins](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/beyond-the-standards/network-and-request-limits.md#security-trade-offs),
-[internal TLS](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/beyond-the-standards/outbound-http.md#security-trade-offs) and the
+[trusted proxies, rate limits and browser origins](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/running-a-service/network-and-request-limits.md#security-trade-offs),
+[internal TLS](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/running-a-service/outbound-http.md#security-trade-offs) and the
 [documentation token URL](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/contracts/openapi.md).
 
 ## Getting started
@@ -147,14 +147,13 @@ public static class WidgetsEndpoints
 The project needs the request delegate generator and XML documentation turned on, as the README
 shows.
 
-The [README](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/src/README.md#getting-started)
+The [README](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/README.md#getting-started)
 walks through a complete first service: the project file, a resource, running it and calling it.
 
 ## Documentation
 
 The [developer guide](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/README.md) covers how to write a service with this package, one topic per
-page with code samples. It follows the structure of Bitwarden's
-[API standards](https://contributing.bitwarden.com/architecture/server/apis):
+page with code samples:
 
 - **Contracts:** [OpenAPI](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/contracts/openapi.md), [API paths](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/contracts/api-paths.md),
   [breaking changes and versioning](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/contracts/breaking-changes-and-versioning.md),
@@ -179,11 +178,11 @@ page with code samples. It follows the structure of Bitwarden's
   [advanced queries](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/querying/advanced-queries.md).
 - **Bulk and asynchronous work:** [bulk operations](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/bulk-and-asynchronous-work/bulk-operations/index.md)
   and [jobs](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/bulk-and-asynchronous-work/jobs.md).
-- **Beyond the API standards:** [defining a service](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/beyond-the-standards/defining-a-service.md),
-  [authentication and authorization](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/beyond-the-standards/authentication-and-authorization.md),
-  [caller context](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/beyond-the-standards/caller-context.md),
-  [configuration and self-hosting](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/beyond-the-standards/configuration-and-self-hosting.md),
-  [network and request limits](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/beyond-the-standards/network-and-request-limits.md),
-  [outbound HTTP](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/beyond-the-standards/outbound-http.md),
-  [observability and health](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/beyond-the-standards/observability-and-health.md),
-  [caching and extensions](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/beyond-the-standards/caching-and-extensions.md).
+- **Running a service:** [defining a service](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/running-a-service/defining-a-service.md),
+  [authentication and authorization](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/running-a-service/authentication-and-authorization.md),
+  [caller context](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/running-a-service/caller-context.md),
+  [configuration and self-hosting](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/running-a-service/configuration-and-self-hosting.md),
+  [network and request limits](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/running-a-service/network-and-request-limits.md),
+  [outbound HTTP](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/running-a-service/outbound-http.md),
+  [observability and health](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/running-a-service/observability-and-health.md),
+  [caching and extensions](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/running-a-service/caching-and-extensions.md).

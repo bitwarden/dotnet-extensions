@@ -1,35 +1,12 @@
 # Reading resources
 
-The standard reads a collection with `GET /api/v1/{plural}` and one resource with
-`GET /api/v1/{plural}/{id}`, both answering `200`. The package gives each an attribute, response
-helpers that build the document and its paging links, and query types that bind the caller's
-paging, filters, sort and fields. The standard:
-[Reading resources](https://contributing.bitwarden.com/architecture/server/apis/reading-resources).
+To read a collection, write a handler with `[StandardReadMany]` that returns
+`ReadManyResponse(...)`. To read one resource, write a handler with `[StandardReadOne]` that returns
+`ReadOneResponse(...)`. Paging, filters, sort and sparse fieldsets are handler parameters.
 
-## What the package does
+## Read a collection and a single resource
 
-| The standard                                    | The package                                                                                |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Read many: the verb `MUST` be `GET`             | `[StandardReadMany]` is a `GET`; the service won't start if its `Map` line uses another.   |
-| Read many: the path `SHOULD` be the collection  | `[StandardReadMany]` defaults to the group's own route.                                    |
-| Read one: the verb `MUST` be `GET`              | `[StandardReadOne]` is a `GET`, checked the same way.                                      |
-| Read one: the path `SHOULD` be `/{plural}/{id}` | `[StandardReadOne]` defaults to `{id}`; the `Map` line must use it.                        |
-| Success `MUST` be `200`                         | `200` for both. A read many that finds nothing answers `200` with an empty `data`.         |
-| Each service declares what can be queried       | Query parameters are handler parameters; a `filter[...]` no parameter declares is refused. |
-
-- **`ReadOneResponse(resource)`** builds a single-resource document, and
-  `ReadOneResponse(resource, fields)` leaves out the attributes a sparse fieldset didn't ask for.
-- **`ReadManyResponse`** has three forms: a whole list (`IReadOnlyList<T>`), an offset page
-  (`Paged<T>` and the `Page` asked for), and a cursor page (`CursorPaged<T>` and the `CursorPage`).
-  A paged answer carries `meta` and links built from the request, keeping the caller's filters and
-  sort.
-- **Not found is `404`.** Throw `NotFoundException` (Bitwarden.Server.Sdk.Common) and the caller
-  gets the standard error document.
-- **Reads demand the read scope** unless the operation declares a scope of its own.
-
-## Example
-
-A paged collection and a single widget, both honouring a sparse fieldset:
+Map the collection read at `""` and the single read at `{id}`, both with `MapGet`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Common;
@@ -80,92 +57,43 @@ public static class WidgetsEndpoints
 }
 ```
 
-`IWidgetStore.ListAsync` returns a `Paged<Widget>`: the page's widgets and the total. A store that
-queries with Entity Framework Core uses `Page(page)` and `ToPagedAsync`; one holding a list in
-memory uses `ToPaged(page)`. See [Paging](../querying/paging.md).
+- **Query parameters bind to handler parameters.** `Fields<Widget>` binds a sparse fieldset, and
+  `PageNumber` and `PageSize` bind the page asked for. A `filter[...]` that no parameter declares is
+  refused.
+- **Both reads answer `200`.** A collection read that finds nothing answers `200` with an empty
+  list, so don't throw for an empty page.
+- **Throw `NotFoundException`** (from `Bitwarden.Server.Sdk.Common`) for a resource that doesn't
+  exist, and the caller gets `404` in the standard error document.
+- **Reads demand the service's read scope** unless the operation declares a scope of its own.
 
-Reading the second page of one widget each:
+## Build the response
 
-```http
-GET /api/v1/widgets?page[size]=1&page[number]=2
-Accept: application/json
-```
+- `ReadOneResponse(resource)` builds a single-resource document. `ReadOneResponse(resource, fields)`
+  leaves out the attributes a sparse fieldset didn't ask for.
+- `ReadManyResponse` has three forms: a whole list (`IReadOnlyList<T>`), an offset page (`Paged<T>`
+  and the `Page` asked for), and a cursor page (`CursorPaged<T>` and the `CursorPage`). A paged
+  response carries the counts and the paging links, built from the request so they keep the caller's
+  filters and sort.
+- Your store returns the `Paged<Widget>`: the page's widgets and the total. A store that queries
+  with Entity Framework Core uses `Page(page)` and `ToPagedAsync`; one holding a list in memory uses
+  `ToPaged(page)`. See [Paging](../querying/paging.md).
+- Return an `[Encrypted]` member as it was stored. Never decrypt it.
 
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json; charset=utf-8
-```
+## Things to know
 
-```json
-{
-    "data": [
-        {
-            "id": "cacba8c1-29fa-4018-8950-acd400ec76b7",
-            "type": "widget",
-            "attributes": { "name": "Cog" }
-        }
-    ],
-    "meta": { "pageCount": 2, "pageNumber": 2, "pageSize": 1, "totalCount": 2 },
-    "links": {
-        "first": "/api/v1/widgets?page[number]=1&page[size]=1",
-        "prev": "/api/v1/widgets?page[number]=1&page[size]=1",
-        "last": "/api/v1/widgets?page[number]=2&page[size]=1"
-    }
-}
-```
-
-Reading one widget. `notes` is ciphertext, returned as it was stored:
-
-```http
-GET /api/v1/widgets/62bed180-1f78-45d4-8a56-c996936a2947
-Accept: application/json
-```
-
-```json
-{
-    "data": {
-        "id": "62bed180-1f78-45d4-8a56-c996936a2947",
-        "type": "widget",
-        "attributes": {
-            "name": "Sprocket",
-            "notes": "2.AAAA|BBBB|CCCC"
-        }
-    }
-}
-```
-
-A widget that doesn't exist:
-
-```json
-{
-    "errors": [
-        {
-            "status": "404",
-            "code": "not-found",
-            "title": "The resource does not exist.",
-            "detail": "No widget with ID 'missing' exists."
-        }
-    ]
-}
-```
-
-## What you decide
-
-- **Whom a read reaches.** Answer `404`, not `403`, for a resource the caller may not know exists,
-  and limit a collection to what the caller may see. The package authorizes the operation, not the
-  rows. See
-  [Authentication and authorization](../beyond-the-standards/authentication-and-authorization.md).
-- **What can be queried.** Declare each filter, the sortable fields and the paging style as
-  parameters and attributes. Each query has to be indexed and authorized, so offer only what callers
-  need. See [Filtering](../querying/filtering.md), [Sorting](../querying/sorting.md) and
-  [Sparse fieldsets](../querying/sparse-fieldsets.md).
-- **Paged or whole.** Return `ResourceListDocument<T>` only for a collection that is small by
-  nature; page anything that grows.
-- **Soft-deleted resources.** See [Soft deletes](deleting-resources.md#soft-deletes).
+- **The package authorizes the operation, not the rows.** Limit a collection to what the caller may
+  see, and throw `NotFoundException` rather than refusing with `403` for a resource the caller may
+  not know exists. See [Authentication and
+  authorization](../running-a-service/authentication-and-authorization.md).
+- **Offer only the queries callers need.** Each filter and sortable field has to be indexed and
+  authorized. Declare them as parameters and attributes; see [Filtering](../querying/filtering.md),
+  [Sorting](../querying/sorting.md) and [Sparse fieldsets](../querying/sparse-fieldsets.md).
+- **Page anything that grows.** Return `ResourceListDocument<T>` only for a collection that is small
+  by nature.
+- **Soft-deleted resources** are yours to leave out. See [Soft
+  deletes](deleting-resources.md#soft-deletes).
 
 ## See also
 
 - [Paging](../querying/paging.md) and [Advanced queries](../querying/advanced-queries.md)
 - [Standard responses](../payloads-and-responses/standard-responses.md)
-- The standard:
-  [Reading resources](https://contributing.bitwarden.com/architecture/server/apis/reading-resources)

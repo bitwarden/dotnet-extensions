@@ -1,25 +1,11 @@
 # Bulk replaces
 
-A bulk replace is `PUT` once per resource in `data`: each item carries its `id`, a field left out is
-cleared, and a service with optimistic concurrency checks each item's `version`. The package reads
-each item as the single replace reads it; checking the `id`s and versions and applying the replace
-is your handler's job. The standard:
-[Bulk replaces](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations/bulk-replaces).
+A bulk replace replaces each resource in `data`, as a single `PUT` would: each item carries its
+`id`, and a field left out is cleared. Declare it with `[StandardBulkReplace(collection)]` and
+take a `BulkReplace<T>`; checking the `id`s and versions and applying the replace is your
+handler's job.
 
-## What the package does
-
-| The standard's rule                                                       | The package                                                                                                                                                                                              |
-| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Each item shaped as the single replace expects it                         | `BulkReplace<T>.Data` holds the resources, each enveloped on the wire with `id`, `type` and `attributes`. An item of another `type` is refused `422` at `/data/{n}/type`.                                |
-| Each item carries its `id` (`MUST`)                                       | Not enforced. Refuse an item without one, as below.                                                                                                                                                      |
-| `data` never names a resource twice (`MUST NOT`)                          | Not enforced. `BulkRequests.RequireDistinct` points at `/ids/{n}`, so check `data` yourself, as below.                                                                                                   |
-| Check each item's `version`; a mismatch is a `409` for that item (`MUST`) | `Concurrency.Require(sent, stored)` throws `ConflictException` when the caller sent a `version` that no longer matches, and passes a caller who sent none. `BulkFailure.At` turns it into a `409` error. |
-| Create-or-update when the single `PUT` supports it (`MAY`)                | Yours to implement.                                                                                                                                                                                      |
-
-`[StandardBulkReplace(collection)]` maps `POST {collection}:bulk-replace`, and `Supports` sets the
-atomicity modes.
-
-## Example
+## Replace many resources
 
 This replace supports both modes. Request-level problems refuse the whole request; a missing or
 changed widget fails on its own:
@@ -103,54 +89,37 @@ public static class WidgetsEndpoints
 }
 ```
 
-`BulkRefusals.For` is the helper from [Bulk responses](./bulk-responses.md): it answers `409`
-when every failure is a conflict and `422` otherwise. An all-or-nothing replace sent with an old
-version:
+What the package does for you:
 
-```http
-POST /api/v1/widgets:bulk-replace
-Content-Type: application/json
+- **Maps `POST {collection}:bulk-replace`.** `Supports` sets the atomicity modes.
+- **Reads each item as the single replace reads it.** `request.Data` holds the resources. An item
+  of another `type` is refused with `422` at `/data/{n}/type`.
+- **`Concurrency.Require(sent, stored)`** throws `ConflictException` when the caller sent a
+  `version` that no longer matches, and passes a caller who sent none. `BulkFailure.At` turns it
+  into a `409` failure.
 
-{"data":[{"id":"62bed180-1f78-45d4-8a56-c996936a2947","type":"widget","attributes":{"name":"Sprocket","version":"3"}}]}
-```
+What you do:
 
-```http
-HTTP/1.1 409 Conflict
-Content-Type: application/json; charset=utf-8
+- **Check each item's `id`.** The package doesn't check that each item carries one or that none
+  repeats, and `BulkRequests.RequireDistinct` points at `/ids/{n}`, so it can't be used on `data`.
+  Check them yourself with a `HashSet` and refuse with `422` at `/data/{n}/id`, as above.
+- **Answer `409` for an all-or-nothing failure made only of conflicts.** `BulkRefusedException`
+  always answers `422`. `BulkRefusals.For`, the helper on [Bulk responses](./bulk-responses.md),
+  answers `409` when every failure is a conflict and `422` otherwise.
+- **Increment the version** of every widget you replace.
 
-{"errors":[{"status":"409","code":"conflict","title":"The request conflicts with the current state.","detail":"The resource has changed since it was last read. Read it again and retry.","source":{"pointer":"/data/0"}}]}
-```
+## Things to know
 
-The same item beside a current one, best-effort:
-
-```http
-POST /api/v1/widgets:bulk-replace?atomic=false
-Content-Type: application/json
-
-{"data":[{"id":"62bed180-1f78-45d4-8a56-c996936a2947","type":"widget","attributes":{"name":"Sprocket","version":"3"}},{"id":"cacba8c1-29fa-4018-8950-acd400ec76b7","type":"widget","attributes":{"name":"Gear","version":"7"}}]}
-```
-
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json; charset=utf-8
-
-{"meta":{"affectedCount":1,"failedCount":1},"errors":[{"status":"409","code":"conflict","title":"The request conflicts with the current state.","detail":"The resource has changed since it was last read. Read it again and retry.","source":{"pointer":"/data/0"}}]}
-```
-
-## What you decide
-
-- **The maximum,** documented and enforced with `RequireAtMost`.
-- **Whether a missing widget is created.** Only if the single `PUT` does so. Otherwise it is a
-  `404` failure of that item, as above.
+- **A missing resource is a `404` failure of that item,** unless the single `PUT` creates
+  resources. Then the bulk replace may too; the package leaves that to you.
 - **Where a failure points.** The example points at the item (`/data/{n}`). A validation failure
   of one attribute can point deeper (`/data/{n}/attributes/name`).
+- **Protected Data passes through untouched.** `notes` is stored as sent and never read.
 
 ## See also
 
 - [Bulk operations](./index.md)
 - [Bulk updates](./bulk-updates.md), which change some fields rather than replacing all of them
 - [Bulk responses](./bulk-responses.md)
-- The standard:
-  [Bulk replaces](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations/bulk-replaces),
-  [Updating resources](https://contributing.bitwarden.com/architecture/server/apis/updating-resources)
-  and [Optimistic concurrency](https://contributing.bitwarden.com/architecture/server/apis/optimistic-concurrency)
+- [Updating resources](../../operations/updating-resources.md) and
+  [Optimistic concurrency](../../operations/optimistic-concurrency.md)

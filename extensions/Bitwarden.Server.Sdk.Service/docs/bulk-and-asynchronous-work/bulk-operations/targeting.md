@@ -1,37 +1,24 @@
 # Targeting
 
-A bulk request names its resources in exactly one way: `data` (each item carries its own content),
-`ids`, or a `filter` expression. It never reaches a resource the caller could not reach one at a
-time. The package reads the form, refuses a request that supplies the wrong number of them, and
-checks the expression; keeping the request within the caller's reach is your handler's job. The
-standard:
-[Targeting](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations/targeting).
+A bulk request names its resources in exactly one way: `data` (each item carries its own
+content), `ids`, or a `filter` expression. You choose which forms an operation accepts with
+`Targeting` on its attribute, and read them from `request.Ids` and `request.Filter`.
 
-## What the package does
+## Choose which forms an operation accepts
 
 `BulkUpdate<T>`, `BulkDelete<T>` and the `BulkAction` types derive from `BulkTargeting<T>`, which
-carries `Ids` (`IReadOnlyList<string>?`) and `Filter` (`Query?`). `BulkCreate<T>` and
+carries `Ids` (`IReadOnlyList<string>?`) and `Filter` (`Query?`). Set `Targeting` on the attribute
+to `Targeting.Ids`, `Targeting.Filter` or `Targeting.Either` (the default). `BulkCreate<T>` and
 `BulkReplace<T>` carry `Data` instead.
 
-| The standard's rule                                        | The package                                                                                                                                                                                                                                                           |
-| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Exactly one form of targeting (`MUST`)                     | Both `ids` and `filter` is refused `422` at `/ids`; neither is refused `422` at `/ids`, saying which form the operation accepts. A form the attribute's `Targeting` excludes is refused `422` at `/ids` or `/filter`.                                                 |
-| A `filter` is not empty (`MUST NOT`)                       | `{}` is refused `422`. An expression may use only `var`, `==`, `!=`, `>`, `>=`, `<`, `<=`, `in`, `and`, `or` and `!`, hold at most 500 terms (`Query.MaxTerms`), and name only fields the resource marks `[Filterable]`. Anything else is refused `422` at `/filter`. |
-| `ids` and `data` never name a resource twice (`MUST NOT`)  | `BulkRequests.RequireDistinct(ids)` refuses a repeated identifier `422` at its second position, compared without regard to case. You call it. Two bulk-create items sharing a `lid` are refused by the platform. Repeated `id`s in a bulk replace are yours to check. |
-| An empty `ids` or `data` is valid                          | Accepted. `{"ids":[]}` reaches your handler, and `BulkResult.Affected(0)` answers `{"meta":{"affectedCount":0}}`.                                                                                                                                                     |
-| More than the documented maximum is refused `422` (`MUST`) | `BulkRequests.RequireAtMost(count, maximum, pointer)`. You call it, with the maximum you document.                                                                                                                                                                    |
-| Targeting never widens the caller's reach (`MUST NOT`)     | Not enforced by the package. Start every lookup from what the caller may see, as below.                                                                                                                                                                               |
+- `ids` suits a caller that knows exactly which resources it means and wants each missing one
+  reported.
+- `filter` suits a set described by its properties.
 
-`Matching` (on `IQueryable<T>`) turns a checked expression into a predicate, translating each field
-to the entity property it is stored as (`[Filterable(MappedTo = ...)]` names it when the names
-differ). It throws `InvalidOperationException` for an expression read from a request
-that the platform never checked, so take expressions only through the bulk and search request
-types on their attributes.
-
-## Example
+## Handle both forms within the caller's reach
 
 This bulk delete accepts either form. Both paths start from the widgets the caller may see, so a
-filter cannot match a widget outside them, and a named widget the caller may not see fails exactly
+filter can't match a widget outside them, and a named widget the caller may not see fails exactly
 as a missing one does:
 
 ```csharp
@@ -91,53 +78,42 @@ public static class WidgetsEndpoints
 }
 ```
 
-Naming a widget that does not exist, or that the caller may not see, refuses the request with a
-`404` error pointing at the identifier:
+What the package does before your handler runs, each refused with `422`:
 
-```http
-POST /api/v1/widgets:bulk-delete
-Content-Type: application/json
+- Both `ids` and `filter`, or neither, is refused at `/ids`. A form the attribute's `Targeting`
+  excludes is refused at `/ids` or `/filter`.
+- A `filter` that is empty (`{}`) is refused. An expression may use only `var`, `==`, `!=`, `>`,
+  `>=`, `<`, `<=`, `in`, `and`, `or` and `!`, hold at most 500 terms (`Query.MaxTerms`), and name
+  only fields the resource marks `[Filterable]`. Anything else is refused at `/filter`.
+- An empty `ids` list is accepted and reaches your handler. `BulkResult.Affected(0)` answers it.
 
-{"ids":["62bed180-1f78-45d4-8a56-c996936a2947","7c1d9a3e-0000-4000-8000-000000000000"]}
-```
+What you call yourself:
 
-```http
-HTTP/1.1 422 Unprocessable Entity
-Content-Type: application/json; charset=utf-8
+- `BulkRequests.RequireAtMost(count, maximum, pointer)` refuses more items than your maximum with
+  `422`. Call it before touching any resource.
+- `BulkRequests.RequireDistinct(ids)` refuses a repeated identifier with `422` at its second
+  position, compared without regard to case.
+- `Matching` on `IQueryable<T>` turns a checked expression into a predicate. It maps each field to
+  the entity property it is stored as; `[Filterable(MappedTo = ...)]` names the property when the
+  names differ.
 
-{"errors":[{"status":"404","code":"not-found","title":"The resource does not exist.","detail":"No widget with ID '7c1d9a3e-0000-4000-8000-000000000000' exists.","source":{"pointer":"/ids/1"}}]}
-```
+## Things to know
 
-A filter naming a field the resource does not mark `[Filterable]` never reaches the handler:
-
-```http
-POST /api/v1/widgets:bulk-delete
-Content-Type: application/json
-
-{"filter":{"==":[{"var":"notes"},"x"]}}
-```
-
-```http
-HTTP/1.1 422 Unprocessable Entity
-Content-Type: application/json; charset=utf-8
-
-{"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"'notes' is not a field this resource may be filtered on. The fields available are 'createdAt', 'name'.","source":{"pointer":"/filter"}}]}
-```
-
-Mark only fields a server can compare. An `[Encrypted]` member holds Protected Data, ciphertext
-the server cannot read, so filtering on it would compare ciphertext and is never meaningful.
-
-## What you decide
-
-- **Which forms each operation accepts.** Set `Targeting` on the attribute. `ids` suits a caller
-  that knows exactly which resources it means and wants each missing one reported; `filter` suits a
-  set described by its properties.
-- **The maximum,** for `ids` and `data`. Document it on the operation and enforce it with
-  `RequireAtMost` before touching any resource. A `filter` has no item count; bound its cost by what
-  the operation does with each match.
-- **The caller's reach.** Restrict every query to the current organization and to what the caller
-  may see, using `IContext` (`OrganizationId`, `UserId`, `ProviderId`). Report a hidden resource
-  named by `ids` with the same `404` as a nonexistent one.
+- **The caller's reach is yours.** The package doesn't stop targeting from reaching resources the
+  caller couldn't reach one at a time. Start every lookup from what the caller may see, using
+  `IContext` (`OrganizationId`, `UserId`, `ProviderId`), and report a hidden resource named by
+  `ids` with the same `404` as a missing one.
+- **Take expressions only through the request types.** `Matching` throws
+  `InvalidOperationException` for an expression the platform never checked, such as one you
+  deserialized yourself.
+- **Mark only fields a server can compare.** An `[Encrypted]` member holds Protected Data,
+  ciphertext the server can't read, so filtering on it would compare ciphertext. Never mark it
+  `[Filterable]`.
+- **A `filter` has no item count.** Bound its cost by what the operation does with each match, or
+  offer `ids` only.
+- **Repeated identifiers in `data`.** `RequireDistinct` always points at `/ids/{n}`, so check a
+  bulk replace's `data` yourself. See [Bulk replaces](./bulk-replaces.md). Two bulk-create items
+  sharing a `lid` are refused by the platform.
 
 ## See also
 
@@ -145,6 +121,5 @@ the server cannot read, so filtering on it would compare ciphertext and is never
 - [All-or-nothing and best-effort](./all-or-nothing-and-best-effort.md), for how failures are
   reported
 - [Bulk responses](./bulk-responses.md)
-- The standard:
-  [Targeting](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations/targeting)
-  and [Advanced queries](https://contributing.bitwarden.com/architecture/server/apis/advanced-queries)
+- [Filtering](../../querying/filtering.md) and
+  [Advanced queries](../../querying/advanced-queries.md)

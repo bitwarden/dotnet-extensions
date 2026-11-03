@@ -1,28 +1,10 @@
 # Bulk creates
 
-A bulk create is the equivalent of creating each resource in `data`, and should answer with the
-created resources so the caller learns the identifiers it did not choose. The package reads each
-item as the single-resource create reads it, reads and checks the optional `lid`, and answers with
-the created resources in request order. The standard:
-[Bulk creates](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations/bulk-creates).
+A bulk create creates each resource in `data` and answers with the created resources, so the
+caller learns the identifiers it didn't choose. Declare it with `[StandardBulkCreate(collection)]`,
+take a `BulkCreate<T>`, and return a `BulkCreatedDocument<T>`.
 
-## What the package does
-
-- **`[StandardBulkCreate(collection)]`** maps `POST {collection}:bulk-create`. `Supports` sets the
-  atomicity modes (all-or-nothing by default).
-- **`BulkCreate<T>`** carries `Data`, the resources, each enveloped on the wire with `type` and
-  `attributes` as a single create takes it. An item of another `type` is refused `422` at
-  `/data/{n}/type`, and each item is bound and validated as the single create's resource is.
-- **`lid`.** Each item may carry a `lid` beside its `type`. The platform refuses one that is not a
-  non-empty string, or that two items share, `422` at `/data/{n}/lid`, and keeps them in
-  `BulkCreate<T>.Lids` (`LidAt(index)` reads one).
-- **`BulkCreatedDocument<T>.For(request, created)`** answers with the created resources in request
-  order, each item's `lid` beside the created resource's `id`, and `meta.affectedCount`. It throws
-  `ArgumentException` unless there is exactly one created resource for each item.
-- **Not checked by the package:** the maximum (call `BulkRequests.RequireAtMost`) and the single
-  create's business rules.
-
-## Example
+## Create many resources
 
 The single create's rule (a widget's name is unique) is applied to every item, including against
 earlier items in the same request, before anything is created:
@@ -83,50 +65,39 @@ public static class WidgetsEndpoints
 }
 ```
 
-A caller creating two widgets, one with a `lid`:
+What the package does for you:
 
-```http
-POST /api/v1/widgets:bulk-create
-Content-Type: application/json
+- **Maps `POST {collection}:bulk-create`.** `Supports` sets the atomicity modes, all-or-nothing by
+  default.
+- **Reads each item as the single create reads it.** `request.Data` holds the resources. An item of
+  another `type` is refused with `422` at `/data/{n}/type`, and each item is bound and validated as
+  the single create's resource is.
+- **Reads `lid`.** Each item may carry a local identifier, `lid`. One that isn't a non-empty
+  string, or that two items share, is refused with `422` at `/data/{n}/lid`. The rest are in
+  `request.Lids`, and `request.LidAt(index)` reads one.
+- **`BulkCreatedDocument<T>.For(request, created)`** answers with the created resources in request
+  order, each item's `lid` beside the created resource's `id`, and the count. It throws
+  `ArgumentException` unless there is exactly one created resource for each item.
 
-{"data":[{"type":"widget","lid":"first","attributes":{"name":"Flange","notes":"2.AAAA|BBBB|CCCC"}},{"type":"widget","attributes":{"name":"Bracket"}}]}
-```
+What you do:
 
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json; charset=utf-8
+- Enforce the maximum with `BulkRequests.RequireAtMost`, and document it in `<remarks>`.
+- Apply the single create's business rules to every item, and report failures with
+  `BulkFailure.At` at `/data/{n}` or deeper (`/data/{n}/attributes/name`).
 
-{"data":[{"id":"3f2b8c6e-1d4a-4b9e-8f7a-2c5d6e7f8a9b","type":"widget","lid":"first","attributes":{"name":"Flange","notes":"2.AAAA|BBBB|CCCC","version":"1"}},{"id":"a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d","type":"widget","attributes":{"name":"Bracket","version":"1"}}],"meta":{"affectedCount":2}}
-```
+## Things to know
 
-`notes` is Protected Data, encrypted on the person's device. The service stores and returns it as
-sent and never reads it.
-
-An item that breaks the rule refuses the whole request:
-
-```http
-HTTP/1.1 422 Unprocessable Entity
-Content-Type: application/json; charset=utf-8
-
-{"errors":[{"status":"422","code":"name-in-use","title":"A field has an invalid value.","detail":"A widget named 'Sprocket' already exists.","source":{"pointer":"/data/1/attributes/name"}}]}
-```
-
-## What you decide
-
-- **The maximum,** documented on the operation and enforced with `RequireAtMost`.
-- **Whether to accept `lid`.** The platform always reads it. Answering with
-  `BulkCreatedDocument<T>.For` echoes it, which the standard requires of an API that accepts it.
-- **Best-effort.** `BulkCreatedDocument<T>` has no `errors` and requires one created resource per
-  item, so it is for all-or-nothing creates. A best-effort create can answer
-  `BulkResult.BestEffort(created, failures)`, which reports each failure but not the created
-  resources or their identifiers. The standard says a bulk create should return them, so prefer
-  all-or-nothing where the caller needs the identifiers.
+- **Protected Data passes through untouched.** An `[Encrypted]` member such as `notes` is
+  ciphertext the person's device produced. The service stores and returns it as sent and never
+  reads it.
+- **Best-effort creates can't return the created resources.** `BulkCreatedDocument<T>` has no
+  `errors` and needs one created resource per item. A best-effort create can return
+  `BulkResult.BestEffort(created, failures)`, which reports each failure but not the identifiers.
+  Prefer all-or-nothing where the caller needs the identifiers.
 
 ## See also
 
 - [Bulk operations](./index.md)
 - [Bulk responses](./bulk-responses.md)
 - [Per-resource rules](./per-resource-rules.md)
-- The standard:
-  [Bulk creates](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations/bulk-creates)
-  and [Creating resources](https://contributing.bitwarden.com/architecture/server/apis/creating-resources)
+- [Creating resources](../../operations/creating-resources.md)

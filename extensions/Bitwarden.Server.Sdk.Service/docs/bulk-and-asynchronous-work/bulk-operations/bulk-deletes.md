@@ -1,24 +1,10 @@
 # Bulk deletes
 
-A bulk delete is the equivalent of deleting each targeted resource, named by `ids` or described by
-a `filter`. On a service with soft deletes it soft-deletes by default and removes resources for good
-when the caller passes `permanent=true`. The package reads and checks the targeting; the delete,
-and `permanent`, are your handler's. The standard:
-[Bulk deletes](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations/bulk-deletes).
+A bulk delete deletes each targeted resource, named by `ids` or described by a `filter`. Declare it
+with `[StandardBulkDelete(collection)]` and take a `BulkDelete<T>`; the delete itself, and any
+`permanent` flag, are your handler's.
 
-## What the package does
-
-- **`[StandardBulkDelete(collection)]`** maps `POST {collection}:bulk-delete`. It is a `POST`
-  because the targeting travels in the body. `Targeting` sets which forms it accepts (`Either` by
-  default) and `Supports` the atomicity modes (all-or-nothing by default).
-- **`BulkDelete<T>`** carries `Ids` or `Filter`, exactly one, checked as described in
-  [Targeting](./targeting.md). A filter can't be empty, so a bulk delete never means "everything
-  in scope" by omission.
-- **`permanent`** is not part of the package. Declare it as a query parameter of the handler, and
-  it is bound and published in the OpenAPI document like any other.
-- **Not checked by the package:** the caller's reach, the single delete's rules and side effects.
-
-## Example
+## Delete the resources a filter matches
 
 This bulk delete takes a `filter`, keeps it within the caller's organization, and soft-deletes by
 default:
@@ -63,46 +49,36 @@ public static class WidgetsEndpoints
 }
 ```
 
-The standard's own example, deleting unverified accounts created before a date, is a filter of
-this kind. For widgets:
+What the package does for you:
 
-```http
-POST /api/v1/widgets:bulk-delete
-Content-Type: application/json
+- **Maps `POST {collection}:bulk-delete`.** It is a `POST` because the targeting travels in the
+  body. `Targeting` sets which forms it accepts (`Either` by default), and `Supports` the
+  atomicity modes.
+- **Checks the targeting.** `request.Ids` or `request.Filter`, exactly one, is checked as
+  described in [Targeting](./targeting.md). Here `ids` is refused with `422`, because the attribute
+  accepts only a filter. A filter can't be empty, so a bulk delete never means "everything" by
+  omission.
 
-{"filter":{"==":[{"var":"name"},"Gear"]}}
-```
+What you do:
 
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json; charset=utf-8
+- **`permanent`.** The package doesn't provide it. Declare it as a handler parameter, as above;
+  it is bound from the query string and published in the OpenAPI document like any other.
+- **Restrict the set to the caller's reach.** Start from what the caller may see before applying
+  `Matching`.
 
-{"meta":{"affectedCount":1}}
-```
+## Things to know
 
-`ids` is refused here, because the attribute accepts only a filter:
-
-```http
-HTTP/1.1 422 Unprocessable Entity
-Content-Type: application/json; charset=utf-8
-
-{"errors":[{"status":"422","code":"invalid-value","title":"A field has an invalid value.","detail":"This operation does not accept 'ids'. Describe the resources with 'filter'.","source":{"pointer":"/ids"}}]}
-```
-
-## What you decide
-
-- **Soft or hard.** Follow the single delete: if it soft-deletes, so does the bulk delete, and
+- **Soft or hard follows the single delete.** If it soft-deletes, so does the bulk delete, and
   `permanent=true` removes for good.
-- **Targeting.** `ids` when each missing resource should be reported back as a `404`; `filter` when
-  the caller describes a set. See [Targeting](./targeting.md) for an operation accepting both.
-- **Side effects.** Each deleted resource produces what the single delete would (events, audit
-  records, cleanup of dependent data). A set-based delete must still produce them.
+- **`ids` or `filter`.** Accept `ids` when each missing resource should be reported back as a
+  `404`, and `filter` when the caller describes a set. See [Targeting](./targeting.md) for an
+  operation accepting both.
+- **Side effects.** Each deleted resource produces what the single delete would: events, audit
+  records, cleanup of dependent data. A set-based delete must still produce them.
 
 ## See also
 
 - [Bulk operations](./index.md)
 - [Targeting](./targeting.md)
 - [All-or-nothing and best-effort](./all-or-nothing-and-best-effort.md)
-- The standard:
-  [Bulk deletes](https://contributing.bitwarden.com/architecture/server/apis/bulk-operations/bulk-deletes)
-  and [Deleting resources](https://contributing.bitwarden.com/architecture/server/apis/deleting-resources)
+- [Deleting resources](../../operations/deleting-resources.md)

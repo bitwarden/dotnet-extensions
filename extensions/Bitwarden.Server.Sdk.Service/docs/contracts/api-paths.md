@@ -1,28 +1,13 @@
 # API paths
 
-The standard asks for lowercase kebab-case paths made of a namespace (`api`), a version (`v1`), the
-resource plural, and then an identifier and sub-resources, with the subject of a request in the path
-and its scope (the current organization or user) left out of it. The package puts the standard
-operations on that shape and gives a handler its scope from the request's context, but the path
-itself is yours: it does not check the namespace, the version or the casing. The standard:
-[API paths](https://contributing.bitwarden.com/architecture/server/apis/api-paths).
+You choose each path with `MapGroup` and the `Map` calls; the standard attributes give each
+operation a default route under it. Identify what a request is about in the path, and read who is
+asking, and on behalf of which organization, from `IContext` and `Person`.
 
-## What the package does
+## Lay out a resource's paths
 
-| The standard asks                                   | The package                                                                                                                                                                               |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `api`, then `v{n}`, then the resource plural        | Nothing enforced. You name the group (`MapGroup("api/v1/widgets")`). The standard attributes default to the shapes below it.                                                              |
-| An identifier after the plural for one resource     | `[StandardReadOne]`, `[StandardUpdate]` and `[StandardDelete]` default to `{id}`; `[StandardCreate]` and `[StandardReadMany]` to the collection itself.                                   |
-| Additional elements for sub-resources               | Any attribute takes a `template`, such as `[StandardReadMany("{id}/parts")]`. The `Map` line must use the same route, or the service refuses to start.                                    |
-| Kebab case                                          | Generated segments are kebab case: an action's name (`actions/send-email`) and a bulk operation's suffix (`:bulk-delete`). Your own segments are not checked.                             |
-| Each API versioned independently                    | The version is read from the route for the operation identifier: `getWidget` on `v1`, `getWidgetV2` on `v2`. Nothing requires a `v2` path's parent paths to exist.                        |
-| The subject `MUST` be in the path                   | A route parameter binds to the handler's parameter of the same name (`string id`).                                                                                                        |
-| The scope `MUST NOT` be in the path                 | The scope reaches the handler as `IContext` (organization, user, provider) and `Person`, from the session's token in a product service or the caller-context headers in a domain service. |
-| What an operation requires of the scope is declared | `[Authorization(Organization = ..., User = ..., Provider = ...)]`, each `Required`, `Optional` or `Forbidden`, settled from the service, the endpoints class and the handler.             |
-
-## Example
-
-The widgets collection, one widget, the current person's widget, and a widget's parts:
+Name the group `api`, then a version, then the resource plural. One resource follows as `{id}`, and
+sub-resources follow that:
 
 ```csharp
 using Bitwarden.Server.Sdk.Common;
@@ -75,14 +60,29 @@ public static class WidgetsEndpoints
 }
 ```
 
-`current` names whatever the scope names, so `GetMyWidget` takes the person from the context rather
-than asking the caller to repeat an identifier they already sent. A handler taking `Person` must
-require a user, or the service refuses to start.
+- `[StandardReadOne]`, `[StandardUpdate]` and `[StandardDelete]` default to `{id}`.
+  `[StandardCreate]` and `[StandardReadMany]` default to the collection itself.
+- For any other route, pass a template to the attribute, such as `[StandardReadMany("{id}/parts")]`,
+  and map the same route. A standard endpoint mapped on a different route stops the service from
+  starting.
+- A route parameter binds to the handler parameter of the same name (`string id`).
+- Segments the package generates are kebab case: an action's name (`actions/send-email`) and a bulk
+  operation's suffix (`:bulk-delete`). Your own segments are up to you; use lowercase kebab case.
+- The version in the route also sets the operation identifier's suffix: `getWidget` on `v1`,
+  `getWidgetV2` on `v2`. See [OpenAPI](openapi.md#operation-identifiers).
 
-### Which identifiers belong in the path
+## Use the caller's own resource
 
-The subject goes in the path; the organization the request runs inside does not. A handler reads it
-from `IContext` (Bitwarden.Server.Sdk.Common):
+`current` stands for whatever belongs to the caller, so `GetMyWidget` takes the `Person` from the
+request rather than asking the caller to repeat an identifier they already sent.
+
+- A handler that takes `Person` must require a user with
+  `[Authorization(User = ContextRequirement.Required)]`, or the service refuses to start.
+
+## Keep the organization out of the path
+
+The organization a request runs inside reaches the handler as `IContext`, from
+`Bitwarden.Server.Sdk.Common`. Read it there rather than from a route parameter:
 
 ```csharp
 /// <summary>
@@ -118,40 +118,24 @@ public static async Task<ResourceListDocument<Widget>> ListWidgets(
 }
 ```
 
-Where the organization comes from depends on the kind of service. A product service takes it from
-the organization the person's session names; a domain service from the `Bitwarden-Organization`
-header, believed only from another service's own token with a valid context token. Either way the
-handler sees the same `IContext`.
+- Declare what the operation needs with `[Authorization]`: `Organization`, `User` and `Provider`,
+  each `Required`, `Optional` or `Forbidden`. The service, the endpoints class and the handler can
+  each set it.
+- A product service takes the organization from the person's session. A domain service takes it
+  from the `Bitwarden-Organization` header, believed only from another service's own token with a
+  valid context token. Either way the handler sees the same `IContext`.
+- With `Organization = ContextRequirement.Optional`, one operation serves both cases: called with an
+  organization in context it returns that organization's widgets, and called with only a person it
+  returns the widgets of every organization they belong to, or of the ones
+  `filter[organization]` names.
+- To act on several organizations at once, a caller can also make one call per organization, or
+  use an [advanced query](../querying/advanced-queries.md) whose body carries the list.
 
-### Working across several scopes
+## Check your paths at startup
 
-`ListWidgets` above is one operation declared so that less scope means more. Called with an
-organization in context, it returns that organization's widgets. Called with only a person, it
-returns the widgets of every organization they belong to, or of the ones a filter names:
-
-```http
-GET /api/v1/widgets?filter[organization]=0b7c2d5e-8f1a-4c3b-9d6e-2a4f8b1c7e3d,4e1a9c2b-6d3f-4b8e-a1c5-7f2e9d4b6a8c HTTP/1.1
-```
-
-The organizations stay out of the path either way. The other options the standard lists need nothing
-from the package: making several calls with a different organization in context each time, or an
-[advanced query](../querying/advanced-queries.md) whose body carries the list.
-
-## What you decide
-
-- **The path.** Choose the namespace, version and plural in `MapGroup`, and keep your own segments
-  in lowercase kebab case. The package doesn't check them. To have the service refuse to start over
-  a path that breaks the rule, register a check of your own (below).
-- **Which parent paths exist.** Paths should be traversable, but a parent need not be callable. The
-  package doesn't require one.
-- **What a filter's values may reach.** `Filter<T>` parses `filter[organization]` but authorizes
-  nothing: the values are the caller's. Read only the organizations the caller may reach, as
-  `ListForMemberAsync` does above.
-- **What the scope permits.** Declare it on the operation with `[Authorization]`. See
-  [Authentication and authorization](../beyond-the-standards/authentication-and-authorization.md).
-
-An `IStandardEndpointCheck` runs over every endpoint at startup and adds its problems to the
-package's own:
+The package doesn't check the namespace, version or casing of your routes. To have the service
+refuse to start over a bad path, register an `IStandardEndpointCheck`. It runs over every endpoint
+at startup and adds its problems to the package's own:
 
 ```csharp
 using System.Text.RegularExpressions;
@@ -187,14 +171,20 @@ public sealed partial class WidgetPathCheck : IStandardEndpointCheck
 }
 ```
 
-Register it in `ConfigureServices` with
-`services.AddSingleton<IStandardEndpointCheck, WidgetPathCheck>()`. A route such as
-`api/Widget_Stats` then stops the service:
+- Register it in `ConfigureServices` with
+  `services.AddSingleton<IStandardEndpointCheck, WidgetPathCheck>()`.
+- A route such as `api/Widget_Stats` then stops the service, with your message listed beside any
+  problems the package found.
 
-```text
-System.InvalidOperationException: The service's endpoints do not meet the standards:
-  - 'api/Widget_Stats' is not api/v{n}/{resource} in lowercase kebab case.
-```
+## Things to know
+
+- **A filter authorizes nothing.** `Filter<T>` parses `filter[organization]`, but the values are the
+  caller's. Read only the organizations the caller may reach, as `ListForMemberAsync` does above.
+- **Parent paths are optional.** Nothing requires `api/v1/widgets/{id}` to be callable because
+  `api/v1/widgets/{id}/parts` is, or a `v2` path's parents to exist.
+- **Paths aren't checked** unless you add a check like `WidgetPathCheck`.
+- **What the caller may do** is declared with `[Authorization]`. See
+  [Authentication and authorization](../running-a-service/authentication-and-authorization.md).
 
 ## See also
 
@@ -202,5 +192,4 @@ System.InvalidOperationException: The service's endpoints do not meet the standa
 - [Breaking changes and versioning](breaking-changes-and-versioning.md): adding a `v2`.
 - [Verbs](../operations/verbs.md): the standard attributes' routes and the startup check.
 - [Filtering](../querying/filtering.md)
-- [Caller context](../beyond-the-standards/caller-context.md)
-- The standard: [API paths](https://contributing.bitwarden.com/architecture/server/apis/api-paths)
+- [Caller context](../running-a-service/caller-context.md)

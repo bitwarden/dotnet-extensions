@@ -1,60 +1,13 @@
 # Errors
 
-Every failure is a top-level `errors` array of error objects, each with a stable `code`, a `status`,
-a `title`, a `detail` and, where one field is to blame, a `source`; a `500` says nothing about what
-went wrong. The package writes that document for every failure, its own and the exceptions a handler
-throws, so a handler never builds one. The standard:
-[Errors](https://contributing.bitwarden.com/architecture/server/apis/errors).
+A handler reports a failure by throwing, and the package writes the error document: its own
+failures and your exceptions alike. You never build one in a handler. The exceptions are in
+`Bitwarden.Server.Sdk.Common`; the document types, `ErrorResponse` and `Error`, are in
+`Bitwarden.Server.Sdk.Common.Errors`.
 
-## What the package does
+## Throw an exception
 
-The document is `ErrorResponse`, a list of `Error` (both in `Bitwarden.Server.Sdk.Common.Errors`).
-Members without a value are left out.
-
-| Field              | What the package puts there                                                                                                                         |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `status`           | The response's status, as a string.                                                                                                                 |
-| `code`             | A stable code from `ErrorCodes`, such as `not-found`, `invalid-value`, `field-required`, `invalid-type`, `conflict`; or the one an exception gives. |
-| `title`            | The same text for every error with that code (`ErrorTitles`).                                                                                       |
-| `detail`           | What went wrong this time. For an exception the package recognises, its message.                                                                    |
-| `source.pointer`   | A JSON Pointer into the body, on the wire's names: `/data/attributes/name`, `/data/attributes/part/code`, `/shine`.                                 |
-| `source.parameter` | The query parameter, such as `filter[createdAt]` or `page[number]`.                                                                                 |
-| `source.header`    | The caller-context header that was refused. Any other header parameter is reported with a pointer instead, `/{header-name}`.                        |
-| `meta.resource`    | The `type` and `id` of a resource a bulk operation couldn't act on (`FailedResource`), when there's nothing in the request to point at.             |
-| `id`               | On a `500`, `501` or `503` an exception produced: the request's trace identifier, which the log records with the exception. Other errors have none. |
-
-A `500` carries a fixed title and detail and no `source`. The exception is logged at `Error` with
-the same identifier the caller sees; nothing of it reaches the caller.
-
-```http
-HTTP/1.1 500 Internal Server Error
-Content-Type: application/json; charset=utf-8
-
-{"errors":[{"id":"0HNPPMRQG8EGA:00000001","status":"500","code":"internal-error","title":"The request could not be completed.","detail":"An unexpected error occurred. Quote the error id when reporting this."}]}
-```
-
-A handler throws one of these (`Bitwarden.Server.Sdk.Common`) and the exception handler answers:
-
-| Throw                                             | Status                              | Code                       | What the caller is told                                       |
-| ------------------------------------------------- | ----------------------------------- | -------------------------- | ------------------------------------------------------------- |
-| `NotFoundException()`, `(type, id)` or `(detail)` | `404`                               | `not-found`                | The detail, such as "No widget with ID '...' exists."         |
-| `ForbiddenException(detail)`                      | `403`                               | `forbidden`                | The detail.                                                   |
-| `UnauthenticatedException(detail)`                | `401`                               | `unauthenticated`          | The detail.                                                   |
-| `ConflictException()` or `(detail)`               | `409`                               | `conflict`                 | The detail, or that the resource changed since it was read.   |
-| `InvalidRequestException(detail, pointer, code)`  | `422`                               | `code`, or `invalid-value` | The detail, at `source.pointer` when one is given.            |
-| `PendingServiceException(service, requirement)`   | `501`                               | `not-implemented`          | Which service the rule waits on, and what it needs.           |
-| `NotImplementedException`                         | `501`                               | `not-implemented`          | A fixed detail.                                               |
-| `ServiceUnavailableException`                     | `503`                               | `service-unavailable`      | Which dependency, and what happened; never how it is reached. |
-| An exception implementing `IProvideErrors`        | Its `StatusCode` (`422` by default) | Its own                    | Its `Errors`, as many as it has.                              |
-| Anything else                                     | `500`                               | `internal-error`           | Nothing.                                                      |
-
-`IExceptionTranslator` (also in `Bitwarden.Server.Sdk.Common`) lets a package say what a library's
-own exception means: the first registered translator to return an exception wins, and the answer is
-as if that one had been thrown. The log keeps the original.
-
-## Example
-
-Most handlers only throw. `NotFoundException("widget", id)` gives the standard detail:
+Most handlers only throw. `NotFoundException("widget", id)` writes the detail for you:
 
 ```csharp
 using Bitwarden.Server.Sdk.Common;
@@ -73,14 +26,46 @@ public static async Task<ResourceDocument<Widget>> GetWidget(
         ?? throw new NotFoundException("widget", id));
 ```
 
-```http
-HTTP/1.1 404 Not Found
-Content-Type: application/json; charset=utf-8
+What each exception becomes:
 
-{"errors":[{"status":"404","code":"not-found","title":"The resource does not exist.","detail":"No widget with ID 'd2c9a4c0-0000-4000-8000-000000000001' exists."}]}
-```
+| Throw                                             | Status                              | Code                       | What the caller is told                                       |
+| ------------------------------------------------- | ----------------------------------- | -------------------------- | ------------------------------------------------------------- |
+| `NotFoundException()`, `(type, id)` or `(detail)` | `404`                               | `not-found`                | The detail, such as "No widget with ID '...' exists."         |
+| `ForbiddenException(detail)`                      | `403`                               | `forbidden`                | The detail.                                                   |
+| `UnauthenticatedException(detail)`                | `401`                               | `unauthenticated`          | The detail.                                                   |
+| `ConflictException()` or `(detail)`               | `409`                               | `conflict`                 | The detail, or that the resource changed since it was read.   |
+| `InvalidRequestException(detail, pointer, code)`  | `422`                               | `code`, or `invalid-value` | The detail, at `source.pointer` when one is given.            |
+| `PendingServiceException(service, requirement)`   | `501`                               | `not-implemented`          | Which service the rule waits on, and what it needs.           |
+| `NotImplementedException`                         | `501`                               | `not-implemented`          | A fixed detail.                                               |
+| `ServiceUnavailableException`                     | `503`                               | `service-unavailable`      | Which dependency, and what happened; never how it is reached. |
+| An exception implementing `IProvideErrors`        | Its `StatusCode` (`422` by default) | Its own                    | Its `Errors`, as many as it has.                              |
+| Anything else                                     | `500`                               | `internal-error`           | Nothing.                                                      |
 
-### Report several errors at once
+- The detail of a recognised exception is sent as you wrote it. Write it for the caller, and never
+  put Vault Data, ciphertext, a secret or an internal address in one.
+- Any other exception is a `500` with a fixed title and detail. The exception is logged at `Error`
+  with the request's trace identifier, which the caller gets as the error's `id`. Nothing else of it
+  reaches the caller.
+- To choose between `403` and `404`, or `404` and `422`, see
+  [Standard responses](standard-responses.md#choose-the-status-of-a-failure).
+
+## Know what the error document holds
+
+The package fills in each error's members, and leaves out those without a value:
+
+| Field              | What the package puts there                                                                                                                         |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status`           | The response's status, as a string.                                                                                                                 |
+| `code`             | A stable code from `ErrorCodes`, such as `not-found`, `invalid-value`, `field-required`, `invalid-type`, `conflict`; or the one an exception gives. |
+| `title`            | The same text for every error with that code (`ErrorTitles`).                                                                                       |
+| `detail`           | What went wrong this time. For an exception the package recognises, its message.                                                                    |
+| `source.pointer`   | A JSON Pointer into the body, on the wire's names: `/data/attributes/name`, `/data/attributes/part/code`, `/shine`.                                 |
+| `source.parameter` | The query parameter, such as `filter[createdAt]` or `page[number]`.                                                                                 |
+| `source.header`    | The caller-context header that was refused. Any other header parameter is reported with a pointer instead, `/{header-name}`.                        |
+| `meta.resource`    | The `type` and `id` of a resource a bulk operation couldn't act on (`FailedResource`), when there's nothing in the request to point at.             |
+| `id`               | On a `500`, `501` or `503` an exception produced: the request's trace identifier, which the log records with the exception. Other errors have none. |
+
+## Report several errors at once
 
 A rule that can fail in several places reports every failure with an exception that implements
 `IProvideErrors`:
@@ -133,31 +118,16 @@ public static async Task<ResourceDocument<Widget>> CreateWidget(
 }
 ```
 
-```json
-{
-    "errors": [
-        {
-            "status": "422",
-            "code": "resource-not-found",
-            "title": "Referenced resource does not exist",
-            "detail": "'0b6d1a7e-5f2c-4c8a-9d3e-1f2a3b4c5d6e' is not a widget part.",
-            "source": { "pointer": "/data/attributes/partIds/0" }
-        },
-        {
-            "status": "422",
-            "code": "resource-not-found",
-            "title": "Referenced resource does not exist",
-            "detail": "'0e3d2eb3-755c-41cd-86f0-0e0649043ef6' is not a widget part.",
-            "source": { "pointer": "/data/attributes/partIds/2" }
-        }
-    ]
-}
-```
+- The caller gets one `422` with an error for each missing part, each pointing at its index in
+  `partIds`.
+- Override `StatusCode` for another status.
+- The package sets `id` only on server faults. An `IProvideErrors` exception may set `Id` on the
+  errors it returns.
 
-### Translate a library's exceptions
+## Translate a library's exceptions
 
-Register an `IExceptionTranslator` in `ConfigureServices`, and the library's exceptions are
-answered as the platform's:
+`IExceptionTranslator` says what a library's own exception means. Register one in
+`ConfigureServices`, and the library's exceptions are answered as the package's:
 
 ```csharp
 using Bitwarden.Server.Sdk.Common;
@@ -188,27 +158,60 @@ internal sealed class WidgetService(string[] args) : Service("widget-service", "
 }
 ```
 
-A timeout in the store now reaches the caller as:
+- The first registered translator to return an exception wins, and the caller is answered as if that
+  exception had been thrown. A store timeout here becomes `503` `service-unavailable`, with the
+  detail "The widget-store service did not answer within 5 seconds."
+- The log keeps the original exception.
+- Without a translator, a library's exception is a `500`.
 
-```http
-HTTP/1.1 503 Service Unavailable
-Content-Type: application/json; charset=utf-8
+## Name a header in an error
 
-{"errors":[{"id":"0HNPPMUMBT4AM:00000001","status":"503","code":"service-unavailable","title":"A service this depends on is unavailable.","detail":"The widget-store service did not answer within 5 seconds."}]}
+The package reports a failing header parameter with a pointer, `/{header-name}`, not in
+`source.header`. To name the header, take it as a string, check it in the handler, and throw an
+`IProvideErrors` exception whose error sets `Source.Header`:
+
+```csharp
+using Bitwarden.Server.Sdk.Common;
+using Bitwarden.Server.Sdk.Common.Errors;
+
+/// <summary>
+/// A header the service refuses, named in source.header rather than pointed at.
+/// </summary>
+public sealed class InvalidHeaderException(string header, string detail) : Exception(detail), IProvideErrors
+{
+    public IReadOnlyList<Error> Errors { get; } =
+    [
+        new Error
+        {
+            Status = "422",
+            Code = ErrorCodes.InvalidValue,
+            Title = ErrorTitles.InvalidValue,
+            Detail = detail,
+            Source = new ErrorSource { Header = header },
+        },
+    ];
+}
+
+public static class RegionHeader
+{
+    public const string Name = "Widget-Region";
+
+    // Take the header as a string, check it in the handler, and throw with its name.
+    public static string Require(string? region) =>
+        region is "eu" or "us"
+            ? region
+            : throw new InvalidHeaderException(Name, $"The {Name} header must be 'eu' or 'us'.");
+}
 ```
 
-## What you decide
+## Things to know
 
-- **Codes.** Use an `ErrorCodes` constant where one fits. A code of your own is part of your
-  contract: callers branch on it, so never change it. Titles and details may be reworded.
-- **Details.** Write them for the caller, and never put Vault Data, ciphertext, a secret or an
-  internal address in one. The detail of a recognised exception is sent as written.
-- **`403` or `404`.** See [Standard responses](standard-responses.md#what-you-decide).
-- **An `id` on other errors.** The package sets one only on server faults. An `IProvideErrors`
-  exception may set `Id` on the errors it returns.
-- **A header parameter's errors.** They point at `/{header-name}` rather than naming the header in
-  `source.header`. Validate a header in the handler and throw `IProvideErrors` with
-  `Source = new ErrorSource { Header = "..." }` if a caller needs it named.
+- **Codes are part of your contract.** Use an `ErrorCodes` constant where one fits. Callers branch
+  on a code of your own, so never change it. Titles and details may be reworded.
+- **Keep a title per code.** `ErrorTitles` holds the package's titles. Give a code of your own the
+  same title every time, as `UnknownPartsException` does.
+- **Details reach the caller.** Only a `500` hides what happened. Everything else you write in an
+  exception's message is sent.
 
 ## See also
 
@@ -216,4 +219,3 @@ Content-Type: application/json; charset=utf-8
 - [Request validation](request-validation.md): the errors binding and validation produce.
 - [Bulk responses](../bulk-and-asynchronous-work/bulk-operations/bulk-responses.md): errors inside a
   best-effort `200`, and `meta.resource`.
-- The standard: [Errors](https://contributing.bitwarden.com/architecture/server/apis/errors).

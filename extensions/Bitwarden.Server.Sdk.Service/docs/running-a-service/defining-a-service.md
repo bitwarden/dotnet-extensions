@@ -1,27 +1,9 @@
 # Defining a service
 
-A Bitwarden service is a class deriving from `Service`. The base class owns startup: the order of
-dependency registration and of middleware is security-relevant, so it is fixed in `Service.Build()`
-and your service only fills in the hooks it needs.
+A Bitwarden service is a class deriving from `Service`. The base class owns startup, in a fixed
+order, and your service fills in only the hooks it needs.
 
-## What the package does
-
-- **One base class.** `Service(name, title, args)` takes the service's identifier, its title and the
-  command line. The constructor refuses an identifier that is not lowercase letters, digits and
-  hyphens (`^[a-z0-9]+(-[a-z0-9]+)*$`), which catches the identifier and title passed the wrong way
-  round.
-- **The identifier** names the service's outbound credential (`internal.{name}`), the token audience
-  it accepts, its telemetry resource and its rate-limit keys. The package supplies it as
-  `Bitwarden:ServiceName`, the lowest-precedence setting.
-- **The title** is the title of the OpenAPI document and the documentation UI.
-- **A fixed startup sequence** with hooks at defined points (below). A derived type can extend it at
-  the seams but can't reorder it.
-- **Three kinds of service:** a domain service (the default), a `[ProductService]` and a
-  `[ProductDomainService]`. The constructor refuses a type carrying both attributes.
-- **A startup check.** Once every endpoint is mapped, `Build()` reads them all and throws, listing
-  every problem at once, when an endpoint breaks a standard or contradicts its authorization.
-
-## Example
+## Write the entry point
 
 In a project using `Microsoft.NET.Sdk.Web`, `Program.cs` is the whole entry point:
 
@@ -46,6 +28,20 @@ internal sealed class WidgetService(string[] args) : Service("widget-service", "
         WidgetsEndpoints.Map(endpoints);
 }
 ```
+
+- `Service(name, title, args)` takes the service's identifier, its title and the command line.
+- The identifier must be lowercase letters, digits and hyphens (`^[a-z0-9]+(-[a-z0-9]+)*$`), or the
+  constructor throws. This catches the identifier and title passed the wrong way round.
+- The identifier names the service's outbound credential (`internal.{name}`), the token audience it
+  accepts, its telemetry resource and its rate-limit keys. The package supplies it as
+  `Bitwarden:ServiceName`, the lowest-precedence setting, so a deployment can override it.
+- The title is the title of the OpenAPI document and the documentation UI.
+- Most services need only `Authorization`, `ConfigureServices` and `MapEndpoints`.
+- Once every endpoint is mapped, the package reads them all. When an endpoint is declared wrongly or
+  contradicts its authorization, the service doesn't start, and the exception lists every problem
+  at once.
+
+## Override the other hooks
 
 Override the other hooks only when you need them:
 
@@ -82,16 +78,7 @@ internal sealed class WidgetService(string[] args) : Service("widget-service", "
 }
 ```
 
-`Build()` returns the configured `WebApplication` without starting it, for tests and hosting
-harnesses. `Run()` builds and runs it; given `--emit-openapi <path>` it writes the OpenAPI document
-instead and exits.
-
-```csharp
-await using var app = new WidgetService([]).Build();
-await app.StartAsync();
-```
-
-### The hooks, in order
+The hooks run in this order. A derived type can add at each hook but can't reorder the steps.
 
 | Step | Hook or platform step      | What happens                                                                                        |
 | ---- | -------------------------- | --------------------------------------------------------------------------------------------------- |
@@ -105,12 +92,7 @@ await app.StartAsync();
 | 8    | Platform middleware        | See below.                                                                                          |
 | 9    | `OnPipelineConfigured()`   | Your own middleware, the usual place for it.                                                        |
 | 10   | Platform endpoints         | `/api/openapi.json`, `/docs`, the health probes, `GET /`, and a product service's config resource.  |
-| 11   | `MapEndpoints()`           | Your endpoints. Then the startup check runs.                                                        |
-
-`AddPlatformServices` and `UsePlatformMiddleware` are virtual too, but overriding either replaces
-the platform's baseline wholesale. Prefer the hooks on either side of them.
-
-### Middleware order
+| 11   | `MapEndpoints()`           | Your endpoints. Then the package checks them all.                                                   |
 
 The platform's middleware runs in this order, outermost first:
 
@@ -126,7 +108,23 @@ The platform's middleware runs in this order, outermost first:
 9. Authentication, then the caller-context check (domain services only), then authorization.
 10. Feature-flag checks.
 
-### The three kinds of service
+`AddPlatformServices` and `UsePlatformMiddleware` are virtual too, but overriding either replaces
+the platform's baseline wholesale. Use the hooks on either side of them instead.
+
+## Start the service in a test
+
+`Build()` returns the configured `WebApplication` without starting it, for tests and hosting
+harnesses:
+
+```csharp
+await using var app = new WidgetService([]).Build();
+await app.StartAsync();
+```
+
+`Run()` builds and runs it. Given `--emit-openapi <path>`, it writes the OpenAPI document instead
+and exits.
+
+## Choose the kind of service
 
 ```csharp
 using Bitwarden.Server.Sdk.Service;
@@ -148,33 +146,32 @@ internal sealed class WidgetService(string[] args) : Service("widget-service", "
   validated token, refuses the caller-context headers, and serves `GET /api/v1/config`.
 - A **product domain service** behaves exactly as a domain service. The attribute changes only how
   its documentation UI looks, so the three kinds can be told apart.
+- A type carrying both attributes makes the constructor throw.
+- Both attributes are inherited, so a type deriving from a product service stays one.
+- `IServiceIdentity.IsProductService` (Bitwarden.Server.Sdk.Common) reports which kind is running.
 
-Both attributes are inherited, so a type deriving from a product service stays one.
-`IServiceIdentity.IsProductService` (Bitwarden.Server.Sdk.Common) reports which kind is running. See
-[Caller context](caller-context.md) for what each kind believes.
+Mark a service `[ProductService]` only when people call it directly. See
+[Caller context](caller-context.md) for what each kind believes about a request.
 
-### `UseBitwardenSdk()`
-
-The `Bitwarden.Server.Sdk` MSBuild SDK offers `UseBitwardenSdk()`, which layers in self-hosted
-settings, sets up OpenTelemetry and can add authentication and feature flags. A service built on
-`Service` gets all of that from `Service`, so don't call `UseBitwardenSdk()` as well: the two
-register the bearer scheme twice, which fails with "Scheme already exists: Bearer". The settings
-both read (`globalSettings:selfHosted`, `OpenTelemetry:*`, `DD_ENV`) mean the same thing in both.
-
-## Configuration
+## Settings
 
 | Setting                 | Default                      | What it does                                                                                                                            |
 | ----------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `Bitwarden:ServiceName` | The name passed to `Service` | The name the client packages authenticate as (`internal.{name}`). Supplied as the lowest-precedence source, so a deployment can set it. |
 
-## What you decide
+## Things to know
 
-- **The identifier.** It is unique across Bitwarden and appears in credentials, audiences,
-  configuration and telemetry, so choose it once. Changing it later changes the service's audience.
-- **The kind of service.** Mark a service `[ProductService]` only when people call it directly.
-  Everything a domain service believes about a request comes from another service.
-- **Which hooks to override.** Most services need only `Authorization`, `ConfigureServices` and
-  `MapEndpoints`.
+- **Choose the identifier once.** It is unique across Bitwarden and appears in credentials,
+  audiences, configuration and telemetry. Changing it later changes the service's audience, so every
+  caller's tokens must change with it.
+- **Don't call `UseBitwardenSdk()`.** The `Bitwarden.Server.Sdk` MSBuild SDK offers it to layer in
+  self-hosted settings, set up OpenTelemetry and add authentication and feature flags. `Service`
+  already does all of that. Calling both registers the bearer scheme twice, and the service fails
+  with "Scheme already exists: Bearer". The settings both read (`globalSettings:selfHosted`,
+  `OpenTelemetry:*`, `DD_ENV`) mean the same thing in both.
+- **Middleware placement matters.** Middleware in `OnConfiguringPipeline` runs before
+  authentication, so it must not trust anything about the caller. Put middleware that needs the
+  caller in `OnPipelineConfigured`.
 
 ## See also
 
@@ -182,4 +179,3 @@ both read (`globalSettings:selfHosted`, `OpenTelemetry:*`, `DD_ENV`) mean the sa
 - [Caller context](caller-context.md)
 - [Configuration and self-hosting](configuration-and-self-hosting.md)
 - [Caching and extensions](caching-and-extensions.md)
-- [API standards](https://contributing.bitwarden.com/architecture/server/apis)

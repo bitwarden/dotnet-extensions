@@ -1,19 +1,13 @@
 # Standard responses
 
-Every API can answer the same set of failure statuses, so an API doesn't document them one by one,
-and the standard says which status fits which failure. The package answers most of them itself,
-answers the rest from the exceptions a handler throws, and builds each operation's success document
-with the `StandardResponses` helpers. The standard:
-[Standard responses](https://contributing.bitwarden.com/architecture/server/apis/standard-responses).
+Your handler returns a document built by a `StandardResponses` helper, and the operation's attribute
+(`[StandardCreate]`, `[StandardReadOne]` and so on) sets the success status. For a failure you throw
+an exception, and the package answers with the right status and an error document. It answers many
+failures itself before your handler runs.
 
-## What the package does
+## Return a success
 
-**Documentation.** An operation's OpenAPI entry lists its success response and one `default`
-response, the error document, for every failure. Standard responses are never listed one by one,
-as the standard asks.
-
-**Success.** The status comes from the operation's attribute, applied when the result is written.
-The helpers (`using static Bitwarden.Server.Sdk.Service.StandardResponses;`) build the document:
+The helpers come from `using static Bitwarden.Server.Sdk.Service.StandardResponses;`:
 
 | Operation            | Return                                                           | Status                                      |
 | -------------------- | ---------------------------------------------------------------- | ------------------------------------------- |
@@ -24,36 +18,12 @@ The helpers (`using static Bitwarden.Server.Sdk.Service.StandardResponses;`) bui
 | `[StandardAction]`   | `ActionResponse(resource)`, or your own value                    | `200`                                       |
 | Any operation        | Nothing (`Task`)                                                 | `204`                                       |
 
-Each helper takes an optional `meta`. A handler that returns an `IResult`, or sets the status
-itself, keeps the status it chose.
+- Each helper takes an optional `meta`.
+- A handler that returns an `IResult`, or sets the status itself, keeps the status it chose.
+- The OpenAPI document lists each operation's success response and one `default` response, the
+  error document, for every failure. You don't document failures one by one.
 
-**Failures.** Each is the standard error document (see [Errors](errors.md)):
-
-| Status | When the package answers it                                                                                                                                                     |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `400`  | A resource document that isn't JSON (`malformed-json`); a body the client stopped sending; a value the framework couldn't bind for a reason it didn't name (`invalid-request`). |
-| `401`  | No token, or one that isn't valid; `UnauthenticatedException`.                                                                                                                  |
-| `403`  | The token lacks the scope, role or context the operation demands; `ForbiddenException`.                                                                                         |
-| `404`  | `NotFoundException`; an address no route matches; an operation behind a feature flag that is off.                                                                               |
-| `405`  | A route that exists, with a method it doesn't serve.                                                                                                                            |
-| `406`  | Never on its own: `Accept` is not checked. See [Content negotiation](content-negotiation.md).                                                                                   |
-| `409`  | `ConflictException`, which `Concurrency.Require` throws for a stale `version`.                                                                                                  |
-| `413`  | A body over the server's size limit.                                                                                                                                            |
-| `415`  | A body in a media type the operation doesn't read.                                                                                                                              |
-| `422`  | Binding and validation failures; refused query parameters; `InvalidRequestException`; a `[SelfHostedOnly]` or `[NotSelfHostedOnly]` operation in the other kind of install.     |
-| `429`  | Over a per-address rate limit. See [Network and request limits](../beyond-the-standards/network-and-request-limits.md).                                                         |
-| `500`  | Any exception the package doesn't recognise. Nothing about it reaches the caller.                                                                                               |
-| `501`  | `NotImplementedException`, and `PendingServiceException` for a rule that waits on a service that doesn't exist yet.                                                             |
-| `503`  | `ServiceUnavailableException`, which the SDK's clients throw when a dependency is down or slow; the readiness probe when a health check fails.                                  |
-
-Routing decides `404`, `405` and a resource document's `415` before authentication, so a caller
-without a valid token is told `401` instead.
-
-**Where the package differs from the standard.** A plain JSON body (an action's arguments, say)
-that isn't valid JSON is answered `422`, with the serializer's message, rather than `400`. The
-standard's `400` applies to resource documents only.
-
-## Example
+## Answer a failure by throwing
 
 The handlers return the helpers' documents, and say `403`, `404` or `422` by throwing:
 
@@ -165,41 +135,52 @@ public static class WidgetsEndpoints
 public sealed record VisibleWidget(Widget Widget, Guid OwnerId);
 ```
 
-A widget shared with the person, which they don't own:
+## Choose the status of a failure
 
-```http
-HTTP/1.1 403 Forbidden
-Content-Type: application/json; charset=utf-8
+The package can't know some of these. You decide:
 
-{"errors":[{"status":"403","code":"forbidden","title":"The caller is not permitted to do this.","detail":"Only the widget's owner can change it."}]}
-```
-
-A widget nobody shared with them, which they are not told exists:
-
-```http
-HTTP/1.1 404 Not Found
-Content-Type: application/json; charset=utf-8
-
-{"errors":[{"status":"404","code":"not-found","title":"The resource does not exist.","detail":"No widget with ID 'd2c9a4c0-0000-4000-8000-000000000001' exists."}]}
-```
-
-## What you decide
-
-- **`403` or `404`.** The package can't know who may know a resource exists. Throw
-  `NotFoundException` when the caller may not know, and `ForbiddenException` when they may know but
-  not act, as `RequireOwner` does.
+- **`403` or `404`.** Throw `NotFoundException` when the caller may not know the resource exists,
+  and `ForbiddenException` when they may know but not act, as `RequireOwner` does.
 - **`404` or `422`.** A resource named in the path that isn't there is `NotFoundException`. One
-  named in the body that isn't there is `InvalidRequestException`, with a pointer to the field.
+  named in the body that isn't there is `InvalidRequestException`, with a pointer to the field, as
+  `CreateWidget` does.
 - **`503` for your own dependencies.** The SDK's clients throw `ServiceUnavailableException`. For a
   database or another library, translate its timeout with an `IExceptionTranslator` (see
-  [Errors](errors.md)), or it is a `500`.
+  [Errors](errors.md)), or the caller gets `500`.
 - **`501` for a stub.** Throw `NotImplementedException` from an operation declared but not built.
+
+## Know what the package answers for you
+
+Every failure is an error document (see [Errors](errors.md)):
+
+| Status | When the package answers it                                                                                                                                                     |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `400`  | A resource document that isn't JSON (`malformed-json`); a body the client stopped sending; a value the framework couldn't bind for a reason it didn't name (`invalid-request`). |
+| `401`  | No token, or one that isn't valid; `UnauthenticatedException`.                                                                                                                  |
+| `403`  | The token lacks the scope, role or context the operation demands; `ForbiddenException`.                                                                                         |
+| `404`  | `NotFoundException`; an address no route matches; an operation behind a feature flag that is off.                                                                               |
+| `405`  | A route that exists, with a method it doesn't serve.                                                                                                                            |
+| `406`  | Never on its own: `Accept` is not checked. See [Content negotiation](content-negotiation.md).                                                                                   |
+| `409`  | `ConflictException`, which `Concurrency.Require` throws for a stale `version`.                                                                                                  |
+| `413`  | A body over the server's size limit.                                                                                                                                            |
+| `415`  | A body in a media type the operation doesn't read.                                                                                                                              |
+| `422`  | Binding and validation failures; refused query parameters; `InvalidRequestException`; a `[SelfHostedOnly]` or `[NotSelfHostedOnly]` operation in the other kind of install.     |
+| `429`  | Over a per-address rate limit. See [Network and request limits](../running-a-service/network-and-request-limits.md).                                                            |
+| `500`  | Any exception the package doesn't recognise. Nothing about it reaches the caller.                                                                                               |
+| `501`  | `NotImplementedException`, and `PendingServiceException` for a rule that waits on a service that doesn't exist yet.                                                             |
+| `503`  | `ServiceUnavailableException`, which the SDK's clients throw when a dependency is down or slow; the readiness probe when a health check fails.                                  |
+
+## Things to know
+
+- **Routing answers first.** Routing decides `404`, `405` and a resource document's `415` before
+  authentication, so a caller without a valid token is told `401` instead.
+- **A plain body that isn't JSON is `422`.** For a plain JSON body, such as an action's arguments,
+  the package answers `422` with the serializer's message, not `400`. Only a resource document that
+  isn't JSON gets `400` `malformed-json`.
 
 ## See also
 
 - [Errors](errors.md): the error document, and every exception that maps to a status.
 - [Request validation](request-validation.md): what is refused `400` and `422`.
-- [Verbs](../operations/verbs.md): the standard attributes and their success statuses.
+- [Verbs](../operations/verbs.md): the operation attributes and their success statuses.
 - [Paging](../querying/paging.md): `ReadManyResponse` for a page.
-- The standard:
-  [Standard responses](https://contributing.bitwarden.com/architecture/server/apis/standard-responses).

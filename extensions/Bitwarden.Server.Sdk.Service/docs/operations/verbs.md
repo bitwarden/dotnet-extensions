@@ -1,47 +1,26 @@
 # Verbs
 
-The standard gives each HTTP verb one meaning: `POST` creates, `GET` reads, `PUT` replaces, `PATCH`
-partially updates and `DELETE` deletes, with actions, advanced queries and bulk operations using
-`POST`. The package gives each standard operation an attribute that fixes its verb, and refuses to
-start a service whose `Map` line uses another. The standard:
-[Verbs](https://contributing.bitwarden.com/architecture/server/apis/verbs).
+Each kind of operation has an attribute that fixes its HTTP verb, its route below the group and its
+success status. You put one attribute on each handler and map the handler with the matching `Map...`
+call.
 
-## What the package does
+## Pick the attribute for each handler
 
-Every handler in a group mapped with `WithStandards()` carries one standard attribute. The attribute
-names the operation, and with it the verb, the route below the group and the success status:
+| Attribute            | Map with    | Route below the group   | Succeeds with                           |
+| -------------------- | ----------- | ----------------------- | --------------------------------------- |
+| `[StandardCreate]`   | `MapPost`   | the collection (`""`)   | `201`, with `Location`                  |
+| `[StandardReadMany]` | `MapGet`    | the collection (`""`)   | `200`                                   |
+| `[StandardReadOne]`  | `MapGet`    | `{id}`                  | `200`                                   |
+| `[StandardUpdate]`   | `MapPut`    | `{id}`                  | `200`                                   |
+| `[StandardDelete]`   | `MapDelete` | `{id}`                  | `204`                                   |
+| `[StandardAction]`   | `MapPost`   | `{id}/actions/{action}` | `200`, or `204` when it returns nothing |
 
-| Attribute            | Verb     | Route below the group   | Succeeds with                           |
-| -------------------- | -------- | ----------------------- | --------------------------------------- |
-| `[StandardCreate]`   | `POST`   | the collection (`""`)   | `201`, with `Location`                  |
-| `[StandardReadMany]` | `GET`    | the collection (`""`)   | `200`                                   |
-| `[StandardReadOne]`  | `GET`    | `{id}`                  | `200`                                   |
-| `[StandardUpdate]`   | `PUT`    | `{id}`                  | `200`                                   |
-| `[StandardDelete]`   | `DELETE` | `{id}`                  | `204`                                   |
-| `[StandardAction]`   | `POST`   | `{id}/actions/{action}` | `200`, or `204` when it returns nothing |
+Searches use `[StandardSearch]` and bulk operations use the `[StandardBulk...]` attributes, all
+mapped with `MapPost`. There is no attribute for `PATCH`; see [Partial updates](partial-updates.md).
 
-- **One verb per meaning.** Each attribute derives from ASP.NET Core's `HttpPost`, `HttpGet`,
-  `HttpPut` or `HttpDelete` attribute, so the verb is part of the declaration. There is no attribute
-  for `PATCH`: see [Partial updates](partial-updates.md).
-- **`POST` beyond creates.** Actions use `[StandardAction]`, and searches and bulk operations use
-  `[StandardSearch]` and the `[StandardBulk...]` attributes, all of them `POST`.
-- **The `Map` line must agree.** The service refuses to start when a standard endpoint is mapped
-  with a verb other than its attribute's, or at a route other than its attribute's. It lists every
-  problem at once, naming the class and method.
-- **A route can be given.** Each attribute takes a `template` for a route other than its default,
-  such as `[StandardReadOne("by-email/{email}")]`. The `Map` line must then use that route.
-- **Reads are reads.** `[StandardReadOne]`, `[StandardReadMany]` and `[StandardSearch]` are reads,
-  so an operation that declares no scope of its own demands the service's read scope. Every other
-  operation demands the write scope. See
-  [Authentication and authorization](../beyond-the-standards/authentication-and-authorization.md).
-- **Writes finish.** A request with any verb but `GET`, `HEAD`, `OPTIONS` and `TRACE` runs to the
-  end even when its client disconnects.
-- **Other verbs are refused.** A verb nothing is mapped for answers `405` in the standard error
-  document.
+## Map a resource's endpoints
 
-## Example
-
-A resource's endpoints, one `Map` line per handler and one attribute per handler:
+Map the group with `WithStandards()`, then give each handler one `Map...` line and one attribute:
 
 ```csharp
 using Bitwarden.Server.Sdk.Common;
@@ -113,59 +92,45 @@ public static class WidgetsEndpoints
 }
 ```
 
-Map `GetWidget` with `MapPost` instead of `MapGet` and the service stops at startup:
+- `WithStandards()` reads the attributes, checks each `Map...` line and applies the success status.
+  A group mapped without it gets none of this.
+- A verb the resource doesn't map, such as `PATCH` here, is refused with `405` in the standard error
+  document.
+- Reads (`[StandardReadOne]`, `[StandardReadMany]`, `[StandardSearch]`) demand the service's read
+  scope unless they declare their own; every other operation demands the write scope. See
+  [Authentication and authorization](../running-a-service/authentication-and-authorization.md).
+- A request with any verb but `GET`, `HEAD`, `OPTIONS` or `TRACE` runs to the end even when its
+  client disconnects, so a write is not left half done.
+
+## Keep the Map line and the attribute in step
+
+The service refuses to start when a handler is mapped with a verb or route other than its
+attribute's. It lists every problem at once, naming the class and method. Map `GetWidget` with
+`MapPost` instead of `MapGet` and the service stops with:
 
 ```text
 System.InvalidOperationException: The service's endpoints do not meet the standards:
   - 'WidgetsEndpoints.GetWidget' is [StandardReadOne], which is GET, but is mapped with POST.
 ```
 
-A verb the resource doesn't map is refused:
+To use a route other than the default, pass it to the attribute, such as
+`[StandardReadOne("by-email/{email}")]`, and map the handler at that same route.
 
-```http
-PATCH /api/v1/widgets/62bed180-1f78-45d4-8a56-c996936a2947
-Content-Type: application/json
-```
+## Things to know
 
-```http
-HTTP/1.1 405 Method Not Allowed
-Content-Type: application/json; charset=utf-8
-```
-
-```json
-{
-    "errors": [
-        {
-            "status": "405",
-            "code": "method-not-allowed",
-            "title": "The method is not allowed on this resource.",
-            "detail": "The resource does not support PATCH requests."
-        }
-    ]
-}
-```
-
-## What you decide
-
-- **Map every group with `WithStandards()`.** The attributes do nothing on a minimal API by
-  themselves: `WithStandards()` is what reads them, checks the `Map` line and applies the status.
-  A group mapped without it gets none of this.
-- **Keep `GET` safe.** The package can't tell whether a handler changes state. A `GET` handler must
-  not, and an operation that changes something without being a create, update or delete is an
+- **The package can't tell whether a `GET` handler changes state.** Keep `GET` handlers free of side
+  effects. An operation that changes something without being a create, update or delete is an
   [action](acting-upon-resources.md).
-- **Collection routes are not compared.** An attribute whose route is the collection itself
-  (`[StandardCreate]` and `[StandardReadMany]` by default) matches any route its `Map` line gives,
-  so only the verb is checked for them. Map them at `""`.
-- **Create-or-update goes through `PUT`.** See
-  [Updating resources](updating-resources.md#create-or-update).
+- **Collection routes are not compared.** `[StandardCreate]` and `[StandardReadMany]` match any
+  route their `Map...` line gives, so only the verb is checked. Map them at `""`.
+- **Create-or-update goes through `PUT`.** See [Updating
+  resources](updating-resources.md#create-or-update).
 
 ## See also
 
-- [Creating resources](creating-resources.md), [Reading resources](reading-resources.md),
-  [Updating resources](updating-resources.md), [Deleting resources](deleting-resources.md) and
-  [Acting upon resources](acting-upon-resources.md)
-- [Advanced queries](../querying/advanced-queries.md) and
-  [Bulk operations](../bulk-and-asynchronous-work/bulk-operations/index.md), the other uses of
-  `POST`
+- [Creating resources](creating-resources.md), [Reading resources](reading-resources.md), [Updating
+  resources](updating-resources.md), [Deleting resources](deleting-resources.md) and [Acting upon
+  resources](acting-upon-resources.md)
+- [Advanced queries](../querying/advanced-queries.md) and [Bulk
+  operations](../bulk-and-asynchronous-work/bulk-operations/index.md), the other uses of `POST`
 - [API paths](../contracts/api-paths.md)
-- The standard: [Verbs](https://contributing.bitwarden.com/architecture/server/apis/verbs)

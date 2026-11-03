@@ -1,32 +1,13 @@
 # Outbound HTTP
 
 A service makes two kinds of outbound call: to an address someone outside Bitwarden chose, such as
-an organization's webhook or identity provider, and to the deployment's other services. The first
-must not reach the private network (server-side request forgery). The second must run over a Trusted
-Channel.
+an organization's webhook or identity provider, and to the deployment's other services. Guard the
+first with `AddSsrfProtection()` so it can't reach the private network, and run the second over a
+Trusted Channel with `Tls:*` settings.
 
-## What the package does
+## Guard a client whose destination someone else chose
 
-- **The SSRF guard.** `AddSsrfProtection()` on an `IHttpClientBuilder` resolves each request's host
-  first and refuses an address in a private, loopback, link-local or other reserved range with
-  `SsrfProtectionException`, before anything connects. It then connects to the address it checked,
-  keeping the original host for TLS, so the name can't resolve elsewhere in between.
-- **Redirects are checked hop by hop.** The guard turns off automatic redirects on the primary
-  handler and follows them itself (up to 10), checking every hop.
-- **`AddCloudSsrfProtection()`** guards only in Bitwarden's cloud and leaves a self-hosted install's
-  client unguarded.
-- **`IPAddress.IsInternal()`** (`IPAddressExtensions`) is the check the guard makes, for validating
-  an address when it is saved.
-- **Internal TLS.** `Tls:CertificateAuthorities` adds root authorities to the trust of every client
-  the HTTP client factory makes and of the bearer handler's discovery and key fetches.
-  `Tls:RequireHttps` refuses a plain-HTTP bearer authority at startup.
-
-The extensions are in the `Microsoft.Extensions.DependencyInjection` namespace; the exception and
-`IPAddressExtensions` in `Bitwarden.Server.Sdk.Service.Http`.
-
-## Example
-
-Register a guarded client for each destination someone outside Bitwarden chose:
+Add the guard to each client whose destination comes from an organization, a user or a document:
 
 ```csharp
 using Bitwarden.Server.Sdk.Service;
@@ -50,8 +31,20 @@ internal sealed class WidgetService(string[] args) : Service("widget-service", "
 }
 ```
 
-A refused request surfaces as `SsrfProtectionException`. Turn it into an answer the caller can act
-on rather than letting it become a `500`:
+- The guard resolves each request's host first and refuses an address in a private, loopback,
+  link-local or other reserved range, before anything connects.
+- It then connects to the address it checked, keeping the original host for TLS, so the name can't
+  resolve elsewhere in between.
+- It turns off automatic redirects on the primary handler and follows them itself (up to 10),
+  checking every hop.
+- `AddCloudSsrfProtection()` guards only in Bitwarden's cloud, and leaves a self-hosted install's
+  client unguarded.
+- The extensions are in the `Microsoft.Extensions.DependencyInjection` namespace.
+
+## Handle a refused address
+
+A refused request throws `SsrfProtectionException` (`Bitwarden.Server.Sdk.Service.Http`). Turn it
+into an answer the caller can act on, rather than letting it become a `500`:
 
 ```csharp
 using System.Net;
@@ -83,7 +76,12 @@ internal sealed class WidgetWebhooks(IHttpClientFactory clients, ILogger<WidgetW
 }
 ```
 
-### Calls to other services
+- `IPAddress.IsInternal()` (`IPAddressExtensions`) is the check the guard makes. Use it to refuse an
+  address when it is saved, as well as when it is called.
+- Data a service sends out, to a webhook especially, leaves the Bitwarden Secure Environment. Send
+  identifiers, never Vault Data, which the service holds only as Protected Data anyway.
+
+## Call other services over TLS
 
 A service serves HTTPS with Kestrel's own settings (`Kestrel:Endpoints:Https:*`). For its calls to
 other services, name the authority that issued their certificates:
@@ -97,11 +95,15 @@ other services, name the authority that issued their certificates:
 }
 ```
 
-A server certificate is trusted when the system trusts it or it chains to a named root; a host name
-that doesn't match is never trusted. TLS gives these calls a Secure Channel; with the service token
-each call carries, and the callee's audience check, a Trusted Channel.
+- `Tls:CertificateAuthorities` adds root authorities to the trust of every client the HTTP client
+  factory makes, and of the bearer handler's discovery and key fetches.
+- A server certificate is trusted when the system trusts it or it chains to a named root. A host
+  name that doesn't match is never trusted.
+- `Tls:RequireHttps` refuses a plain-HTTP bearer authority at startup.
+- TLS gives these calls a Secure Channel. With the service token each call carries, and the callee's
+  audience check, it is a Trusted Channel.
 
-## Configuration
+## Settings
 
 | Setting                      | Default | What it does                                                                                                                           |
 | ---------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -109,7 +111,7 @@ each call carries, and the callee's audience check, a Trusted Channel.
 | `Tls:RequireHttps`           | `false` | When true, the bearer authority must be `https://`, or the service does not start.                                                     |
 | `globalSettings:selfHosted`  | `false` | When true, `AddCloudSsrfProtection()` clients are unguarded.                                                                           |
 
-### Security trade-offs
+## Security trade-offs
 
 - **Internal TLS.** Every service that calls another must trust the authority that issued the
   callee's certificate, so name the same authority files on every service. A file that can't be
@@ -118,20 +120,16 @@ each call carries, and the callee's audience check, a Trusted Channel.
   install unguarded, where the operator chose the destinations. Use `AddSsrfProtection()` for any
   destination a self-hosted install's users, rather than its operator, choose.
 
-## What you decide
+## Things to know
 
-- **Which clients are guarded.** The guard is opt-in per client. Add it to every client whose
-  destination comes from an organization, a user or a document, and to none whose destination is the
-  deployment's own.
-- **A client with its own primary handler.** A client that sets its own primary handler after the
-  platform keeps its own certificate trust, so it doesn't get `Tls:CertificateAuthorities`.
-- **What leaves the service.** Data a service sends out, to a webhook especially, leaves the
-  Bitwarden Secure Environment. Send identifiers, never Vault Data, which the service holds only as
-  Protected Data anyway.
+- **The guard is opt-in per client.** A client you don't guard can reach anything. Guard none whose
+  destination is the deployment's own, since the guard would refuse it.
+- **A client with its own primary handler** set after the platform's keeps its own certificate
+  trust, so it doesn't get `Tls:CertificateAuthorities`. Add the authorities to that handler
+  yourself.
 
 ## See also
 
 - [Authentication and authorization](authentication-and-authorization.md)
 - [Configuration and self-hosting](configuration-and-self-hosting.md)
 - [Network and request limits](network-and-request-limits.md)
-- [API standards](https://contributing.bitwarden.com/architecture/server/apis)

@@ -1,32 +1,12 @@
 # Partial updates
 
-The standard says services should not support partial updates. One that does must use `PATCH`,
-leave out what a caller leaves out, clear a field sent as `null`, and treat an empty string as not
-sent. The package has no partial update: use `PUT`, or an action for a change to one field. The
-standard:
-[Partial updates](https://contributing.bitwarden.com/architecture/server/apis/partial-updates).
+The package has no attribute for `PATCH`. To change one member, give the change its own action with
+`[StandardAction]`; to change several, replace the resource with `PUT`. If you must offer `PATCH`,
+map it yourself and take the body as a `JsonObject`.
 
-## What the package does
+## Change one member with an action
 
-| The standard                                               | The package                                                                                        |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Services `SHOULD NOT` support partial updates              | There is no standard attribute for `PATCH`. A `PATCH` nothing is mapped for answers `405`.         |
-| A service that does `MUST` use `PATCH`                     | `MapPatch` works in a group mapped `WithStandards()`, as an endpoint without a standard attribute. |
-| An absent field is unchanged, an explicit `null` clears it | A `ResourceDocument<T>` can't express this: binding treats `null` as absent.                       |
-| An empty string counts as absent                           | Binding a `ResourceDocument<T>` already treats `""` as absent.                                     |
-| A change to one element `MAY` be an action                 | `[StandardAction]`. See [Acting upon resources](acting-upon-resources.md).                         |
-
-- **Why not a `ResourceDocument<T>`.** Binding a resource document drops a member sent as `null` or
-  as a blank string, and refuses a document that leaves out a required attribute. That is right for
-  a create or a `PUT`, and makes the document unable to say "clear this" or "leave that".
-- **A `PATCH` endpoint is not a standard one.** It gets the standard error document, binding and
-  validation of a plain body, and authorization with the write scope. It doesn't get an operation
-  identifier, a `type` or `id` check, or a documented resource schema.
-
-## Example
-
-The recommended way: replace with `PUT` (see [Updating resources](updating-resources.md)), or give
-a change its own action. Renaming a widget:
+Give the change a small request record and a `[StandardAction]` handler. Renaming a widget:
 
 ```csharp
 using System.ComponentModel.DataAnnotations;
@@ -62,29 +42,18 @@ public static class WidgetsEndpoints
 public sealed record RenameWidget([property: StringLength(100)] string Name);
 ```
 
-```http
-POST /api/v1/widgets/62bed180-1f78-45d4-8a56-c996936a2947/actions/rename
-Content-Type: application/json
-```
+- The request record is bound and validated before your handler runs: a name over 100 characters is
+  refused with `422`.
+- `ActionResponse` answers `200` with the widget as it now stands.
+- See [Acting upon resources](acting-upon-resources.md) for actions in general, and [Updating
+  resources](updating-resources.md) for replacing the whole resource with `PUT`.
 
-```json
-{ "name": "Bobby" }
-```
+## Offer `PATCH` yourself
 
-```json
-{
-    "data": {
-        "id": "62bed180-1f78-45d4-8a56-c996936a2947",
-        "type": "widget",
-        "attributes": { "name": "Bobby", "notes": "2.AAAA|BBBB|CCCC" }
-    }
-}
-```
-
-### If you must support `PATCH`
-
-Take the body as a `JsonObject`, so an absent member and an explicit `null` look different, and do
-the checks a resource document would have done:
+The package doesn't support partial updates, and a `ResourceDocument<T>` can't tell a member sent as
+`null` from one left out: binding drops both, and drops a blank string too. To offer `PATCH`, map it
+with `MapPatch`, take the body as a `JsonObject` so an absent member and an explicit `null` look
+different, and do the checks a resource document would have done:
 
 ```csharp
 using System.Text.Json;
@@ -156,49 +125,27 @@ public static class PatchedWidgetsEndpoints
 }
 ```
 
-Clearing the notes, and leaving the name alone:
+- A member left out, or sent as an empty string, is unchanged. A member sent as `null` is cleared,
+  unless it is required, which is refused.
+- `MapPatch` works in a group mapped with `WithStandards()`. The endpoint gets the standard error
+  document, a plain body's binding and validation (a body that isn't JSON is refused with `422`
+  before your handler runs), and the service's write scope.
+- It doesn't get an operation identifier (name it with `WithName`), a `type` or `id` check, or a
+  documented resource schema. The handler does those checks itself.
 
-```http
-PATCH /api/v1/widgets/62bed180-1f78-45d4-8a56-c996936a2947
-Content-Type: application/json
-```
+## Things to know
 
-```json
-{
-    "data": {
-        "id": "62bed180-1f78-45d4-8a56-c996936a2947",
-        "type": "widget",
-        "attributes": { "notes": null }
-    }
-}
-```
-
-```json
-{
-    "data": {
-        "id": "62bed180-1f78-45d4-8a56-c996936a2947",
-        "type": "widget",
-        "attributes": { "name": "Bobby" }
-    }
-}
-```
-
-A body that isn't JSON is refused `422` before the handler runs, as every plain body is.
-
-## What you decide
-
-- **Whether to support `PATCH` at all.** The standard advises against it. A service that offers it
-  usually has to offer `PUT` too, and two endpoints then do the same thing.
-- **Every check on a `PATCH` body.** Type, `id`, each value's JSON type and bounds, which fields may
-  be cleared, and that nothing read-only is changed. The sample checks two fields; a real resource
-  needs one check per field it accepts.
-- **The OpenAPI description.** The document describes the body as a free-form object. Describe the
-  fields in the operation's XML comments.
-- **Don't decrypt.** An encrypted member is replaced or cleared as a whole, never read.
+- **Every check on a `PATCH` body is yours.** Type, `id`, each value's JSON type and bounds, which
+  members may be cleared, and that nothing read-only changes. The sample checks two members; a real
+  resource needs one check per member it accepts.
+- **The OpenAPI document describes the `PATCH` body as a free-form object.** Describe the members in
+  the operation's XML comments.
+- **`PATCH` usually means two endpoints doing the same thing,** since a service that offers it still
+  needs `PUT`. Prefer `PUT` and actions.
+- **A verb nothing is mapped for answers `405`,** so a `PATCH` to a resource without one is refused.
+- **Never decrypt.** An `[Encrypted]` member is replaced or cleared as a whole, never read.
 
 ## See also
 
 - [Updating resources](updating-resources.md) and [Acting upon resources](acting-upon-resources.md)
 - [Bulk updates](../bulk-and-asynchronous-work/bulk-operations/bulk-updates.md)
-- The standard:
-  [Partial updates](https://contributing.bitwarden.com/architecture/server/apis/partial-updates)
