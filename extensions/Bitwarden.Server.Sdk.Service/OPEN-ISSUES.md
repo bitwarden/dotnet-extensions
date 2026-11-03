@@ -97,6 +97,12 @@ removes its entry and updates the guide page that describes the workaround.
   case name is accepted, and undefined integers bind. In route, query and header parameters,
   ASP.NET Core's own parsing accepts C# member names and any number and refuses the upper snake case
   name (`src/Endpoints/RequestParameters.cs`). Only `Filter<T>` uses `EnumValues`.
+- **`in` ignores the order of its operands.** JSON Logic puts the needle first, so
+  `{"in": [{"var": "name"}, "b"]}` means "name is a substring of 'b'". The package reads a string
+  literal in either position as "the field contains the literal" (`src/Querying/QueryableQuery.cs`,
+  `Contains`), so a field-first `in` with a string matches the reverse of what JSON Logic says. The
+  ordered comparisons (`<`, `<=`, `>`, `>=`) do honour operand order. Guide:
+  [Advanced queries](docs/querying/advanced-queries.md).
 - **An `and` with one term is refused with "'And' combines two or more terms",** the C# name rather
   than the JSON spelling (`src/Querying/QueryableQuery.cs`).
 
