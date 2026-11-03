@@ -80,4 +80,9 @@ public enum OrganizationPermission
     /// Administer access rules.
     /// </summary>
     ManageAccessRules,
+
+    /// <summary>
+    /// Administer credential rotation: the organization's access connectors and their rotation.
+    /// </summary>
+    ManageRotation,
 }
