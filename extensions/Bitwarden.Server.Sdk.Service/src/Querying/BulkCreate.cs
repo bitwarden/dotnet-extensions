@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-using Bitwarden.Server.Sdk.Service.JsonApi;
+using Bitwarden.Server.Sdk.Service.Resources;
 
 namespace Bitwarden.Server.Sdk.Service.Querying;
 
@@ -14,7 +14,7 @@ namespace Bitwarden.Server.Sdk.Service.Querying;
 /// </para>
 /// <para>
 /// Each item may carry a <c>lid</c>, a local identifier the caller chose, beside its
-/// <c>type</c>, as JSON:API places it. The standards allow one so a caller can correlate what
+/// <c>type</c>. The standards allow one so a caller can correlate what
 /// came back with what it sent, and require an API that accepts it to echo it on the created
 /// resource. It is read off the item here and kept in <see cref="Lids"/> rather than put on
 /// <see cref="Resource"/>, because it means something only for the length of one bulk create

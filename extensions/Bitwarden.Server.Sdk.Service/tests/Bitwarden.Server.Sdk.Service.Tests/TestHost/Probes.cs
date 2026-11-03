@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using Bitwarden.Server.Sdk.Common;
-using Bitwarden.Server.Sdk.Service.JsonApi;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Bitwarden.Server.Sdk.Service.Querying;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;

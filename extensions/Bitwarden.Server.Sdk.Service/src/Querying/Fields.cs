@@ -1,6 +1,6 @@
 using System.Reflection;
 using System.Text.Json.Serialization;
-using Bitwarden.Server.Sdk.Service.JsonApi;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Microsoft.AspNetCore.Http;
 
 namespace Bitwarden.Server.Sdk.Service.Querying;
@@ -12,7 +12,7 @@ namespace Bitwarden.Server.Sdk.Service.Querying;
 /// <typeparam name="T">The resource the fieldset is for; the parameter is named after its type.</typeparam>
 /// <remarks>
 /// <para>
-/// The standards' sparse fieldsets, as JSON:API defines them: <c>fields[account]=email,name</c> asks
+/// The standards' sparse fieldsets: <c>fields[account]=email,name</c> asks
 /// for those two attributes of each <c>account</c> and no others. An operation that offers one
 /// declares it as an ordinary parameter, and hands it to the response, which leaves out every
 /// attribute not asked for:
@@ -26,12 +26,12 @@ namespace Bitwarden.Server.Sdk.Service.Querying;
 /// <para>
 /// The reason to offer one is an attribute that costs something to work out. The operation asks
 /// <see cref="Includes"/> before working it out, so a caller who leaves it out of the fieldset
-/// does not pay for it. <c>id</c> and <c>type</c> are always sent, as JSON:API requires.
+/// does not pay for it. <c>id</c> and <c>type</c> are always sent, as the standards require.
 /// </para>
 /// <para>
 /// <c>default</c>, and a request that sends no fieldset, is every attribute: the response is what
-/// it was before the operation offered one. A fieldset only ever takes attributes away, as JSON:API
-/// intends; nothing is withheld from a caller who does not know to ask, so a caller that never sends
+/// it was before the operation offered one. A fieldset only ever takes attributes away;
+/// nothing is withheld from a caller who does not know to ask, so a caller that never sends
 /// one is never surprised by a missing attribute. A name that is not one of the resource's attributes is
 /// refused with a <c>422</c> at the parameter, rather than quietly ignored, so a caller who
 /// misspells a field learns it instead of receiving nothing for it.

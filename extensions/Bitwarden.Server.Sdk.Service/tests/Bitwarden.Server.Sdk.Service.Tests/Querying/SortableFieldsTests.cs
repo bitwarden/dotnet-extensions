@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-using Bitwarden.Server.Sdk.Service.JsonApi;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Bitwarden.Server.Sdk.Service.Querying;
 
 namespace Bitwarden.Server.Sdk.Service.Tests.Querying;

@@ -15,7 +15,7 @@ internal static class FieldsBinding
     /// <exception cref="InvalidFieldsException">A name that is not one of the resource's attributes.</exception>
     public static object Bind(Type type, Microsoft.AspNetCore.Http.IQueryCollection query)
     {
-        var name = (string)type.GetProperty(nameof(Fields<JsonApi.Resource>.Parameter))!.GetValue(null)!;
+        var name = (string)type.GetProperty(nameof(Fields<Resources.Resource>.Parameter))!.GetValue(null)!;
         var supplied = query[name];
 
         if (supplied.Count == 0)

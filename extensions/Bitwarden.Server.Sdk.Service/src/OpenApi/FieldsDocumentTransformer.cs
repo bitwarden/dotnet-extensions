@@ -38,8 +38,8 @@ internal sealed class FieldsDocumentTransformer : IOpenApiDocumentTransformer
             }
 
             var type = declared.ParameterType;
-            var name = (string)type.GetProperty(nameof(Fields<JsonApi.Resource>.Parameter))!.GetValue(null)!;
-            var attributes = ((IReadOnlySet<string>)type.GetProperty(nameof(Fields<JsonApi.Resource>.Attributes))!.GetValue(null)!)
+            var name = (string)type.GetProperty(nameof(Fields<Resources.Resource>.Parameter))!.GetValue(null)!;
+            var attributes = ((IReadOnlySet<string>)type.GetProperty(nameof(Fields<Resources.Resource>.Attributes))!.GetValue(null)!)
                 .Order(StringComparer.Ordinal);
 
             operation.Parameters ??= [];

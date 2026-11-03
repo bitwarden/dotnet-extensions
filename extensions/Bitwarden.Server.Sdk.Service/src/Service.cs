@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Bitwarden.Server.Sdk.Common;
 using Bitwarden.Server.Sdk.Service.Http;
-using Bitwarden.Server.Sdk.Service.JsonApi;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Bitwarden.Server.Sdk.Service.OpenApi;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;

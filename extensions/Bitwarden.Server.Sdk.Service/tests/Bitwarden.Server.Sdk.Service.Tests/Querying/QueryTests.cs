@@ -1,7 +1,7 @@
 using System.Linq.Expressions;
 using System.Text.Json;
 using Bitwarden.Server.Sdk.Common;
-using Bitwarden.Server.Sdk.Service.JsonApi;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Bitwarden.Server.Sdk.Service.Querying;
 
 namespace Bitwarden.Server.Sdk.Service.Tests.Querying;

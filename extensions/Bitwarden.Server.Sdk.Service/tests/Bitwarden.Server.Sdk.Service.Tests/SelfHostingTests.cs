@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Bitwarden.Server.Sdk.Environment;
-using Bitwarden.Server.Sdk.Service.JsonApi;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Bitwarden.Server.Sdk.Service.Tests.TestHost;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;

@@ -3,7 +3,7 @@ using System.IO.Pipelines;
 using System.Reflection;
 using System.Security.Claims;
 using Bitwarden.Server.Sdk.Service.Endpoints;
-using Bitwarden.Server.Sdk.Service.JsonApi;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Bitwarden.Server.Sdk.Service.Querying;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;

@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Bitwarden.Server.Sdk.Common;
-using Bitwarden.Server.Sdk.Service.JsonApi;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Bitwarden.Server.Sdk.Service.Querying;
 
 namespace Bitwarden.Server.Sdk.Service.Endpoints;

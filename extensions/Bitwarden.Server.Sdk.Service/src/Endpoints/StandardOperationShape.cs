@@ -15,9 +15,9 @@ namespace Bitwarden.Server.Sdk.Service.Endpoints;
 /// <list type="bullet">
 ///   <item><description>
 ///     The <b>operation identifier</b>, derived from the method name and the route's version:
-///     <c>CreateUser</c> on <c>api/v1/users</c> becomes <c>createUserV1</c>. The standards require
-///     it to be explicit and version-qualified; deriving it makes it impossible to forget and
-///     impossible to get inconsistently right.
+///     <c>CreateUser</c> on <c>api/v1/users</c> becomes <c>createUser</c>, and on <c>api/v2/users</c>
+///     <c>createUserV2</c>. The standards require it to be explicit and version-qualified;
+///     deriving it makes it impossible to forget and impossible to get inconsistently right.
 ///   </description></item>
 ///   <item><description>
 ///     The <b>documented response</b>, taken from the handler's own return type by reflection, at

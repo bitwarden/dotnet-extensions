@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Bitwarden.Server.Sdk.Service.JsonApi;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Bitwarden.Server.Sdk.Service.Tests.TestHost;
 using Microsoft.AspNetCore.Builder;
 

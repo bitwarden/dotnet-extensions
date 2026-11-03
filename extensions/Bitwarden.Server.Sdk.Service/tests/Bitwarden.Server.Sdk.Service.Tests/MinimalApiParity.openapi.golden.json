@@ -2127,7 +2127,7 @@
             "readOnly": true
           }
         },
-        "description": "A JSON:API document whose \u0060data\u0060 is a single resource."
+        "description": "A document whose \u0060data\u0060 is a single resource."
       },
       "Error": {
         "type": "object",
@@ -2300,7 +2300,7 @@
             "readOnly": true
           }
         },
-        "description": "A JSON:API document whose \u0060data\u0060 is a single resource."
+        "description": "A document whose \u0060data\u0060 is a single resource."
       },
       "NamedOrganization": {
         "required": [
@@ -2560,7 +2560,7 @@
             "readOnly": true
           }
         },
-        "description": "A JSON:API document whose \u0060data\u0060 is a single resource."
+        "description": "A document whose \u0060data\u0060 is a single resource."
       },
       "ParityItemListDocument": {
         "required": [
@@ -2742,7 +2742,7 @@
             "readOnly": true
           }
         },
-        "description": "A JSON:API document whose \u0060data\u0060 is a single resource."
+        "description": "A document whose \u0060data\u0060 is a single resource."
       },
       "ProbePagedListDocument": {
         "required": [

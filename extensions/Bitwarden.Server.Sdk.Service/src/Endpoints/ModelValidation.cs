@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Bitwarden.Server.Sdk.Common;
-using Bitwarden.Server.Sdk.Service.JsonApi;
+using Bitwarden.Server.Sdk.Service.Resources;
 
 namespace Bitwarden.Server.Sdk.Service.Endpoints;
 

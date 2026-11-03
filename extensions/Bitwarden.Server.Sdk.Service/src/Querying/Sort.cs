@@ -1,5 +1,5 @@
 using System.Reflection;
-using Bitwarden.Server.Sdk.Service.JsonApi;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Microsoft.AspNetCore.Http;
 
 namespace Bitwarden.Server.Sdk.Service.Querying;

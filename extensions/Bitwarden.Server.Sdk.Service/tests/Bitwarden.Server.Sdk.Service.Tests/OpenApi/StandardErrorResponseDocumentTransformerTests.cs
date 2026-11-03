@@ -1,4 +1,4 @@
-using Bitwarden.Server.Sdk.Service.JsonApi;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Bitwarden.Server.Sdk.Service.OpenApi;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.OpenApi;

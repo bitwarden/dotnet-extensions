@@ -1,6 +1,6 @@
 using System.Reflection;
 using Bitwarden.Server.Sdk.Service.Endpoints;
-using Bitwarden.Server.Sdk.Service.JsonApi;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Bitwarden.Server.Sdk.Service.OpenApi;
 using Bitwarden.Server.Sdk.Service.Querying;
 using Microsoft.AspNetCore.Mvc;

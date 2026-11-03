@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using Bitwarden.Server.Sdk.Common;
 using Bitwarden.Server.Sdk.Service.Endpoints;
-using Bitwarden.Server.Sdk.Service.JsonApi;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Bitwarden.Server.Sdk.Service.Querying;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;

@@ -5,7 +5,7 @@
     <!-- This package maps its own endpoints: source-generates the endpoint
          delegate binding so MapGet handlers satisfy the repo's IsAotCompatible analyzers. -->
     <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
-    <!-- The JSON:API attributes envelope is applied by a reflection-based JsonConverterFactory,
+    <!-- The resource documents' attributes envelope is applied by a reflection-based JsonConverterFactory,
          which cannot be proven trim- or AOT-safe. Declared honestly rather than suppressed: this
          package is not AOT-compatible, and native AOT is already ruled out for any service with a
          database (EF Core has no AOT path). -->

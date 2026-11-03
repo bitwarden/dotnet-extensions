@@ -8,8 +8,8 @@ namespace Bitwarden.Server.Sdk.Service.Querying;
 /// <typeparam name="TInput">What the single-resource action accepts as its body.</typeparam>
 /// <remarks>
 /// <para>
-/// One field on the wire, <c>data</c>, holding an object or an array, the shape JSON:API uses
-/// for the same reason. An object is the ordinary case: the same instruction for everybody.
+/// One field on the wire, <c>data</c>, holding an object or an array, as the standards'
+/// bulk operations do. An object is the ordinary case: the same instruction for everybody.
 /// </para>
 /// <para>
 /// An array is for an action whose input the server cannot compute and that differs per

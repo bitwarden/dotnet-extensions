@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization.Metadata;
-using Bitwarden.Server.Sdk.Service.JsonApi;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Bitwarden.Server.Sdk.Service.Querying;
 using Microsoft.AspNetCore.OpenApi;
 
@@ -16,8 +16,7 @@ namespace Bitwarden.Server.Sdk.Service.OpenApi;
 /// end up called, in every language, for every consumer of the API.
 /// </para>
 /// <para>
-/// <c>Document</c> is JSON:API's own word for the top-level object, so it is the contract's
-/// vocabulary rather than invented. It also reads correctly in both directions: the same schema
+/// <c>Document</c> names the top-level object the standards call the envelope. It also reads correctly in both directions: the same schema
 /// describes a request body and a response, which is why it is not named <c>Response</c>.
 /// </para>
 /// </remarks>

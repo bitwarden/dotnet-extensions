@@ -1,11 +1,11 @@
 using System.Text.Json;
-using Bitwarden.Server.Sdk.Service.JsonApi;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Bitwarden.Server.Sdk.Service.Querying;
 
 namespace Bitwarden.Server.Sdk.Service.Tests.Querying;
 
 /// <summary>
-/// A bulk replace carries whole resources, each with the id it replaces, read as JSON:API
+/// A bulk replace carries whole resources, each with the id it replaces, read as
 /// resource objects, and is all-or-nothing unless the operation says otherwise.
 /// </summary>
 public sealed class BulkReplaceTests

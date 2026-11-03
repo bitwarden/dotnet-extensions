@@ -1,7 +1,7 @@
 using System.Reflection;
 using Bitwarden.Server.Sdk.Environment;
 using Bitwarden.Server.Sdk.Features;
-using Bitwarden.Server.Sdk.Service.JsonApi;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
