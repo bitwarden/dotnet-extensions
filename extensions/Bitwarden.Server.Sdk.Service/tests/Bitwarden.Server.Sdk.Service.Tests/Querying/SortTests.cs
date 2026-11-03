@@ -1,6 +1,6 @@
 using System.Reflection;
-using Bitwarden.Server.Sdk.Service.Resources;
 using Bitwarden.Server.Sdk.Service.Querying;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Microsoft.AspNetCore.Http;
 
 namespace Bitwarden.Server.Sdk.Service.Tests.Querying;

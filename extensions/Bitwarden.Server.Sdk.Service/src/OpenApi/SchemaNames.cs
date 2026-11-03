@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization.Metadata;
-using Bitwarden.Server.Sdk.Service.Resources;
 using Bitwarden.Server.Sdk.Service.Querying;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Microsoft.AspNetCore.OpenApi;
 
 namespace Bitwarden.Server.Sdk.Service.OpenApi;

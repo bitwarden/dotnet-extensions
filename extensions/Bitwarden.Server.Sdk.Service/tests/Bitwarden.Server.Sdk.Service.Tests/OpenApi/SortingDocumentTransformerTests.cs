@@ -1,7 +1,7 @@
 using Bitwarden.Server.Sdk.Service.Endpoints;
-using Bitwarden.Server.Sdk.Service.Resources;
 using Bitwarden.Server.Sdk.Service.OpenApi;
 using Bitwarden.Server.Sdk.Service.Querying;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.OpenApi;

@@ -1,7 +1,7 @@
 using System.Text.Json;
-using Bitwarden.Server.Sdk.Service.Resources;
 using Bitwarden.Server.Sdk.Service.OpenApi;
 using Bitwarden.Server.Sdk.Service.Querying;
+using Bitwarden.Server.Sdk.Service.Resources;
 
 namespace Bitwarden.Server.Sdk.Service.Tests.OpenApi;
 

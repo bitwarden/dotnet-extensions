@@ -1,5 +1,5 @@
-using Bitwarden.Server.Sdk.Service.Resources;
 using Bitwarden.Server.Sdk.Service.Querying;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
 

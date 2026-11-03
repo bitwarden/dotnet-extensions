@@ -1,8 +1,8 @@
 using Bitwarden.Server.Sdk.Common;
 using Bitwarden.Server.Sdk.Common.Errors;
 using Bitwarden.Server.Sdk.Environment;
-using Bitwarden.Server.Sdk.Service.Resources;
 using Bitwarden.Server.Sdk.Service.Querying;
+using Bitwarden.Server.Sdk.Service.Resources;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.DependencyInjection;
