@@ -10,8 +10,10 @@ namespace Bitwarden.Server.Sdk.Common;
 /// </para>
 /// <para>
 /// This is not authentication. A token says which service is calling and what it may do; this
-/// says what the call is about. Every value is asserted by the caller rather than proven, so a
-/// service trusts it only as far as it trusts the authenticated caller.
+/// says what the call is about. A host believes a value only as
+/// <see cref="BitwardenHeaders.Delegation"/> signs it. A context a service asserted on its own
+/// authority is still only that service's word, so the receiving service enforces its own access
+/// rules.
 /// </para>
 /// <para>
 /// Members after <see cref="ProviderId"/> have default implementations, so an implementation that

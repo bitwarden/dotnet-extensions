@@ -21,8 +21,9 @@ owns.
 
 ## Configuration
 
-The package reads no configuration itself. It names the settings that the hosting and client
-packages read, so a service and its callers agree on them:
+The package reads one setting itself: `OwnedAnswerKey.ReadSecret` reads and checks
+`Caching:Owned:AnswerSecret`. It names the rest, which the hosting and client packages read, so a
+service and its callers agree on them:
 
 | Setting                             | Read by           | Effect                                                                                                                       |
 | ----------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------- |
@@ -46,8 +47,8 @@ compute. Treat it like any other secret:
   misses and asks the owner, so a mismatch costs speed, not correctness.
 - **Changing the secret moves every answer keyed by text.** The cache misses until owners fill the
   new subjects, and entries under the old ones expire on their own.
-- **A secret that is not base64 or is shorter than 32 bytes** stops the service at startup, without
-  echoing the value.
+- **A secret that is not base64 or is shorter than 32 bytes** makes `OwnedAnswerKey.ReadSecret`
+  throw, without echoing the value. A host that reads the secret at startup then fails to start.
 
 Answers keyed by an identifier are stored under the identifier itself and are not affected.
 
