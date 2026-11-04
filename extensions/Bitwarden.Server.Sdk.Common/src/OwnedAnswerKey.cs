@@ -41,12 +41,20 @@ public static class OwnedAnswerKey
     /// <summary>
     /// The digest published for an answer keyed by text.
     /// </summary>
+    /// <remarks>
+    /// It is the same whether or not a secret keys the digest. The secret is a deployment's
+    /// configuration, while the published contract is the same in every deployment, so every service
+    /// and client sharing a cache learns of the secret from its own configuration.
+    /// </remarks>
     public const string Digest = "sha-256";
 
     /// <summary>
     /// The configuration key of the secret that keys the digest: base64, at least
-    /// <see cref="MinimumSecretLength"/> bytes. When unset the digest is plain SHA-256.
+    /// <see cref="MinimumSecretLength"/> bytes.
     /// </summary>
+    /// <remarks>
+    /// Keys the digest of answers keyed by text with HMAC-SHA-256. Unset: the digest is plain SHA-256.
+    /// </remarks>
     public const string SecretKey = "Caching:Owned:AnswerSecret";
 
     /// <summary>

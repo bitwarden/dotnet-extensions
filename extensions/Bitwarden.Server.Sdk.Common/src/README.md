@@ -23,14 +23,13 @@ owns.
 
 The package reads one setting itself: `OwnedAnswerKey.ReadSecret` reads and checks
 `Caching:Owned:AnswerSecret`. It names the rest, which the hosting and client packages read, so a
-service and its callers agree on them:
+service and its callers agree on them.
 
-| Setting                             | Read by           | Effect                                                                                                                       |
-| ----------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `Tls:CertificateAuthorities`        | `InternalTls`     | PEM files of root authorities trusted for calls between services, besides the system's. Unset: only the system's are trusted |
-| `Tls:RequireHttps`                  | `InternalTls`     | When true, a host refuses a plain `http://` address for another service. Unset: plain addresses are allowed                  |
-| `Caching:Owned:Redis:Configuration` | `OwnedCacheEntry` | The service cache's connection. Unset: there is no service cache, and clients always ask the service                         |
-| `Caching:Owned:AnswerSecret`        | `OwnedAnswerKey`  | Base64, at least 32 bytes. Keys the digest of answers keyed by text with HMAC-SHA-256. Unset: plain SHA-256                  |
+Every setting the package names is a public constant on the type it belongs to, named `Key` or
+`Section` or ending in one of them (for example `OwnedCacheEntry.ConnectionKey`,
+`OwnedCacheEntry.ResourcesSection` and `InternalTls.Section`). Its XML documentation says what the
+setting does and what happens when it is unset. Look there for the full list; this file does not
+repeat it.
 
 ### Choosing whether to key answer digests
 
@@ -42,6 +41,9 @@ where the cache is as well protected as the database behind it.
 Set `Caching:Owned:AnswerSecret` to make the digest an HMAC that only holders of the secret can
 compute. Treat it like any other secret:
 
+- **Clients learn of the secret from their own configuration, not from the contract.** An owner
+  publishes `"digest": "sha-256"` whether or not a secret keys it, because the contract is the same
+  in every deployment and the secret is not.
 - **Every service and client sharing the cache must hold the same secret.** One holding a different
   secret, or none, computes subjects that no owner fills. It never reads a wrong answer: it always
   misses and asks the owner, so a mismatch costs speed, not correctness.

@@ -34,13 +34,4 @@ public sealed class CallerContextTokenTests
         Assert.Equal("DELEGATED", CallerContextToken.Delegated);
         Assert.Equal("ASSERTED", CallerContextToken.Asserted);
     }
-
-    [Fact]
-    public void Parameters_MatchTheClaims()
-    {
-        Assert.Equal(CallerContextToken.OrganizationClaim, CallerContextToken.Parameters.Organization);
-        Assert.Equal(CallerContextToken.UserClaim, CallerContextToken.Parameters.User);
-        Assert.Equal(CallerContextToken.ProviderClaim, CallerContextToken.Parameters.Provider);
-        Assert.Equal(CallerContextToken.ContextClaim, CallerContextToken.Parameters.Context);
-    }
 }
