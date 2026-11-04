@@ -9,13 +9,14 @@ public sealed class BitwardenHeadersTests
         Assert.Equal("Bitwarden-User", BitwardenHeaders.User);
         Assert.Equal("Bitwarden-Provider", BitwardenHeaders.Provider);
         Assert.Equal("Bitwarden-Context", BitwardenHeaders.Context);
+        Assert.Equal("Bitwarden-Delegation", BitwardenHeaders.Delegation);
     }
 
     [Fact]
-    public void All_AreTheFourCallerContextHeaders()
+    public void All_AreTheFiveCallerContextHeaders()
     {
         Assert.Equal(
-            [BitwardenHeaders.Organization, BitwardenHeaders.User, BitwardenHeaders.Provider, BitwardenHeaders.Context],
+            [BitwardenHeaders.Organization, BitwardenHeaders.User, BitwardenHeaders.Provider, BitwardenHeaders.Context, BitwardenHeaders.Delegation],
             BitwardenHeaders.All);
     }
 

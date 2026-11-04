@@ -9,8 +9,8 @@ namespace Bitwarden.Server.Sdk.Common;
 /// came from, and more than one operation reads it.
 /// </para>
 /// <para>
-/// The value is not signed. A callee trusts it exactly as far as it trusts the authenticated service
-/// that sent it.
+/// A host believes the value only as <see cref="BitwardenHeaders.Delegation"/> signs it, and refuses
+/// a plain header that disagrees.
 /// </para>
 /// </remarks>
 public sealed record CallerContextValue
