@@ -26,7 +26,8 @@ namespace Bitwarden.Server.Sdk.Common;
 /// The digest is SHA-256 unless a secret is configured under <see cref="SecretKey"/>, and then it is
 /// HMAC-SHA-256 keyed with that secret. A plain digest keeps the text out of the cache, but anyone who
 /// can read the cache and guess an address can confirm it. A keyed digest can only be confirmed by
-/// someone who also holds the secret. Every service and client sharing a cache must hold the same
+/// someone who also holds the secret, so outside <c>Development</c> a host with a service cache
+/// requires one (<see cref="ReadSecret(IConfiguration, string)"/>). Every service and client sharing a cache must hold the same
 /// secret: one with a different secret, or none, reaches subjects nobody fills, so it always asks
 /// the owner.
 /// </para>
@@ -61,6 +62,9 @@ public static class OwnedAnswerKey
     /// The fewest bytes a configured secret may have.
     /// </summary>
     public const int MinimumSecretLength = 32;
+
+    // Compared as IHostEnvironment.IsDevelopment compares it, without referencing hosting here.
+    private const string DevelopmentEnvironment = "Development";
 
     /// <summary>
     /// Reads the configured secret.
@@ -97,6 +101,35 @@ public static class OwnedAnswerKey
     }
 
     /// <summary>
+    /// Reads the configured secret, and refuses to go without one where it is required: a service
+    /// cache is configured (<see cref="OwnedCacheEntry.ConnectionKey"/>) and the host is not in
+    /// the <c>Development</c> environment.
+    /// </summary>
+    /// <remarks>
+    /// A host calls this as it starts, so a deployment missing the secret fails to start rather than
+    /// keep text-keyed answers under a digest anyone can compute.
+    /// </remarks>
+    /// <param name="configuration">The configuration holding <see cref="SecretKey"/>.</param>
+    /// <param name="environmentName">The host's environment name, for example <c>Production</c>.</param>
+    /// <returns>The secret, or empty when none is configured and none is required.</returns>
+    /// <exception cref="InvalidOperationException">The secret is required and unset, is not base64, or is shorter than <see cref="MinimumSecretLength"/> bytes.</exception>
+    public static byte[] ReadSecret(IConfiguration configuration, string environmentName)
+    {
+        ArgumentNullException.ThrowIfNull(environmentName);
+
+        var secret = ReadSecret(configuration);
+        if (secret.Length == 0
+            && !string.IsNullOrWhiteSpace(configuration[OwnedCacheEntry.ConnectionKey])
+            && !string.Equals(environmentName, DevelopmentEnvironment, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"{SecretKey} must be set when a service cache is configured ({OwnedCacheEntry.ConnectionKey}) outside {DevelopmentEnvironment}.");
+        }
+
+        return secret;
+    }
+
+    /// <summary>
     /// The subject of a key written as text, by plain SHA-256.
     /// </summary>
     /// <param name="answer">The answer's name, for example <c>account-by-email</c>. It may not contain a line feed or <c>:</c>.</param>
@@ -109,7 +142,7 @@ public static class OwnedAnswerKey
     /// </summary>
     /// <param name="answer">The answer's name, for example <c>account-by-email</c>. It may not contain a line feed or <c>:</c>.</param>
     /// <param name="key">The key, normalized as the owner compares it (an address trimmed and lowercased).</param>
-    /// <param name="secret">The configured secret (<see cref="ReadSecret"/>), or empty for none.</param>
+    /// <param name="secret">The configured secret (<see cref="ReadSecret(IConfiguration, string)"/>), or empty for none.</param>
     public static Guid Of(string answer, string key, ReadOnlySpan<byte> secret)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(answer);

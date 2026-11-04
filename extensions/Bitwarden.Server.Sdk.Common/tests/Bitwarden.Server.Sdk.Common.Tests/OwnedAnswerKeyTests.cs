@@ -61,6 +61,48 @@ public sealed class OwnedAnswerKeyTests
         Assert.DoesNotContain(value, exception.Message);
     }
 
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("Staging")]
+    [InlineData("QA")]
+    public void ReadSecret_WithACacheOutsideDevelopment_RequiresASecret(string environment)
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            OwnedAnswerKey.ReadSecret(Configuration(null, "redis:6379"), environment));
+
+        Assert.Contains(OwnedAnswerKey.SecretKey, exception.Message);
+        Assert.DoesNotContain("redis:6379", exception.Message);
+    }
+
+    [Theory]
+    [InlineData("Development")]
+    [InlineData("development")]
+    public void ReadSecret_WithACacheInDevelopment_AllowsThePlainDigest(string environment)
+    {
+        Assert.Empty(OwnedAnswerKey.ReadSecret(Configuration(null, "redis:6379"), environment));
+    }
+
+    [Fact]
+    public void ReadSecret_WithoutACache_RequiresNothing()
+    {
+        Assert.Empty(OwnedAnswerKey.ReadSecret(Configuration(null), "Production"));
+    }
+
+    [Fact]
+    public void ReadSecret_WithACacheAndASecret_ReadsIt()
+    {
+        Assert.Equal(Secret, OwnedAnswerKey.ReadSecret(Configuration(Convert.ToBase64String(Secret), "redis:6379"), "Production"));
+    }
+
+    [Fact]
+    public void ReadSecret_RequiredButUnusable_SaysWhy()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            OwnedAnswerKey.ReadSecret(Configuration("AAAA", "redis:6379"), "Production"));
+
+        Assert.Contains("at least", exception.Message);
+    }
+
     [Fact]
     public void Of_TheSameKeyForTwoAnswers_IsTwoSubjects()
     {
@@ -114,13 +156,13 @@ public sealed class OwnedAnswerKeyTests
         Assert.Equal(32, OwnedAnswerKey.MinimumSecretLength);
     }
 
-    private static IConfiguration Configuration(string? secret) => new SecretOnly(secret);
+    private static IConfiguration Configuration(string? secret, string? cache = null) => new SecretOnly(secret, cache);
 
-    private sealed class SecretOnly(string? secret) : IConfiguration
+    private sealed class SecretOnly(string? secret, string? cache) : IConfiguration
     {
         public string? this[string key]
         {
-            get => key == OwnedAnswerKey.SecretKey ? secret : null;
+            get => key == OwnedAnswerKey.SecretKey ? secret : key == OwnedCacheEntry.ConnectionKey ? cache : null;
             set => throw new NotSupportedException();
         }
 
