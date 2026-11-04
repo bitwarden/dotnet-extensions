@@ -156,17 +156,18 @@ var key = OwnedCacheEntry.Key(OwnedAnswerKey.Template("identity-service", "accou
 ```
 
 With no secret, the digest is plain SHA-256: it keeps the address out of the cache, but anyone who
-can read the cache and guess an address can confirm it. To prevent that, configure a shared secret
-and pass it, so the digest becomes HMAC-SHA-256:
+can read the cache and guess an address can confirm it. So a shared secret makes the digest
+HMAC-SHA-256, and outside `Development` a host with a service cache must have one:
 
 ```csharp
-var secret = OwnedAnswerKey.ReadSecret(configuration);
+var secret = OwnedAnswerKey.ReadSecret(configuration, environment.EnvironmentName);
 var subject = OwnedAnswerKey.Of("account-by-email", email.Trim().ToLowerInvariant(), secret);
 ```
 
-`ReadSecret` reads `Caching:Owned:AnswerSecret` (base64, at least 32 bytes) and returns an empty
-secret when it is unset. Every service and client sharing the cache must use the same secret. The
-package's README in the repository explains how to choose.
+`ReadSecret` reads `Caching:Owned:AnswerSecret` (base64, at least 32 bytes). It throws when the
+secret is unset, `Caching:Owned:Redis:Configuration` is set and the environment is not
+`Development`; otherwise an unset secret is empty and the digest is plain. Call it as the host
+starts. Every service and client sharing the cache must use the same secret.
 
 ## Types
 
