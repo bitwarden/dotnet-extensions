@@ -36,21 +36,33 @@ public static class CallerContextToken
     /// <summary>
     /// The organization the call concerns, as <see cref="BitwardenHeaders.Organization"/> names it.
     /// </summary>
+    /// <remarks>
+    /// The token request carries it in a parameter of the same name.
+    /// </remarks>
     public const string OrganizationClaim = "context_organization";
 
     /// <summary>
     /// The user the call is made on behalf of, as <see cref="BitwardenHeaders.User"/> names it.
     /// </summary>
+    /// <remarks>
+    /// The token request carries it in a parameter of the same name.
+    /// </remarks>
     public const string UserClaim = "context_user";
 
     /// <summary>
     /// The provider on whose authority the call is made, as <see cref="BitwardenHeaders.Provider"/> names it.
     /// </summary>
+    /// <remarks>
+    /// The token request carries it in a parameter of the same name.
+    /// </remarks>
     public const string ProviderClaim = "context_provider";
 
     /// <summary>
     /// The <see cref="BitwardenHeaders.Context"/> object, as the string the header carries.
     /// </summary>
+    /// <remarks>
+    /// The token request carries it in a parameter of the same name.
+    /// </remarks>
     public const string ContextClaim = "context";
 
     /// <summary>
@@ -78,30 +90,4 @@ public static class CallerContextToken
     /// Stated by the calling service on its own authority.
     /// </summary>
     public const string Asserted = "ASSERTED";
-
-    /// <summary>
-    /// The token request's parameter for each owner and for the context object.
-    /// </summary>
-    public static class Parameters
-    {
-        /// <summary>
-        /// The organization: <see cref="BitwardenHeaders.Organization"/>'s value.
-        /// </summary>
-        public const string Organization = "context_organization";
-
-        /// <summary>
-        /// The user: <see cref="BitwardenHeaders.User"/>'s value.
-        /// </summary>
-        public const string User = "context_user";
-
-        /// <summary>
-        /// The provider: <see cref="BitwardenHeaders.Provider"/>'s value.
-        /// </summary>
-        public const string Provider = "context_provider";
-
-        /// <summary>
-        /// The context object: <see cref="BitwardenHeaders.Context"/>'s value.
-        /// </summary>
-        public const string Context = "context";
-    }
 }

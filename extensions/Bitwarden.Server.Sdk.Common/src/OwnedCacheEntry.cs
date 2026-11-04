@@ -55,6 +55,10 @@ public static class OwnedCacheEntry
     /// <summary>
     /// The section a resource's switch lives in: <c>Caching:Owned:Resources:{service}:{type}:Enabled</c>.
     /// </summary>
+    /// <remarks>
+    /// <c>false</c> stops the owner filling that resource, index or answer and its clients reading it,
+    /// so they ask the owner. Unset: it is cached.
+    /// </remarks>
     public const string ResourcesSection = "Caching:Owned:Resources";
 
     /// <summary>

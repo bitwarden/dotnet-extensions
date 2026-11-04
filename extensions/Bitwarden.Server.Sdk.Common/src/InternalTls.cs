@@ -32,11 +32,17 @@ public sealed class InternalTls
     /// PEM files of the root certificate authorities trusted for calls, besides the system's roots.
     /// An intermediate authority alone is not enough: name the root it chains to.
     /// </summary>
+    /// <remarks>
+    /// <c>Tls:CertificateAuthorities</c>. Unset: only the system's roots are trusted.
+    /// </remarks>
     public string[] CertificateAuthorities { get; set; } = [];
 
     /// <summary>
     /// Whether calls to other services must use <c>https://</c>, so a host refuses a plain address.
     /// </summary>
+    /// <remarks>
+    /// <c>Tls:RequireHttps</c>. Unset: plain addresses are allowed.
+    /// </remarks>
     public bool RequireHttps { get; set; }
 
     private const string ServerAuthentication = "1.3.6.1.5.5.7.3.1";
