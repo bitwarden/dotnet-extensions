@@ -160,4 +160,51 @@ public sealed class EncryptedAttributeTests
 
         Assert.Throws<InvalidOperationException>(() => attribute.GetValidationResult("not encrypted", context));
     }
+
+    public static TheoryData<object?, int, bool> ValueKinds => new()
+    {
+        { null, 5, false },
+        { null, 5, true },
+        { "", 5, true },
+        { "x", 5, true },
+        { "not encrypted", 5, false },
+        { "not encrypted", 1000, true },
+        { "2.AAAAAAAAAAAAAAAAAAAAAA==|AAAA|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", 1000, true },
+        { "2.AAAAAAAAAAAAAAAAAAAAAA==|AAAA|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", 10, true },
+        { 42, 5, false },
+        { 42, 5, true },
+        { 'x', 5, false },
+    };
+
+    [Theory]
+    [MemberData(nameof(ValueKinds))]
+    public void GetValidationResult_AnyValue_AgreesWithIsValid(object? value, int maxLength, bool wellFormed)
+    {
+        var attribute = new EncryptedAttribute { MaxLength = maxLength, WellFormed = wellFormed };
+        var context = new ValidationContext(new object()) { DisplayName = "Value", MemberName = "Value" };
+
+        var result = attribute.GetValidationResult(value, context);
+
+        Assert.Equal(attribute.IsValid(value), result == ValidationResult.Success);
+    }
+
+    [Fact]
+    public void GetValidationResult_TooLongWithoutTheShape_IsRefusedForItsLength()
+    {
+        var attribute = new EncryptedAttribute { MaxLength = 5 };
+        var context = new ValidationContext(new object()) { DisplayName = "Value", MemberName = "Value" };
+
+        var result = attribute.GetValidationResult("not encrypted", context);
+
+        Assert.Equal("The field Value must be an encrypted string of at most 5 characters.", result?.ErrorMessage);
+    }
+
+    [Fact]
+    public void GetValidationResult_NullWithNoBound_Throws()
+    {
+        var attribute = new EncryptedAttribute();
+        var context = new ValidationContext(new object()) { DisplayName = "Value", MemberName = "Value" };
+
+        Assert.Throws<InvalidOperationException>(() => attribute.GetValidationResult(null, context));
+    }
 }

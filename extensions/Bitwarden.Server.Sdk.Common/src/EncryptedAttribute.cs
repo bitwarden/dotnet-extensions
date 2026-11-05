@@ -33,7 +33,7 @@ public sealed class EncryptedAttribute : ValidationAttribute
 
     /// <summary>
     /// Whether the value must also be shaped like an encrypted string (<see cref="EncryptedStringFormat"/>).
-    /// A malformed value is refused as "{name} is not a valid encrypted string.".
+    /// A malformed value is refused with the message <c>{name} is not a valid encrypted string.</c>
     /// </summary>
     public bool WellFormed { get; set; }
 

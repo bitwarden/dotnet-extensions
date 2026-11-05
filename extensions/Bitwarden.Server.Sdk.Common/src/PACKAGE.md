@@ -130,7 +130,8 @@ encrypted string.":
 public required string Notes { get; init; }
 ```
 
-The value is never decrypted. `EncryptedStringFormat.IsWellFormed` makes the same check in code.
+A value that is too long as well is refused as malformed, and so is a value that isn't a string. The
+value is never decrypted. `EncryptedStringFormat.IsWellFormed` makes the same check in code.
 
 ### Trust an internal certificate authority
 
