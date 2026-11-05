@@ -121,7 +121,16 @@ than a typical default string limit, so declare the field and its maximum length
 public required string Notes { get; init; }
 ```
 
-Only the length is checked. The value is never read or decrypted.
+Only the length is checked, unless you ask for the shape too. `WellFormed = true` also refuses a value
+that isn't shaped like an encrypted string (its type, pieces and base64), as "Notes is not a valid
+encrypted string.":
+
+```csharp
+[Encrypted(MaxLength = 10_000, WellFormed = true)]
+public required string Notes { get; init; }
+```
+
+The value is never decrypted. `EncryptedStringFormat.IsWellFormed` makes the same check in code.
 
 ### Trust an internal certificate authority
 
