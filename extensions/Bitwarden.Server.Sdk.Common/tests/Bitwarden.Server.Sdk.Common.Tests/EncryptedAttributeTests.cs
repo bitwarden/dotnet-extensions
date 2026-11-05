@@ -4,8 +4,8 @@ namespace Bitwarden.Server.Sdk.Common.Tests;
 
 /// <summary>
 /// <see cref="EncryptedAttribute"/> holds a value to its length bound, and, when <c>WellFormed</c> is set, to an
-/// encrypted string's shape (see <see cref="EncryptedStringFormatTests"/>), refusing a malformed value in the
-/// words the Bitwarden server uses.
+/// encrypted string's shape (see <see cref="EncryptedStringFormatTests"/>), refusing a malformed value with its
+/// own message.
 /// </summary>
 public sealed class EncryptedAttributeTests
 {
@@ -73,7 +73,7 @@ public sealed class EncryptedAttributeTests
     }
 
     [Fact]
-    public void GetValidationResult_Malformed_IsRefusedInTheServersWords()
+    public void GetValidationResult_Malformed_IsRefusedAsNotAValidEncryptedString()
     {
         var attribute = new EncryptedAttribute { MaxLength = 1000, WellFormed = true };
         var context = new ValidationContext(new object()) { DisplayName = "Value", MemberName = "Value" };
@@ -106,5 +106,58 @@ public sealed class EncryptedAttributeTests
             "2.AAAAAAAAAAAAAAAAAAAAAA==|AAAA|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", context);
 
         Assert.Equal(ValidationResult.Success, result);
+    }
+
+    [Fact]
+    public void GetValidationResult_MalformedAndTooLong_IsRefusedAsMalformed()
+    {
+        var attribute = new EncryptedAttribute { MaxLength = 5, WellFormed = true };
+        var context = new ValidationContext(new object()) { DisplayName = "Value", MemberName = "Value" };
+
+        var result = attribute.GetValidationResult("not encrypted at all", context);
+
+        Assert.Equal("Value is not a valid encrypted string.", result?.ErrorMessage);
+    }
+
+    [Fact]
+    public void GetValidationResult_WellFormedAndNotAString_IsRefusedAsMalformed()
+    {
+        var attribute = new EncryptedAttribute { MaxLength = 5, WellFormed = true };
+        var context = new ValidationContext(new object()) { DisplayName = "Value", MemberName = "Value" };
+
+        var result = attribute.GetValidationResult(42, context);
+
+        Assert.Equal("Value is not a valid encrypted string.", result?.ErrorMessage);
+    }
+
+    [Fact]
+    public void GetValidationResult_NotAString_IsRefusedForItsLength()
+    {
+        var attribute = new EncryptedAttribute { MaxLength = 5 };
+        var context = new ValidationContext(new object()) { DisplayName = "Value", MemberName = "Value" };
+
+        var result = attribute.GetValidationResult(42, context);
+
+        Assert.Equal("The field Value must be an encrypted string of at most 5 characters.", result?.ErrorMessage);
+    }
+
+    [Fact]
+    public void GetValidationResult_NoMemberName_NamesNoMember()
+    {
+        var attribute = new EncryptedAttribute { MaxLength = 1000, WellFormed = true };
+        var context = new ValidationContext(new object()) { DisplayName = "Value" };
+
+        var result = attribute.GetValidationResult("not encrypted", context);
+
+        Assert.Empty(result?.MemberNames ?? ["missing result"]);
+    }
+
+    [Fact]
+    public void GetValidationResult_NoBound_Throws()
+    {
+        var attribute = new EncryptedAttribute { WellFormed = true };
+        var context = new ValidationContext(new object()) { DisplayName = "Value", MemberName = "Value" };
+
+        Assert.Throws<InvalidOperationException>(() => attribute.GetValidationResult("not encrypted", context));
     }
 }

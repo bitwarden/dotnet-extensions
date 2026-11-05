@@ -3,12 +3,12 @@ using System.Buffers.Text;
 namespace Bitwarden.Server.Sdk.Common;
 
 /// <summary>
-/// Whether a string is shaped like an encrypted string, as the Bitwarden server checks it.
+/// Whether a string is shaped like an encrypted string: a known encryption type, the pieces that type
+/// calls for, and padded base64 in each.
 /// </summary>
 /// <remarks>
 /// <c>{type}.{piece}|{piece}…</c>, with the pieces the type calls for: an AES IV decodes to 16 bytes
-/// and an HMAC-SHA256 MAC to 32. Only the shape is checked. Nothing is decoded beyond base64, and
-/// nothing is decrypted.
+/// and an HMAC-SHA256 MAC to 32. Only the shape is checked. Nothing is decoded or decrypted.
 /// </remarks>
 public static class EncryptedStringFormat
 {
@@ -57,7 +57,7 @@ public static class EncryptedStringFormat
     {
         if (!TrySplitBy(value, '.', out var header, out var rest))
         {
-            // No header: the server's legacy forms, told apart by how many pieces there are.
+            // No header: the legacy forms without a type, told apart by how many pieces there are.
             return ValidatePieces(rest, rest.Count('|') == 2
                 ? Pieces[EncryptionType.AesCbc256_HmacSha256_B64]
                 : Pieces[EncryptionType.AesCbc256_B64]);
@@ -106,7 +106,7 @@ public static class EncryptedStringFormat
     }
 
     /// <summary>
-    /// Whether a piece is padded base64, accepting padding bits that aren't zero as the server does.
+    /// Whether a piece is padded base64, accepting padding bits that aren't zero.
     /// </summary>
     private static bool IsValidBase64Permissive(ReadOnlySpan<char> value)
     {

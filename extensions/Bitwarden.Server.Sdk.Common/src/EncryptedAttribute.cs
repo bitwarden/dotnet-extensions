@@ -33,8 +33,7 @@ public sealed class EncryptedAttribute : ValidationAttribute
 
     /// <summary>
     /// Whether the value must also be shaped like an encrypted string (<see cref="EncryptedStringFormat"/>).
-    /// A malformed value is refused as "{name} is not a valid encrypted string.", the words the Bitwarden
-    /// server uses for the same refusal.
+    /// A malformed value is refused as "{name} is not a valid encrypted string.".
     /// </summary>
     public bool WellFormed { get; set; }
 
@@ -58,22 +57,31 @@ public sealed class EncryptedAttribute : ValidationAttribute
 
     /// <inheritdoc />
     /// <remarks>
-    /// A malformed value is refused in the shape's words, an over-long one in the length's.
+    /// With <see cref="WellFormed"/>, a value that is not shaped like an encrypted string, or is not a
+    /// string at all, is refused as malformed, even when it is also too long. Otherwise a refused value
+    /// is refused for its length.
     /// </remarks>
     protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
     {
         ArgumentNullException.ThrowIfNull(validationContext);
+        EnsureBounded();
 
-        if (IsValid(value))
+        if (value is null)
         {
             return ValidationResult.Success;
         }
 
+        var text = value as string;
         string[]? members = validationContext.MemberName is { } member ? [member] : null;
-        var message = WellFormed && value is string text && !EncryptedStringFormat.IsWellFormed(text)
-            ? FormatMalformedMessage(validationContext.DisplayName)
-            : FormatErrorMessage(validationContext.DisplayName);
-        return new ValidationResult(message, members);
+
+        if (WellFormed && (text is null || !EncryptedStringFormat.IsWellFormed(text)))
+        {
+            return new ValidationResult(FormatMalformedMessage(validationContext.DisplayName), members);
+        }
+
+        return text is not null && text.Length <= MaxLength
+            ? ValidationResult.Success
+            : new ValidationResult(FormatErrorMessage(validationContext.DisplayName), members);
     }
 
     /// <inheritdoc />

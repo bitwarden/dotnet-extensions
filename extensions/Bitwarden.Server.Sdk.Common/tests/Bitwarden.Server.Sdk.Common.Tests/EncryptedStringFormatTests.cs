@@ -217,6 +217,11 @@ public sealed class EncryptedStringFormatTests
     [InlineData("9.AAAA", false)]
     [InlineData("2.AAAAAAAAAAAAAAAAAAAAAA==|AAA|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", false)]
     [InlineData("", false)]
+    // A type's name is matched case-sensitively, and names joined by a comma combine their numbers (3 | 4 is 7),
+    // as the server parses them.
+    [InlineData("aescbc256_b64.AAECAwQFBgcICQoLDA0ODw==|Y3Q=", false)]
+    [InlineData("AesCbc256_B64.AAECAwQFBgcICQoLDA0ODw==|Y3Q=", true)]
+    [InlineData("Rsa2048_OaepSha256_B64,Rsa2048_OaepSha1_B64.AAAA", true)]
     public void IsWellFormed_AsTheServersAttribute(string value, bool wellFormed)
     {
         Assert.Equal(wellFormed, EncryptedStringFormat.IsWellFormed(value));
