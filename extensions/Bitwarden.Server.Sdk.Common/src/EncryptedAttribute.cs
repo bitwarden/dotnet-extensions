@@ -13,7 +13,8 @@ namespace Bitwarden.Server.Sdk.Common;
 /// replaces that limit with an explicit bound, which only the author of the resource can choose.
 /// </para>
 /// <para>
-/// Nothing is decrypted or inspected. Only the length is checked.
+/// Nothing is decrypted. The length is checked, and, with <see cref="WellFormed"/>, the shape: an
+/// encrypted string's type, pieces and base64 (<see cref="EncryptedStringFormat"/>).
 /// </para>
 /// </remarks>
 /// <example>
@@ -30,6 +31,12 @@ public sealed class EncryptedAttribute : ValidationAttribute
     /// </summary>
     public int MaxLength { get; set; }
 
+    /// <summary>
+    /// Whether the value must also be shaped like an encrypted string (<see cref="EncryptedStringFormat"/>).
+    /// A malformed value is refused with the message <c>{name} is not a valid encrypted string.</c>
+    /// </summary>
+    public bool WellFormed { get; set; }
+
     /// <inheritdoc />
     /// <remarks>
     /// A null value is valid. Whether a member may be absent is left to its nullability.
@@ -42,14 +49,50 @@ public sealed class EncryptedAttribute : ValidationAttribute
         return value switch
         {
             null => true,
-            string text => text.Length <= MaxLength,
+            string text => text.Length <= MaxLength
+                && (!WellFormed || EncryptedStringFormat.IsWellFormed(text)),
             _ => false,
         };
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// With <see cref="WellFormed"/>, a value that is not shaped like an encrypted string, or is not a
+    /// string at all, is refused as malformed, even when it is also too long. Otherwise a refused value
+    /// is refused for its length.
+    /// </remarks>
+    protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
+    {
+        ArgumentNullException.ThrowIfNull(validationContext);
+        EnsureBounded();
+
+        if (value is null)
+        {
+            return ValidationResult.Success;
+        }
+
+        var text = value as string;
+        string[]? members = validationContext.MemberName is { } member ? [member] : null;
+
+        if (WellFormed && (text is null || !EncryptedStringFormat.IsWellFormed(text)))
+        {
+            return new ValidationResult(FormatMalformedMessage(validationContext.DisplayName), members);
+        }
+
+        return text is not null && text.Length <= MaxLength
+            ? ValidationResult.Success
+            : new ValidationResult(FormatErrorMessage(validationContext.DisplayName), members);
+    }
+
+    /// <inheritdoc />
     public override string FormatErrorMessage(string name) =>
         $"The field {name} must be an encrypted string of at most {MaxLength} characters.";
+
+    /// <summary>
+    /// The message refusing a value that is not shaped like an encrypted string.
+    /// </summary>
+    /// <param name="name">The member's name.</param>
+    public static string FormatMalformedMessage(string name) => $"{name} is not a valid encrypted string.";
 
     /// <summary>
     /// Refuses a declaration that states no bound.
