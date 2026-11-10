@@ -104,7 +104,7 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
 
     /// <summary>
     /// Whether the rewrite can be applied safely. Overlapping prefixes are rejected at build time
-    /// by <c>BWDB001</c>, so this only catches options configured by hand, and throws rather than
+    /// by <c>BW0018</c>, so this only catches options configured by hand, and throws rather than
     /// skipping: a rewrite that silently does nothing leaves the journal under a name no script has
     /// and re-applies the whole set.
     /// </summary>
@@ -128,7 +128,7 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
     /// </summary>
     /// <remarks>
     /// Anchored to the start of the name, and running it twice is a no-op: afterwards no row starts
-    /// with the old prefix. That holds because the prefixes cannot overlap — <c>BWDB001</c> rejects
+    /// with the old prefix. That holds because the prefixes cannot overlap — <c>BW0018</c> rejects
     /// a previous prefix that contains the current one or is contained by it, so the rewritten name
     /// can never match the pattern that produced it.
     /// </remarks>

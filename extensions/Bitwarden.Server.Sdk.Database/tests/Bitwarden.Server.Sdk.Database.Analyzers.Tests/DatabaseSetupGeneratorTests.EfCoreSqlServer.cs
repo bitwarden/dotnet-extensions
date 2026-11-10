@@ -247,19 +247,19 @@ public partial class DatabaseSetupGeneratorTests
     [InlineData(
         "public sealed class MyDatabaseContext(DbContextOptions options) : DbContext(options);",
         "",
-        "BWDB004")]
+        "BW0021")]
     [InlineData(
         "public class MyDatabaseContext(DbContextOptions options, IServiceProvider services) : DbContext(options);",
         "",
-        "BWDB008")]
+        "BW0025")]
     [InlineData(
         "public class MyDatabaseContext : DbContext { private MyDatabaseContext(DbContextOptions options) : base(options) { } }",
         "",
-        "BWDB005")]
+        "BW0022")]
     [InlineData(
         "public class MyDatabaseContext(DbContextOptions options) : DbContext(options); public class NotServices;",
         ", DesignTimeServices = typeof(NotServices)",
-        "BWDB006")]
+        "BW0023")]
     public async Task UnusableContextShape_IsRejectedAtBuildTime(string context, string arguments, string id)
     {
         var diagnostics = await GenerateDiagnosticsAsync(
@@ -318,7 +318,7 @@ public partial class DatabaseSetupGeneratorTests
             """);
 
         var diagnostic = Assert.Single(diagnostics);
-        Assert.Equal("BWDB007", diagnostic.Id);
+        Assert.Equal("BW0024", diagnostic.Id);
         Assert.Equal(DiagnosticSeverity.Warning, diagnostic.Severity);
     }
 }

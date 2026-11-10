@@ -53,7 +53,7 @@ public class JournalRenameTests
     public void OverlappingPrefixes_AreRejected()
     {
         // Either direction of overlap. The rewrite is only idempotent for unrelated names, so the
-        // generator rejects these at build time (BWDB001) and hand-configured options throw rather
+        // generator rejects these at build time (BW0018) and hand-configured options throw rather
         // than silently rewriting nothing.
         Assert.Throws<InvalidOperationException>(
             () => SqlServerMigrator.ShouldRenameJournalEntries(WithPrevious("Bit.Migrator")));

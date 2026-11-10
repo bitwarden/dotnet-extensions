@@ -46,12 +46,12 @@ attribute in the next step, and reference each one's EF Core provider package he
 | `DatabaseProvider.Sqlite` | `Microsoft.EntityFrameworkCore.Sqlite` |
 
 Code is generated for exactly the declared providers. A declared provider whose package isn't
-referenced is a build error (`BWDB003`), and a provider package referenced for any other reason — for
+referenced is a build error (`BW0020`), and a provider package referenced for any other reason — for
 tests, or arriving transitively through another reference — is ignored.
 
 MySQL can come from either `Pomelo.EntityFrameworkCore.MySql` or
 `Microting.EntityFrameworkCore.MySql`, a fork of Pomelo that keeps its API. The generated code is
-the same for both; reference whichever one you use. Referencing both is a build error (`BWDB002`),
+the same for both; reference whichever one you use. Referencing both is a build error (`BW0019`),
 since they define the same types. This package targets EF Core 9, so use a 9.x version of
 whichever provider you pick.
 
@@ -91,7 +91,7 @@ from package references. The source generator derives the schema name from the c
 
 Each generated subcontext forwards the context's constructor, so a context can take services as
 well as its options, and can ask for `DbContextOptions<TContext>` rather than `DbContextOptions`.
-The context mustn't be `sealed` (`BWDB004`) while any engine is migrated by EF Core, since the
+The context mustn't be `sealed` (`BW0021`) while any engine is migrated by EF Core, since the
 subcontexts derive from it.
 
 EF Core tooling constructs the subcontexts through the generated design-time factories, which can't
@@ -117,9 +117,9 @@ public class OrderDatabaseContext(DbContextOptions<OrderDatabaseContext> options
 
 Only design-time tooling uses these registrations; the application resolves its context from its own
 services as usual. A constructor whose extra parameters all have defaults needs none. One with a
-parameter nothing could supply is `BWDB008`, and a `DesignTimeServices` type that doesn't implement
-`IDatabaseDesignTimeServices` is `BWDB006`. A context with no non-private constructor taking a single
-`DbContextOptions` or `DbContextOptions<TContext>` is `BWDB005`, since there is nothing to derive the
+parameter nothing could supply is `BW0025`, and a `DesignTimeServices` type that doesn't implement
+`IDatabaseDesignTimeServices` is `BW0023`. A context with no non-private constructor taking a single
+`DbContextOptions` or `DbContextOptions<TContext>` is `BW0022`, since there is nothing to derive the
 provider contexts from.
 
 ### 3. Register in your host application
@@ -235,7 +235,7 @@ migration lock serializes hosts migrating at once.
 
 Such a schema has no scripts, so none of the rest of this section applies to it: no script prefix,
 no phases, and no `SQLSERVER_MIGRATOR_BUILD`, which fails the build with an `#error`. Setting
-`SqlServerMigrations` without declaring SQL Server is `BWDB007`, a warning, since it has no effect.
+`SqlServerMigrations` without declaring SQL Server is `BW0024`, a warning, since it has no effect.
 
 ## SQL Server migrations and `.sqlproj`
 
@@ -326,11 +326,11 @@ The two prefixes must be **unrelated names** — neither one a prefix of the oth
 anchored to the start of the recorded name, which is what makes it safe to run on every migration:
 afterwards no row begins with the old prefix, so a second run has nothing to match. That guarantee
 depends on the rewritten name not looking like the pattern that produced it, which fails if one
-prefix contains the other. `BWDB001` rejects such a pair at build time rather than letting it reach
+prefix contains the other. `BW0018` rejects such a pair at build time rather than letting it reach
 a journal:
 
 ```
-error BWDB001: BitPreviousSqlServerScriptPrefix 'Bit.Migrator.DbScripts' and
+error BW0018: BitPreviousSqlServerScriptPrefix 'Bit.Migrator.DbScripts' and
 BitSqlServerScriptPrefix 'Bit.Migrator.DbScripts.SqlServer' overlap: one is a prefix of the other.
 ```
 
@@ -417,7 +417,7 @@ hold both the old and new namespaces indefinitely.
 
 Code is generated only for the providers declared on `[DatabaseSetup]`. List every provider the
 original projects supported, and reference each one's package: a declared provider without its
-package is `BWDB003`, and a referenced provider that isn't declared is ignored.
+package is `BW0020`, and a referenced provider that isn't declared is ignored.
 
 ### Replacing the old registration
 

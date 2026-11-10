@@ -226,31 +226,31 @@ Implemented:
   transitive ones (anything a referenced project or package brings in), so inference would turn a
   provider referenced for tests or by a dependency into a production engine, and silently drop one
   whose reference went missing. The generator emits exactly the declared providers; a declared
-  provider whose package isn't referenced is `BWDB003`, an error, instead of an unresolved call in
+  provider whose package isn't referenced is `BW0020`, an error, instead of an unresolved call in
   generated code.
 - A provider may be served by more than one package when they share an API: MySQL is detected from
   either `Pomelo.EntityFrameworkCore.MySql` or Microting's fork, `Microting.EntityFrameworkCore.MySql`.
   The generated calls are identical, and the dispatcher matches whichever assembly name was
-  referenced. Both at once is `BWDB002`, an error, since the two define the same types and the
+  referenced. Both at once is `BW0019`, an error, since the two define the same types and the
   generated code couldn't bind to either.
 - With `SqlServerMigrations = SqlServerMigrations.EfCore`, SQL Server is treated like the other
   engines throughout the generated file: a subcontext and factory, entries in the dispatcher and in
   `add-migration`, and `AddDatabase(..., SqlServerMigrations.EfCore)`, which makes `CreateMigrator`
   return `EfCoreMigrator` for it. The script prefix, the DbUp-only registration and CLI, and
   `SQLSERVER_MIGRATOR_BUILD` are left out; defining that symbol hits an `#error`. Without SQL Server
-  declared the setting is ignored, with `BWDB007` as a warning.
+  declared the setting is ignored, with `BW0024` as a warning.
 - Subcontexts forward the context constructor with the most parameters among the non-private ones
-  taking exactly one `DbContextOptions` or `DbContextOptions<TContext>` (`BWDB005` when there is
+  taking exactly one `DbContextOptions` or `DbContextOptions<TContext>` (`BW0022` when there is
   none), defaults included. When it takes more than its options, the factories construct the
-  subcontext with `ActivatorUtilities` from the services `DesignTimeServices` registers; `BWDB008`
+  subcontext with `ActivatorUtilities` from the services `DesignTimeServices` registers; `BW0025`
   rejects a constructor with an undefaulted extra parameter and no `DesignTimeServices`, and
-  `BWDB006` a type that can't be used. A sealed context is `BWDB004`, but only when some engine is
+  `BW0023` a type that can't be used. A sealed context is `BW0021`, but only when some engine is
   migrated by EF Core, since only then are subcontexts emitted.
 - Creating a missing SQL Server database is serialized by an application lock in `master`, keyed by
   the database name. The migration lock lives in the database, so it can't cover creating it, and a
   host whose `CREATE DATABASE` loses the race has its connection severed rather than getting error
   1801 back.
-- `BWDB001` is an error when `BitPreviousSqlServerScriptPrefix`
+- `BW0018` is an error when `BitPreviousSqlServerScriptPrefix`
   overlaps `BitSqlServerScriptPrefix`, meaning one is a prefix of the other. The journal rewrite is
   anchored to the start of the recorded name and so is idempotent only for unrelated names; both
   values are build properties, so the overlap is decided at compile time instead of against a

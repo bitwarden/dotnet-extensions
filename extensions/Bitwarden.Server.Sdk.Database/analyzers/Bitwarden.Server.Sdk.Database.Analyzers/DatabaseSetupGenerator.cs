@@ -26,6 +26,8 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
         new("MySql", "Microting.EntityFrameworkCore.MySql"),
     ];
 
+    private const string HelpUrlFormat = "https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#{0}";
+
     /// <summary>
     /// Reported when the previous and current script prefixes overlap. The journal rewrite exists
     /// to adopt a journal written under an unrelated name, and is only idempotent for prefixes
@@ -33,7 +35,7 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
     /// here rather than left to fail against a production database.
     /// </summary>
     private static readonly DiagnosticDescriptor OverlappingScriptPrefixes = new(
-        id: "BWDB001",
+        id: "BW0018",
         title: "Previous script prefix overlaps the current one",
         messageFormat: "BitPreviousSqlServerScriptPrefix '{0}' and BitSqlServerScriptPrefix '{1}' "
             + "overlap: one is a prefix of the other. The journal rewrite only supports adopting an "
@@ -41,7 +43,8 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
             + "records, or remove it if the journal already matches this build.",
         category: "Bitwarden.Database",
         defaultSeverity: DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: string.Format(HelpUrlFormat, "BW0018"));
 
     /// <summary>
     /// Reported when two packages serving the same provider are both referenced. They define the
@@ -49,87 +52,94 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
     /// runtime dispatch could only ever match one of them.
     /// </summary>
     private static readonly DiagnosticDescriptor ConflictingProviderPackages = new(
-        id: "BWDB002",
+        id: "BW0019",
         title: "More than one package is referenced for the same database provider",
         messageFormat: "The {0} provider is referenced through more than one package: {1}. "
             + "Reference only one of them.",
         category: "Bitwarden.Database",
         defaultSeverity: DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: string.Format(HelpUrlFormat, "BW0019"));
 
     /// <summary>
     /// Reported when an engine is declared on the attribute but none of its provider packages is
     /// referenced, which would otherwise surface as an unresolved call inside generated code.
     /// </summary>
     private static readonly DiagnosticDescriptor MissingProviderPackage = new(
-        id: "BWDB003",
+        id: "BW0020",
         title: "A declared database provider's package is not referenced",
         messageFormat: "The {0} provider is declared on DatabaseSetup but its package isn't referenced. "
             + "Reference {1}.",
         category: "Bitwarden.Database",
         defaultSeverity: DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: string.Format(HelpUrlFormat, "BW0020"));
 
     /// <summary>
     /// Reported when the context is sealed. Each EF Core engine gets a subcontext derived from it,
     /// which would otherwise fail to compile inside generated code.
     /// </summary>
     private static readonly DiagnosticDescriptor SealedContext = new(
-        id: "BWDB004",
+        id: "BW0021",
         title: "The DatabaseSetup context is sealed",
         messageFormat: "{0} is sealed, but DatabaseSetup derives a context from it for each EF Core engine. "
             + "Remove sealed from {0}.",
         category: "Bitwarden.Database",
         defaultSeverity: DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: string.Format(HelpUrlFormat, "BW0021"));
 
     /// <summary>
     /// Reported when no constructor the subcontexts can call takes the context's options.
     /// </summary>
     private static readonly DiagnosticDescriptor NoOptionsConstructor = new(
-        id: "BWDB005",
+        id: "BW0022",
         title: "The DatabaseSetup context has no constructor taking its options",
         messageFormat: "{0} needs a non-private constructor with one DbContextOptions or DbContextOptions<{0}> "
             + "parameter, and no ref, out, in or params parameters, for DatabaseSetup to derive a context from it",
         category: "Bitwarden.Database",
         defaultSeverity: DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: string.Format(HelpUrlFormat, "BW0022"));
 
     /// <summary>
     /// Reported when <c>DesignTimeServices</c> names a type the generated factories can't use.
     /// </summary>
     private static readonly DiagnosticDescriptor InvalidDesignTimeServices = new(
-        id: "BWDB006",
+        id: "BW0023",
         title: "DesignTimeServices can't be used",
         messageFormat: "DesignTimeServices type {0} must implement IDatabaseDesignTimeServices",
         category: "Bitwarden.Database",
         defaultSeverity: DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: string.Format(HelpUrlFormat, "BW0023"));
 
     /// <summary>
     /// Reported when SQL Server is set to EF Core migrations but isn't one of the declared engines.
     /// </summary>
     private static readonly DiagnosticDescriptor SqlServerMigrationsWithoutSqlServer = new(
-        id: "BWDB007",
+        id: "BW0024",
         title: "SqlServerMigrations is set but SQL Server isn't declared",
         messageFormat: "SqlServerMigrations = EfCore has no effect: DatabaseProvider.SqlServer isn't among the "
             + "declared providers",
         category: "Bitwarden.Database",
         defaultSeverity: DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: string.Format(HelpUrlFormat, "BW0024"));
 
     /// <summary>
     /// Reported when the context's constructor needs more than its options and nothing registers it.
     /// The design-time factories would otherwise fail when EF Core tooling runs them.
     /// </summary>
     private static readonly DiagnosticDescriptor MissingDesignTimeServices = new(
-        id: "BWDB008",
+        id: "BW0025",
         title: "The DatabaseSetup context needs DesignTimeServices",
         messageFormat: "{0}'s constructor takes more than its options, so EF Core tooling can't construct it. "
             + "Set DesignTimeServices to a type implementing IDatabaseDesignTimeServices that registers them.",
         category: "Bitwarden.Database",
         defaultSeverity: DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+        isEnabledByDefault: true,
+        helpLinkUri: string.Format(HelpUrlFormat, "BW0025"));
 
     private static bool PrefixesOverlap(string previous, string current)
         => previous.Length != current.Length

@@ -937,7 +937,7 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
             excludeAssemblyNames: ["Npgsql.EntityFrameworkCore.PostgreSQL"]);
 
         var diagnostic = Assert.Single(diagnostics);
-        Assert.Equal("BWDB003", diagnostic.Id);
+        Assert.Equal("BW0020", diagnostic.Id);
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains("PostgreSql", diagnostic.GetMessage());
         Assert.Contains("Npgsql.EntityFrameworkCore.PostgreSQL", diagnostic.GetMessage());
@@ -1421,7 +1421,7 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
             additionalReferences: [MicrotingMySqlStub.Value]);
 
         var diagnostic = Assert.Single(diagnostics);
-        Assert.Equal("BWDB002", diagnostic.Id);
+        Assert.Equal("BW0019", diagnostic.Id);
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains("Pomelo.EntityFrameworkCore.MySql", diagnostic.GetMessage());
         Assert.Contains("Microting.EntityFrameworkCore.MySql", diagnostic.GetMessage());
@@ -1429,7 +1429,7 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
 
     /// <summary>
     /// Stands in for Microting.EntityFrameworkCore.MySql, which can't be referenced beside Pomelo:
-    /// the two define the same types, which is the conflict BWDB002 exists for. The generator
+    /// the two define the same types, which is the conflict BW0019 exists for. The generator
     /// detects it by assembly name, and the generated code binds to the slice of Pomelo's API
     /// declared here.
     /// </summary>
@@ -1503,7 +1503,7 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
             previousScriptPrefix: previousScriptPrefix);
 
         var diagnostic = Assert.Single(diagnostics);
-        Assert.Equal("BWDB001", diagnostic.Id);
+        Assert.Equal("BW0018", diagnostic.Id);
         Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains(previousScriptPrefix, diagnostic.GetMessage());
     }
