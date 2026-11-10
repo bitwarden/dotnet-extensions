@@ -21,7 +21,7 @@ public static class MessageBrokerServiceCollectionExtensions
     {
         // DI time enforcement of valid payload variant chain.
         ChainValidator<TPayload, TCeiling>.ThrowIfInvalid();
-        ClaimTopicForPayload<TPayload>(services, name);
+        ClaimTopicFamily<TPayload>(services, name);
         services.AddOptions();
         services.TryAddSingleton<MessageBrokerMetrics>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MessagingOptions>, MessagingOptionsValidator>());
@@ -78,7 +78,8 @@ public static class MessageBrokerServiceCollectionExtensions
     {
         // DI time enforcement of valid payload variant chain.
         ChainValidator<TPayload, TCeiling>.ThrowIfInvalid();
-        ClaimTopicForPayload<TPayload>(services, name);
+        ClaimTopicFamily<TPayload>(services, name);
+        ClaimTopicSubscription<TPayload>(services, name, subscriptionName);
         var subscriptionKey = $"{name}/{subscriptionName}";
         var publisherKey = MessageBrokerKeys.Publisher<TPayload>(name);
 
@@ -223,29 +224,51 @@ public static class MessageBrokerServiceCollectionExtensions
     // Sentinel registered in DI to prevent duplicate IHostedService entries for the same ChannelTopic.
     private sealed record ChannelTopicLifetimeMarker(Type MessageType, string TopicName);
 
-    // Sentinel binding a topic name to the payload family it carries. The wire format has no
-    // payload-family discriminator, so registering two distinct payload families against the same
-    // topic name on Azure Service Bus or RabbitMQ produces silent misroutes: each subscriber
-    // decodes every message against its own TPayload regardless of which family the publisher sent.
-    // Enforced uniformly across backends so the invariant does not depend on the runtime transport
-    // configured by MessagingOptions.
-    private sealed record TopicPayloadClaim(string TopicName, Type PayloadType);
+    // Sentinel binding a (topic, family wire name) pair to the CLR payload type that owns it.
+    // A topic can carry multiple families, but each family's wire name must identify exactly one
+    // payload shape — two publishers stamping the same routing key on different payloads would
+    // silently misroute at the subscriber.
+    private sealed record TopicFamilyClaim(string TopicName, string FamilyWireName, Type PayloadType);
 
-    private static void ClaimTopicForPayload<TPayload>(IServiceCollection services, string name)
+    // Sentinel binding a (topic, subscription) pair to the CLR payload type that reads it. Each
+    // subscription is operationally single-family (the broker binding or filter narrows it to
+    // one wire name), so registering a second TPayload against the same subscription would
+    // deliver one broker queue into two incompatible decoders.
+    private sealed record TopicSubscriptionClaim(string TopicName, string SubscriptionName, Type PayloadType);
+
+    private static void ClaimTopicFamily<TPayload>(IServiceCollection services, string name)
+        where TPayload : IPayloadWireName<TPayload>
+    {
+        var wireName = TPayload.WireName;
+        foreach (var descriptor in services)
+        {
+            if (descriptor.ServiceType != typeof(TopicFamilyClaim)) continue;
+            if (descriptor.ImplementationInstance is not TopicFamilyClaim claim) continue;
+            if (claim.TopicName != name || claim.FamilyWireName != wireName) continue;
+            if (claim.PayloadType == typeof(TPayload)) return;
+            throw new InvalidOperationException(
+                $"Topic '{name}' already has family wire name '{wireName}' claimed by payload " +
+                $"'{claim.PayloadType.Name}'. Cannot also claim it for '{typeof(TPayload).Name}'. " +
+                "Each family wire name must identify exactly one payload shape within a topic.");
+        }
+        services.AddSingleton(new TopicFamilyClaim(name, wireName, typeof(TPayload)));
+    }
+
+    private static void ClaimTopicSubscription<TPayload>(IServiceCollection services, string name, string subscriptionName)
     {
         foreach (var descriptor in services)
         {
-            if (descriptor.ServiceType != typeof(TopicPayloadClaim)) continue;
-            if (descriptor.ImplementationInstance is not TopicPayloadClaim claim) continue;
-            if (claim.TopicName != name) continue;
+            if (descriptor.ServiceType != typeof(TopicSubscriptionClaim)) continue;
+            if (descriptor.ImplementationInstance is not TopicSubscriptionClaim claim) continue;
+            if (claim.TopicName != name || claim.SubscriptionName != subscriptionName) continue;
             if (claim.PayloadType == typeof(TPayload)) return;
             throw new InvalidOperationException(
-                $"Topic '{name}' is already registered for payload family '{claim.PayloadType.Name}'. " +
-                $"Cannot also register it for '{typeof(TPayload).Name}'. Each topic must map to a " +
-                "single payload family — the wire format carries no payload discriminator, so mixing " +
-                "families on one topic causes silent misroutes on external brokers.");
+                $"Subscription '{subscriptionName}' on topic '{name}' is already registered for " +
+                $"payload '{claim.PayloadType.Name}'. Cannot also register it for " +
+                $"'{typeof(TPayload).Name}'. Each subscription receives exactly one payload family " +
+                "— the broker binding picks which family reaches it.");
         }
-        services.AddSingleton(new TopicPayloadClaim(name, typeof(TPayload)));
+        services.AddSingleton(new TopicSubscriptionClaim(name, subscriptionName, typeof(TPayload)));
     }
 
     private static void AddRabbitInfrastructure(IServiceCollection services)
