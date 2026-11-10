@@ -48,7 +48,7 @@ public class ChannelBehaviorTests : BehaviorTests
         const int messageCount = 10;
 
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
         // Fill the channel before the subscriber starts so all messages sit buffered.
@@ -87,7 +87,7 @@ public class ChannelBehaviorTests : BehaviorTests
             services.AddPublisher<MyItemPayload, MyItem>(TopicName);
             services.AddSubscriber<MyItemPayload, MyItem>(TopicName, SubscriptionName);
         });
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
         for (var i = 0; i < messageCount; i++)
@@ -138,7 +138,7 @@ public class ChannelBehaviorTests : BehaviorTests
     public async Task UnsettledEnvelopeIsNotRequeued()
     {
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
         await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
@@ -169,7 +169,7 @@ public class ChannelBehaviorTests : BehaviorTests
     public async Task DeadLetteredEnvelopeIsNotRequeued()
     {
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
         await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
@@ -198,7 +198,7 @@ public class ChannelBehaviorTests : BehaviorTests
         const int messageCount = 5;
 
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
         // Fill the channel with messages before the subscriber starts.

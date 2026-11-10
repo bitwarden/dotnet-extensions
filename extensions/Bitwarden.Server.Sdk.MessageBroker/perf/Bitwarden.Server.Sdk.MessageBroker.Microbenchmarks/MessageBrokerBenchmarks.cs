@@ -70,7 +70,7 @@ public abstract class MessageBrokerBenchmarks
             .Build();
 
         await _host.StartAsync();
-        _publisher = _host.Services.GetRequiredKeyedService<Publisher<BenchmarkPayload, BenchmarkMessage>>(TopicName);
+        _publisher = _host.Services.GetRequiredKeyedService<Publisher<BenchmarkPayload, BenchmarkMessage>>(MessageBrokerKeys.Publisher<BenchmarkPayload>(TopicName));
         _subscriber = _host.Services.GetRequiredKeyedService<ISubscriber<BenchmarkPayload, BenchmarkMessage>>(SubscriptionKey);
         _configured = true;
     }

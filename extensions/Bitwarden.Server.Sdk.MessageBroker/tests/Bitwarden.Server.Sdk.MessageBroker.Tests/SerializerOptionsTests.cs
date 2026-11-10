@@ -29,7 +29,7 @@ public class SerializerOptionsTests
 
         await host.StartAsync(TestContext.Current.CancellationToken);
 
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("test");
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>("test"));
         var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>("test/test");
 
         await publisher.Publish(new MyItem(42)).SendAsync(TestContext.Current.CancellationToken);
@@ -69,9 +69,9 @@ public class SerializerOptionsTests
 
         await host.StartAsync(TestContext.Current.CancellationToken);
 
-        var publisherA = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("topic-a");
+        var publisherA = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>("topic-a"));
         var subscriberA = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>("topic-a/topic-a");
-        var publisherB = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("topic-b");
+        var publisherB = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>("topic-b"));
         var subscriberB = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>("topic-b/topic-b");
 
         await publisherA.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
@@ -112,6 +112,6 @@ public class SerializerOptionsTests
         var provider = services.BuildServiceProvider();
 
         Assert.Throws<InvalidOperationException>(
-            () => provider.GetRequiredKeyedService<IMessageSerializer>("test"));
+            () => provider.GetRequiredKeyedService<IMessageSerializer>(MessageBrokerKeys.Publisher<MyItemPayload>("test")));
     }
 }

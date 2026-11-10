@@ -25,7 +25,7 @@ public class MessageConsumerTests
 
         await host.StartAsync(TestContext.Current.CancellationToken);
 
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("test");
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>("test"));
         await publisher.Publish(new MyItem(42)).SendAsync(TestContext.Current.CancellationToken);
 
         await state.Received.WaitAsync(TestContext.Current.CancellationToken);
@@ -52,7 +52,7 @@ public class MessageConsumerTests
 
         await host.StartAsync(TestContext.Current.CancellationToken);
 
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("test");
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>("test"));
         await publisher.Publish(new MyItem(7)).SendAsync(TestContext.Current.CancellationToken);
 
         // The first delivery throws → the base class calls RequeueAsync → message is re-queued.
@@ -114,7 +114,7 @@ public class MessageConsumerTests
 
         await host.StartAsync(TestContext.Current.CancellationToken);
 
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("test");
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>("test"));
 
         // First message: fails, gets discarded rather than re-queued.
         await publisher.Publish(new MyItem(42)).SendAsync(TestContext.Current.CancellationToken);
