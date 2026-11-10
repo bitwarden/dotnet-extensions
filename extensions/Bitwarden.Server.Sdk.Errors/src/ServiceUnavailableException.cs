@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.Errors;
 
 /// <summary>
 /// A service this one depends on could not be reached, did not answer in time, or said it was
@@ -6,7 +6,7 @@ namespace Bitwarden.Server.Sdk.Common;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Answered with <c>503</c> rather than <c>500</c>, so a dependency's outage is not reported as a
+/// A host answers it with <c>503</c> rather than <c>500</c>, so a dependency's outage is not reported as a
 /// bug in every service that calls it.
 /// </para>
 /// <para>

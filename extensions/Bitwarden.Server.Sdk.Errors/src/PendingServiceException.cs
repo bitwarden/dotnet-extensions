@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.Errors;
 
 /// <summary>
 /// A rule this service cannot enforce yet, because the data it turns on belongs to a service
@@ -6,12 +6,12 @@ namespace Bitwarden.Server.Sdk.Common;
 /// </summary>
 /// <remarks>
 /// <para>
-/// A rule that can't be enforced must not be silently dropped. The operation refuses with a
-/// <c>501</c> naming the service it is waiting on and what it needs, so callers can't mistake it
-/// for working, and searching for this type lists everything a service is waiting for.
+/// A rule that can't be enforced must not be silently dropped. The operation refuses, and a host
+/// answers with a <c>501</c> naming the service it is waiting on and what it needs, so callers can't
+/// mistake it for working. Searching for this type lists everything a service is waiting for.
 /// </para>
 /// <para>
-/// Derives from <see cref="NotImplementedException"/>, so it is answered like one.
+/// Derives from <see cref="NotImplementedException"/>, so a host answers it as it answers one.
 /// </para>
 /// </remarks>
 /// <param name="service">The service being waited on, as it will be named.</param>

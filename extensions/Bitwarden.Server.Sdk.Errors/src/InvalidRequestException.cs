@@ -1,12 +1,10 @@
-using Bitwarden.Server.Sdk.Common.Errors;
-
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.Errors;
 
 /// <summary>
 /// The request was well formed but cannot be acted on.
 /// </summary>
 /// <remarks>
-/// Answered with <c>422</c>, an error the client can fix. For a rule that can't be checked from the
+/// A host answers it with <c>422</c>, an error the client can fix. For a rule that can't be checked from the
 /// request's shape alone, such as a name already taken, a reference that does not resolve, or a
 /// state transition that is not allowed.
 /// </remarks>
