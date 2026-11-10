@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace Bitwarden.Server.Sdk.WriteSpans;
+namespace Bitwarden.Server.Sdk.Sagas;
 
 /// <summary>
 /// Tells a write-method request that only reads from one that writes, by its address: an action named <c>check</c>,

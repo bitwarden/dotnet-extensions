@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.WriteSpans;
+namespace Bitwarden.Server.Sdk.Sagas;
 
 /// <summary>
 /// Admits that an operation's writes span services without handling a failure part way yet: a known defect, named, so

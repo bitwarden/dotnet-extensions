@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.WriteSpans;
+namespace Bitwarden.Server.Sdk.Sagas;
 
 /// <summary>
 /// Told when an operation's writes first span services (<see cref="ServiceWrites"/>), before the write that makes them.

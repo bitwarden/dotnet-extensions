@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.WriteSpans;
+namespace Bitwarden.Server.Sdk.Sagas;
 
 /// <summary>
 /// Counts the writes of the operation running now, so one that makes two or more writes, at least one of them to

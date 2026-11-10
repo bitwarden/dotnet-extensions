@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.WriteSpans;
+namespace Bitwarden.Server.Sdk.Sagas;
 
 /// <summary>
 /// Declares that an operation's writes span services (two or more, at least one of them to another service called

@@ -97,14 +97,14 @@
     <Project Path="extensions/Bitwarden.Server.Sdk.RestrictedDependencies/tests/Bitwarden.Server.Sdk.RestrictedDependencies.Tests/Bitwarden.Server.Sdk.RestrictedDependencies.Tests.csproj" />
     <Project Path="extensions/Bitwarden.Server.Sdk.RestrictedDependencies/tests/Bitwarden.Server.Sdk.RestrictedDependencies.Analyzers.Tests/Bitwarden.Server.Sdk.RestrictedDependencies.Analyzers.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Sagas/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Sagas/src/Bitwarden.Server.Sdk.Sagas.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.WebEssentials/">
     <Project Path="extensions/Bitwarden.Server.Sdk.WebEssentials/src/Bitwarden.Server.Sdk.WebEssentials.csproj" />
   </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.WebEssentials/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.WebEssentials/tests/Bitwarden.Server.Sdk.WebEssentials.Tests/Bitwarden.Server.Sdk.WebEssentials.Tests.csproj" />
-  </Folder>
-  <Folder Name="/extensions/Bitwarden.Server.Sdk.WriteSpans.Abstractions/">
-    <Project Path="extensions/Bitwarden.Server.Sdk.WriteSpans.Abstractions/src/Bitwarden.Server.Sdk.WriteSpans.Abstractions.csproj" />
   </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk/">
     <Project Path="extensions/Bitwarden.Server.Sdk/src/Bitwarden.Server.Sdk.csproj" />
