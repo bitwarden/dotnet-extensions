@@ -106,6 +106,9 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.WriteSpans.Abstractions/">
     <Project Path="extensions/Bitwarden.Server.Sdk.WriteSpans.Abstractions/src/Bitwarden.Server.Sdk.WriteSpans.Abstractions.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.WriteSpans.Abstractions/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.WriteSpans.Abstractions/tests/Bitwarden.Server.Sdk.WriteSpans.Abstractions.Tests/Bitwarden.Server.Sdk.WriteSpans.Abstractions.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk/">
     <Project Path="extensions/Bitwarden.Server.Sdk/src/Bitwarden.Server.Sdk.csproj" />
   </Folder>
