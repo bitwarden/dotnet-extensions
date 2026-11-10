@@ -13,7 +13,6 @@ on:
           - Bitwarden.Server.Sdk
           - Bitwarden.Server.Sdk.Authentication
           - Bitwarden.Server.Sdk.Caching
-          - Bitwarden.Server.Sdk.Caching.Abstractions
           - Bitwarden.Server.Sdk.Common
           - Bitwarden.Server.Sdk.Environment
           - Bitwarden.Server.Sdk.Features
@@ -21,6 +20,7 @@ on:
           - Bitwarden.Server.Sdk.Infrastructure
           - Bitwarden.Server.Sdk.Infrastructure.Testing
           - Bitwarden.Server.Sdk.MessageBroker
+          - Bitwarden.Server.Sdk.Resources.Caching.Abstractions
           - Bitwarden.Server.Sdk.RestrictedDependencies
           - Bitwarden.Server.Sdk.WebEssentials
 

@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 
-namespace Bitwarden.Server.Sdk.Caching;
+namespace Bitwarden.Server.Sdk.Resources.Caching;
 
 /// <summary>
 /// How a service-owned answer is keyed in the service cache, shared by the service that answers and

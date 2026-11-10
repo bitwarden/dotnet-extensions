@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.Caching.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.Resources.Caching.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>

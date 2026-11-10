@@ -1,4 +1,4 @@
-# Bitwarden.Server.Sdk.Caching.Abstractions
+# Bitwarden.Server.Sdk.Resources.Caching.Abstractions
 
 How an entry in a Bitwarden service's own cache is stored and keyed, so the service that fills it and the clients that
 read it agree.
@@ -26,12 +26,12 @@ types. Its one dependency is Microsoft.Extensions.Configuration.Abstractions, fo
 ```bash
 dotnet new console -n AnswerKeys
 cd AnswerKeys
-dotnet add package Bitwarden.Server.Sdk.Caching.Abstractions --prerelease
+dotnet add package Bitwarden.Server.Sdk.Resources.Caching.Abstractions --prerelease
 dotnet add package Microsoft.Extensions.Configuration.EnvironmentVariables
 ```
 
 ```csharp
-using Bitwarden.Server.Sdk.Caching;
+using Bitwarden.Server.Sdk.Resources.Caching;
 using Microsoft.Extensions.Configuration;
 
 var configuration = new ConfigurationBuilder().AddEnvironmentVariables().Build();
@@ -61,7 +61,7 @@ Caching__Owned__AnswerSecret=$(openssl rand -base64 32) dotnet run
 A resource is stored under its identifier, as written:
 
 ```csharp
-using Bitwarden.Server.Sdk.Caching;
+using Bitwarden.Server.Sdk.Resources.Caching;
 
 public static class WidgetCacheKeys
 {
@@ -126,11 +126,11 @@ Answers keyed by an identifier are stored under the identifier itself and are no
 ## Contributing
 
 Every source file has a matching test class in
-[`tests/Bitwarden.Server.Sdk.Caching.Abstractions.Tests`](../tests/Bitwarden.Server.Sdk.Caching.Abstractions.Tests). Run
+[`tests/Bitwarden.Server.Sdk.Resources.Caching.Abstractions.Tests`](../tests/Bitwarden.Server.Sdk.Resources.Caching.Abstractions.Tests). Run
 them from the repository root:
 
 ```bash
-dotnet test --project extensions/Bitwarden.Server.Sdk.Caching.Abstractions/tests/Bitwarden.Server.Sdk.Caching.Abstractions.Tests
+dotnet test --project extensions/Bitwarden.Server.Sdk.Resources.Caching.Abstractions/tests/Bitwarden.Server.Sdk.Resources.Caching.Abstractions.Tests
 ```
 
 A change must keep:

@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Caching;
+namespace Bitwarden.Server.Sdk.Resources.Caching;
 
 /// <summary>
 /// How an entry in a service-owned cache is stored in Redis, shared by the service that writes it

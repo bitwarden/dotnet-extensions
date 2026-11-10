@@ -155,7 +155,7 @@
           "xunit.v3.runner.common": "[3.2.2]"
         }
       },
-      "bitwarden.server.sdk.caching.abstractions": {
+      "bitwarden.server.sdk.resources.caching.abstractions": {
         "type": "Project",
         "dependencies": {
           "Microsoft.Extensions.Configuration.Abstractions": "[10.0.14, )"

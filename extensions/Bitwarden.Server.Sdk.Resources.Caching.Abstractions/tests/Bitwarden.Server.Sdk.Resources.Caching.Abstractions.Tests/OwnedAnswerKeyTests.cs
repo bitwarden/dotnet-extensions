@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Primitives;
 
-namespace Bitwarden.Server.Sdk.Caching.Abstractions.Tests;
+namespace Bitwarden.Server.Sdk.Resources.Caching.Abstractions.Tests;
 
 public sealed class OwnedAnswerKeyTests
 {

@@ -1,4 +1,4 @@
-# Bitwarden.Server.Sdk.Caching.Abstractions
+# Bitwarden.Server.Sdk.Resources.Caching.Abstractions
 
 ## About
 
@@ -12,7 +12,7 @@ them, each building keys with these types.
 ## Installing
 
 ```bash
-dotnet add package Bitwarden.Server.Sdk.Caching.Abstractions
+dotnet add package Bitwarden.Server.Sdk.Resources.Caching.Abstractions
 ```
 
 ## Configuration
@@ -25,7 +25,7 @@ dotnet add package Bitwarden.Server.Sdk.Caching.Abstractions
 
 Outside the `Development` environment, a host with a service cache must set `Caching:Owned:AnswerSecret`, or it fails
 to start. Every service and client sharing the cache must hold the same secret. See
-[The answer secret](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Caching.Abstractions/src/README.md#the-answer-secret)
+[The answer secret](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Resources.Caching.Abstractions/src/README.md#the-answer-secret)
 for why, and what changing it does.
 
 ## Getting started
@@ -33,7 +33,7 @@ for why, and what changing it does.
 Key an answer by text the same way on both sides:
 
 ```csharp
-using Bitwarden.Server.Sdk.Caching;
+using Bitwarden.Server.Sdk.Resources.Caching;
 using Microsoft.Extensions.Configuration;
 
 public sealed class AccountByEmailKey(IConfiguration configuration, string environmentName)
@@ -49,7 +49,7 @@ public sealed class AccountByEmailKey(IConfiguration configuration, string envir
 ```
 
 See the
-[README](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Caching.Abstractions/src/README.md)
+[README](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Resources.Caching.Abstractions/src/README.md)
 for a complete program.
 
 ## Documentation
