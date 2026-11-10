@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.Service;
 
 /// <summary>
 /// A package's contribution to every service that references it.
@@ -9,10 +9,11 @@ namespace Bitwarden.Server.Sdk.Common;
 /// <remarks>
 /// <para>
 /// Lets a package configure a service without the service having to ask, so a required behavior
-/// can't be forgotten. Declare it with <see cref="ServiceExtensionAttribute"/>.
+/// can't be forgotten. Declare it with <see cref="ServiceExtensionAttribute"/>; a service host
+/// applies it.
 /// </para>
 /// <para>
-/// Runs after the service's own registrations, so an extension can see what the service
+/// A host runs it after the service's own registrations, so an extension can see what the service
 /// registered, and a service that registers something first keeps it.
 /// </para>
 /// </remarks>

@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace Bitwarden.Server.Sdk.Common.Tests;
+namespace Bitwarden.Server.Sdk.Service.Abstractions.Tests;
 
 public sealed class ServiceExtensionAttributeTests
 {

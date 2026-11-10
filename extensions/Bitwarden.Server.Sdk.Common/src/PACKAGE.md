@@ -200,4 +200,3 @@ starts. Every service and client sharing the cache must use the same secret.
 | `OwnedCacheEntry`                                                        | How a service-owned cache entry is stored in Redis                                             |
 | `OwnedAnswerKey`                                                         | How a service-owned answer is keyed in the same cache                                          |
 | `InternalTls`                                                            | Which certificate authorities a service trusts for calls between services                      |
-| `IServiceExtension`, `ServiceExtensionAttribute`                         | How a package configures every service that references it                                      |
