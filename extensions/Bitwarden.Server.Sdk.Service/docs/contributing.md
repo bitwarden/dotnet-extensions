@@ -24,7 +24,7 @@ test projects of their own, under each package's `tests/` folder.
   Bitwarden.Server.Sdk.RateLimiting, outbound HTTP in Bitwarden.Server.Sdk.Http, idempotency keys in
   Bitwarden.Server.Sdk.Idempotency, the error document in Bitwarden.Server.Sdk.Errors. Types a
   service and its callers both need belong in an abstractions package (Bitwarden.Server.Sdk.Context,
-  Data.Abstractions, Caching.Abstractions, Idempotency.Abstractions, Service.Abstractions), and
+  Data.Abstractions, Resources.Caching.Abstractions, Idempotency.Abstractions, Service.Abstractions), and
   calling another service belongs in Bitwarden.Server.Sdk.Client.
 - **Registration order lives here.** The packages `Service` composes offer their own entry points,
   such as `AddCallerAuthorization`, `UseIpRateLimiting` and `UseIdempotencyKeys`. `Service` is the
