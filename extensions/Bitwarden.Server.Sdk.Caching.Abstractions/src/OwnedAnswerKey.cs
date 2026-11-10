@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.Caching;
 
 /// <summary>
 /// How a service-owned answer is keyed in the service cache, shared by the service that answers and
@@ -62,6 +62,10 @@ public static class OwnedAnswerKey
     /// The fewest bytes a configured secret may have.
     /// </summary>
     public const int MinimumSecretLength = 32;
+
+    // Strict, so text that isn't valid UTF-16 (a lone surrogate) throws rather than encode as U+FFFD
+    // and collide with the text that holds U+FFFD itself. Valid text encodes as Encoding.UTF8 does.
+    private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     // Compared as IHostEnvironment.IsDevelopment compares it, without referencing hosting here.
     private const string DevelopmentEnvironment = "Development";
@@ -132,28 +136,36 @@ public static class OwnedAnswerKey
     /// <summary>
     /// The subject of a key written as text, by plain SHA-256.
     /// </summary>
-    /// <param name="answer">The answer's name, for example <c>account-by-email</c>. It may not contain a line feed or <c>:</c>.</param>
+    /// <param name="answer">The answer's name, for example <c>account-by-email</c>. It may not contain a line feed, <c>:</c>, <c>{</c> or <c>}</c>.</param>
     /// <param name="key">The key, normalized as the owner compares it (an address trimmed and lowercased).</param>
+    /// <exception cref="ArgumentException"><paramref name="answer"/> is empty or holds a character it may not, or the text is not valid UTF-16 (a lone surrogate).</exception>
     public static Guid Of(string answer, string key) => Of(answer, key, []);
 
     /// <summary>
     /// The subject of a key written as text: by HMAC-SHA-256 with <paramref name="secret"/>, or by
     /// plain SHA-256 when it is empty.
     /// </summary>
-    /// <param name="answer">The answer's name, for example <c>account-by-email</c>. It may not contain a line feed or <c>:</c>.</param>
+    /// <param name="answer">The answer's name, for example <c>account-by-email</c>. It may not contain a line feed, <c>:</c>, <c>{</c> or <c>}</c>.</param>
     /// <param name="key">The key, normalized as the owner compares it (an address trimmed and lowercased).</param>
     /// <param name="secret">The configured secret (<see cref="ReadSecret(IConfiguration, string)"/>), or empty for none.</param>
+    /// <exception cref="ArgumentException"><paramref name="answer"/> is empty or holds a character it may not, or the text is not valid UTF-16 (a lone surrogate).</exception>
     public static Guid Of(string answer, string key, ReadOnlySpan<byte> secret)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(answer);
+        ThrowIfNotAnAnswer(answer);
         ArgumentNullException.ThrowIfNull(key);
 
-        if (answer.AsSpan().IndexOfAny('\n', ':') >= 0)
+        byte[] text;
+        try
         {
-            throw new ArgumentException("An answer's name may not contain a line feed or ':'.", nameof(answer));
+            text = StrictUtf8.GetBytes($"{answer}\n{key}");
+        }
+        catch (EncoderFallbackException)
+        {
+            // Not chained: the inner exception's message quotes the character, and the key is text a
+            // caller keeps out of the cache, such as an address.
+            throw new ArgumentException("The answer's name or the key is not valid UTF-16 text.", nameof(key));
         }
 
-        var text = Encoding.UTF8.GetBytes($"{answer}\n{key}");
         Span<byte> digest = stackalloc byte[32];
         if (secret.IsEmpty)
         {
@@ -170,7 +182,23 @@ public static class OwnedAnswerKey
     /// <summary>
     /// The key template an answer's entries are stored under.
     /// </summary>
-    /// <param name="service">The owning service's name.</param>
-    /// <param name="answer">The answer's name.</param>
-    public static string Template(string service, string answer) => $"{service}:answer:{answer}:{OwnedCacheEntry.KeyPlaceholder}";
+    /// <param name="service">The owning service's name. It may not contain <c>:</c>, <c>{</c> or <c>}</c>.</param>
+    /// <param name="answer">The answer's name. It may not contain a line feed, <c>:</c>, <c>{</c> or <c>}</c>.</param>
+    /// <exception cref="ArgumentException">A name is empty or holds a character it may not.</exception>
+    public static string Template(string service, string answer)
+    {
+        ThrowIfNotAnAnswer(answer);
+        return $"{OwnedCacheEntry.Prefix(service)}{OwnedCacheEntry.AnswerResourceType}:{answer}:{OwnedCacheEntry.KeyPlaceholder}";
+    }
+
+    // The line feed separates the name from the key in the digested text.
+    private static void ThrowIfNotAnAnswer(string answer)
+    {
+        OwnedCacheEntry.ThrowIfNotAName(answer);
+
+        if (answer.Contains('\n', StringComparison.Ordinal))
+        {
+            throw new ArgumentException("An answer's name may not contain a line feed.", nameof(answer));
+        }
+    }
 }

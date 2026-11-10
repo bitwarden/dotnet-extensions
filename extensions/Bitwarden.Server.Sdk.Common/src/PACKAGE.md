@@ -155,30 +155,6 @@ var handler = new SocketsHttpHandler
 A certificate is trusted if the system trusts it, or if it chains to a named authority, is valid
 now and is allowed for server authentication. A name that doesn't match is never trusted.
 
-### Key a cached answer by text
-
-When a cached answer is keyed by text such as an email address, store only its digest. The service
-and its clients reach the same subject from the same normalized text:
-
-```csharp
-var subject = OwnedAnswerKey.Of("account-by-email", email.Trim().ToLowerInvariant());
-var key = OwnedCacheEntry.Key(OwnedAnswerKey.Template("identity-service", "account-by-email"), subject);
-```
-
-With no secret, the digest is plain SHA-256: it keeps the address out of the cache, but anyone who
-can read the cache and guess an address can confirm it. So a shared secret makes the digest
-HMAC-SHA-256, and outside `Development` a host with a service cache must have one:
-
-```csharp
-var secret = OwnedAnswerKey.ReadSecret(configuration, environment.EnvironmentName);
-var subject = OwnedAnswerKey.Of("account-by-email", email.Trim().ToLowerInvariant(), secret);
-```
-
-`ReadSecret` reads `Caching:Owned:AnswerSecret` (base64, at least 32 bytes). It throws when the
-secret is unset, `Caching:Owned:Redis:Configuration` is set and the environment is not
-`Development`; otherwise an unset secret is empty and the digest is plain. Call it as the host
-starts. Every service and client sharing the cache must use the same secret.
-
 ## Types
 
 | Type                                                                     | Purpose                                                                                        |
@@ -197,7 +173,5 @@ starts. Every service and client sharing the cache must use the same secret.
 | `IRequestNamedOwner`, `IOrganizationCreation`                            | Owners an operation names itself, for its outgoing calls                                       |
 | `IServiceIdentity`, `TokenAudience`                                      | Which service this is, and which token audience it accepts                                     |
 | `EncryptedAttribute`, `PersonalDataAttribute`                            | Mark a field as Protected Data or as personal data                                             |
-| `OwnedCacheEntry`                                                        | How a service-owned cache entry is stored in Redis                                             |
-| `OwnedAnswerKey`                                                         | How a service-owned answer is keyed in the same cache                                          |
 | `InternalTls`                                                            | Which certificate authorities a service trusts for calls between services                      |
 | `IServiceExtension`, `ServiceExtensionAttribute`                         | How a package configures every service that references it                                      |
