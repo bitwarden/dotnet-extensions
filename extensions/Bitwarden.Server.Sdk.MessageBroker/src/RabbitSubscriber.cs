@@ -41,7 +41,7 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
             // deliver another family's message here, and decoding it against TPayload would
             // silently discard every variant and dead-letter on the length check below with
             // no indication the real problem was routing. Fail fast with the actual reason.
-            if (ea.BasicProperties.Headers?.TryGetValue(RabbitHeaders.PayloadFamily, out var familyBytes) == true
+            if (ea.BasicProperties.Headers?.TryGetValue(BrokerProperties.PayloadFamily, out var familyBytes) == true
                 && familyBytes is byte[] familyBytesArr
                 && Encoding.UTF8.GetString(familyBytesArr) is var familyName
                 && familyName != TPayload.WireName)
@@ -70,7 +70,7 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
             }
 
             var messageId = ea.BasicProperties.MessageId ?? Guid.NewGuid().ToString();
-            var traceId = ea.BasicProperties.Headers?.TryGetValue("traceparent", out var tp) == true && tp is byte[] tpBytes
+            var traceId = ea.BasicProperties.Headers?.TryGetValue(BrokerProperties.TraceParent, out var tp) == true && tp is byte[] tpBytes
                 ? Encoding.UTF8.GetString(tpBytes)
                 : null;
             // Quorum queues (Rabbit 3.12+) set x-delivery-count starting at 0; add 1 to

@@ -54,6 +54,19 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
 
             foreach (var sbMessage in received)
             {
+                // Defense in depth: when the operator-declared Correlation filter routes correctly,
+                // only matching messages arrive. A missing or wrong filter could deliver another
+                // family's message here; decoding it against TPayload would silently discard every
+                // variant and dead-letter on the length check below with no indication the real
+                // problem was the subscription filter. Fail fast with the actual reason.
+                if (sbMessage.ApplicationProperties.TryGetValue(BrokerProperties.PayloadFamily, out var familyObj)
+                    && familyObj is string familyName
+                    && familyName != TPayload.WireName)
+                {
+                    await receiver.DeadLetterMessageAsync(sbMessage, cancellationToken: cancellationToken);
+                    continue;
+                }
+
                 IReadOnlyList<Payload<TPayload>.IVariant> variants;
                 try
                 {
@@ -72,7 +85,7 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
                     continue;
                 }
 
-                var traceId = sbMessage.ApplicationProperties.TryGetValue("traceparent", out var tp) ? tp as string : null;
+                var traceId = sbMessage.ApplicationProperties.TryGetValue(BrokerProperties.TraceParent, out var tp) ? tp as string : null;
                 var activity = MessageBrokerActivitySource.StartConsumerActivity(_topicName, TPayload.WireName, traceId);
 
                 AzureServiceBusEnvelope envelope;
@@ -111,7 +124,7 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
         }
 
         public override string MessageId => _sbMessage.MessageId;
-        public override string? TraceId => _sbMessage.ApplicationProperties.TryGetValue("traceparent", out var tp) ? tp as string : null;
+        public override string? TraceId => _sbMessage.ApplicationProperties.TryGetValue(BrokerProperties.TraceParent, out var tp) ? tp as string : null;
         public override int DeliveryCount => _sbMessage.DeliveryCount;
 
         protected override Task CompleteAsyncCore(CancellationToken cancellationToken) =>

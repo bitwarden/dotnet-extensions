@@ -46,8 +46,8 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
                 MessageId = Guid.NewGuid().ToString(),
                 Headers = new Dictionary<string, object?>
                 {
-                    ["traceparent"] = activity?.Id,
-                    [RabbitHeaders.PayloadFamily] = TPayload.WireName,
+                    [BrokerProperties.TraceParent] = activity?.Id,
+                    [BrokerProperties.PayloadFamily] = TPayload.WireName,
                 },
             };
             await channel.BasicPublishAsync(_exchangeName, routingKey: TPayload.WireName, mandatory: false,

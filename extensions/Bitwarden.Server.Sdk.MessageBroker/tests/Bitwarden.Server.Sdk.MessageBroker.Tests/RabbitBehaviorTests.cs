@@ -111,7 +111,7 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
             mandatory: false,
             basicProperties: new BasicProperties
             {
-                Headers = new Dictionary<string, object?> { ["x-bw-payload-family"] = MyItemPayload.WireName },
+                Headers = new Dictionary<string, object?> { [BrokerProperties.PayloadFamily] = MyItemPayload.WireName },
             },
             body: body,
             cancellationToken: TestContext.Current.CancellationToken);
