@@ -55,9 +55,9 @@ public enum WidgetFinish
 
 ## Name a resource's type
 
-A resource's `type` is the record's name in kebab case, singular: `Widget` is `widget`, and a run of
-capitals stays one word, so `ApiKey` is `api-key`. When the record's name isn't the resource's
-name, `[ResourceType]` says what it is:
+A resource's `type` is the record's name in kebab case, singular: `Widget` is `widget`, `ApiKey` is
+`api-key`, and a run of capitals stays one word, so `HTTPServer` is `http-server`. When the
+record's name isn't the resource's name, `[ResourceType]` says what it is:
 
 ```csharp
 /// <summary>

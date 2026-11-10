@@ -75,8 +75,10 @@ public sealed class JsonOnlyResponses : IStandardEndpointFilterProvider
         {
             var accepted = context.HttpContext.Request.GetTypedHeaders().Accept;
 
-            // No Accept header accepts anything. Otherwise one range must admit JSON.
-            if (accepted.Count == 0 || accepted.Any(range => range.Quality != 0 && Json.IsSubsetOf(range)))
+            // No Accept header accepts anything. Otherwise one range must admit JSON. Only the range's
+            // type and subtype are compared, so a parameter such as charset doesn't refuse it.
+            if (accepted.Count == 0 || accepted.Any(range =>
+                    range.Quality != 0 && Json.IsSubsetOf(new MediaTypeHeaderValue(range.MediaType))))
             {
                 return next(context);
             }
