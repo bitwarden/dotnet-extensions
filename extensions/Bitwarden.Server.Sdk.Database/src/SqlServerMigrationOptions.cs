@@ -53,6 +53,13 @@ public sealed class SqlServerMigrationOptions
     public bool NoTransaction { get; set; }
 
     /// <summary>
+    /// How long to wait for another migration of the same database, or of its creation, to finish
+    /// before failing with an error that names the lock. Defaults to the per-script execution
+    /// timeout plus 5 minutes: 10 minutes, or 65 with <see cref="NoTransaction"/>.
+    /// </summary>
+    public TimeSpan? LockTimeout { get; set; }
+
+    /// <summary>
     /// Prefix a database's journal may still record scripts under, from before they moved — for
     /// example <c>"Bit.Setup.DbScripts"</c>. Recorded names carrying it are rewritten onto
     /// <see cref="ScriptPrefix"/> before a journaled phase migrates.

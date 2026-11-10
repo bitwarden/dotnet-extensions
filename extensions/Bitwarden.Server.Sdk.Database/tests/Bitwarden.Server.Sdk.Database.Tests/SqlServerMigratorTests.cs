@@ -22,6 +22,23 @@ public class SqlServerMigratorTests
     }
 
     [Fact]
+    public void LockTimeout_DefaultsToTheScriptTimeoutPlusFiveMinutes()
+    {
+        Assert.Equal(TimeSpan.FromMinutes(10), SqlServerMigrator.LockTimeoutFor(new SqlServerMigrationOptions()));
+        Assert.Equal(
+            TimeSpan.FromMinutes(65),
+            SqlServerMigrator.LockTimeoutFor(new SqlServerMigrationOptions { NoTransaction = true }));
+    }
+
+    [Fact]
+    public void LockTimeout_WhenConfigured_IsUsedAsIs()
+    {
+        var options = new SqlServerMigrationOptions { LockTimeout = TimeSpan.FromSeconds(30), NoTransaction = true };
+
+        Assert.Equal(TimeSpan.FromSeconds(30), SqlServerMigrator.LockTimeoutFor(options));
+    }
+
+    [Fact]
     public void ResolveDatabase_WithoutADatabase_UsesTheLowerCasedRegistrationName()
     {
         var (connectionString, databaseName) = SqlServerMigrator.ResolveDatabase(

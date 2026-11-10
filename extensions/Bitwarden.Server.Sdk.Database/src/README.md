@@ -250,6 +250,13 @@ Implemented:
   the database name. The migration lock lives in the database, so it can't cover creating it, and a
   host whose `CREATE DATABASE` loses the race has its connection severed rather than getting error
   1801 back.
+- Both application locks wait at most `SqlServerMigrationOptions.LockTimeout`, by default the
+  per-script execution timeout plus 5 minutes (10, or 65 with `NoTransaction`), then fail with an
+  error naming the lock. `sp_getapplock` only needs `public`, and `guest` is enabled in `master`, so
+  any login can take the create lock and any database user the migration lock; a holder that dies
+  releases its lock with its session, but a live, wedged one would otherwise hang every host's
+  startup and the migrator. The default is a trade-off: a host waiting behind a migration that runs
+  longer than the timeout fails instead of waiting it out, so raise it for schemas with long runs.
 - `BW0018` is an error when `BitPreviousSqlServerScriptPrefix`
   overlaps `BitSqlServerScriptPrefix`, meaning one is a prefix of the other. The journal rewrite is
   anchored to the start of the recorded name and so is idempotent only for unrelated names; both

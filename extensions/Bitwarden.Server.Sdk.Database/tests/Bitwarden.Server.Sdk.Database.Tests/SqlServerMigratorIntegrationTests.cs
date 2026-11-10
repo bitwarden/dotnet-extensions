@@ -99,6 +99,35 @@ public class SqlServerMigratorIntegrationTests(SqlServerFixture sqlServer) : ICl
     }
 
     [Fact(Explicit = true)]
+    public async Task MigrateAsync_LockHeldElsewhere_FailsAfterTheLockTimeout()
+    {
+        const string DatabaseName = "lock_timeout_test";
+        var (migrator, connectionString, _) = await BuildMigratorAsync(
+            DatabaseName, opts => opts.LockTimeout = TimeSpan.FromSeconds(2));
+
+        var master = new SqlConnectionStringBuilder(connectionString) { InitialCatalog = "master" }.ConnectionString;
+        await ScalarOrNullAsync(master, $"CREATE DATABASE [{DatabaseName}];");
+
+        // A live session holding the migration lock and never letting go, as a wedged migration or
+        // any user of the database could.
+        await using var holder = new SqlConnection(connectionString);
+        await holder.OpenAsync(TestContext.Current.CancellationToken);
+        using (var take = new SqlCommand(
+            "EXEC sp_getapplock @Resource = 'Bitwarden.Server.Sdk.Database.Migration', "
+            + "@LockMode = 'Exclusive', @LockOwner = 'Session';", holder))
+        {
+            await take.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
+        // Bounded so a migrator that waits forever fails this test rather than hanging the run.
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => migrator.MigrateAsync(TestContext.Current.CancellationToken)
+                .WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken));
+
+        Assert.Contains("Bitwarden.Server.Sdk.Database.Migration", error.Message);
+    }
+
+    [Fact(Explicit = true)]
     public async Task MigrateAsync_TwoHostsAtOnce_ApplyEachScriptOnce()
     {
         // Two hosts migrating the same database together, as several instances starting at once do.

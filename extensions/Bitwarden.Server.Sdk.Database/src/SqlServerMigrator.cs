@@ -261,9 +261,10 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
     /// Core, doesn't lock, so two hosts would otherwise read the same pending scripts from the
     /// journal and both apply them. Also taken in <c>master</c> around creating the database.
     /// </summary>
-    private static async Task<MigrationLock> AcquireMigrationLockAsync(
+    private async Task<MigrationLock> AcquireMigrationLockAsync(
         string connectionString, string resource, CancellationToken cancellationToken)
     {
+        var timeout = LockTimeoutFor(MigrationOptions);
         var connection = new SqlConnection(connectionString);
         try
         {
@@ -272,16 +273,26 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
             using var cmd = new SqlCommand(
                 "DECLARE @result INT; "
                 + "EXEC @result = sp_getapplock @Resource = @resource, @LockMode = 'Exclusive', "
-                + "@LockOwner = 'Session', @LockTimeout = -1; "
+                + "@LockOwner = 'Session', @LockTimeout = @timeout; "
                 + "SELECT @result;",
                 connection);
             cmd.Parameters.AddWithValue("@resource", resource);
-            cmd.CommandTimeout = 0;
+            cmd.Parameters.AddWithValue("@timeout", (int)timeout.TotalMilliseconds);
 
-            // 0 is granted at once, 1 after waiting; anything negative is a failure.
+            // The server bounds the wait; the command only needs to outlast it.
+            cmd.CommandTimeout = (int)timeout.TotalSeconds + 30;
+
+            // 0 is granted at once, 1 after waiting; -1 is a timeout, and anything else negative a failure.
             var result = (int)(await cmd.ExecuteScalarAsync(cancellationToken))!;
+            if (result == -1)
+            {
+                throw new InvalidOperationException(
+                    $"Timed out after {timeout} waiting for the lock '{resource}'. Another migration of this "
+                    + "database may still be running, or a session is holding the lock.");
+            }
+
             if (result < 0)
-                throw new InvalidOperationException($"Could not take the migration lock (sp_getapplock returned {result}).");
+                throw new InvalidOperationException($"Could not take the lock '{resource}' (sp_getapplock returned {result}).");
 
             return new MigrationLock(connection, resource);
         }
@@ -291,6 +302,15 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
             throw;
         }
     }
+
+    /// <summary>
+    /// The configured lock timeout, or the per-script execution timeout plus 5 minutes.
+    /// </summary>
+    internal static TimeSpan LockTimeoutFor(SqlServerMigrationOptions options)
+        => options.LockTimeout ?? ExecutionTimeoutFor(options) + TimeSpan.FromMinutes(5);
+
+    private static TimeSpan ExecutionTimeoutFor(SqlServerMigrationOptions options)
+        => options.NoTransaction ? TimeSpan.FromMinutes(60) : TimeSpan.FromMinutes(5);
 
     /// <summary>
     /// Releases the lock explicitly before disposing its connection. Disposing alone returns a
@@ -399,8 +419,7 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
             .WithScriptsEmbeddedInAssembly(
                 _scriptsAssembly,
                 ScriptFilterFor(options.Phase, options.ScriptPrefix))
-            .WithExecutionTimeout(
-                options.NoTransaction ? TimeSpan.FromMinutes(60) : TimeSpan.FromMinutes(5))
+            .WithExecutionTimeout(ExecutionTimeoutFor(options))
             .LogTo(new DbUpLogger(_logger));
 
         builder = options.NoTransaction ? builder.WithoutTransaction() : builder.WithTransaction();
