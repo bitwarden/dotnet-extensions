@@ -7,8 +7,9 @@ namespace Bitwarden.Server.Sdk.MessageBroker.Microbenchmarks;
 
 public sealed record BenchmarkMessage(int Id) : BenchmarkPayload.ISole;
 
-public class BenchmarkPayload : Payload<BenchmarkPayload, BenchmarkMessage, BenchmarkMessage>, IPayloadVariants<BenchmarkPayload>
+public class BenchmarkPayload : Payload<BenchmarkPayload, BenchmarkMessage, BenchmarkMessage>, IPayloadVariants<BenchmarkPayload>, IPayloadWireName<BenchmarkPayload>
 {
+    public static string WireName => "bench";
     public static IReadOnlyList<(Type, string)> Variants => [(typeof(BenchmarkMessage), nameof(BenchmarkMessage))];
 }
 

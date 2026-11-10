@@ -11,8 +11,9 @@ public sealed record VersionedV2 : VersionedPayload.IPureCeiling<VersionedV1>
     public VersionedV1 Downcast() => new();
 }
 
-public sealed class VersionedPayload : Payload<VersionedPayload, VersionedV1, VersionedV2>, IPayloadVariants<VersionedPayload>
+public sealed class VersionedPayload : Payload<VersionedPayload, VersionedV1, VersionedV2>, IPayloadVariants<VersionedPayload>, IPayloadWireName<VersionedPayload>
 {
+    public static string WireName => "versioned";
     public static IReadOnlyList<(Type, string)> Variants =>
         [(typeof(VersionedV1), "v1"), (typeof(VersionedV2), "v2")];
 }

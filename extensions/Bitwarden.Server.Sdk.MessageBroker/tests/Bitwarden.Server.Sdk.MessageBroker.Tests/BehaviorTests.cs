@@ -11,8 +11,9 @@ namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 
 public sealed record MyItem(int Id) : MyItemPayload.ISole;
 
-public class MyItemPayload : Payload<MyItemPayload, MyItem, MyItem>, IPayloadVariants<MyItemPayload>
+public class MyItemPayload : Payload<MyItemPayload, MyItem, MyItem>, IPayloadVariants<MyItemPayload>, IPayloadWireName<MyItemPayload>
 {
+    public static string WireName => "my-item";
     public static IReadOnlyList<(Type, string)> Variants => [(typeof(MyItem), nameof(MyItem))];
 }
 

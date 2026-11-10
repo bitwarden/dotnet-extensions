@@ -114,8 +114,9 @@ public sealed record ValidChainCeiling : ValidChainPayload.IPureCeiling<ValidCha
 {
     public ValidChainMiddle Downcast() => new();
 }
-public class ValidChainPayload : Payload<ValidChainPayload, ValidChainFloor, ValidChainCeiling>, IPayloadVariants<ValidChainPayload>
+public class ValidChainPayload : Payload<ValidChainPayload, ValidChainFloor, ValidChainCeiling>, IPayloadVariants<ValidChainPayload>, IPayloadWireName<ValidChainPayload>
 {
+    public static string WireName => "valid-chain";
     public static IReadOnlyList<(Type, string)> Variants =>
         [(typeof(ValidChainFloor), nameof(ValidChainFloor)), (typeof(ValidChainMiddle), nameof(ValidChainMiddle)), (typeof(ValidChainCeiling), nameof(ValidChainCeiling))];
 }
@@ -129,8 +130,9 @@ public sealed record DuplicateVariantCeiling : DuplicateVariantPayload.IPureCeil
 {
     public DuplicateVariantFloor Downcast() => new();
 }
-public class DuplicateVariantPayload : Payload<DuplicateVariantPayload, DuplicateVariantFloor, DuplicateVariantCeiling>, IPayloadVariants<DuplicateVariantPayload>
+public class DuplicateVariantPayload : Payload<DuplicateVariantPayload, DuplicateVariantFloor, DuplicateVariantCeiling>, IPayloadVariants<DuplicateVariantPayload>, IPayloadWireName<DuplicateVariantPayload>
 {
+    public static string WireName => "duplicate-variant";
     // Same type listed twice.
     public static IReadOnlyList<(Type, string)> Variants =>
         [(typeof(DuplicateVariantFloor), nameof(DuplicateVariantFloor)), (typeof(DuplicateVariantCeiling), nameof(DuplicateVariantCeiling)), (typeof(DuplicateVariantCeiling), nameof(DuplicateVariantCeiling))];
@@ -147,8 +149,9 @@ public sealed record DanglingReferenceCeiling : DanglingReferencePayload.IPureCe
 {
     public DanglingReferenceFloor Downcast() => new();
 }
-public class DanglingReferencePayload : Payload<DanglingReferencePayload, DanglingReferenceFloor, DanglingReferenceCeiling>, IPayloadVariants<DanglingReferencePayload>
+public class DanglingReferencePayload : Payload<DanglingReferencePayload, DanglingReferenceFloor, DanglingReferenceCeiling>, IPayloadVariants<DanglingReferencePayload>, IPayloadWireName<DanglingReferencePayload>
 {
+    public static string WireName => "dangling-reference";
     public static IReadOnlyList<(Type, string)> Variants =>
         [(typeof(DanglingReferenceFloor), nameof(DanglingReferenceFloor)), (typeof(DanglingReferenceCeiling), nameof(DanglingReferenceCeiling))];
 }
@@ -166,8 +169,9 @@ public sealed record MultipleFloorsCeiling : MultipleFloorsPayload.IPureCeiling<
 {
     public MultipleFloorsFloorA Downcast() => new();
 }
-public class MultipleFloorsPayload : Payload<MultipleFloorsPayload, MultipleFloorsFloorA, MultipleFloorsCeiling>, IPayloadVariants<MultipleFloorsPayload>
+public class MultipleFloorsPayload : Payload<MultipleFloorsPayload, MultipleFloorsFloorA, MultipleFloorsCeiling>, IPayloadVariants<MultipleFloorsPayload>, IPayloadWireName<MultipleFloorsPayload>
 {
+    public static string WireName => "multiple-floors";
     public static IReadOnlyList<(Type, string)> Variants =>
         [(typeof(MultipleFloorsFloorA), nameof(MultipleFloorsFloorA)), (typeof(MultipleFloorsFloorB), nameof(MultipleFloorsFloorB)), (typeof(MultipleFloorsCeiling), nameof(MultipleFloorsCeiling))];
 }
@@ -185,8 +189,9 @@ public sealed record MultipleCeilingsCeilingB : MultipleCeilingsPayload.IPureCei
 {
     public MultipleCeilingsFloor Downcast() => new();
 }
-public class MultipleCeilingsPayload : Payload<MultipleCeilingsPayload, MultipleCeilingsFloor, MultipleCeilingsCeilingA>, IPayloadVariants<MultipleCeilingsPayload>
+public class MultipleCeilingsPayload : Payload<MultipleCeilingsPayload, MultipleCeilingsFloor, MultipleCeilingsCeilingA>, IPayloadVariants<MultipleCeilingsPayload>, IPayloadWireName<MultipleCeilingsPayload>
 {
+    public static string WireName => "multiple-ceilings";
     public static IReadOnlyList<(Type, string)> Variants =>
         [(typeof(MultipleCeilingsFloor), nameof(MultipleCeilingsFloor)), (typeof(MultipleCeilingsCeilingA), nameof(MultipleCeilingsCeilingA)), (typeof(MultipleCeilingsCeilingB), nameof(MultipleCeilingsCeilingB))];
 }
@@ -211,8 +216,9 @@ public sealed record UnreachedVariantFork : UnreachedVariantPayload.IPure<Unreac
     public UnreachedVariantFloor Downcast() => new();
     public UnreachedVariantCeiling Upcast() => new();
 }
-public class UnreachedVariantPayload : Payload<UnreachedVariantPayload, UnreachedVariantFloor, UnreachedVariantCeiling>, IPayloadVariants<UnreachedVariantPayload>
+public class UnreachedVariantPayload : Payload<UnreachedVariantPayload, UnreachedVariantFloor, UnreachedVariantCeiling>, IPayloadVariants<UnreachedVariantPayload>, IPayloadWireName<UnreachedVariantPayload>
 {
+    public static string WireName => "unreached-variant";
     public static IReadOnlyList<(Type, string)> Variants =>
         [(typeof(UnreachedVariantFloor), nameof(UnreachedVariantFloor)), (typeof(UnreachedVariantMiddle), nameof(UnreachedVariantMiddle)), (typeof(UnreachedVariantCeiling), nameof(UnreachedVariantCeiling)), (typeof(UnreachedVariantFork), nameof(UnreachedVariantFork))];
 }
@@ -232,8 +238,9 @@ public sealed record InconsistentCeiling : InconsistentPayload.IPureCeiling<Inco
 {
     public InconsistentMiddle Downcast() => new();
 }
-public class InconsistentPayload : Payload<InconsistentPayload, InconsistentFloor, InconsistentCeiling>, IPayloadVariants<InconsistentPayload>
+public class InconsistentPayload : Payload<InconsistentPayload, InconsistentFloor, InconsistentCeiling>, IPayloadVariants<InconsistentPayload>, IPayloadWireName<InconsistentPayload>
 {
+    public static string WireName => "inconsistent";
     public static IReadOnlyList<(Type, string)> Variants =>
         [(typeof(InconsistentFloor), nameof(InconsistentFloor)), (typeof(InconsistentMiddle), nameof(InconsistentMiddle)), (typeof(InconsistentCeiling), nameof(InconsistentCeiling))];
 }
@@ -258,8 +265,9 @@ public sealed record CycleCeiling : CyclePayload.IPureCeiling<CycleB>
 {
     public CycleB Downcast() => new();
 }
-public class CyclePayload : Payload<CyclePayload, CycleFloor, CycleCeiling>, IPayloadVariants<CyclePayload>
+public class CyclePayload : Payload<CyclePayload, CycleFloor, CycleCeiling>, IPayloadVariants<CyclePayload>, IPayloadWireName<CyclePayload>
 {
+    public static string WireName => "cycle";
     public static IReadOnlyList<(Type, string)> Variants =>
         [(typeof(CycleFloor), nameof(CycleFloor)), (typeof(CycleA), nameof(CycleA)), (typeof(CycleB), nameof(CycleB)), (typeof(CycleCeiling), nameof(CycleCeiling))];
 }
@@ -273,8 +281,9 @@ public sealed record DuplicateWireNameCeiling : DuplicateWireNamePayload.IPureCe
 {
     public DuplicateWireNameFloor Downcast() => new();
 }
-public class DuplicateWireNamePayload : Payload<DuplicateWireNamePayload, DuplicateWireNameFloor, DuplicateWireNameCeiling>, IPayloadVariants<DuplicateWireNamePayload>
+public class DuplicateWireNamePayload : Payload<DuplicateWireNamePayload, DuplicateWireNameFloor, DuplicateWireNameCeiling>, IPayloadVariants<DuplicateWireNamePayload>, IPayloadWireName<DuplicateWireNamePayload>
 {
+    public static string WireName => "duplicate-wire-name";
     // Both variants use the same wire name "shared" — dispatch would be ambiguous.
     public static IReadOnlyList<(Type, string)> Variants =>
         [(typeof(DuplicateWireNameFloor), "shared"), (typeof(DuplicateWireNameCeiling), "shared")];
@@ -295,8 +304,9 @@ public sealed record MultipleProblemsCeiling : MultipleProblemsPayload.IPureCeil
 {
     public MultipleProblemsFloorA Downcast() => new();
 }
-public class MultipleProblemsPayload : Payload<MultipleProblemsPayload, MultipleProblemsFloorA, MultipleProblemsCeiling>, IPayloadVariants<MultipleProblemsPayload>
+public class MultipleProblemsPayload : Payload<MultipleProblemsPayload, MultipleProblemsFloorA, MultipleProblemsCeiling>, IPayloadVariants<MultipleProblemsPayload>, IPayloadWireName<MultipleProblemsPayload>
 {
+    public static string WireName => "multiple-problems";
     public static IReadOnlyList<(Type, string)> Variants =>
         [(typeof(MultipleProblemsFloorA), nameof(MultipleProblemsFloorA)), (typeof(MultipleProblemsFloorB), nameof(MultipleProblemsFloorB)), (typeof(MultipleProblemsCeiling), nameof(MultipleProblemsCeiling))];
 }
