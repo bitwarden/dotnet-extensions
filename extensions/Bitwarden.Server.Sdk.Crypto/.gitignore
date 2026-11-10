@@ -1,0 +1,3 @@
+# Native libraries and tools fetched by scripts/, never committed.
+native/
+.tools/

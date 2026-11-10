@@ -14,6 +14,7 @@ on:
           - Bitwarden.Server.Sdk.Authentication
           - Bitwarden.Server.Sdk.Caching
           - Bitwarden.Server.Sdk.Common
+          - Bitwarden.Server.Sdk.Crypto
           - Bitwarden.Server.Sdk.Environment
           - Bitwarden.Server.Sdk.Features
           - Bitwarden.Server.Sdk.HealthChecks
