@@ -13,11 +13,15 @@ on:
           - Bitwarden.Server.Sdk
           - Bitwarden.Server.Sdk.Authentication
           - Bitwarden.Server.Sdk.Caching
+          - Bitwarden.Server.Sdk.Common
           - Bitwarden.Server.Sdk.Database
           - Bitwarden.Server.Sdk.Environment
           - Bitwarden.Server.Sdk.Features
           - Bitwarden.Server.Sdk.HealthChecks
+          - Bitwarden.Server.Sdk.Infrastructure
+          - Bitwarden.Server.Sdk.Infrastructure.Testing
           - Bitwarden.Server.Sdk.MessageBroker
+          - Bitwarden.Server.Sdk.RestrictedDependencies
           - Bitwarden.Server.Sdk.WebEssentials
 
 permissions: {}
@@ -39,7 +43,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@2016bd2012dba4e32de620c46fe006a3ac9f0602 # v5.0.1
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
 
       - name: Get current version
         id: current-version

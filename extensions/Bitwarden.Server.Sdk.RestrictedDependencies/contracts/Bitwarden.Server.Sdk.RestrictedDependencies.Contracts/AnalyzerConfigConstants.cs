@@ -24,8 +24,10 @@ public static class AnalyzerConfigConstants
 
     /// <summary>
     /// Restricted types named by a hosting tool, separated by <see cref="SeedTypeSeparator"/>.
-    /// Naming any also puts the analyzer in observe mode: it enforces nothing, because it cannot
-    /// treat the baseline it is rebuilding as the authority. A real build never sets it.
+    /// In observe mode the analyzer enforces nothing, because a tool cannot treat the baseline it
+    /// is rebuilding as the authority. It enters observe mode only when this key is set and BW0017
+    /// is enabled through <c>CompilationOptions.WithSpecificDiagnosticOptions</c>. Set on its own,
+    /// the key leaves the build enforcing, and the analyzer reports BW0015.
     /// </summary>
     public const string SeedTypes = "build_property.RestrictedDependencySeedTypes";
 

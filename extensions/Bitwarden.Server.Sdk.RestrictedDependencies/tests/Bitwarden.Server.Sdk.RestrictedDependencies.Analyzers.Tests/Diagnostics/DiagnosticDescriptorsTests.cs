@@ -6,8 +6,8 @@ namespace Bitwarden.Server.Sdk.RestrictedDependencies.Analyzers.Tests.Diagnostic
 /// <summary>
 /// <see cref="DiagnosticDescriptors.All"/> is the only list the family derives from: <c>Ids</c>
 /// gates the suppression scanner and <c>MustRemainErrors</c> gates the severity validator. A
-/// descriptor left out of it is still reported, but becomes silently suppressible by #pragma and
-/// silently lowerable by .editorconfig.
+/// descriptor left out of it is still reported, but becomes silently suppressible by
+/// [SuppressMessage] and silently lowerable by .editorconfig.
 /// </summary>
 public class DiagnosticDescriptorsTests
 {

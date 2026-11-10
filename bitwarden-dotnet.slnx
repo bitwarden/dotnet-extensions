@@ -30,6 +30,12 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Caching/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Caching/tests/Bitwarden.Server.Sdk.Caching.Tests/Bitwarden.Server.Sdk.Caching.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Common/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Common/src/Bitwarden.Server.Sdk.Common.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Common/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Common/tests/Bitwarden.Server.Sdk.Common.Tests/Bitwarden.Server.Sdk.Common.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Environment/" />
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Environment/src/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Environment/src/Bitwarden.Server.Sdk.Environment.csproj" />
@@ -54,6 +60,19 @@
   </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.HealthChecks/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.HealthChecks/tests/Bitwarden.Server.Sdk.HealthChecks.Tests/Bitwarden.Server.Sdk.HealthChecks.Tests.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Infrastructure/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Infrastructure/src/Bitwarden.Server.Sdk.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Infrastructure/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Infrastructure/tests/Bitwarden.Server.Sdk.Infrastructure.Tests/Bitwarden.Server.Sdk.Infrastructure.Tests.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Infrastructure.Testing/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Infrastructure.Testing/src/Bitwarden.Server.Sdk.Infrastructure.Testing.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Infrastructure.Testing/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Infrastructure.Testing/tests/Bitwarden.Server.Sdk.Infrastructure.Testing.Tests/Bitwarden.Server.Sdk.Infrastructure.Testing.Tests.csproj" />
+    <Project Path="extensions/Bitwarden.Server.Sdk.Infrastructure.Testing/tests/InfrastructureSampleApp/InfrastructureSampleApp.csproj" />
   </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.MessageBroker/" />
   <Folder Name="/extensions/Bitwarden.Server.Sdk.MessageBroker/src/">
