@@ -15,7 +15,7 @@ public class ChannelEscrowTests
     /// </summary>
     private static byte[] SerializeVariantWirePayload(IHost host, MyItem variant)
     {
-        var serializer = host.Services.GetRequiredKeyedService<IMessageSerializer>("test");
+        var serializer = host.Services.GetRequiredKeyedService<IMessageSerializer>(MessageBrokerKeys.Publisher<MyItemPayload>("test"));
         var buffer = new ArrayBufferWriter<byte>();
         serializer.SerializeVariants<MyItemPayload>([variant], buffer);
         return buffer.WrittenMemory.ToArray();
@@ -44,7 +44,7 @@ public class ChannelEscrowTests
 
         await host.StartAsync(TestContext.Current.CancellationToken);
 
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("test");
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>("test"));
         for (var i = 0; i < messageCount; i++)
             await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
 
@@ -77,7 +77,7 @@ public class ChannelEscrowTests
 
         await host1.StartAsync(TestContext.Current.CancellationToken);
 
-        var publisher = host1.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("test");
+        var publisher = host1.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>("test"));
         for (var i = 0; i < messageCount; i++)
             await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
 
@@ -130,7 +130,7 @@ public class ChannelEscrowTests
 
         await host.StartAsync(TestContext.Current.CancellationToken);
 
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("test");
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>("test"));
         for (var i = 0; i < messageCount; i++)
             await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
 
@@ -253,7 +253,7 @@ public class ChannelEscrowTests
 
         await host.StartAsync(TestContext.Current.CancellationToken);
 
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("test");
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>("test"));
         for (var i = 0; i < messageCount; i++)
             await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
 
@@ -312,7 +312,7 @@ public class ChannelEscrowTests
 
         // ChannelPublisher writes the message directly to the channel without serializing;
         // serialization only happens in ChannelEscrowService.StopAsync when draining.
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("test");
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>("test"));
         await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
 
         // StopAsync drains the channel, calls Serialize → throws → caught and logged.

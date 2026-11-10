@@ -73,6 +73,9 @@ public abstract class BehaviorTests : IAsyncLifetime
     /// <summary>The keyed service key for the default subscriber.</summary>
     protected string SubscriptionKey => $"{TopicName}/{SubscriptionName}";
 
+    /// <summary>The keyed service key for the <see cref="Publisher{TPayload, TCeiling}"/> on <see cref="TopicName"/>.</summary>
+    protected string PublisherKey => MessageBrokerKeys.Publisher<MyItemPayload>(TopicName);
+
     /// <summary>
     /// Whether the broker automatically redelivers a message whose lock has expired without the
     /// consumer settling it. False for the in-memory channel backend (no lock concept).
@@ -165,7 +168,7 @@ public abstract class BehaviorTests : IAsyncLifetime
     public async Task SimpleAsync()
     {
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var secondaryHost = await CreateSecondaryInstanceAsync(host);
         var subscriber = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
@@ -182,7 +185,7 @@ public abstract class BehaviorTests : IAsyncLifetime
     public async Task EarlyMessagesCanBeProcessed()
     {
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
 
         await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
         await publisher.Publish(new MyItem(2)).SendAsync(TestContext.Current.CancellationToken);
@@ -203,7 +206,7 @@ public abstract class BehaviorTests : IAsyncLifetime
     public async Task AbandonedMessageIsRedelivered()
     {
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var subscriber = (await CreateSecondaryInstanceAsync(host)).Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
         await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
@@ -240,7 +243,7 @@ public abstract class BehaviorTests : IAsyncLifetime
             "This backend does not requeue unsettled messages on enumerator disposal (in-memory channel discards them).");
 
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var subscriber = (await CreateSecondaryInstanceAsync(host)).Services
             .GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
@@ -280,7 +283,7 @@ public abstract class BehaviorTests : IAsyncLifetime
             "This backend does not support automatic lock-expiry redelivery (in-memory channel has no lock concept).");
 
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var subscriber = (await CreateSecondaryInstanceAsync(host)).Services
             .GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
@@ -322,7 +325,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         const int firstBatch = 2;
 
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
 
         for (var i = 0; i < total; i++)
             await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
@@ -406,7 +409,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         Assert.SkipWhen(config is null, "This backend cannot be configured to fail on publish (e.g., in-memory channel).");
 
         var host = await BuildHostAsync(config, services => services.AddPublisher<MyItemPayload, MyItem>(TopicName));
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
 
         var ex = await Assert.ThrowsAsync<BrokerUnavailableException>(
             () => publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken));
@@ -467,7 +470,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         var injected = await TryInjectInvalidMessageAsync(TopicName);
         Assert.SkipWhen(!injected, "This backend does not support raw message injection (in-memory channel only accepts typed messages).");
 
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var secondaryHost = await CreateSecondaryInstanceAsync(host);
         var subscriber = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
@@ -492,7 +495,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         var injected = await TryInjectMalformedJsonMessageAsync(TopicName);
         Assert.SkipWhen(!injected, "This backend does not support raw message injection (in-memory channel only accepts typed messages).");
 
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var secondaryHost = await CreateSecondaryInstanceAsync(host);
         var subscriber = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
@@ -517,7 +520,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         using var collector = new MetricCollector<long>(
             meterFactory, "Bitwarden.Server.Sdk.MessageBroker", "messaging.client.published.messages");
 
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
 
         var measurement = Assert.Single(collector.GetMeasurementSnapshot());
@@ -529,7 +532,7 @@ public abstract class BehaviorTests : IAsyncLifetime
     public async Task MetricsAreEmittedOnConsume()
     {
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
 
         // The subscriber lives on the secondary host (possibly a separate DI container),
         // so the consume metric is emitted into that host's IMeterFactory.
@@ -568,7 +571,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         ActivitySource.AddActivityListener(listener);
 
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
 
         // Snapshot before publish so activities from other parallel tests are excluded.
         var before = activities.ToHashSet(ReferenceEqualityComparer.Instance);
@@ -591,7 +594,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         ActivitySource.AddActivityListener(activityListener);
 
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var secondaryHost = await CreateSecondaryInstanceAsync(host);
         var subscriber = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
@@ -632,7 +635,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         const int messageCount = 20;
 
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var subscriber1 = (await CreateSecondaryInstanceAsync(host)).Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
         var subscriber2 = (await CreateSecondaryInstanceAsync(host)).Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
@@ -684,11 +687,11 @@ public abstract class BehaviorTests : IAsyncLifetime
         const int totalMessages = messagesPerPublisher * 2;
 
         var host = await CreateInstanceAsync();
-        var publisher1 = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher1 = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var subscriber1 = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
         var secondaryHost = await CreateSecondaryInstanceAsync(host);
-        var publisher2 = secondaryHost.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher2 = secondaryHost.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var subscriber2 = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
         var received1 = new ConcurrentBag<int>();
@@ -746,11 +749,11 @@ public abstract class BehaviorTests : IAsyncLifetime
         const int messagesPerPublisher = 10;
 
         var host = await CreateInstanceAsync();
-        var publisher1 = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher1 = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
         var secondaryHost = await CreateSecondaryInstanceAsync(host);
-        var publisher2 = secondaryHost.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher2 = secondaryHost.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
 
         var received = new ConcurrentBag<int>();
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
@@ -796,7 +799,7 @@ public abstract class BehaviorTests : IAsyncLifetime
     public async Task EachSubscriberGroupReceivesEveryMessage()
     {
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var pmHost = await CreateSecondaryInstanceAsync(host, "pm");
         var smHost = await CreateSecondaryInstanceAsync(host, "sm");
         var pmSubscriber = pmHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>($"{TopicName}/pm");
@@ -831,7 +834,7 @@ public abstract class BehaviorTests : IAsyncLifetime
     public async Task AbandonedMessageIsOnlyRedeliveredToSameSubscriberGroup()
     {
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var pmHost = await CreateSecondaryInstanceAsync(host, "pm");
         var smHost = await CreateSecondaryInstanceAsync(host, "sm");
         var ct = TestContext.Current.CancellationToken;
@@ -898,7 +901,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         const int messageCount = 20;
 
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var pmHost = await CreateSecondaryInstanceAsync(host, "pm");
         var pmNode1 = pmHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>($"{TopicName}/pm");
         var pmNode2Host = await CreateSecondaryInstanceAsync(pmHost, "pm");

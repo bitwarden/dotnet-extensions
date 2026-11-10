@@ -75,7 +75,7 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
         // Azure Service Bus standard tier enforces a 256 KB per-message limit.
         // Publishing a larger payload should throw ServiceBusException.
         var host = await BuildHostAsync(services => services.AddPublisher<OversizedPayload, OversizedVariant>(TopicName));
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<OversizedPayload, OversizedVariant>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<OversizedPayload, OversizedVariant>>(MessageBrokerKeys.Publisher<OversizedPayload>(TopicName));
         var oversizedPayload = new string('x', 300 * 1024); // ~300 KB > 256 KB limit
         await Assert.ThrowsAsync<ServiceBusException>(() =>
             publisher.Publish(new OversizedVariant(oversizedPayload)).SendAsync(TestContext.Current.CancellationToken));
@@ -94,7 +94,7 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
             services.AddPublisher<MyItemPayload, MyItem>(TopicName);
             services.AddSubscriber<MyItemPayload, MyItem>(TopicName, SubscriptionName);
         });
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(TopicName);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
         await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
