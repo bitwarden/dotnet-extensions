@@ -25,7 +25,7 @@ The package reads no setting itself. It names the ones a host reads, so a servic
 agree on them.
 
 Every setting the package names is a public constant on the type it belongs to, named `Key` or
-`Section` or ending in one of them (for example `InternalTls.Section`). Its XML documentation says what the
+`Section` or ending in one of them. Its XML documentation says what the
 setting does and what happens when it is unset. Look there for the full list; this file does not
 repeat it.
 
