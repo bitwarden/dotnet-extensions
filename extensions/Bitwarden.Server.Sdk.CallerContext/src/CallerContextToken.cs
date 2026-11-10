@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.CallerContext;
 
 /// <summary>
 /// The signed form of a call's caller context: a short-lived JWT obtained by RFC 8693 token

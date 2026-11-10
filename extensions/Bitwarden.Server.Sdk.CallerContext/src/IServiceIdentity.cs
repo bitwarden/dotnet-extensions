@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.CallerContext;
 
 /// <summary>
 /// Which service this process is.

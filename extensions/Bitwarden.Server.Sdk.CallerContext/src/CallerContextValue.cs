@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.CallerContext;
 
 /// <summary>
 /// What <see cref="BitwardenHeaders.Context"/> carries: version 1 of a closed object.
@@ -19,6 +19,10 @@ public sealed record CallerContextValue
     /// The address the originating request came from, as the receiving service saw it through the
     /// proxies it trusts. Read for audit records, security mail and IP allowlists.
     /// </summary>
+    /// <remarks>
+    /// IPv4 as four decimal numbers, or IPv6 without a zone. <see cref="CallerContextHeader"/> writes and reads it in
+    /// canonical form.
+    /// </remarks>
     public string? ClientIp { get; init; }
 
     /// <summary>

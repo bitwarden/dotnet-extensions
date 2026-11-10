@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.CallerContext;
 
 /// <summary>
 /// What an access token's <c>aud</c> names, and so which services accept it.
@@ -26,7 +26,7 @@ namespace Bitwarden.Server.Sdk.Common;
 public static class TokenAudience
 {
     /// <summary>
-    /// A retired audience shared by every service. A host never accepts it.
+    /// An audience that names every service at once. A host never accepts it.
     /// </summary>
     public const string Platform = "bitwarden";
 }

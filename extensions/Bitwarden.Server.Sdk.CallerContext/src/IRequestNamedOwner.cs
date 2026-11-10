@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.CallerContext;
 
 /// <summary>
 /// The organization or provider an operation names in its path or body when the person's session

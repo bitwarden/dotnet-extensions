@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.CallerContext;
 
 /// <summary>
 /// Establishes what the current unit of work concerns, where there is no request to say.
@@ -16,12 +16,13 @@ namespace Bitwarden.Server.Sdk.Common;
 /// </remarks>
 public static class ContextScope
 {
-    private static readonly AsyncLocal<IContext?> Ambient = new();
+    private static readonly AsyncLocal<Scope?> Ambient = new();
 
     /// <summary>
-    /// The context established by the innermost scope, if any.
+    /// The context established by the innermost scope, if any. A scope already ended, by disposing a scope it was
+    /// begun inside, establishes nothing.
     /// </summary>
-    public static IContext? Current => Ambient.Value;
+    public static IContext? Current => Ambient.Value is { Ended: false } scope ? scope.Context : null;
 
     /// <summary>
     /// Establishes a context until the returned value is disposed.
@@ -32,25 +33,27 @@ public static class ContextScope
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var previous = Ambient.Value;
-        Ambient.Value = context;
+        var scope = new Scope(context, Ambient.Value);
+        Ambient.Value = scope;
 
-        return new Restore(previous);
+        return scope;
     }
 
-    private sealed class Restore(IContext? previous) : IDisposable
+    private sealed class Scope(IContext context, Scope? outer) : IDisposable
     {
-        private bool _disposed;
+        public IContext Context { get; } = context;
+
+        public bool Ended { get; private set; }
 
         public void Dispose()
         {
-            if (_disposed)
+            if (Ended)
             {
                 return;
             }
 
-            Ambient.Value = previous;
-            _disposed = true;
+            Ended = true;
+            Ambient.Value = outer;
         }
     }
 }

@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.CallerContext;
 
 /// <summary>
 /// What one outgoing call asserts, as the plain <see cref="BitwardenHeaders"/> carry it.

@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.CallerContext;
 
 /// <summary>
 /// The request headers that carry caller context from one service to another.
@@ -49,4 +49,14 @@ public static class BitwardenHeaders
     /// The five headers above.
     /// </summary>
     public static IReadOnlyList<string> All { get; } = [Organization, User, Provider, Context, Delegation];
+
+    /// <summary>
+    /// The services the request passed through before this call, oldest first, comma-separated (<see cref="CallChain"/>).
+    /// </summary>
+    /// <remarks>
+    /// Not caller context and not in <see cref="All"/>: it says nothing of whom a request concerns, is not signed, and
+    /// grants nothing. A service reads it only from another service's authenticated call, ignores it from anybody
+    /// else, and uses it only to notice being called back while its own request is open.
+    /// </remarks>
+    public const string CallChain = "Bitwarden-Call-Chain";
 }

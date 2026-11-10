@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.CallerContext;
 
 /// <summary>
 /// Who and what the current operation concerns.
@@ -16,8 +16,8 @@ namespace Bitwarden.Server.Sdk.Common;
 /// rules.
 /// </para>
 /// <para>
-/// Members after <see cref="ProviderId"/> have default implementations, so an implementation that
-/// predates them keeps compiling and answers "unknown".
+/// Members after <see cref="ProviderId"/> have default implementations that answer "unknown", so an
+/// implementation needs only the first three.
 /// </para>
 /// </remarks>
 public interface IContext

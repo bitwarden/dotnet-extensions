@@ -1,10 +1,11 @@
 using System.Globalization;
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.CallerContext;
 
 /// <summary>
 /// Writes and reads <see cref="BitwardenHeaders.Context"/>.
@@ -12,7 +13,7 @@ namespace Bitwarden.Server.Sdk.Common;
 /// <remarks>
 /// Reading is strict. An unknown member, a member twice, a value of the wrong kind or shape, or a
 /// header longer than <see cref="MaximumLength"/> bytes is refused rather than partly believed. Only
-/// the platform writes this header, so a malformed one is a defect or a forgery.
+/// a calling service writes this header, so a malformed one is a defect or a forgery.
 /// </remarks>
 public static partial class CallerContextHeader
 {
@@ -27,8 +28,8 @@ public static partial class CallerContextHeader
     public const int MaximumLength = 16384;
 
     /// <summary>
-    /// The most organizations <see cref="CallerContextValue.Organizations"/> may list. A person in more
-    /// is carried without the member.
+    /// The most organizations <see cref="CallerContextValue.Organizations"/> may list. <see cref="Write"/>
+    /// refuses a value listing more, so a writer leaves the member out for a person in more.
     /// </summary>
     public const int MaximumOrganizations = 300;
 
@@ -46,8 +47,8 @@ public static partial class CallerContextHeader
     /// </summary>
     /// <param name="value">What to carry.</param>
     /// <returns>
-    /// Compact JSON with <c>v</c> first and absent members omitted. With nothing else to carry it is
-    /// <c>{"v":1}</c>.
+    /// Compact JSON with <c>v</c> first and absent members omitted, the address in its canonical form.
+    /// With nothing else to carry it is <c>{"v":1}</c>.
     /// </returns>
     /// <exception cref="ArgumentException">A member is one <see cref="TryParse"/> would refuse.</exception>
     public static string Write(CallerContextValue value)
@@ -65,7 +66,7 @@ public static partial class CallerContextHeader
         {
             writer.WriteStartObject();
             writer.WriteNumber(VersionMember, Version);
-            WriteIfPresent(writer, ClientIpMember, value.ClientIp);
+            WriteIfPresent(writer, ClientIpMember, value.ClientIp is { } clientIp ? Canonical(clientIp) : null);
             WriteIfPresent(writer, DeviceTypeMember, value.DeviceType);
             WriteIfPresent(writer, DeviceIdentifierMember, value.DeviceIdentifier);
             WriteIfPresent(writer, CredentialMember, value.Credential is { } credential ? Name(credential) : null);
@@ -317,13 +318,13 @@ public static partial class CallerContextHeader
             return problem;
         }
 
-        value = candidate with { ClientIp = clientIp is null ? null : IPAddress.Parse(clientIp).ToString() };
+        value = candidate with { ClientIp = clientIp is null ? null : Canonical(clientIp) };
         return null;
     }
 
     private static string? Check(CallerContextValue value)
     {
-        if (value.ClientIp is not null && !IPAddress.TryParse(value.ClientIp, out _))
+        if (value.ClientIp is not null && !IsAddress(value.ClientIp))
         {
             return $"'{ClientIpMember}' is not an address.";
         }
@@ -369,6 +370,33 @@ public static partial class CallerContextHeader
 
         return null;
     }
+
+    /// <summary>
+    /// Whether a value is an address as a host writes one: IPv4 as four decimal numbers, or IPv6 without a zone.
+    /// </summary>
+    /// <remarks>
+    /// <c>IPAddress.TryParse</c> also takes IPv4's legacy forms (<c>1</c>, <c>127.1</c>, <c>017.0.0.1</c> read as
+    /// octal, <c>0x7f.0.0.1</c>), and IPv6 with a zone (<c>fe80::1%eth0</c>), brackets or a port. None of them is an
+    /// address another service can use, and the legacy forms name a different address than they appear to.
+    /// </remarks>
+    private static bool IsAddress(string value)
+    {
+        if (!IPAddress.TryParse(value, out var address))
+        {
+            return false;
+        }
+
+        if (address.AddressFamily == AddressFamily.InterNetworkV6)
+        {
+            return value.All(character => char.IsAsciiHexDigit(character) || character is ':' or '.');
+        }
+
+        var parts = value.Split('.');
+        return parts.Length == 4 && parts.All(part =>
+            part.Length is > 0 and <= 3 && part.All(char.IsAsciiDigit) && (part.Length == 1 || part[0] != '0'));
+    }
+
+    private static string Canonical(string address) => IPAddress.Parse(address).ToString();
 
     private static bool TryIdentifier(string? text, out Guid identifier) =>
         Guid.TryParseExact(text, "D", out identifier) && identifier != Guid.Empty;
