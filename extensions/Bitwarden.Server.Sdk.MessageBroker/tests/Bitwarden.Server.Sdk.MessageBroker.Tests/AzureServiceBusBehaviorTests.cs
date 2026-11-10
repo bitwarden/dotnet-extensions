@@ -20,6 +20,12 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
 
     protected override string TopicName => "behavior";
 
+    // ASB topology is pre-declared in the emulator JSON config, so the multi-family topic name
+    // must match the name declared there — a dynamic "{TopicName}-events" would not exist on
+    // the broker. The base class default works for Channel and Rabbit, which provision topology
+    // on demand.
+    protected override string MultiFamilyTopicName => "user-events";
+
     protected override Dictionary<string, string?> CreateConfig() =>
         new() { { "AzureServiceBusConnectionString", _fixture.GetConnectionString() } };
 
@@ -134,6 +140,57 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
             batch = await receiver.ReceiveMessagesAsync(maxMessages: 100, maxWaitTime: TimeSpan.FromSeconds(1));
         } while (batch.Count > 0);
     }
+
+    /// <summary>
+    /// A misconfigured subscription — its Correlation filter selects <c>user.deleted</c>, but the
+    /// client is registered as a <see cref="UserCreatedPayload"/> subscriber. The broker filter
+    /// passes the mismatched message through; the subscriber's defensive x-bw-payload-family
+    /// check must catch it, dead-letter the message, and never yield it to the consumer.
+    /// </summary>
+    [Fact(Timeout = 60 * 1000)]
+    public async Task MismatchedFamilyIsDeadLetteredByDefensiveCheck()
+    {
+        const string MisconfiguredTopic = "misconfigured";
+        const string MisfilteredSubscription = "misfiltered";
+
+        var host = await BuildHostAsync(services =>
+        {
+            services.AddPublisher<UserDeletedPayload, UserDeleted>(MisconfiguredTopic);
+            services.AddSubscriber<UserCreatedPayload, UserCreated>(MisconfiguredTopic, MisfilteredSubscription);
+        });
+
+        var deletedPublisher = host.Services.GetRequiredKeyedService<Publisher<UserDeletedPayload, UserDeleted>>(
+            MessageBrokerKeys.Publisher<UserDeletedPayload>(MisconfiguredTopic));
+        var misfiltered = host.Services.GetRequiredKeyedService<ISubscriber<UserCreatedPayload, UserCreated>>(
+            $"{MisconfiguredTopic}/{MisfilteredSubscription}");
+
+        await deletedPublisher.Publish(new UserDeleted(Guid.NewGuid(), "test")).SendAsync(TestContext.Current.CancellationToken);
+
+        // Prove the subscriber never yields the mismatched message. The cancellation fires once
+        // we've given the receiver enough time to see (and dead-letter) the message.
+        using var receiveCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        receiveCts.CancelAfter(TimeSpan.FromSeconds(5));
+        var receivedAny = false;
+        try
+        {
+            await foreach (var _ in misfiltered.SubscribeAsync(receiveCts.Token))
+            {
+                receivedAny = true;
+                break;
+            }
+        }
+        catch (OperationCanceledException) { /* expected: subscriber drained nothing yieldable */ }
+
+        Assert.False(receivedAny, "Defensive check should have dead-lettered the mismatched family before yielding.");
+
+        // The message must land in the subscription's dead-letter queue.
+        await using var sbClient = new ServiceBusClient(_fixture.GetConnectionString());
+        await using var dlqReceiver = sbClient.CreateReceiver(MisconfiguredTopic, MisfilteredSubscription,
+            new ServiceBusReceiverOptions { SubQueue = SubQueue.DeadLetter });
+        var deadLettered = await dlqReceiver.ReceiveMessageAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        Assert.NotNull(deadLettered);
+        Assert.Equal(UserDeletedPayload.WireName, deadLettered.ApplicationProperties["x-bw-payload-family"]);
+    }
 }
 
 public sealed record OversizedVariant(string Data) : OversizedPayload.ISole;
@@ -240,6 +297,99 @@ public class AzureServiceBusFixture : IAsyncLifetime
                               "MaxDeliveryCount": 10,
                               "RequiresSession": false
                             }
+                          }
+                        ]
+                      },
+                      {
+                        "Name": "misconfigured",
+                        "Properties": {
+                          "DefaultMessageTimeToLive": "PT1H",
+                          "RequiresDuplicateDetection": false
+                        },
+                        "Subscriptions": [
+                          {
+                            "Name": "misfiltered",
+                            "Properties": {
+                              "DeadLetteringOnMessageExpiration": false,
+                              "DefaultMessageTimeToLive": "PT1H",
+                              "ForwardDeadLetteredMessagesTo": "",
+                              "ForwardTo": "",
+                              "LockDuration": "PT30S",
+                              "MaxDeliveryCount": 10,
+                              "RequiresSession": false
+                            },
+                            "Rules": [
+                              {
+                                "Name": "FamilyFilter",
+                                "Properties": {
+                                  "FilterType": "Correlation",
+                                  "CorrelationFilter": {
+                                    "Properties": {
+                                      "x-bw-payload-family": "user.deleted"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "Name": "user-events",
+                        "Properties": {
+                          "DefaultMessageTimeToLive": "PT1H",
+                          "RequiresDuplicateDetection": false
+                        },
+                        "Subscriptions": [
+                          {
+                            "Name": "vault",
+                            "Properties": {
+                              "DeadLetteringOnMessageExpiration": false,
+                              "DefaultMessageTimeToLive": "PT1H",
+                              "ForwardDeadLetteredMessagesTo": "",
+                              "ForwardTo": "",
+                              "LockDuration": "PT30S",
+                              "MaxDeliveryCount": 10,
+                              "RequiresSession": false
+                            },
+                            "Rules": [
+                              {
+                                "Name": "FamilyFilter",
+                                "Properties": {
+                                  "FilterType": "Correlation",
+                                  "CorrelationFilter": {
+                                    "Properties": {
+                                      "x-bw-payload-family": "user.created"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          {
+                            "Name": "organizations",
+                            "Properties": {
+                              "DeadLetteringOnMessageExpiration": false,
+                              "DefaultMessageTimeToLive": "PT1H",
+                              "ForwardDeadLetteredMessagesTo": "",
+                              "ForwardTo": "",
+                              "LockDuration": "PT30S",
+                              "MaxDeliveryCount": 10,
+                              "RequiresSession": false
+                            },
+                            "Rules": [
+                              {
+                                "Name": "FamilyFilter",
+                                "Properties": {
+                                  "FilterType": "Correlation",
+                                  "CorrelationFilter": {
+                                    "Properties": {
+                                      "x-bw-payload-family": "user.deleted"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
                           }
                         ]
                       }
