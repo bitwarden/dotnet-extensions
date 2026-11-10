@@ -255,10 +255,11 @@ public abstract class PayloadCeiling<TSelf, TCeiling> : Payload<TSelf>
 /// A payload that names its floor and ceiling. Concrete payload types derive from this class,
 /// which forces them to also implement <see cref="IPayloadVariants{TSelf}"/> — the static list
 /// of variant types the framework uses to route messages on deserialize without runtime
-/// reflection.
+/// reflection — and <see cref="IPayloadWireName{TSelf}"/> — the stable family identifier that
+/// subscriptions bind or filter against when one topic carries multiple payload families.
 /// </summary>
 public abstract class Payload<TSelf, TFloor, TCeiling> : PayloadCeiling<TSelf, TCeiling>
-    where TSelf : Payload<TSelf, TFloor, TCeiling>, IPayloadVariants<TSelf>
+    where TSelf : Payload<TSelf, TFloor, TCeiling>, IPayloadVariants<TSelf>, IPayloadWireName<TSelf>
     where TFloor : Payload<TSelf>.IFloor
     where TCeiling : Payload<TSelf>.ICeiling;
 
@@ -269,9 +270,16 @@ public abstract class Payload<TSelf, TFloor, TCeiling> : PayloadCeiling<TSelf, T
 /// on-the-wire messages.
 /// </summary>
 /// <remarks>
+/// <para>
+/// Variant wire names identify shapes WITHIN a payload family. The family itself is identified
+/// by <see cref="IPayloadWireName{TSelf}.WireName"/>, which only needs to be unique within a
+/// topic — two variants named <c>"v1"</c> on different families coexist on the same topic.
+/// </para>
+/// <para>
 /// Because the chain shape is only known to the author, the framework cannot walk it at compile
 /// time. Listing the variant types once on the payload class trades a small amount of author
 /// ceremony for a fully AOT-compatible deserialize path.
+/// </para>
 /// </remarks>
 public interface IPayloadVariants<TSelf> where TSelf : IPayloadVariants<TSelf>
 {
@@ -280,4 +288,25 @@ public interface IPayloadVariants<TSelf> where TSelf : IPayloadVariants<TSelf>
     /// identifies it on the wire. Wire names must be unique within a chain.
     /// </summary>
     static abstract IReadOnlyList<(Type Type, string WireName)> Variants { get; }
+}
+
+/// <summary>
+/// The stable identifier the broker uses to tell this payload family apart from other families
+/// carried on the same topic. Publishers stamp it on every outgoing message; subscriptions bind
+/// or filter against it so each subscription only receives one family's messages.
+/// </summary>
+/// <remarks>
+/// Family wire names must be unique within a topic but can repeat across topics. They are
+/// decoupled from CLR type names so a family can be renamed or moved without disturbing messages
+/// already on the wire. See <see cref="IPayloadVariants{TSelf}"/> for the per-variant wire names
+/// that live inside a family.
+/// </remarks>
+public interface IPayloadWireName<TSelf> where TSelf : IPayloadWireName<TSelf>
+{
+    /// <summary>
+    /// The stable family identifier for this payload. Appears on the broker as a routing key
+    /// (RabbitMQ) or application property (Azure Service Bus) and as the
+    /// <c>messaging.payload.family</c> observability tag.
+    /// </summary>
+    static abstract string WireName { get; }
 }

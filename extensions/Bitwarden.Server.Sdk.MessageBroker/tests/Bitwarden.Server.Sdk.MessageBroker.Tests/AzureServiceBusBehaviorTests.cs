@@ -138,8 +138,9 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
 
 public sealed record OversizedVariant(string Data) : OversizedPayload.ISole;
 
-public class OversizedPayload : Payload<OversizedPayload, OversizedVariant, OversizedVariant>, IPayloadVariants<OversizedPayload>
+public class OversizedPayload : Payload<OversizedPayload, OversizedVariant, OversizedVariant>, IPayloadVariants<OversizedPayload>, IPayloadWireName<OversizedPayload>
 {
+    public static string WireName => "oversized";
     public static IReadOnlyList<(Type, string)> Variants => [(typeof(OversizedVariant), nameof(OversizedVariant))];
 }
 

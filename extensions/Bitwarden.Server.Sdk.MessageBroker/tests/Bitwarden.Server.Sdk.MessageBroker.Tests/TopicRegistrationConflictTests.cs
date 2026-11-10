@@ -4,8 +4,9 @@ namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 
 public sealed record OtherItem(int Id) : OtherItemPayload.ISole;
 
-public class OtherItemPayload : Payload<OtherItemPayload, OtherItem, OtherItem>, IPayloadVariants<OtherItemPayload>
+public class OtherItemPayload : Payload<OtherItemPayload, OtherItem, OtherItem>, IPayloadVariants<OtherItemPayload>, IPayloadWireName<OtherItemPayload>
 {
+    public static string WireName => "other-item";
     public static IReadOnlyList<(Type, string)> Variants => [(typeof(OtherItem), nameof(OtherItem))];
 }
 
