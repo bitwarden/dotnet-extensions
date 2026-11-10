@@ -48,7 +48,9 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
             await using var channel = await conn.CreateChannelAsync(cancellationToken: cancellationToken);
             foreach (var decl in declarations)
             {
-                await channel.ExchangeDeclareAsync(decl.TopicName, ExchangeType.Fanout, durable: true,
+                // topic (not fanout): subscription queues bind with the family wire name as
+                // routing key so each subscription only receives one family's messages.
+                await channel.ExchangeDeclareAsync(decl.TopicName, ExchangeType.Topic, durable: true,
                     cancellationToken: cancellationToken);
                 if (decl.SubscriptionName is not null)
                 {
@@ -57,7 +59,7 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
                         autoDelete: false,
                         arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum" },
                         cancellationToken: cancellationToken);
-                    await channel.QueueBindAsync(queueName, decl.TopicName, routingKey: "",
+                    await channel.QueueBindAsync(queueName, decl.TopicName, routingKey: decl.FamilyWireName,
                         cancellationToken: cancellationToken);
                 }
             }
@@ -83,16 +85,7 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
     {
         // Publish a JSON null body directly to the exchange so the subscriber receives a
         // message that deserializes to null and exercises the nack/discard path.
-        var factory = new ConnectionFactory { Uri = new Uri(_fixture.GetUri()) };
-        await using var conn = await factory.CreateConnectionAsync(TestContext.Current.CancellationToken);
-        await using var channel = await conn.CreateChannelAsync(cancellationToken: TestContext.Current.CancellationToken);
-        await channel.BasicPublishAsync(
-            exchange: topicName,
-            routingKey: "",
-            mandatory: false,
-            basicProperties: new BasicProperties(),
-            body: "null"u8.ToArray(),
-            cancellationToken: TestContext.Current.CancellationToken);
+        await InjectRawAsync(topicName, "null"u8.ToArray());
         return true;
     }
 
@@ -100,17 +93,28 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
     {
         // Publish a malformed JSON body so the subscriber hits the catch(Exception) block
         // in the deserializer and exercises the nack/discard path for thrown exceptions.
+        await InjectRawAsync(topicName, "{"u8.ToArray());
+        return true;
+    }
+
+    private async Task InjectRawAsync(string topicName, byte[] body)
+    {
+        // Route under the MyItemPayload family so the message reaches the subscriber's queue and
+        // passes the defensive family-header check — the test wants the subscriber to decide the
+        // body is unusable, not the routing or header check.
         var factory = new ConnectionFactory { Uri = new Uri(_fixture.GetUri()) };
         await using var conn = await factory.CreateConnectionAsync(TestContext.Current.CancellationToken);
         await using var channel = await conn.CreateChannelAsync(cancellationToken: TestContext.Current.CancellationToken);
         await channel.BasicPublishAsync(
             exchange: topicName,
-            routingKey: "",
+            routingKey: MyItemPayload.WireName,
             mandatory: false,
-            basicProperties: new BasicProperties(),
-            body: "{"u8.ToArray(),
+            basicProperties: new BasicProperties
+            {
+                Headers = new Dictionary<string, object?> { ["x-bw-payload-family"] = MyItemPayload.WireName },
+            },
+            body: body,
             cancellationToken: TestContext.Current.CancellationToken);
-        return true;
     }
 
     // Use an invalid host/port so the connection attempt fails immediately, faulting the TCS

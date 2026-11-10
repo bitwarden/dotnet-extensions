@@ -44,9 +44,13 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
             var props = new BasicProperties
             {
                 MessageId = Guid.NewGuid().ToString(),
-                Headers = new Dictionary<string, object?> { ["traceparent"] = activity?.Id },
+                Headers = new Dictionary<string, object?>
+                {
+                    ["traceparent"] = activity?.Id,
+                    [RabbitHeaders.PayloadFamily] = TPayload.WireName,
+                },
             };
-            await channel.BasicPublishAsync(_exchangeName, routingKey: "", mandatory: false,
+            await channel.BasicPublishAsync(_exchangeName, routingKey: TPayload.WireName, mandatory: false,
                 props, buffer.WrittenMemory, cancellationToken);
         }
         catch (BrokerUnreachableException ex)
