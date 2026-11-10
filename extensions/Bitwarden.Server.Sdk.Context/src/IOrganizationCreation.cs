@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.CallerContext;
+namespace Bitwarden.Server.Sdk.Context;
 
 /// <summary>
 /// Says whether the request being handled may name, on an outgoing call, an organization it has

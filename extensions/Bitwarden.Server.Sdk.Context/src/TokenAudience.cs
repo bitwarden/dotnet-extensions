@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.CallerContext;
+namespace Bitwarden.Server.Sdk.Context;
 
 /// <summary>
 /// What an access token's <c>aud</c> names, and so which services accept it.

@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.CallerContext;
+namespace Bitwarden.Server.Sdk.Context;
 
 /// <summary>
 /// Which service this process is.
@@ -21,7 +21,7 @@ public interface IServiceIdentity
     /// <remarks>
     /// A product service takes the acting user from the session token and refuses a request that
     /// asserts one in <see cref="BitwardenHeaders.User"/>. A domain service is only called by other
-    /// services and takes the acting user from the signed caller context. Defaults to false.
+    /// services and takes the acting user from the signed context. Defaults to false.
     /// </remarks>
     bool IsProductService => false;
 

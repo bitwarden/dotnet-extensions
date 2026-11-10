@@ -1,7 +1,7 @@
-namespace Bitwarden.Server.Sdk.CallerContext;
+namespace Bitwarden.Server.Sdk.Context;
 
 /// <summary>
-/// The request headers that carry caller context from one service to another.
+/// The request headers that carry context from one service to another.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -35,12 +35,12 @@ public static class BitwardenHeaders
 
     /// <summary>
     /// Everything else a callee may need about where a request came from and who acted, as one
-    /// closed, versioned JSON object written and read by <see cref="CallerContextHeader"/>.
+    /// closed, versioned JSON object written and read by <see cref="ContextHeader"/>.
     /// </summary>
     public const string Context = "Bitwarden-Context";
 
     /// <summary>
-    /// The signed form of the four headers above: a <see cref="CallerContextToken"/> issued for this
+    /// The signed form of the four headers above: a <see cref="ContextToken"/> issued for this
     /// call's caller and callee.
     /// </summary>
     public const string Delegation = "Bitwarden-Delegation";
@@ -54,7 +54,7 @@ public static class BitwardenHeaders
     /// The services the request passed through before this call, oldest first, comma-separated (<see cref="CallChain"/>).
     /// </summary>
     /// <remarks>
-    /// Not caller context and not in <see cref="All"/>: it says nothing of whom a request concerns, is not signed, and
+    /// Not context and not in <see cref="All"/>: it says nothing of whom a request concerns, is not signed, and
     /// grants nothing. A service reads it only from another service's authenticated call, ignores it from anybody
     /// else, and uses it only to notice being called back while its own request is open.
     /// </remarks>

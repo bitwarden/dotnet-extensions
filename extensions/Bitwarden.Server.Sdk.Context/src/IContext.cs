@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.CallerContext;
+namespace Bitwarden.Server.Sdk.Context;
 
 /// <summary>
 /// Who and what the current operation concerns.

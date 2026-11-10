@@ -1,7 +1,7 @@
-namespace Bitwarden.Server.Sdk.CallerContext;
+namespace Bitwarden.Server.Sdk.Context;
 
 /// <summary>
-/// The signed form of a call's caller context: a short-lived JWT obtained by RFC 8693 token
+/// The signed form of a call's context: a short-lived JWT obtained by RFC 8693 token
 /// exchange, which a callee believes in place of the plain <see cref="BitwardenHeaders"/>.
 /// </summary>
 /// <remarks>
@@ -16,7 +16,7 @@ namespace Bitwarden.Server.Sdk.CallerContext;
 /// encrypted value or anything about a person beyond who they are.
 /// </para>
 /// </remarks>
-public static class CallerContextToken
+public static class ContextToken
 {
     /// <summary>
     /// The token's JOSE type. Never <c>at+jwt</c>, so no bearer handler takes it as an access token.

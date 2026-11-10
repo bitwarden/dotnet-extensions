@@ -5,7 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace Bitwarden.Server.Sdk.CallerContext;
+namespace Bitwarden.Server.Sdk.Context;
 
 /// <summary>
 /// Writes and reads <see cref="BitwardenHeaders.Context"/>.
@@ -15,7 +15,7 @@ namespace Bitwarden.Server.Sdk.CallerContext;
 /// header longer than <see cref="MaximumLength"/> bytes is refused rather than partly believed. Only
 /// a calling service writes this header, so a malformed one is a defect or a forgery.
 /// </remarks>
-public static partial class CallerContextHeader
+public static partial class ContextHeader
 {
     /// <summary>
     /// The version this writes and the only one it reads.
@@ -28,7 +28,7 @@ public static partial class CallerContextHeader
     public const int MaximumLength = 16384;
 
     /// <summary>
-    /// The most organizations <see cref="CallerContextValue.Organizations"/> may list. <see cref="Write"/>
+    /// The most organizations <see cref="ContextValue.Organizations"/> may list. <see cref="Write"/>
     /// refuses a value listing more, so a writer leaves the member out for a person in more.
     /// </summary>
     public const int MaximumOrganizations = 300;
@@ -51,14 +51,14 @@ public static partial class CallerContextHeader
     /// With nothing else to carry it is <c>{"v":1}</c>.
     /// </returns>
     /// <exception cref="ArgumentException">A member is one <see cref="TryParse"/> would refuse.</exception>
-    public static string Write(CallerContextValue value)
+    public static string Write(ContextValue value)
     {
         ArgumentNullException.ThrowIfNull(value);
 
         var problem = Check(value);
         if (problem is not null)
         {
-            throw new ArgumentException($"The caller context can't be sent: {problem}", nameof(value));
+            throw new ArgumentException($"The context can't be sent: {problem}", nameof(value));
         }
 
         using var buffer = new MemoryStream();
@@ -96,9 +96,9 @@ public static partial class CallerContextHeader
     /// <param name="value">What it carries, when it is well formed.</param>
     /// <param name="problem">Why it was refused, otherwise: a sentence naming the member, never echoing a value.</param>
     /// <returns>Whether it is well formed.</returns>
-    public static bool TryParse(string? header, out CallerContextValue value, out string? problem)
+    public static bool TryParse(string? header, out ContextValue value, out string? problem)
     {
-        value = new CallerContextValue();
+        value = new ContextValue();
 
         if (string.IsNullOrEmpty(header))
         {
@@ -266,9 +266,9 @@ public static partial class CallerContextHeader
         return null;
     }
 
-    private static string? ToValue(Members members, out CallerContextValue value)
+    private static string? ToValue(Members members, out ContextValue value)
     {
-        value = new CallerContextValue();
+        value = new ContextValue();
 
         if (members.Version is not { } version)
         {
@@ -301,7 +301,7 @@ public static partial class CallerContextHeader
         }
 
         var clientIp = members.Strings.GetValueOrDefault(ClientIpMember);
-        var candidate = new CallerContextValue
+        var candidate = new ContextValue
         {
             ClientIp = clientIp,
             DeviceType = members.Strings.GetValueOrDefault(DeviceTypeMember),
@@ -322,7 +322,7 @@ public static partial class CallerContextHeader
         return null;
     }
 
-    private static string? Check(CallerContextValue value)
+    private static string? Check(ContextValue value)
     {
         if (value.ClientIp is not null && !IsAddress(value.ClientIp))
         {

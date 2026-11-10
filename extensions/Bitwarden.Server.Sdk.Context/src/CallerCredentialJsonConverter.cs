@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Bitwarden.Server.Sdk.CallerContext;
+namespace Bitwarden.Server.Sdk.Context;
 
 /// <summary>
 /// Writes and reads <see cref="CallerCredential"/> by its ALL_CAPS name.
@@ -10,7 +10,7 @@ public sealed class CallerCredentialJsonConverter : JsonConverter<CallerCredenti
 {
     /// <inheritdoc />
     public override CallerCredential Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
-        reader.TokenType == JsonTokenType.String && CallerContextHeader.Credential(reader.GetString()!) is { } credential
+        reader.TokenType == JsonTokenType.String && ContextHeader.Credential(reader.GetString()!) is { } credential
             ? credential
             : throw new JsonException("Not USER, ORGANIZATION, MACHINE or SYSTEM.");
 
@@ -19,6 +19,6 @@ public sealed class CallerCredentialJsonConverter : JsonConverter<CallerCredenti
     {
         ArgumentNullException.ThrowIfNull(writer);
 
-        writer.WriteStringValue(CallerContextHeader.Name(value));
+        writer.WriteStringValue(ContextHeader.Name(value));
     }
 }

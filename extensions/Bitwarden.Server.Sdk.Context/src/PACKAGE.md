@@ -1,4 +1,4 @@
-# Bitwarden.Server.Sdk.CallerContext
+# Bitwarden.Server.Sdk.Context
 
 ## About
 
@@ -12,7 +12,7 @@ It holds only what a service and the services calling it both need, and has no d
 ## Installing
 
 ```bash
-dotnet add package Bitwarden.Server.Sdk.CallerContext
+dotnet add package Bitwarden.Server.Sdk.Context
 ```
 
 ## Configuration
@@ -25,7 +25,7 @@ Take `IContext` and read what you need. A service host registers it, reading the
 current `ContextScope` otherwise.
 
 ```csharp
-using Bitwarden.Server.Sdk.CallerContext;
+using Bitwarden.Server.Sdk.Context;
 
 public sealed class WidgetQueries(IContext context, IWidgetStore store)
 {
@@ -38,7 +38,7 @@ public sealed class WidgetQueries(IContext context, IWidgetStore store)
 
 The organization and the user say what a request concerns. They are never permission to do it: the service still
 enforces its own access rules. See the
-[README](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.CallerContext/src/README.md)
+[README](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Context/src/README.md)
 for a complete program.
 
 ## Documentation
@@ -48,7 +48,7 @@ for a complete program.
 A job or a message has no request to say whom it concerns. State it for the length of the work:
 
 ```csharp
-using Bitwarden.Server.Sdk.CallerContext;
+using Bitwarden.Server.Sdk.Context;
 
 public sealed class WidgetJob(IWidgetBilling billing)
 {
@@ -65,11 +65,15 @@ public sealed class WidgetJob(IWidgetBilling billing)
 Don't do this while handling a request. There, the context comes from the request, and a scope would let code name an
 organization the caller never did.
 
+A host handing an event to a service's handlers begins its scope with `ContextScope.BeginForEvent`, and
+`ContextScope.IsEvent` says the innermost scope is one: the person it names is the event's actor, there for the record
+only, and a client can hold a handler's calls to that. A scope begun inside it with `Begin` is not an event's.
+
 ### Carry the context between services
 
-`BitwardenHeaders.All` lists the five caller-context headers: `Bitwarden-Organization`, `Bitwarden-User`,
-`Bitwarden-Provider`, `Bitwarden-Context` and `Bitwarden-Delegation`. `CallerContextHeader` writes and strictly reads
-the `Bitwarden-Context` object. `CallerContextToken` names the token type (`bitwarden-context+jwt`), claims and modes
+`BitwardenHeaders.All` lists the five context headers: `Bitwarden-Organization`, `Bitwarden-User`,
+`Bitwarden-Provider`, `Bitwarden-Context` and `Bitwarden-Delegation`. `ContextHeader` writes and strictly reads
+the `Bitwarden-Context` object. `ContextToken` names the token type (`bitwarden-context+jwt`), claims and modes
 (`DELEGATED`, `ASSERTED`) of the signed form. `Bitwarden-Call-Chain` (`CallChain`) carries the services a request
 passed through, so a service notices being called back.
 
@@ -85,10 +89,10 @@ passed through, so a service notices being called back.
 | --------------------------------------------------- | ---------------------------------------------------------------------- |
 | `IContext`                                          | Who and what the current operation concerns                            |
 | `ContextScope`, `StatedContext`                     | The context of work that has no request                                |
-| `BitwardenHeaders`                                  | The headers that carry caller context between services                 |
-| `CallerContextHeader`, `CallerContextValue`         | Writes and strictly reads the `Bitwarden-Context` object               |
+| `BitwardenHeaders`                                  | The headers that carry context between services                 |
+| `ContextHeader`, `ContextValue`         | Writes and strictly reads the `Bitwarden-Context` object               |
 | `CallerCredential`, `CallerCredentialJsonConverter` | The kind of credential that started a chain of calls, written ALL_CAPS |
-| `CallerContextToken`, `CallerContextAssertion`      | The signed form of a call's context, and what one call asserts         |
+| `ContextToken`, `ContextAssertion`      | The signed form of a call's context, and what one call asserts         |
 | `ICallerProof`                                      | The token a call's signed context is exchanged from                    |
 | `CallChain`                                         | The services a request passed through, to notice a call back           |
 | `IRequestNamedOwner`, `IOrganizationCreation`       | Owners an operation names itself, for its outgoing calls               |

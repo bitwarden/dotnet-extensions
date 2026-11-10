@@ -1,7 +1,7 @@
-namespace Bitwarden.Server.Sdk.CallerContext;
+namespace Bitwarden.Server.Sdk.Context;
 
 /// <summary>
-/// What proves whom the current request is for: the token a <see cref="CallerContextToken"/> is
+/// What proves whom the current request is for: the token a <see cref="ContextToken"/> is
 /// exchanged from.
 /// </summary>
 /// <remarks>

@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.CallerContext;
+namespace Bitwarden.Server.Sdk.Context;
 
 /// <summary>
 /// What <see cref="BitwardenHeaders.Context"/> carries: version 1 of a closed object.
@@ -13,14 +13,14 @@ namespace Bitwarden.Server.Sdk.CallerContext;
 /// a plain header that disagrees.
 /// </para>
 /// </remarks>
-public sealed record CallerContextValue
+public sealed record ContextValue
 {
     /// <summary>
     /// The address the originating request came from, as the receiving service saw it through the
     /// proxies it trusts. Read for audit records, security mail and IP allowlists.
     /// </summary>
     /// <remarks>
-    /// IPv4 as four decimal numbers, or IPv6 without a zone. <see cref="CallerContextHeader"/> writes and reads it in
+    /// IPv4 as four decimal numbers, or IPv6 without a zone. <see cref="ContextHeader"/> writes and reads it in
     /// canonical form.
     /// </remarks>
     public string? ClientIp { get; init; }
@@ -56,7 +56,7 @@ public sealed record CallerContextValue
     /// <summary>
     /// The organizations the acting person is a confirmed member of, for feature flag targeting only.
     /// Never an authority, a row filter or an audit fact. At most
-    /// <see cref="CallerContextHeader.MaximumOrganizations"/>.
+    /// <see cref="ContextHeader.MaximumOrganizations"/>.
     /// </summary>
     public IReadOnlyList<Guid>? Organizations { get; init; }
 

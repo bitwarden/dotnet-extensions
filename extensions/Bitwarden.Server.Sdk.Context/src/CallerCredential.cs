@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Bitwarden.Server.Sdk.CallerContext;
+namespace Bitwarden.Server.Sdk.Context;
 
 /// <summary>
 /// The kind of credential the request that started a chain of calls presented.
