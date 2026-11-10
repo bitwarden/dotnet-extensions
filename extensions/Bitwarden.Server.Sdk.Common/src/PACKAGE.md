@@ -4,8 +4,8 @@
 
 The small set of types that a Bitwarden service and the code that calls it both need to agree on:
 what an error response looks like, which error codes a caller can rely on, and which exception
-means "not found", "conflict" or "bad request". The caller-context headers, values and tokens are in
-Bitwarden.Server.Sdk.CallerContext.
+means "not found", "conflict" or "bad request". The context headers, values and tokens are in
+Bitwarden.Server.Sdk.Context.
 
 The package has almost no dependencies, so a program that only calls a service does not have to
 depend on the framework that hosts it.
