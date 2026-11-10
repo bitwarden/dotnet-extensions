@@ -3,6 +3,11 @@
 Transport-agnostic publish/subscribe messaging for Bitwarden services. Three backends share one API:
 Azure Service Bus, RabbitMQ, and an in-memory `System.Threading.Channels` fallback.
 
+A topic is a service's outbound event stream, so one topic can carry many payload families (for
+example, a user service might publish `user.created` and `user.deleted` through one
+`user-events` topic). Each message is tagged with its family wire name so subscriptions bind or
+filter down to the event types they care about.
+
 ## Architecture
 
 ### Core abstractions
@@ -15,8 +20,12 @@ Azure Service Bus, RabbitMQ, and an in-memory `System.Threading.Channels` fallba
   `TraceId`, `DeliveryCount`) and settlement methods (`CompleteAsync`, `RequeueAsync`,
   `DeadLetterAsync`)
 
-Both are registered as keyed singletons. The service key is the topic name, or
-`topic/subscription` when a subscription name is provided.
+Both are registered as keyed singletons. A publisher key is `{topic}#{familyWireName}` — the
+composite identity lets several families register publishers on the same topic side-by-side.
+Build it with `MessageBrokerKeys.Publisher<TPayload>(topic)` for programmatic resolution; spell it
+literally at `[FromKeyedServices]` injection sites since attribute arguments must be compile-time
+constants. A subscriber key stays `{topic}/{subscription}` — each subscription identifies a single
+family at the broker, so the pair uniquely names the receiver.
 
 ### Backend selection
 
@@ -35,6 +44,7 @@ Setting both raises `OptionsValidationException` at startup via `MessagingOption
 | File                                                           | Purpose                                                                          |
 | -------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | `MessageBrokerServiceCollectionExtensions.cs`                  | DI registration; backend selection logic                                         |
+| `MessageBrokerKeys.cs`                                         | Composite publisher DI service key builder                                       |
 | `Envelope.cs`                                                  | Abstract base class for received messages                                        |
 | `IMessageConsumer.cs`                                          | Public interface for consumers registered via `AddMessageConsumer`               |
 | `ConsumerBackgroundService.cs`                                 | Hosted service that drives the consumer loop; auto-settles envelopes             |
@@ -60,9 +70,11 @@ expected shape is driven by two design choices:
   (RabbitMQ 3.12+) is what `RabbitSubscriber` reads into `Envelope<T>.DeliveryCount`. Classic
   queues only expose a boolean `redelivered` flag, which is not enough to drive delivery-limit
   behavior.
-- **Fanout exchanges** per topic, with one durable queue per subscription bound to the exchange.
-  Each subscription receives every message independently, giving pub/sub fan-out with
-  per-subscription competing consumers when multiple instances share a subscription name.
+- **Topic exchanges** per topic, with one durable queue per subscription bound to the exchange
+  with the payload family wire name as its routing key. Each subscription receives only its
+  family's messages; several subscriptions on the same exchange with different routing keys split
+  the outbound stream by family. Multiple instances sharing a subscription name act as competing
+  consumers against that subscription's queue.
 
 ## Shutdown and escrow
 
@@ -103,6 +115,10 @@ in RabbitMQ, `ApplicationProperties["traceparent"]` in Azure Service Bus, `Trace
 `ChannelEnvelope`. The consumer span is started with this context as the parent so publish and
 consume spans share a trace.
 
+Every publish counter, consume counter, queue-depth gauge, and activity tag carries
+`messaging.payload.family` alongside `messaging.destination.name`, so metrics and traces split by
+family on a topic that carries several.
+
 ## Payload versioning
 
 A payload is a family of data structure variants forming a chain from floor (oldest known shape)
@@ -113,11 +129,14 @@ against new publishers as long as the old variant is still on the wire. New subs
 working against old publishers as long as the older ceiling can upcast to the newer one.
 
 Concrete payloads derive from `Payload<TSelf, TFloor, TCeiling>` and implement
-`IPayloadVariants<TSelf>`. The `IPayloadVariants<TSelf>.Variants` static list pairs each
-variant type with a stable wire name. Wire names are decoupled from CLR type names so variants
-can be renamed or moved without breaking messages already on the wire. The wire format is a JSON
-array of variants with a `$type` discriminator per element; unknown discriminators are skipped so
-a subscriber survives a publisher that has variants it was not built against.
+`IPayloadVariants<TSelf>` and `IPayloadWireName<TSelf>`. `IPayloadVariants<TSelf>.Variants`
+pairs each variant type with a stable wire name that identifies the shape within the family;
+`IPayloadWireName<TSelf>.WireName` names the family itself and rides on every outgoing message
+as the broker's routing key (RabbitMQ) or application property (Azure Service Bus). Both
+dimensions are decoupled from CLR type names so authors can rename or move the C# types
+without breaking messages already on the wire. The wire body is a JSON array of variants with a
+`$type` discriminator per element; unknown discriminators are skipped so a subscriber survives a
+publisher that has variants it was not built against.
 
 Every non-ceiling variant declares an upcast to its ceiling-side neighbor via `IPureUp<TUp>`.
 Downcasts come in two kinds: **pure** (`IPure<TDown, TUp>`, `IPureCeiling<TDown>`) when the
@@ -144,12 +163,13 @@ disagree with the variant list.
 
 ## Observing the variant constellation
 
-Each consume emits a `messaging.client.consumed.messages` counter tick tagged with both
-`messaging.destination.name` and `messaging.variant.name`. The variant tag is the wire name of the
-highest received variant at or below the subscriber's ceiling — i.e. the variant the subscriber
-actually deserialized from, before any upcast to reach `TCeiling`. Aggregated across every service in
-the deployment, these tags describe the current constellation of variants actually being acted upon, so an
-operator can see when a variant has fallen out of use and is safe to remove from the chain.
+Each consume emits a `messaging.client.consumed.messages` counter tick tagged with
+`messaging.destination.name`, `messaging.payload.family`, and `messaging.variant.name`. The variant
+tag is the wire name of the highest received variant at or below the subscriber's ceiling — the
+variant the subscriber actually deserialized from, before any upcast to reach `TCeiling`.
+Aggregated across every service in the deployment, these tags describe the current constellation
+of variants actually being acted upon per family, so an operator can see when a variant has
+fallen out of use and is safe to remove from the chain.
 
 ## TODO
 

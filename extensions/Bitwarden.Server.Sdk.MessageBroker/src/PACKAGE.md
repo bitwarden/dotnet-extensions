@@ -17,8 +17,11 @@ the minimal end-to-end is a single-variant payload, a publisher, and a consumer:
 public sealed record Ping(string Text) : PingPayload.ISole;
 
 public sealed class PingPayload
-    : Payload<PingPayload, Ping, Ping>, IPayloadVariants<PingPayload>
+    : Payload<PingPayload, Ping, Ping>, IPayloadVariants<PingPayload>, IPayloadWireName<PingPayload>
 {
+    // WireName identifies the family on the broker (routing key on RabbitMQ, application
+    // property on Azure Service Bus) so subscriptions bind or filter down to it.
+    public static string WireName => "ping";
     public static IReadOnlyList<(Type, string)> Variants => [(typeof(Ping), "v1")];
 }
 
@@ -34,8 +37,10 @@ services.Configure<MessageBrokerSerializerOptions>("pings", o =>
 services.AddPublisher<PingPayload, Ping>("pings");
 services.AddMessageConsumer<PingPayload, Ping, PingHandler>("pings", subscriptionName: "workers");
 
-// 3. Publish and consume.
-public class Pinger([FromKeyedServices("pings")] Publisher<PingPayload, Ping> publisher)
+// 3. Publish and consume. The publisher key is "{topic}#{WireName}" — spell it literally at the
+//    injection site; use MessageBrokerKeys.Publisher<PingPayload>("pings") for programmatic
+//    resolution. Subscriber keys stay "{topic}/{subscription}".
+public class Pinger([FromKeyedServices("pings#ping")] Publisher<PingPayload, Ping> publisher)
 {
     public Task PingAsync(string text, CancellationToken ct) =>
         publisher.Publish(new Ping(text)).SendAsync(ct);
@@ -73,12 +78,13 @@ configured at a time; setting both raises a validation error at startup.
 ## Broker setup
 
 The library does not provision broker topology. For the RabbitMQ and Azure Service Bus backends,
-the exchanges, queues, topics, subscriptions, and related policies must be declared on the broker
-before the application starts — typically as part of the broker container's bootstrap or via
-infrastructure-as-code (Terraform, Pulumi, broker-specific CLIs).
+the exchanges, queues, topics, subscriptions, and related filters / policies must be declared on
+the broker before the application starts — typically as part of the broker container's bootstrap
+or via infrastructure-as-code (Terraform, Pulumi, broker-specific CLIs).
 
-For each publisher and subscriber registered with `AddPublisher<TPayload, TCeiling>(topic)` /
-`AddSubscriber<TPayload, TCeiling>(topic, subscription)`, declare the following on the broker:
+A topic carries messages from many payload families. Publishers stamp every outgoing message with
+their family wire name (`IPayloadWireName<TPayload>.WireName`) so subscriptions can bind or filter
+down to the family they consume. Declare on the broker:
 
 ### Azure Service Bus
 
@@ -88,9 +94,16 @@ For each unique `topic` across all publishers and subscribers:
 
 For each `AddSubscriber<TPayload, TCeiling>(topic, subscription)`:
 
-- A subscription named `{subscription}` on that topic. Set `MaxDeliveryCount` on the
-  subscription to cap redelivery attempts; the subscription's built-in dead-letter queue
-  handles exhausted or explicitly dead-lettered messages automatically.
+- A subscription named `{subscription}` on that topic with a Correlation filter on
+  `x-bw-payload-family = '{WireName}'` so only `TPayload`'s family reaches this subscription.
+  Set `MaxDeliveryCount` on the subscription to cap redelivery attempts; the subscription's
+  built-in dead-letter queue handles exhausted or explicitly dead-lettered messages automatically.
+
+If the Correlation filter is missing or wrong, the subscriber still falls back safely —
+`AzureServiceBusSubscriber` reads the `x-bw-payload-family` application property on every message
+and dead-letters anything that does not match `TPayload.WireName` before attempting
+deserialization. The filter is still the right production configuration because it moves routing
+off the subscriber and into the broker.
 
 The library creates and owns its own `ServiceBusClient` from the configured connection string
 and does not consume any `ServiceBusClient` the app registers separately. An app that also uses
@@ -100,12 +113,15 @@ and does not consume any `ServiceBusClient` the app registers separately. An app
 
 For each unique `topic` across all publishers and subscribers:
 
-- A durable fanout exchange named `{topic}`.
+- A durable **topic** exchange named `{topic}`.
 
 For each `AddSubscriber<TPayload, TCeiling>(topic, subscription)`:
 
 - A durable quorum queue named `{topic}.{subscription}`, bound to the topic exchange with
-  an empty routing key.
+  routing key `{WireName}` (the `IPayloadWireName<TPayload>.WireName` of the family the
+  subscriber consumes). A topic exchange with an exact-match routing key behaves like a direct
+  exchange for this message; `topic` was chosen over `direct` so wildcard binds remain available
+  if a future subscription ever needs to consume several families through one queue.
 - A server-side policy applying `delivery-limit` to the queue, capping the number of
   redelivery attempts before a message is dead-lettered.
 - A server-side policy applying `dead-letter-exchange`, `dead-letter-strategy: at-least-once`,
@@ -117,6 +133,10 @@ For each `AddSubscriber<TPayload, TCeiling>(topic, subscription)`:
   failover or unavailable dead-letter exchange can still drop the message; `at-least-once`
   requires `overflow: reject-publish` on the same queue.
 
+If the queue's routing-key binding is wrong, `RabbitSubscriber` falls back to the same defensive
+check — it reads the `x-bw-payload-family` header and dead-letters mismatches. The routing-key
+binding is still the right production configuration because it moves the filter into the broker.
+
 Policies must be used rather than queue arguments because quorum queue arguments cannot be
 changed on an existing queue. See the RabbitMQ documentation on
 [quorum queue poison-message handling](https://www.rabbitmq.com/docs/quorum-queues#poison-message-handling)
@@ -126,44 +146,64 @@ at broker startup.
 
 #### Example
 
-Using `rabbitmqadmin` and `rabbitmqctl` for an application that registers
-`AddPublisher<OrderPayload, OrderPayload.V2>("orders")` and
-`AddSubscriber<OrderPayload, OrderPayload.V2>("orders", "workers")`:
+Using `rabbitmqadmin` and `rabbitmqctl` for a user service that registers:
+
+```csharp
+services.AddPublisher<UserCreatedPayload, UserCreated>("user-events");
+services.AddPublisher<UserDeletedPayload, UserDeleted>("user-events");
+services.AddSubscriber<UserCreatedPayload, UserCreated>("user-events", "vault");
+services.AddSubscriber<UserDeletedPayload, UserDeleted>("user-events", "organizations");
+```
+
+where `UserCreatedPayload.WireName` is `"user.created"` and `UserDeletedPayload.WireName` is
+`"user.deleted"`:
 
 ```bash
-# Topic exchange, subscription queue, binding.
-rabbitmqadmin exchanges declare --name "orders" --type "fanout" --durable true
-rabbitmqadmin queues declare --name "orders.workers" --type "quorum" --durable true
-rabbitmqadmin bindings declare --source "orders" \
-  --destination-type "queue" --destination "orders.workers"
+# One topic exchange carries both families.
+rabbitmqadmin exchanges declare --name "user-events" --type "topic" --durable true
+
+# One queue per subscription, each bound with its family's wire name as routing key.
+rabbitmqadmin queues declare --name "user-events.vault" --type "quorum" --durable true
+rabbitmqadmin bindings declare --source "user-events" \
+  --destination-type "queue" --destination "user-events.vault" --routing-key "user.created"
+
+rabbitmqadmin queues declare --name "user-events.organizations" --type "quorum" --durable true
+rabbitmqadmin bindings declare --source "user-events" \
+  --destination-type "queue" --destination "user-events.organizations" --routing-key "user.deleted"
 
 # Dead-letter exchange and queue. The names must not match the policy pattern
 # below, which would otherwise re-apply the dead-letter policy to the dead-letter
 # queue and cycle its messages back through itself.
-rabbitmqadmin exchanges declare --name "dead-letter.orders" --type "fanout" --durable true
-rabbitmqadmin queues declare --name "dead-letter.orders" --type "quorum" --durable true
-rabbitmqadmin bindings declare --source "dead-letter.orders" \
-  --destination-type "queue" --destination "dead-letter.orders"
+rabbitmqadmin exchanges declare --name "dead-letter.user-events" --type "fanout" --durable true
+rabbitmqadmin queues declare --name "dead-letter.user-events" --type "quorum" --durable true
+rabbitmqadmin bindings declare --source "dead-letter.user-events" \
+  --destination-type "queue" --destination "dead-letter.user-events"
 
 # Policy applying delivery-limit, dead-letter-exchange, dead-letter-strategy, and
-# overflow to the orders.* subscription queues.
-rabbitmqctl set_policy orders-subscriptions "^orders\." \
-  '{"delivery-limit":10,"dead-letter-exchange":"dead-letter.orders","dead-letter-strategy":"at-least-once","overflow":"reject-publish"}' \
+# overflow to the user-events.* subscription queues.
+rabbitmqctl set_policy user-events-subscriptions "^user-events\." \
+  '{"delivery-limit":10,"dead-letter-exchange":"dead-letter.user-events","dead-letter-strategy":"at-least-once","overflow":"reject-publish"}' \
   --apply-to quorum_queues
 ```
 
 ## Defining a payload
 
 A payload is a family of variants forming a chain from the oldest known shape (**floor**) to the
-newest (**ceiling**). Derive from `Payload<TSelf, TFloor, TCeiling>` and implement
-`IPayloadVariants<TSelf>`, whose static `Variants` list pairs each variant type with a stable wire
-name:
+newest (**ceiling**). Derive from `Payload<TSelf, TFloor, TCeiling>` and implement two static
+contracts: `IPayloadVariants<TSelf>` (the variant list) and `IPayloadWireName<TSelf>` (the family
+name the broker sees).
 
 ```csharp
 public sealed class OrderPayload
     : Payload<OrderPayload, OrderPayload.V1, OrderPayload.V2>,
-      IPayloadVariants<OrderPayload>
+      IPayloadVariants<OrderPayload>,
+      IPayloadWireName<OrderPayload>
 {
+    // Family name. Rides as the RabbitMQ routing key and the Azure Service Bus
+    // x-bw-payload-family application property on every outgoing message, so subscriptions
+    // on the shared topic can bind / filter down to this family.
+    public static string WireName => "order";
+
     public static IReadOnlyList<(Type Type, string WireName)> Variants =>
     [
         (typeof(V1), "v1"),
@@ -185,9 +225,10 @@ public sealed class OrderPayload
 }
 ```
 
-Wire names are decoupled from CLR type names so variants can be renamed or moved without breaking
-messages already on the wire. Each topic is bound to exactly one payload family at DI registration,
-so wire names are scoped by topic and only need to be unique within that payload's own `Variants` list.
+Both dimensions are decoupled from CLR type names so authors can rename or move the C# types
+without breaking messages already on the wire. Families are scoped by `(topic, WireName)` —
+different families with different wire names coexist on one topic. Variant wire names only need
+to be unique within one family's own `Variants` list.
 
 ## Evolving a payload
 
@@ -209,8 +250,10 @@ Before:
 ```csharp
 public sealed class OrganizationDeletedPayload
     : Payload<OrganizationDeletedPayload, OrganizationDeletedPayload.V1, OrganizationDeletedPayload.V1>,
-      IPayloadVariants<OrganizationDeletedPayload>
+      IPayloadVariants<OrganizationDeletedPayload>,
+      IPayloadWireName<OrganizationDeletedPayload>
 {
+    public static string WireName => "organization.deleted";
     public static IReadOnlyList<(Type Type, string WireName)> Variants =>
     [
         (typeof(V1), "v1"),
@@ -226,8 +269,10 @@ After:
 ```csharp
 public sealed class OrganizationDeletedPayload
     : Payload<OrganizationDeletedPayload, OrganizationDeletedPayload.V1, OrganizationDeletedPayload.V2>,
-      IPayloadVariants<OrganizationDeletedPayload>
+      IPayloadVariants<OrganizationDeletedPayload>,
+      IPayloadWireName<OrganizationDeletedPayload>
 {
+    public static string WireName => "organization.deleted";
     public static IReadOnlyList<(Type Type, string WireName)> Variants =>
     [
         (typeof(V1), "v1"),
@@ -267,18 +312,20 @@ post-retirement messages, and the transport dead-letters the message before eith
 A future release will add symmetric startup pre-flight checks for both subscribers and publishers to
 ensure variant overlap at startup.
 
-Before removing V1, use the `messaging.variant.name` tag on `messaging.client.consumed.messages`
-to confirm no subscriber is still reading it. V1 falling to zero across the deployment is the
-signal it's safe to drop. Dead-letter queue growth is how you find out if you shipped the removal
-too early.
+Before removing V1, use the `messaging.variant.name` tag on `messaging.client.consumed.messages`,
+filtered by `messaging.payload.family = "organization.deleted"`, to confirm no subscriber is still
+reading it. V1 falling to zero across the deployment is the signal it's safe to drop. Dead-letter
+queue growth is how you find out if you shipped the removal too early.
 
 Once V1 is cold, the V1+V2 state from above collapses to:
 
 ```csharp
 public sealed class OrganizationDeletedPayload
     : Payload<OrganizationDeletedPayload, OrganizationDeletedPayload.V2, OrganizationDeletedPayload.V2>,
-      IPayloadVariants<OrganizationDeletedPayload>
+      IPayloadVariants<OrganizationDeletedPayload>,
+      IPayloadWireName<OrganizationDeletedPayload>
 {
+    public static string WireName => "organization.deleted";
     public static IReadOnlyList<(Type Type, string WireName)> Variants =>
     [
         (typeof(V2), "v2"),
@@ -297,12 +344,12 @@ Register a publisher with `AddPublisher<TPayload, TCeiling>`:
 services.AddPublisher<OrderPayload, OrderPayload.V2>("orders");
 ```
 
-Inject `Publisher<TPayload, TCeiling>` as a keyed service using the topic name and call `Publish`
-followed by `SendAsync`:
+Inject `Publisher<TPayload, TCeiling>` as a keyed service using the composite
+`"{topic}#{WireName}"` key and call `Publish` followed by `SendAsync`:
 
 ```csharp
 public class OrderService(
-    [FromKeyedServices("orders")] Publisher<OrderPayload, OrderPayload.V2> publisher)
+    [FromKeyedServices("orders#order")] Publisher<OrderPayload, OrderPayload.V2> publisher)
 {
     public async Task PlaceOrderAsync(Order order, CancellationToken ct)
     {
@@ -311,6 +358,23 @@ public class OrderService(
             .SendAsync(ct);
     }
 }
+```
+
+For programmatic resolution, use `MessageBrokerKeys.Publisher<OrderPayload>("orders")` to build
+the key instead of spelling it out:
+
+```csharp
+var publisher = provider.GetRequiredKeyedService<Publisher<OrderPayload, OrderPayload.V2>>(
+    MessageBrokerKeys.Publisher<OrderPayload>("orders"));
+```
+
+A single service that publishes several families to the same topic injects one publisher per
+family — the composite key disambiguates:
+
+```csharp
+public class UserService(
+    [FromKeyedServices("user-events#user.created")] Publisher<UserCreatedPayload, UserCreated> created,
+    [FromKeyedServices("user-events#user.deleted")] Publisher<UserDeletedPayload, UserDeleted> deleted);
 ```
 
 If a downcast between the ceiling and the floor needs caller-supplied data (an "assisted"
@@ -447,9 +511,9 @@ integrate with any OpenTelemetry-compatible pipeline.
 
 | Instrument                            | Type    | Description                                                                                                                                                                               |
 | ------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `messaging.client.published.messages` | Counter | Messages published, tagged with `messaging.destination.name`.                                                                                                                             |
-| `messaging.client.consumed.messages`  | Counter | Messages delivered to a consumer, tagged with `messaging.destination.name` and `messaging.variant.name` (wire name of the highest received variant at or below the subscriber's ceiling). |
-| `messaging.channel.queued.messages`   | Gauge   | Current number of messages buffered in the in-memory channel, tagged with `messaging.destination.name`.                                                                                   |
+| `messaging.client.published.messages` | Counter | Messages published, tagged with `messaging.destination.name` and `messaging.payload.family`.                                                                                                                                                       |
+| `messaging.client.consumed.messages`  | Counter | Messages delivered to a consumer, tagged with `messaging.destination.name`, `messaging.payload.family`, and `messaging.variant.name` (wire name of the highest received variant at or below the subscriber's ceiling).                             |
+| `messaging.channel.queued.messages`   | Gauge   | Current number of messages buffered in the in-memory channel, tagged with `messaging.destination.name` and `messaging.payload.family` (one series per family on a topic that carries several).                                                     |
 
 ## Serialization
 
