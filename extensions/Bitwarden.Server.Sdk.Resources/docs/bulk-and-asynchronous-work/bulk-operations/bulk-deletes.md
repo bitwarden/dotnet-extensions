@@ -6,7 +6,7 @@ with `[StandardBulkDelete(collection)]` and take a `BulkDelete<T>`; the delete i
 
 ## Delete the resources a filter matches
 
-This bulk delete takes a `filter`, keeps it within the caller's organization, and soft-deletes by
+This bulk delete takes a `filter`, keeps it within what the caller may see, and soft-deletes by
 default:
 
 ```csharp
@@ -38,7 +38,7 @@ public static class WidgetsEndpoints
         bool permanent = false,
         CancellationToken cancellationToken = default)
     {
-        var matched = store.Visible(context.OrganizationId).Matching(request.Filter!);
+        var matched = store.Visible(context.OrganizationId, context.UserId).Matching(request.Filter!);
 
         var affected = permanent
             ? await store.RemoveAsync(matched, cancellationToken)

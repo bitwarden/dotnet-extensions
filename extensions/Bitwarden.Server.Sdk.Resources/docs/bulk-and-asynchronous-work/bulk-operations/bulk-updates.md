@@ -40,7 +40,7 @@ public static class WidgetsEndpoints
         var change = WidgetChange.From(request.Update);
 
         var widgets = await store.ListAsync(
-            store.Visible(context.OrganizationId).Matching(request.Filter!), cancellationToken);
+            store.Visible(context.OrganizationId, context.UserId).Matching(request.Filter!), cancellationToken);
 
         var failures = new List<Error>();
         foreach (var widget in widgets)
