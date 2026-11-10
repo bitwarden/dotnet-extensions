@@ -151,7 +151,7 @@ public static class DatabaseServiceCollectionExtensions
                 serviceProvider.GetRequiredService<ILogger<SqlServerMigrator>>(),
                 serviceProvider.GetRequiredService<TimeProvider>()),
 
-            _ => new EfCoreMigrator<TContext>(name, serviceProvider.GetRequiredService<TContext>()),
+            _ => new EfCoreMigrator<TContext>(name, serviceProvider),
         };
     }
 

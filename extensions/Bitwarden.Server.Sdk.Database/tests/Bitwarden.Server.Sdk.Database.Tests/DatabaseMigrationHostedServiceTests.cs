@@ -1,7 +1,11 @@
 using System.Data.Common;
 using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -263,5 +267,51 @@ public class DatabaseMigrationHostedServiceTests
     {
         var hostedService = BuildHostedService(new ServiceCollection());
         await hostedService.StopAsync(CancellationToken.None);
+    }
+
+    /// <summary>
+    /// A host with a MySQL schema registered the way the generated code registers it, whose
+    /// server isn't accepting connections: nothing listens on the port.
+    /// </summary>
+    private static IHost BuildMySqlHost(bool autoMigrate, TimeProvider time)
+        => new HostBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddLogging(builder => builder.AddFakeLogging());
+                services.Configure<DatabaseOptions>("Test", opts =>
+                {
+                    opts.Provider = DatabaseProvider.MySql;
+                    opts.ConnectionString = "Server=127.0.0.1;Port=1;User ID=test;Password=test;Connection Timeout=1";
+                });
+                services.AddDatabase<TestDbContext, EmptyMigrationsAssembly>(
+                    "Test",
+                    static (opts, builder) => builder.UseMySql(
+                        opts.ConnectionString, ServerVersion.AutoDetect(opts.ConnectionString)));
+                services.Configure<AutoMigrateOptions>("Test", opts => opts.AutoMigrate = autoMigrate);
+                services.AddSingleton(time);
+            })
+            .Build();
+
+    [Fact]
+    public async Task StartAsync_ASchemaThisHostOnlyConsumes_DoesNotConnectToIt()
+    {
+        using var host = BuildMySqlHost(autoMigrate: false, TimeProvider.System);
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        await host.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task StartAsync_MySqlNotAcceptingConnections_WaitsBeforeGivingUp()
+    {
+        var time = new FakeTimeProvider();
+        using var host = BuildMySqlHost(autoMigrate: true, time);
+        var logs = host.Services.GetRequiredService<FakeLogCollector>();
+
+        var starting = host.StartAsync(TestContext.Current.CancellationToken);
+        await SettleAsync(time, starting);
+
+        await Assert.ThrowsAnyAsync<DbException>(() => starting);
+        Assert.Contains(logs.GetSnapshot(), record => record.Message.Contains("is not accepting connections yet"));
     }
 }
