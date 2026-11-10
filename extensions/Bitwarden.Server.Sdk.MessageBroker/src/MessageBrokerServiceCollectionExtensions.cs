@@ -58,7 +58,7 @@ public static class MessageBrokerServiceCollectionExtensions
                 options.MaxDeliveryCount, sp.GetRequiredService<ILogger<ChannelPublisher<TPayload, TCeiling>>>());
         });
 
-        services.AddSingleton(new BrokerTopologyDeclaration(name));
+        services.AddSingleton(new BrokerTopologyDeclaration(name, TPayload.WireName));
 
         return services;
     }
@@ -134,7 +134,7 @@ public static class MessageBrokerServiceCollectionExtensions
 
         services.AddSingleton(new ChannelSubscriberDescriptor(typeof(TPayload), subscriptionKey));
 
-        services.AddSingleton(new BrokerTopologyDeclaration(name, subscriptionName));
+        services.AddSingleton(new BrokerTopologyDeclaration(name, TPayload.WireName, subscriptionName));
 
         return services;
     }

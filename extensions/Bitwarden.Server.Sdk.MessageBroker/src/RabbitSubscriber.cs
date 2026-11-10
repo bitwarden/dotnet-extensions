@@ -36,6 +36,20 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
         var consumer = new AsyncEventingBasicConsumer(rabbitChannel);
         consumer.ReceivedAsync += async (_, ea) =>
         {
+            // Defense in depth: when operator binding routes correctly, only matching messages
+            // arrive. A misconfigured binding (wrong routing key, or no header filter) could
+            // deliver another family's message here, and decoding it against TPayload would
+            // silently discard every variant and dead-letter on the length check below with
+            // no indication the real problem was routing. Fail fast with the actual reason.
+            if (ea.BasicProperties.Headers?.TryGetValue(RabbitHeaders.PayloadFamily, out var familyBytes) == true
+                && familyBytes is byte[] familyBytesArr
+                && Encoding.UTF8.GetString(familyBytesArr) is var familyName
+                && familyName != TPayload.WireName)
+            {
+                await rabbitChannel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false);
+                return;
+            }
+
             IReadOnlyList<Payload<TPayload>.IVariant> variants;
             try
             {
