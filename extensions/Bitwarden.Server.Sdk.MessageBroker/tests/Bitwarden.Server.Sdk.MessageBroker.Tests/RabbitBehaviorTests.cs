@@ -1,5 +1,6 @@
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -206,6 +207,108 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
 
         // Channel is now closed; RequeueAsync must short-circuit with Task.CompletedTask.
         await captured.RequeueAsync(cancellationToken: TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>
+    /// A misconfigured queue — its routing-key binding selects <c>user.deleted</c>, but the
+    /// client is registered as a <see cref="UserCreatedPayload"/> subscriber. The broker routes
+    /// the mismatched message through; the subscriber's defensive x-bw-payload-family header
+    /// check must catch it, dead-letter the message, and never yield it to the consumer.
+    /// </summary>
+    [Fact(Timeout = 60 * 1000)]
+    public async Task MismatchedFamilyIsDeadLetteredByDefensiveCheck()
+    {
+        var misconfiguredTopic = Guid.NewGuid().ToString("N")[..8];
+        const string MisfilteredSubscription = "misfiltered";
+        var deadLetterExchange = $"dlx.{misconfiguredTopic}";
+        var deadLetterQueue = $"dlq.{misconfiguredTopic}.{MisfilteredSubscription}";
+        var misfilteredQueue = $"{misconfiguredTopic}.{MisfilteredSubscription}";
+
+        // Build the misconfigured topology by hand: the subscriber's queue is bound with
+        // routing-key = "user.deleted" (the WRONG family for UserCreatedPayload), and gets a
+        // dead-letter exchange so we can observe the dead-lettered message.
+        await using (var conn = await new ConnectionFactory { Uri = new Uri(_fixture.GetUri()) }
+            .CreateConnectionAsync(TestContext.Current.CancellationToken))
+        await using (var channel = await conn.CreateChannelAsync(cancellationToken: TestContext.Current.CancellationToken))
+        {
+            await channel.ExchangeDeclareAsync(misconfiguredTopic, ExchangeType.Topic, durable: true,
+                cancellationToken: TestContext.Current.CancellationToken);
+            await channel.ExchangeDeclareAsync(deadLetterExchange, ExchangeType.Fanout, durable: true,
+                cancellationToken: TestContext.Current.CancellationToken);
+            await channel.QueueDeclareAsync(deadLetterQueue, durable: true, exclusive: false, autoDelete: false,
+                arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum" },
+                cancellationToken: TestContext.Current.CancellationToken);
+            await channel.QueueBindAsync(deadLetterQueue, deadLetterExchange, routingKey: "",
+                cancellationToken: TestContext.Current.CancellationToken);
+            await channel.QueueDeclareAsync(misfilteredQueue, durable: true, exclusive: false, autoDelete: false,
+                arguments: new Dictionary<string, object?>
+                {
+                    ["x-queue-type"] = "quorum",
+                    ["x-dead-letter-exchange"] = deadLetterExchange,
+                },
+                cancellationToken: TestContext.Current.CancellationToken);
+            // Routing-key binding selects user.deleted, but the subscriber reads as UserCreatedPayload.
+            await channel.QueueBindAsync(misfilteredQueue, misconfiguredTopic,
+                routingKey: UserDeletedPayload.WireName,
+                cancellationToken: TestContext.Current.CancellationToken);
+        }
+
+        // Build the host directly (not via BuildHostAsync, which calls PreStartAsync — PreStartAsync
+        // would try to redeclare the misfiltered queue without the DLX argument and fail with
+        // "inequivalent arg").
+        var host = new HostBuilder()
+            .ConfigureAppConfiguration(b => b.AddInMemoryCollection(CreateConfig()))
+            .ConfigureServices(services =>
+            {
+                services.AddMetrics();
+                services.AddPublisher<UserDeletedPayload, UserDeleted>(misconfiguredTopic);
+                services.AddSubscriber<UserCreatedPayload, UserCreated>(misconfiguredTopic, MisfilteredSubscription);
+                services.AddOptions<MessagingOptions>().BindConfiguration("");
+            })
+            .Build();
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+
+        var deletedPublisher = host.Services.GetRequiredKeyedService<Publisher<UserDeletedPayload, UserDeleted>>(
+            MessageBrokerKeys.Publisher<UserDeletedPayload>(misconfiguredTopic));
+        var misfiltered = host.Services.GetRequiredKeyedService<ISubscriber<UserCreatedPayload, UserCreated>>(
+            $"{misconfiguredTopic}/{MisfilteredSubscription}");
+
+        await deletedPublisher.Publish(new UserDeleted(Guid.NewGuid(), "test")).SendAsync(TestContext.Current.CancellationToken);
+
+        // Prove the subscriber never yields the mismatched message. The cancellation fires once
+        // we've given the receiver enough time to see (and dead-letter) the message.
+        using var receiveCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        receiveCts.CancelAfter(TimeSpan.FromSeconds(5));
+        var receivedAny = false;
+        try
+        {
+            await foreach (var _ in misfiltered.SubscribeAsync(receiveCts.Token))
+            {
+                receivedAny = true;
+                break;
+            }
+        }
+        catch (OperationCanceledException) { /* expected: subscriber drained nothing yieldable */ }
+        catch (BrokerDisconnectedException) { /* expected: channel closed on iterator dispose */ }
+
+        Assert.False(receivedAny, "Defensive check should have dead-lettered the mismatched family before yielding.");
+
+        // The message must land in the dead-letter queue the operator wired up.
+        await using var inspectConn = await new ConnectionFactory { Uri = new Uri(_fixture.GetUri()) }
+            .CreateConnectionAsync(TestContext.Current.CancellationToken);
+        await using var inspectChannel = await inspectConn.CreateChannelAsync(cancellationToken: TestContext.Current.CancellationToken);
+        var result = await inspectChannel.BasicGetAsync(deadLetterQueue, autoAck: true, TestContext.Current.CancellationToken);
+        Assert.NotNull(result);
+        var familyBytes = (byte[])result.BasicProperties.Headers![BrokerProperties.PayloadFamily]!;
+        Assert.Equal(UserDeletedPayload.WireName, System.Text.Encoding.UTF8.GetString(familyBytes));
+        }
+        finally
+        {
+            await host.StopAsync(TestContext.Current.CancellationToken);
+            host.Dispose();
+        }
     }
 
     public override async ValueTask DisposeAsync()

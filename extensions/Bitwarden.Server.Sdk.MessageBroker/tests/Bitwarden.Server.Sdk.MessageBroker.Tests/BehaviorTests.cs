@@ -17,6 +17,32 @@ public class MyItemPayload : Payload<MyItemPayload, MyItem, MyItem>, IPayloadVar
     public static IReadOnlyList<(Type, string)> Variants => [(typeof(MyItem), nameof(MyItem))];
 }
 
+// A user service publishes multiple event types to its own outbound topic. UserCreated and
+// UserDeleted are two independent payload families carried on the same topic, each tagged with
+// its family wire name so downstream services bind to the one they care about.
+
+public sealed record UserCreated(Guid UserId, string Email) : UserCreatedPayload.ISole;
+
+public class UserCreatedPayload
+    : Payload<UserCreatedPayload, UserCreated, UserCreated>,
+      IPayloadVariants<UserCreatedPayload>,
+      IPayloadWireName<UserCreatedPayload>
+{
+    public static string WireName => "user.created";
+    public static IReadOnlyList<(Type, string)> Variants => [(typeof(UserCreated), "v1")];
+}
+
+public sealed record UserDeleted(Guid UserId, string Reason) : UserDeletedPayload.ISole;
+
+public class UserDeletedPayload
+    : Payload<UserDeletedPayload, UserDeleted, UserDeleted>,
+      IPayloadVariants<UserDeletedPayload>,
+      IPayloadWireName<UserDeletedPayload>
+{
+    public static string WireName => "user.deleted";
+    public static IReadOnlyList<(Type, string)> Variants => [(typeof(UserDeleted), "v1")];
+}
+
 public class MessagingOptionsValidationTests
 {
     [Fact]
@@ -121,6 +147,33 @@ public abstract class BehaviorTests : IAsyncLifetime
             services.AddPublisher<MyItemPayload, MyItem>(TopicName);
             services.AddSubscriber<MyItemPayload, MyItem>(TopicName, subscriptionName ?? SubscriptionName);
         });
+
+    /// <summary>
+    /// Topic/queue name used for the multi-family scenarios. Separated from <see cref="TopicName"/>
+    /// so a backend with pre-declared topology (Azure Service Bus emulator JSON) can point this at
+    /// the pre-declared multi-family topic while <see cref="TopicName"/> stays on the single-family
+    /// one.
+    /// </summary>
+    protected virtual string MultiFamilyTopicName => $"{TopicName}-events";
+
+    /// <summary>Subscription name for the <see cref="UserCreatedPayload"/> subscriber in multi-family tests.</summary>
+    protected const string VaultSubscription = "vault";
+
+    /// <summary>Subscription name for the <see cref="UserDeletedPayload"/> subscriber in multi-family tests.</summary>
+    protected const string OrganizationsSubscription = "organizations";
+
+    /// <summary>
+    /// Builds a host registering two publishers + two subscribers on a single topic, one family
+    /// each. Backends that need extra topology work (Rabbit routing-key bindings, ASB Correlation
+    /// filters) pick it up via <see cref="PreStartAsync"/> or the fixture's pre-declared config.
+    /// </summary>
+    protected virtual Task<IHost> CreateMultiFamilyInstanceAsync() => BuildHostAsync(services =>
+    {
+        services.AddPublisher<UserCreatedPayload, UserCreated>(MultiFamilyTopicName);
+        services.AddPublisher<UserDeletedPayload, UserDeleted>(MultiFamilyTopicName);
+        services.AddSubscriber<UserCreatedPayload, UserCreated>(MultiFamilyTopicName, VaultSubscription);
+        services.AddSubscriber<UserDeletedPayload, UserDeleted>(MultiFamilyTopicName, OrganizationsSubscription);
+    });
 
     protected async Task<IHost> BuildHostAsync(Action<IServiceCollection> configure) => await BuildHostAsync(CreateConfig(), configure);
 
@@ -943,5 +996,49 @@ public abstract class BehaviorTests : IAsyncLifetime
         var allIds = received1.Concat(received2).Order().ToList();
         Assert.Equal(Enumerable.Range(0, messageCount).ToList(), allIds);
         AssertFairDistribution(received1, received2);
+    }
+
+    /// <summary>
+    /// End-to-end: a user service publishes both <see cref="UserCreated"/> and
+    /// <see cref="UserDeleted"/> to its <see cref="MultiFamilyTopicName"/>; a vault subscriber
+    /// wants only UserCreated; an organizations subscriber wants only UserDeleted. Each sees only
+    /// its own family — on Channel because <c>ChannelTopic</c> is per-<c>TPayload</c>, on Rabbit
+    /// because the routing-key binding filters at the broker, on Azure Service Bus because the
+    /// subscription Correlation filter does. The publisher must stamp the family wire name on
+    /// every message for any of the three stories to work.
+    /// </summary>
+    [Fact(Timeout = 60 * 1000)]
+    public async Task EachSubscriberReceivesOnlyItsFamily()
+    {
+        var host = await CreateMultiFamilyInstanceAsync();
+        var (userId1, email) = (Guid.NewGuid(), "alice@example.com");
+        var (userId2, reason) = (Guid.NewGuid(), "requested");
+
+        var createdPublisher = host.Services.GetRequiredKeyedService<Publisher<UserCreatedPayload, UserCreated>>(
+            MessageBrokerKeys.Publisher<UserCreatedPayload>(MultiFamilyTopicName));
+        var deletedPublisher = host.Services.GetRequiredKeyedService<Publisher<UserDeletedPayload, UserDeleted>>(
+            MessageBrokerKeys.Publisher<UserDeletedPayload>(MultiFamilyTopicName));
+        var vault = host.Services.GetRequiredKeyedService<ISubscriber<UserCreatedPayload, UserCreated>>(
+            $"{MultiFamilyTopicName}/{VaultSubscription}");
+        var organizations = host.Services.GetRequiredKeyedService<ISubscriber<UserDeletedPayload, UserDeleted>>(
+            $"{MultiFamilyTopicName}/{OrganizationsSubscription}");
+
+        await createdPublisher.Publish(new UserCreated(userId1, email)).SendAsync(TestContext.Current.CancellationToken);
+        await deletedPublisher.Publish(new UserDeleted(userId2, reason)).SendAsync(TestContext.Current.CancellationToken);
+
+        await foreach (var envelope in vault.SubscribeAsync(TestContext.Current.CancellationToken))
+        {
+            Assert.Equal(userId1, envelope.Payload.UserId);
+            Assert.Equal(email, envelope.Payload.Email);
+            await envelope.CompleteAsync(TestContext.Current.CancellationToken);
+            break;
+        }
+        await foreach (var envelope in organizations.SubscribeAsync(TestContext.Current.CancellationToken))
+        {
+            Assert.Equal(userId2, envelope.Payload.UserId);
+            Assert.Equal(reason, envelope.Payload.Reason);
+            await envelope.CompleteAsync(TestContext.Current.CancellationToken);
+            break;
+        }
     }
 }
