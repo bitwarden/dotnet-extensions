@@ -6,7 +6,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>An in-memory fan-out topic that delivers each message to every registered subscriber channel.</summary>
 internal sealed class ChannelTopic<TPayload, TCeiling> : IHostedService
-    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
+    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
 {
     private readonly string _topicName;
@@ -35,7 +35,7 @@ internal sealed class ChannelTopic<TPayload, TCeiling> : IHostedService
             if (reg.TopicName == topicName)
                 reg.RegisterWith(this);
 
-        metrics.RegisterQueueDepthProvider(topicName, () => _subscribers.Values.Sum(s => (long)s.Channel.Reader.Count));
+        metrics.RegisterQueueDepthProvider(topicName, TPayload.WireName, () => _subscribers.Values.Sum(s => (long)s.Channel.Reader.Count));
     }
 
     public Channel<Envelope<TPayload, TCeiling>> GetOrAddSubscription(string subscriptionName)

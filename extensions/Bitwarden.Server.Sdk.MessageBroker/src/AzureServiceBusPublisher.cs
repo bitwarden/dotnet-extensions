@@ -1,11 +1,10 @@
 using System.Buffers;
-using System.Diagnostics;
 using Azure.Messaging.ServiceBus;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
 internal sealed class AzureServiceBusPublisher<TPayload, TCeiling> : Publisher<TPayload, TCeiling>, IAsyncDisposable
-    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
+    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
 {
     private readonly string _topicName;
@@ -25,9 +24,8 @@ internal sealed class AzureServiceBusPublisher<TPayload, TCeiling> : Publisher<T
         IReadOnlyList<Payload<TPayload>.IVariant> variants,
         CancellationToken cancellationToken)
     {
-        using var activity = MessageBrokerActivitySource.Source.StartActivity(
-            $"{_topicName} publish", ActivityKind.Producer);
-        _metrics.RecordPublish(_topicName);
+        using var activity = MessageBrokerActivitySource.StartProducerActivity(_topicName, TPayload.WireName);
+        _metrics.RecordPublish(_topicName, TPayload.WireName);
         var buffer = new ArrayBufferWriter<byte>();
         _serializer.SerializeVariants<TPayload>(variants, buffer);
         var sbMessage = new ServiceBusMessage(buffer.WrittenMemory)

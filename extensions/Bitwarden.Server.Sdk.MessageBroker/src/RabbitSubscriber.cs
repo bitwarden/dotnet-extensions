@@ -8,7 +8,7 @@ using RabbitMQ.Client.Events;
 namespace Microsoft.Extensions.DependencyInjection;
 
 internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>
-    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
+    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
 {
     private readonly string _exchangeName;
@@ -65,7 +65,7 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
             var deliveryCount = ea.BasicProperties.Headers?.TryGetValue("x-delivery-count", out var dc) == true && dc is long count
                 ? (int)count + 1
                 : ea.Redelivered ? 2 : 1;
-            var activity = MessageBrokerActivitySource.StartConsumerActivity(_exchangeName, traceId);
+            var activity = MessageBrokerActivitySource.StartConsumerActivity(_exchangeName, TPayload.WireName, traceId);
 
             RabbitEnvelope envelope;
             try
@@ -103,7 +103,7 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
 
         await foreach (var envelope in innerChannel.Reader.ReadAllAsync(cancellationToken))
         {
-            _metrics.RecordConsume(_exchangeName, envelope.ConsumedVariantWireName);
+            _metrics.RecordConsume(_exchangeName, TPayload.WireName, envelope.ConsumedVariantWireName);
             yield return envelope;
         }
 

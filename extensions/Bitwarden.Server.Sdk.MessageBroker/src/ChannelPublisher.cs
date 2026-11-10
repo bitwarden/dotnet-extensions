@@ -1,10 +1,9 @@
-using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
 internal sealed class ChannelPublisher<TPayload, TCeiling> : Publisher<TPayload, TCeiling>
-    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
+    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
 {
     private readonly ChannelTopic<TPayload, TCeiling> _topic;
@@ -31,15 +30,14 @@ internal sealed class ChannelPublisher<TPayload, TCeiling> : Publisher<TPayload,
         IReadOnlyList<Payload<TPayload>.IVariant> variants,
         CancellationToken cancellationToken)
     {
-        using var activity = MessageBrokerActivitySource.Source.StartActivity(
-            $"{_topicName} publish", ActivityKind.Producer);
-        _metrics.RecordPublish(_topicName);
+        using var activity = MessageBrokerActivitySource.StartProducerActivity(_topicName, TPayload.WireName);
+        _metrics.RecordPublish(_topicName, TPayload.WireName);
         var messageId = Guid.NewGuid().ToString();
         var traceId = activity?.Id;
         await _topic.WriteAsync(
             (writer, escrowFallback) =>
             {
-                var consumerActivity = MessageBrokerActivitySource.StartConsumerActivity(_topicName, traceId);
+                var consumerActivity = MessageBrokerActivitySource.StartConsumerActivity(_topicName, TPayload.WireName, traceId);
                 return new ChannelEnvelope<TPayload, TCeiling>(writer, escrowFallback, variants, messageId, traceId,
                     deliveryCount: 1, _maxDeliveryCount, _logger, _topicName, consumerActivity);
             },
