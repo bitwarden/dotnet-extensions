@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.WriteSpans.Abstractions.Tests;
+namespace Bitwarden.Server.Sdk.Sagas.Tests;
 
 // A guard that remembers each time it is told, and refuses by throwing when asked to.
 internal sealed class RecordingGuard : IServiceWritesGuard

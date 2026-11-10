@@ -12,7 +12,7 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <Description>The writes an operation sends to other services, and how an operation whose writes span services handles a failure part way, shared by Bitwarden services and their callers.</Description>
+    <Description>Notices a saga, a business operation whose writes span Bitwarden services with no transaction around it, and carries how the operation handles a failure part way.</Description>
   </PropertyGroup>
 
 </Project>

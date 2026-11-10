@@ -1,6 +1,6 @@
 using System.Runtime.ExceptionServices;
 
-namespace Bitwarden.Server.Sdk.WriteSpans;
+namespace Bitwarden.Server.Sdk.Sagas;
 
 /// <summary>
 /// One operation's writes, as <see cref="ServiceWrites"/> counts them.

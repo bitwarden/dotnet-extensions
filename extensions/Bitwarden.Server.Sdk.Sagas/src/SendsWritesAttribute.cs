@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.WriteSpans;
+namespace Bitwarden.Server.Sdk.Sagas;
 
 /// <summary>
 /// Says whether a service client's method sends a write, where its name says otherwise.

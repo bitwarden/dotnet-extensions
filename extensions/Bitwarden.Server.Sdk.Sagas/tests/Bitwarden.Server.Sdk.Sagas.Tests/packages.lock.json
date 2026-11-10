@@ -142,7 +142,7 @@
           "xunit.v3.runner.common": "[3.2.2]"
         }
       },
-      "bitwarden.server.sdk.writespans.abstractions": {
+      "bitwarden.server.sdk.sagas": {
         "type": "Project"
       }
     }

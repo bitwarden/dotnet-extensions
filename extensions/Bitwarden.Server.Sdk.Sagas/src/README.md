@@ -1,12 +1,16 @@
-# Bitwarden.Server.Sdk.WriteSpans.Abstractions
+# Bitwarden.Server.Sdk.Sagas
 
-Notice an operation whose writes span services, and say how it handles a failure part way.
+Notice a saga, and make the operation that runs it say how it handles a failure part way.
 
-Each Bitwarden service has a store of its own, so no transaction surrounds an operation that writes in two of them. An
-operation (an endpoint, a message handler or a job) that makes two or more writes, at least one of them to another
-service called synchronously, has to say how it survives a failure between those writes. Two writes to the same other
-service count too: a failure between them leaves that service half done. This package
-counts an operation's writes and carries that declaration.
+Each Bitwarden service has a store of its own, so no transaction spans services. A business operation whose writes
+span services, with no transaction around it, is a saga: an operation (an endpoint, a message handler or a job) that
+makes two or more writes, at least one of them to another service called synchronously. A failure between those writes
+leaves the operation part way done, so the operation has to say how it handles that. Two writes to the same other
+service count too: a failure between them leaves that service half done.
+
+This package notices a saga and makes its operation declare how it handles a failure part way. It counts an operation's
+writes and carries that declaration. It does not run or orchestrate sagas: the operation's own code makes each write,
+in the order and with the undo it declares.
 
 - **The count.** `ServiceWrites.Begin(operation, declared, guard)` starts counting the writes of the operation running
   now. `ServiceWrites.Outgoing(service, idempotencyKey)` records a write sent to another service, once per key, and
@@ -33,11 +37,11 @@ writes they make. The package has no dependencies.
 ```bash
 dotnet new console -n CountedWrites
 cd CountedWrites
-dotnet add package Bitwarden.Server.Sdk.WriteSpans.Abstractions --prerelease
+dotnet add package Bitwarden.Server.Sdk.Sagas --prerelease
 ```
 
 ```csharp
-using Bitwarden.Server.Sdk.WriteSpans;
+using Bitwarden.Server.Sdk.Sagas;
 
 using (var operation = ServiceWrites.Begin("invite-member", declared: null, guard: new PrintingGuard()))
 {
@@ -64,7 +68,7 @@ handler and job, and have its clients and data layer report their writes.
 ### Declare how an operation handles a failure part way
 
 ```csharp
-using Bitwarden.Server.Sdk.WriteSpans;
+using Bitwarden.Server.Sdk.Sagas;
 
 public static class MemberEndpoints
 {
@@ -77,12 +81,12 @@ public static class MemberEndpoints
 }
 ```
 
-| Shape              | The operation                                                                                          |
-| ------------------ | ------------------------------------------------------------------------------------------------------ |
-| `Compensated`      | has an undo for each write already made, run newest first when a later one fails                       |
-| `IrreversibleLast` | makes the step it can't undo (a payment, a cancellation, a mail) after every check and every other one |
-| `RetrySafeByState` | writes whole values in an order that lets the same request, or the same message again, finish it       |
-| `StageThenCommit`  | has each service stage its part, then one commit makes them take effect, rolling forward after it      |
+| Shape              | In saga terms                              | The operation                                                                                          |
+| ------------------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `Compensated`      | Compensatable steps                        | has an undo for each write already made, run newest first when a later one fails                       |
+| `IrreversibleLast` | The pivot step                             | makes the step it can't undo (a payment, a cancellation, a mail) after every check and every other one |
+| `RetrySafeByState` | Retriable steps                            | writes whole values in an order that lets the same request, or the same message again, finish it       |
+| `StageThenCommit`  | Stage, then commit (like two-phase commit) | has each service stage its part, then one commit makes them take effect, rolling forward after it      |
 
 - `[SpansServices]` goes on an endpoint's handler method, or on a message handler's, outbox handler's or job's class.
 - Choose the shape the code really implements, and say how in the reason. The reason is required.
@@ -91,7 +95,7 @@ public static class MemberEndpoints
 ### Admit an operation that doesn't handle it yet
 
 ```csharp
-using Bitwarden.Server.Sdk.WriteSpans;
+using Bitwarden.Server.Sdk.Sagas;
 
 [SpansServicesUnhandled("A failure after the seats are bought leaves them bought with no member; tracked as a defect.")]
 public sealed class SeatPurchaseHandler
@@ -109,7 +113,7 @@ name: `Get`, `List`, `Check`, `Find` and the other reading verbs read, and anyth
 misleads says what it does:
 
 ```csharp
-using Bitwarden.Server.Sdk.WriteSpans;
+using Bitwarden.Server.Sdk.Sagas;
 
 public interface IAccountCalls
 {
@@ -133,11 +137,11 @@ that provides it.
 ## Contributing
 
 Every source file with logic has a matching test class in
-[`tests/Bitwarden.Server.Sdk.WriteSpans.Abstractions.Tests`](../tests/Bitwarden.Server.Sdk.WriteSpans.Abstractions.Tests).
+[`tests/Bitwarden.Server.Sdk.Sagas.Tests`](../tests/Bitwarden.Server.Sdk.Sagas.Tests).
 Run them from the repository root:
 
 ```bash
-dotnet test --project extensions/Bitwarden.Server.Sdk.WriteSpans.Abstractions/tests/Bitwarden.Server.Sdk.WriteSpans.Abstractions.Tests
+dotnet test --project extensions/Bitwarden.Server.Sdk.Sagas/tests/Bitwarden.Server.Sdk.Sagas.Tests
 ```
 
 A change must keep:

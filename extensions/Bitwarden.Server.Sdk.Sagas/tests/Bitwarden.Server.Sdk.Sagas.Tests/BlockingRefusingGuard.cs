@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.WriteSpans.Abstractions.Tests;
+namespace Bitwarden.Server.Sdk.Sagas.Tests;
 
 // A guard that, once told, waits until released and then refuses, so a test can make a write while it decides.
 internal sealed class BlockingRefusingGuard : IServiceWritesGuard

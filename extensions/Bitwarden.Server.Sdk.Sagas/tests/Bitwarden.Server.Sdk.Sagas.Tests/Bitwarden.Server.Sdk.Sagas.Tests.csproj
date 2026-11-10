@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.WriteSpans.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.Sagas.csproj" />
   </ItemGroup>
 
 </Project>

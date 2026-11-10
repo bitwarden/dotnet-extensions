@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.WriteSpans.Abstractions.Tests;
+namespace Bitwarden.Server.Sdk.Sagas.Tests;
 
 public sealed class SpansServicesAttributeTests
 {

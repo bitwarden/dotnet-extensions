@@ -1,10 +1,12 @@
-# Bitwarden.Server.Sdk.WriteSpans.Abstractions
+# Bitwarden.Server.Sdk.Sagas
 
 ## About
 
-Counts the writes of the operation running now, so one that makes two or more writes, at least one of them to another
-Bitwarden service called synchronously, is noticed before the write that makes it so. The operation says how it handles
-a failure part way with `[SpansServices]`.
+A business operation whose writes span Bitwarden services, with no transaction around it, is a saga: no transaction
+spans services, so a failure between its writes leaves it part way done. This package notices a saga and makes the
+operation declare how it handles a failure part way, with `[SpansServices]`. It counts the writes of the operation
+running now, so one that makes two or more writes, at least one of them to another service called synchronously, is
+noticed before the write that makes it so. It does not run or orchestrate sagas.
 
 It has no dependencies. A host begins an operation around each endpoint, message handler and job, its clients and data
 layer report the writes they make, and it provides the guard that decides what an undeclared span means.
@@ -12,7 +14,7 @@ layer report the writes they make, and it provides the guard that decides what a
 ## Installing
 
 ```bash
-dotnet add package Bitwarden.Server.Sdk.WriteSpans.Abstractions
+dotnet add package Bitwarden.Server.Sdk.Sagas
 ```
 
 ## Configuration
@@ -24,7 +26,7 @@ The package reads no settings.
 Declare how an operation that writes in two services handles a failure between those writes:
 
 ```csharp
-using Bitwarden.Server.Sdk.WriteSpans;
+using Bitwarden.Server.Sdk.Sagas;
 
 public static class MemberEndpoints
 {
@@ -38,7 +40,7 @@ public static class MemberEndpoints
 ```
 
 See the
-[README](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.WriteSpans.Abstractions/src/README.md)
+[README](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Sagas/src/README.md)
 for a complete program.
 
 ## Documentation
@@ -58,12 +60,12 @@ for a complete program.
 
 ### Shapes
 
-| Shape              | The operation                                                                                          |
-| ------------------ | ------------------------------------------------------------------------------------------------------ |
-| `Compensated`      | has an undo for each write already made, run newest first when a later one fails                       |
-| `IrreversibleLast` | makes the step it can't undo (a payment, a cancellation, a mail) after every check and every other one |
-| `RetrySafeByState` | writes whole values in an order that lets the same request, or the same message again, finish it       |
-| `StageThenCommit`  | has each service stage its part, then one commit makes them take effect, rolling forward after it      |
+| Shape              | In saga terms                              | The operation                                                                                          |
+| ------------------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `Compensated`      | Compensatable steps                        | has an undo for each write already made, run newest first when a later one fails                       |
+| `IrreversibleLast` | The pivot step                             | makes the step it can't undo (a payment, a cancellation, a mail) after every check and every other one |
+| `RetrySafeByState` | Retriable steps                            | writes whole values in an order that lets the same request, or the same message again, finish it       |
+| `StageThenCommit`  | Stage, then commit (like two-phase commit) | has each service stage its part, then one commit makes them take effect, rolling forward after it      |
 
 An operation with no handling yet admits it with `[SpansServicesUnhandled(reason)]`, never a shape it doesn't
 implement.
