@@ -19,6 +19,7 @@ on:
           - Bitwarden.Server.Sdk.Errors
           - Bitwarden.Server.Sdk.Features
           - Bitwarden.Server.Sdk.HealthChecks
+          - Bitwarden.Server.Sdk.Idempotency.Abstractions
           - Bitwarden.Server.Sdk.Infrastructure
           - Bitwarden.Server.Sdk.Infrastructure.Testing
           - Bitwarden.Server.Sdk.MessageBroker
