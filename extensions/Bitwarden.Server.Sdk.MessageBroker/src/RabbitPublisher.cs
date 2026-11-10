@@ -1,12 +1,11 @@
 using System.Buffers;
-using System.Diagnostics;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
 internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, TCeiling>, IAsyncDisposable
-    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
+    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
 {
     private readonly string _exchangeName;
@@ -35,9 +34,8 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
         IReadOnlyList<Payload<TPayload>.IVariant> variants,
         CancellationToken cancellationToken)
     {
-        using var activity = MessageBrokerActivitySource.Source.StartActivity(
-            $"{_exchangeName} publish", ActivityKind.Producer);
-        _metrics.RecordPublish(_exchangeName);
+        using var activity = MessageBrokerActivitySource.StartProducerActivity(_exchangeName, TPayload.WireName);
+        _metrics.RecordPublish(_exchangeName, TPayload.WireName);
         try
         {
             var channel = await _channel;

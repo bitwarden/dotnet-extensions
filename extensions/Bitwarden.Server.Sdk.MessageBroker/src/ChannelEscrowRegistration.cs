@@ -14,7 +14,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// for the in-memory channel backend; no-ops when Azure Service Bus or RabbitMQ is configured.
 /// </summary>
 internal sealed class ChannelEscrowRegistration<TPayload, TCeiling>
-    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
+    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
 {
     private readonly string _subscriptionName;

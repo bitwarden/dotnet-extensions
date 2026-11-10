@@ -526,6 +526,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         var measurement = Assert.Single(collector.GetMeasurementSnapshot());
         Assert.Equal(1, measurement.Value);
         Assert.Equal(TopicName, measurement.Tags["messaging.destination.name"]);
+        Assert.Equal(MyItemPayload.WireName, measurement.Tags["messaging.payload.family"]);
     }
 
     [Fact(Timeout = 60 * 1000)]
@@ -553,6 +554,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         var measurement = Assert.Single(collector.GetMeasurementSnapshot());
         Assert.Equal(1, measurement.Value);
         Assert.Equal(TopicName, measurement.Tags["messaging.destination.name"]);
+        Assert.Equal(MyItemPayload.WireName, measurement.Tags["messaging.payload.family"]);
         Assert.Equal(nameof(MyItem), measurement.Tags["messaging.variant.name"]);
     }
 

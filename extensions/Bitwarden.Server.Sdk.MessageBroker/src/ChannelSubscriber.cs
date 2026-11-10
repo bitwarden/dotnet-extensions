@@ -4,7 +4,7 @@ using System.Threading.Channels;
 namespace Microsoft.Extensions.DependencyInjection;
 
 internal sealed class ChannelSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>
-    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
+    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
 {
     private readonly ChannelReader<Envelope<TPayload, TCeiling>> _reader;
@@ -23,7 +23,7 @@ internal sealed class ChannelSubscriber<TPayload, TCeiling> : ISubscriber<TPaylo
     {
         await foreach (var item in _reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
         {
-            _metrics.RecordConsume(_topicName, item.ConsumedVariantWireName);
+            _metrics.RecordConsume(_topicName, TPayload.WireName, item.ConsumedVariantWireName);
             yield return item;
         }
     }

@@ -5,7 +5,7 @@ using Azure.Messaging.ServiceBus;
 namespace Microsoft.Extensions.DependencyInjection;
 
 internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>
-    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
+    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
 {
     private readonly string _topicName;
@@ -73,7 +73,7 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
                 }
 
                 var traceId = sbMessage.ApplicationProperties.TryGetValue("traceparent", out var tp) ? tp as string : null;
-                var activity = MessageBrokerActivitySource.StartConsumerActivity(_topicName, traceId);
+                var activity = MessageBrokerActivitySource.StartConsumerActivity(_topicName, TPayload.WireName, traceId);
 
                 AzureServiceBusEnvelope envelope;
                 try
@@ -88,7 +88,7 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
                     continue;
                 }
 
-                _metrics.RecordConsume(_topicName, envelope.ConsumedVariantWireName);
+                _metrics.RecordConsume(_topicName, TPayload.WireName, envelope.ConsumedVariantWireName);
                 yield return envelope;
             }
         }
