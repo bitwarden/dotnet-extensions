@@ -29,6 +29,71 @@ public sealed class RetryHandlerTests
         Assert.All(callee.Attempts, attempt => Assert.Equal("""{"note":"n"}""", attempt.Body));
     }
 
+    // A write without a key (its operation doesn't accept one) goes again only when its connection never opened, so
+    // it can't have arrived.
+    [Fact]
+    public async Task AnUnkeyedWrite_WhoseConnectionNeverOpened_IsRetried()
+    {
+        var callee = new Scripted(NeverOpened, Ok);
+        await using var services = Services(callee);
+
+        using var response = await services.GetRequiredService<Probe>().SendAsync(HttpMethod.Put, Token, address: "settings/1");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(2, callee.Attempts.Count);
+        Assert.All(callee.Attempts, attempt => Assert.Null(attempt.Key));
+    }
+
+    // Cut off, or answered by a proxy, the write may have arrived: sent once.
+    [Theory]
+    [InlineData(HttpRequestError.ResponseEnded)]
+    [InlineData(HttpRequestError.HttpProtocolError)]
+    [InlineData(HttpRequestError.ConnectionError)]
+    public async Task AnUnkeyedWrite_ThatMayHaveArrived_IsNotRetried(HttpRequestError error)
+    {
+        var callee = new Scripted(_ => throw new HttpRequestException(error, "cut off"), Ok);
+        await using var services = Services(callee);
+
+        await Assert.ThrowsAnyAsync<Exception>(
+            () => services.GetRequiredService<Probe>().SendAsync(HttpMethod.Put, Token, address: "settings/1"));
+
+        Assert.Single(callee.Attempts);
+    }
+
+    [Fact]
+    public async Task AnUnkeyedWrite_AnsweredUnavailableFromInFrontOfTheCallee_IsNotRetried()
+    {
+        var callee = new Scripted(BareStatus(HttpStatusCode.BadGateway), Ok);
+        await using var services = Services(callee);
+
+        await Assert.ThrowsAnyAsync<Exception>(
+            () => services.GetRequiredService<Probe>().SendAsync(HttpMethod.Put, Token, address: "settings/1"));
+
+        Assert.Single(callee.Attempts);
+    }
+
+    [Theory]
+    [InlineData(System.Net.Sockets.SocketError.ConnectionRefused, true)]
+    [InlineData(System.Net.Sockets.SocketError.HostUnreachable, true)]
+    [InlineData(System.Net.Sockets.SocketError.NetworkUnreachable, true)]
+    [InlineData(System.Net.Sockets.SocketError.HostNotFound, true)]
+    [InlineData(System.Net.Sockets.SocketError.ConnectionReset, false)]
+    [InlineData(System.Net.Sockets.SocketError.TimedOut, false)]
+    public void NeverSent_AConnectionError_OnlyWhenItNeverOpened(System.Net.Sockets.SocketError socket, bool expected) =>
+        Assert.Equal(
+            expected,
+            Transient.NeverSent(new HttpRequestException(
+                HttpRequestError.ConnectionError, "failed", new System.Net.Sockets.SocketException((int)socket))));
+
+    [Theory]
+    [InlineData(HttpRequestError.NameResolutionError, true)]
+    [InlineData(HttpRequestError.ProxyTunnelError, true)]
+    [InlineData(HttpRequestError.ConnectionError, false)]
+    [InlineData(HttpRequestError.ResponseEnded, false)]
+    [InlineData(HttpRequestError.SecureConnectionError, false)]
+    public void NeverSent_ByTheError(HttpRequestError error, bool expected) =>
+        Assert.Equal(expected, Transient.NeverSent(new HttpRequestException(error, "failed")));
+
     [Theory]
     [InlineData(HttpStatusCode.BadGateway)]
     [InlineData(HttpStatusCode.ServiceUnavailable)]

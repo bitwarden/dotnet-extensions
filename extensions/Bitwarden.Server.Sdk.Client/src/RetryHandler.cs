@@ -9,7 +9,8 @@ namespace Bitwarden.Server.Sdk.Client;
 /// <para>
 /// Only a call that is safe to send twice: a <c>GET</c> or <c>HEAD</c>, or a write carrying an <c>Idempotency-Key</c>,
 /// which the callee does at most once and answers a repeat of from what it recorded
-/// (<see cref="IdempotencyKeyHandler"/>, which every write passes first).
+/// (<see cref="IdempotencyKeyHandler"/>, which every write passes first). A write without a key is tried again only
+/// when its connection never opened (<see cref="Transient.NeverSent"/>), so it can't have arrived.
 /// </para>
 /// <para>
 /// Waits between attempts double, with jitter (<see cref="BitwardenClientOptions.RetryDelay"/>, then twice it), so
@@ -26,10 +27,12 @@ internal sealed class RetryHandler(int retries, TimeSpan delay, TimeProvider tim
 {
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        if (retries <= 0 || !Repeatable(request))
+        if (retries <= 0)
         {
             return await base.SendAsync(request, cancellationToken);
         }
+
+        var repeatable = Repeatable(request);
 
         // Sent more than once, so read once: content that streams (JsonContent) is serialized again on each send,
         // which a buffer makes the same bytes every time.
@@ -46,7 +49,7 @@ internal sealed class RetryHandler(int retries, TimeSpan delay, TimeProvider tim
             {
                 response = await base.SendAsync(request, cancellationToken);
             }
-            catch (HttpRequestException failure) when (attempt < retries && Transient.Is(failure))
+            catch (HttpRequestException failure) when (attempt < retries && (repeatable ? Transient.Is(failure) : Transient.NeverSent(failure)))
             {
                 await WaitAsync(attempt, cancellationToken);
                 continue;
@@ -54,7 +57,7 @@ internal sealed class RetryHandler(int retries, TimeSpan delay, TimeProvider tim
 
             var stillRunning = Transient.StillRunning(request, response);
 
-            if (attempt >= retries || !(stillRunning || Transient.Is(response)))
+            if (!repeatable || attempt >= retries || !(stillRunning || Transient.Is(response)))
             {
                 return response;
             }
