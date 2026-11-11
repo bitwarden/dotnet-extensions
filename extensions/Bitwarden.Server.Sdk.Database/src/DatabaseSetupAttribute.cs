@@ -64,8 +64,8 @@ public sealed class DatabaseSetupAttribute<TContext> : Attribute
     /// <summary>
     /// A type implementing <see cref="IDatabaseDesignTimeServices"/> that registers what
     /// <typeparamref name="TContext"/>'s constructor needs beyond its options. The generated
-    /// design-time factories resolve those parameters from it. Not needed when the constructor takes
-    /// only its options.
+    /// design-time factories and the migration executable resolve those parameters from it. Not
+    /// needed when the constructor's other parameters all have defaults.
     /// </summary>
     public Type? DesignTimeServices { get; set; }
 
