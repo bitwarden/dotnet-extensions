@@ -18,8 +18,8 @@
          BuildCompilationAsync picks them up from the test bin directory. The generator emits code for
          the providers a test declares on DatabaseSetup, and each declared provider's package has to
          be referenced, so all four are here for the tests to declare. -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="[9.0.20]" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="[9.0.20]" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="[10.0.14]" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="[10.0.14]" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[9.0.4]" />
     <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="[9.0.0]" />
     <!-- Pomelo 9.0.0 allows 2.4.0, which GHSA-473q-m89c-ghf8 affects; 2.6.1 is the first patched release. -->
