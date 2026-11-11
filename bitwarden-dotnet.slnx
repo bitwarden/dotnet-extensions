@@ -46,6 +46,9 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Errors/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Errors/src/Bitwarden.Server.Sdk.Errors.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Errors/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Errors/tests/Bitwarden.Server.Sdk.Errors.Tests/Bitwarden.Server.Sdk.Errors.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Features/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Features/src/Bitwarden.Server.Sdk.Features.csproj" />
   </Folder>
