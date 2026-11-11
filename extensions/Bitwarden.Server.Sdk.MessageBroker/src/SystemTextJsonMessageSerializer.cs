@@ -50,20 +50,44 @@ internal sealed class SystemTextJsonMessageSerializer : IMessageSerializer
         where TPayload : Payload<TPayload>, IPayloadVariants<TPayload>
     {
         var typeInfo = GetVariantTypeInfo<TPayload>();
+        var knownWireNames = GetKnownWireNames<TPayload>();
 
-        using var doc = JsonDocument.Parse(source.ToArray());
-        if (doc.RootElement.ValueKind != JsonValueKind.Array)
+        var reader = new Utf8JsonReader(source);
+        var document = JsonElement.ParseValue(ref reader);
+        if (document.ValueKind != JsonValueKind.Array)
             throw new JsonException("Expected a JSON array of variants.");
 
+        // Filter on the discriminator before calling Deserialize. The polymorphism options have
+        // IgnoreUnrecognizedTypeDiscriminators set, but STJ's documented fallback in that mode is
+        // to deserialize as the base type — here that is an interface, which the default converter
+        // refuses with NotSupportedException. Checking $type against TPayload.Variants ourselves
+        // keeps the rolling-deploy contract (unknown variants are skipped, known ones succeed)
+        // intact regardless of how STJ decides to handle its own fallback semantics.
         var result = new List<Payload<TPayload>.IVariant>();
-        foreach (var element in doc.RootElement.EnumerateArray())
+        foreach (var element in document.EnumerateArray())
         {
-            // A null result means the wire's $type discriminator is not in TPayload.Variants —
-            // a publisher sent a variant this subscriber has not been rebuilt against.
-            var variant = element.Deserialize(typeInfo);
-            if (variant is not null) result.Add(variant);
+            if (!element.TryGetProperty("$type", out var discriminator)
+                || discriminator.ValueKind != JsonValueKind.String
+                || !knownWireNames.Contains(discriminator.GetString()!))
+            {
+                continue;
+            }
+            if (element.Deserialize(typeInfo) is { } variant) result.Add(variant);
         }
         return result;
+    }
+
+    private static HashSet<string> GetKnownWireNames<TPayload>()
+        where TPayload : Payload<TPayload>, IPayloadVariants<TPayload>
+        => KnownWireNamesCache<TPayload>.Set;
+
+    // One hash set per closed TPayload. TPayload.Variants is enumerated once per process at
+    // first use instead of per deserialization call.
+    private static class KnownWireNamesCache<TPayload>
+        where TPayload : Payload<TPayload>, IPayloadVariants<TPayload>
+    {
+        internal static readonly HashSet<string> Set =
+            [.. TPayload.Variants.Select(v => v.WireName)];
     }
 
     private JsonTypeInfo<Payload<TPayload>.IVariant> GetVariantTypeInfo<TPayload>()
