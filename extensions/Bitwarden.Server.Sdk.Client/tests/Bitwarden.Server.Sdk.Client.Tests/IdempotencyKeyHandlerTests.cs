@@ -5,7 +5,8 @@ using static Bitwarden.Server.Sdk.Client.Tests.PipelineHarness;
 namespace Bitwarden.Server.Sdk.Client.Tests;
 
 /// <summary>
-/// Every write a client sends carries an idempotency key, the same one on every attempt.
+/// A write to an operation the callee's contract marks as accepting keys carries one, the same on every attempt; any
+/// other write carries none.
 /// </summary>
 public sealed class IdempotencyKeyHandlerTests
 {
@@ -28,6 +29,18 @@ public sealed class IdempotencyKeyHandlerTests
         var keys = callee.Attempts.Select(attempt => attempt.Key).ToList();
         Assert.All(keys, key => Assert.True(Guid.TryParse(key, out _)));
         Assert.NotEqual(keys[0], keys[1]);
+    }
+
+    // The test contract (openapi.json, embedded as a client package embeds its service's) leaves settings/{id} unmarked.
+    [Fact]
+    public async Task AWriteToAnOperationTheContractDoesNotMark_CarriesNoKey()
+    {
+        var callee = new Scripted(Ok);
+        await using var services = Services(callee);
+
+        using var response = await services.GetRequiredService<Probe>().SendAsync(HttpMethod.Put, Token, address: "settings/1");
+
+        Assert.Null(Assert.Single(callee.Attempts).Key);
     }
 
     [Theory]
