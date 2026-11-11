@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.Data;
 
 /// <summary>
 /// Declares that a resource's attribute is personal data about an identifiable person, such as a

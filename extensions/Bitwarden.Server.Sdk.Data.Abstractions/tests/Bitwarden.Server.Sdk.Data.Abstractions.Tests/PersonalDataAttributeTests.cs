@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace Bitwarden.Server.Sdk.Common.Tests;
+namespace Bitwarden.Server.Sdk.Data.Abstractions.Tests;
 
 public sealed class PersonalDataAttributeTests
 {

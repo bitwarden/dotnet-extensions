@@ -12,12 +12,20 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <Description>Vocabulary shared by Bitwarden services and the clients that call them.</Description>
+    <Description>Data classification and row ownership shared by a Bitwarden service's model and its data layer.</Description>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.14" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Context\src\Bitwarden.Server.Sdk.Context.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Errors\src\Bitwarden.Server.Sdk.Errors.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Data.Abstractions.Tests" />
   </ItemGroup>
 
 </Project>

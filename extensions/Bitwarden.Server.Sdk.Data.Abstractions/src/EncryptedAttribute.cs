@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.Data;
 
 /// <summary>
 /// Declares that a string member holds Protected Data, ciphertext that only a client can read, and

@@ -13,8 +13,8 @@ on:
           - Bitwarden.Server.Sdk
           - Bitwarden.Server.Sdk.Authentication
           - Bitwarden.Server.Sdk.Caching
-          - Bitwarden.Server.Sdk.Common
           - Bitwarden.Server.Sdk.Context
+          - Bitwarden.Server.Sdk.Data.Abstractions
           - Bitwarden.Server.Sdk.Environment
           - Bitwarden.Server.Sdk.Errors
           - Bitwarden.Server.Sdk.Features

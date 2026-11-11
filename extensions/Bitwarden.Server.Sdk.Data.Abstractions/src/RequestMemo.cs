@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.Data;
 
 /// <summary>
 /// Facts about the acting person, read once in a request and remembered until it ends.

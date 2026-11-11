@@ -1,4 +1,4 @@
-using Bitwarden.Server.Sdk.Common;
+using Bitwarden.Server.Sdk.Data;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;

@@ -1,6 +1,6 @@
 using System.Buffers.Text;
 
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.Data;
 
 /// <summary>
 /// Whether a string is shaped like an encrypted string: a known encryption type, the pieces that type

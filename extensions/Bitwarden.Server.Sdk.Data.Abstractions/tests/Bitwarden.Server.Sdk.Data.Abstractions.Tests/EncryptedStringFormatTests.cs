@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Common.Tests;
+namespace Bitwarden.Server.Sdk.Data.Abstractions.Tests;
 
 /// <summary>
 /// <see cref="EncryptedStringFormat.IsWellFormed"/> gives the Bitwarden server's verdict on every string below:

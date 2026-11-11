@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Bitwarden.Server.Sdk.Common.Tests;
+namespace Bitwarden.Server.Sdk.Data.Abstractions.Tests;
 
 /// <summary>
 /// <see cref="EncryptedAttribute"/> holds a value to its length bound, and, when <c>WellFormed</c> is set, to an
