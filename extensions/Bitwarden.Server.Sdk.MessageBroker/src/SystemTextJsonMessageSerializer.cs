@@ -62,16 +62,17 @@ internal sealed class SystemTextJsonMessageSerializer : IMessageSerializer
         // to deserialize as the base type — here that is an interface, which the default converter
         // refuses with NotSupportedException. Checking $type against TPayload.Variants ourselves
         // keeps the rolling-deploy contract (unknown variants are skipped, known ones succeed)
-        // intact regardless of how STJ decides to handle its own fallback semantics.
+        // intact regardless of how STJ decides to handle its own fallback semantics. A missing or
+        // non-string $type is malformation, not forward-compat drift, so it throws.
         var result = new List<Payload<TPayload>.IVariant>();
         foreach (var element in document.EnumerateArray())
         {
-            if (!element.TryGetProperty("$type", out var discriminator)
-                || discriminator.ValueKind != JsonValueKind.String
-                || !knownWireNames.Contains(discriminator.GetString()!))
-            {
+            if (!element.TryGetProperty("$type", out var discriminator))
+                throw new JsonException("Variant entry is missing the '$type' discriminator.");
+            if (discriminator.ValueKind != JsonValueKind.String)
+                throw new JsonException("The '$type' discriminator must be a string.");
+            if (!knownWireNames.Contains(discriminator.GetString()!))
                 continue;
-            }
             if (element.Deserialize(typeInfo) is { } variant) result.Add(variant);
         }
         return result;

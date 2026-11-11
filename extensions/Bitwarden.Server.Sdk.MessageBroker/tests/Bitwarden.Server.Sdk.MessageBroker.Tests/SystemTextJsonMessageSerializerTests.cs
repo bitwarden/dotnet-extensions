@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
@@ -52,6 +53,37 @@ public class SystemTextJsonMessageSerializerTests
         var result = serializer.DeserializeVariants<VersionedPayload>(Encoding.UTF8.GetBytes(wire));
 
         Assert.Empty(result);
+    }
+
+    [Fact]
+    public void DeserializeVariants_ThrowsWhenDiscriminatorIsMissing()
+    {
+        var serializer = BuildSerializer();
+
+        var wire = """
+            [
+                {"$type":"v1"},
+                {"UnrelatedField":"oops"}
+            ]
+            """;
+
+        Assert.Throws<JsonException>(() =>
+            serializer.DeserializeVariants<VersionedPayload>(Encoding.UTF8.GetBytes(wire)));
+    }
+
+    [Fact]
+    public void DeserializeVariants_ThrowsWhenDiscriminatorIsNotAString()
+    {
+        var serializer = BuildSerializer();
+
+        var wire = """
+            [
+                {"$type":42}
+            ]
+            """;
+
+        Assert.Throws<JsonException>(() =>
+            serializer.DeserializeVariants<VersionedPayload>(Encoding.UTF8.GetBytes(wire)));
     }
 
     [Fact]
