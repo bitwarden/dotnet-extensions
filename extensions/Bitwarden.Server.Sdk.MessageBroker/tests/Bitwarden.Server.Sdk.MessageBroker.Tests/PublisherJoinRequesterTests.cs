@@ -25,7 +25,7 @@ public class PublisherJoinRequesterTests
         await using var harness = TestHarness.Build(reply: _ => new NegotiationAck
         {
             Go = false,
-            Offenders = [new NegotiationIncompatibility { InstanceId = "downstream-blocker", WireNames = new HashSet<string> { "v99" } }],
+            Offenders = [new NegotiationIncompatibility { InstanceId = "downstream-blocker", FamilyWireName = MyItemPayload.WireName, WireNames = new HashSet<string> { "v99" } }],
         });
         harness.RegisterPublisher(Topic);
 
@@ -117,6 +117,35 @@ public class PublisherJoinRequesterTests
     }
 
     [Fact]
+    public async Task TwoFamiliesOnOneTopicSendOneJoinAndOneLeavePerFamily()
+    {
+        // The topic-per-service model: one topic carries multiple payload families. The
+        // requester must emit one PublisherJoin per (topic, family) marker — each independently
+        // admitted — and one PublisherLeave per family on shutdown. A single-family-per-topic
+        // implementation would collapse both to one Join / Leave.
+        await using var harness = TestHarness.Build(reply: _ => new NegotiationAck { Go = true });
+        harness.RegisterTwoFamiliesOnOneTopic(Topic);
+
+        var requester = harness.Requester;
+        await requester.StartingAsync(TestContext.Current.CancellationToken);
+        await requester.StopAsync(TestContext.Current.CancellationToken);
+
+        await harness.WaitForLeavesAsync(count: 2);
+
+        var joins = harness.ObservedPublisherJoins;
+        Assert.Equal(2, joins.Count);
+        Assert.All(joins, j => Assert.Equal(Topic, j.DataTopic));
+        Assert.Contains(joins, j => j.FamilyWireName == UserCreatedPayload.WireName);
+        Assert.Contains(joins, j => j.FamilyWireName == UserDeletedPayload.WireName);
+
+        var leaves = harness.ObservedPublisherLeaves;
+        Assert.Equal(2, leaves.Count);
+        Assert.All(leaves, l => Assert.Equal(Topic, l.DataTopic));
+        Assert.Contains(leaves, l => l.FamilyWireName == UserCreatedPayload.WireName);
+        Assert.Contains(leaves, l => l.FamilyWireName == UserDeletedPayload.WireName);
+    }
+
+    [Fact]
     public async Task StopAsyncSendsPublisherLeaveForEachAdmittedMarker()
     {
         await using var harness = TestHarness.Build(reply: _ => new NegotiationAck { Go = true });
@@ -150,6 +179,7 @@ public class PublisherJoinRequesterTests
         private Task? _listenerRunTask;
         private readonly CapturingLoggerProvider _loggerProvider = new();
         private int _observedJoinCount;
+        private readonly List<PublisherJoin> _observedPublisherJoins = [];
         private readonly List<PublisherLeave> _observedPublisherLeaves = [];
         private ServiceProvider? _provider;
 
@@ -204,6 +234,8 @@ public class PublisherJoinRequesterTests
                         {
                             case JoinRequest jr:
                                 Interlocked.Increment(ref harness._observedJoinCount);
+                                lock (harness._observedPublisherJoins)
+                                    harness._observedPublisherJoins.Add(jr.Join);
                                 NegotiationAck ack;
                                 try { ack = reply(jr.Join); }
                                 catch
@@ -233,6 +265,17 @@ public class PublisherJoinRequesterTests
 
         public void RegisterPublisher(string topic)
             => _services.AddPublisher<MyItemPayload, MyItem>(topic);
+
+        public void RegisterTwoFamiliesOnOneTopic(string topic)
+        {
+            _services.AddPublisher<UserCreatedPayload, UserCreated>(topic);
+            _services.AddPublisher<UserDeletedPayload, UserDeleted>(topic);
+        }
+
+        public IReadOnlyList<PublisherJoin> ObservedPublisherJoins
+        {
+            get { lock (_observedPublisherJoins) return [.. _observedPublisherJoins]; }
+        }
 
         public void ConfigureNegotiation(Action<NegotiationOptions> configure)
             => _services.Configure(configure);

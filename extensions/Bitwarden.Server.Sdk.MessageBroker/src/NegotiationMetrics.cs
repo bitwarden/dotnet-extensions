@@ -10,14 +10,15 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// Two signals:
 /// <list type="bullet">
 /// <item><description><c>messaging.negotiation.admissions</c> — counter, tagged
-/// <c>(destination.name, role, result)</c>. Emitted by the SAC-holding
+/// <c>(destination.name, payload.family, role, result)</c>. Emitted by the SAC-holding
 /// <see cref="NegotiationListener"/> on every admission decision. The <c>result=nogo</c>
 /// slice is the primary alerting signal (a nogo means a deploying instance was rejected
 /// for wire-name incompatibility).</description></item>
-/// <item><description><c>messaging.negotiation.topics_served</c> — observable gauge, tagged
-/// <c>(destination.name, role)</c>. Emits value 1 for each data-topic this instance
-/// publishes to or subscribes from. Populated once at startup from the marker sets.
-/// Answers the "what does this pod serve?" ops question with bounded cardinality.
+/// <item><description><c>messaging.negotiation.families_served</c> — observable gauge, tagged
+/// <c>(destination.name, payload.family, role)</c>. Emits value 1 for each
+/// <c>(data-topic, family)</c> this instance publishes to or subscribes from. Populated once
+/// at startup from the marker sets. Answers the "what does this pod serve?" ops question
+/// with bounded cardinality.
 /// </description></item>
 /// </list>
 /// </para>
@@ -28,7 +29,7 @@ internal sealed class NegotiationMetrics
     private const string RoleSubscriber = "subscriber";
 
     private readonly Counter<long> _admissions;
-    private readonly ConcurrentDictionary<(string DataTopic, string Role), byte> _topicsServed = new();
+    private readonly ConcurrentDictionary<(string DataTopic, string FamilyWireName, string Role), byte> _familiesServed = new();
 
     public NegotiationMetrics(IMeterFactory meterFactory)
     {
@@ -38,48 +39,51 @@ internal sealed class NegotiationMetrics
             unit: "{admission}",
             description: "Admission decisions processed by this instance's SAC-holding negotiation listener.");
         meter.CreateObservableGauge<long>(
-            "messaging.negotiation.topics_served",
-            observeValues: ObserveTopicsServed,
-            unit: "{topic}",
-            description: "One measurement per (data-topic, role) this instance publishes to or subscribes from.");
+            "messaging.negotiation.families_served",
+            observeValues: ObserveFamiliesServed,
+            unit: "{family}",
+            description: "One measurement per (data-topic, family, role) this instance publishes to or subscribes from.");
     }
 
     /// <summary>Records a subscriber-capability admission decision.</summary>
-    public void RecordCapabilityAdmission(string dataTopic, bool go)
-        => RecordAdmission(dataTopic, RoleSubscriber, go);
+    public void RecordCapabilityAdmission(string dataTopic, string familyWireName, bool go)
+        => RecordAdmission(dataTopic, familyWireName, RoleSubscriber, go);
 
     /// <summary>Records a publisher-join admission decision.</summary>
-    public void RecordJoinAdmission(string dataTopic, bool go)
-        => RecordAdmission(dataTopic, RolePublisher, go);
+    public void RecordJoinAdmission(string dataTopic, string familyWireName, bool go)
+        => RecordAdmission(dataTopic, familyWireName, RolePublisher, go);
 
     /// <summary>
-    /// Registers this instance as a publisher of the given data-topics. Contributes one
-    /// measurement per topic to the <c>topics_served</c> gauge for the process lifetime.
+    /// Registers this instance as a publisher of the given <c>(data-topic, family)</c> pairs.
+    /// Contributes one measurement per pair to the <c>families_served</c> gauge for the
+    /// process lifetime.
     /// </summary>
-    public void RegisterPublisherTopics(IEnumerable<string> dataTopics)
+    public void RegisterPublisherFamilies(IEnumerable<(string DataTopic, string FamilyWireName)> pairs)
     {
-        foreach (var topic in dataTopics)
-            _topicsServed.TryAdd((topic, RolePublisher), 0);
+        foreach (var (topic, family) in pairs)
+            _familiesServed.TryAdd((topic, family, RolePublisher), 0);
     }
 
-    /// <summary>Registers this instance as a subscriber of the given data-topics.</summary>
-    public void RegisterSubscriberTopics(IEnumerable<string> dataTopics)
+    /// <summary>Registers this instance as a subscriber of the given <c>(data-topic, family)</c> pairs.</summary>
+    public void RegisterSubscriberFamilies(IEnumerable<(string DataTopic, string FamilyWireName)> pairs)
     {
-        foreach (var topic in dataTopics)
-            _topicsServed.TryAdd((topic, RoleSubscriber), 0);
+        foreach (var (topic, family) in pairs)
+            _familiesServed.TryAdd((topic, family, RoleSubscriber), 0);
     }
 
-    private void RecordAdmission(string dataTopic, string role, bool go)
+    private void RecordAdmission(string dataTopic, string familyWireName, string role, bool go)
         => _admissions.Add(1,
             new KeyValuePair<string, object?>("messaging.destination.name", dataTopic),
+            new KeyValuePair<string, object?>(MessageBrokerMetrics.PayloadFamilyTag, familyWireName),
             new KeyValuePair<string, object?>("messaging.negotiation.role", role),
             new KeyValuePair<string, object?>("messaging.negotiation.result", go ? "go" : "nogo"));
 
-    private IEnumerable<Measurement<long>> ObserveTopicsServed()
+    private IEnumerable<Measurement<long>> ObserveFamiliesServed()
     {
-        foreach (var ((topic, role), _) in _topicsServed)
+        foreach (var ((topic, family, role), _) in _familiesServed)
             yield return new Measurement<long>(1,
                 new KeyValuePair<string, object?>("messaging.destination.name", topic),
+                new KeyValuePair<string, object?>(MessageBrokerMetrics.PayloadFamilyTag, family),
                 new KeyValuePair<string, object?>("messaging.negotiation.role", role));
     }
 }

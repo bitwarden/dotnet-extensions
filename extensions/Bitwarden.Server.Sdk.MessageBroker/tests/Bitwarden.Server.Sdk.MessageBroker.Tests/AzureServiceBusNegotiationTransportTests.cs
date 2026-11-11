@@ -64,7 +64,7 @@ public class AzureServiceBusNegotiationTransportTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
             await subscriberTransport.SendCapabilityAsync(
-                new Capability { DataTopic = DataTopic, InstanceId = "sub-1", WireNames = ["v1"] },
+                new Capability { DataTopic = DataTopic, FamilyWireName = Family, InstanceId = "sub-1", WireNames = ["v1"] },
                 TestContext.Current.CancellationToken));
 
         // Give the stale reply time to arrive and be dropped by the reply loop.
@@ -73,7 +73,7 @@ public class AzureServiceBusNegotiationTransportTests
         // If the loop crashed on the stale reply, this hangs until the outer TestContext token
         // cancels; if it survived, we get an ack promptly.
         var ack = await subscriberTransport.SendCapabilityAsync(
-            new Capability { DataTopic = DataTopic, InstanceId = "sub-1", WireNames = ["v1"] },
+            new Capability { DataTopic = DataTopic, FamilyWireName = Family, InstanceId = "sub-1", WireNames = ["v1"] },
             TestContext.Current.CancellationToken);
         Assert.True(ack.Go);
 
@@ -140,7 +140,7 @@ public class AzureServiceBusNegotiationTransportTests
         await using (var client = new ServiceBusClient(_fixture.GetConnectionString()))
         await using (var sender = client.CreateSender(ControlTopic))
         {
-            var capability = new Capability { DataTopic = "other-topic", InstanceId = "sub-liar", WireNames = ["v1"] };
+            var capability = new Capability { DataTopic = "other-topic", FamilyWireName = Family, InstanceId = "sub-liar", WireNames = ["v1"] };
             var msg = new ServiceBusMessage(JsonSerializer.SerializeToUtf8Bytes(
                 capability, NegotiationJsonContext.Default.Capability))
             {
@@ -265,7 +265,7 @@ public class AzureServiceBusNegotiationTransportTests
         // First roundtrip starts both the subscriber's reply-session receiver and the
         // publisher's request-session receiver.
         var firstAck = await subscriberTransport.SendCapabilityAsync(
-            new Capability { DataTopic = DataTopic, InstanceId = "sub-long-idle", WireNames = ["v1"] },
+            new Capability { DataTopic = DataTopic, FamilyWireName = Family, InstanceId = "sub-long-idle", WireNames = ["v1"] },
             TestContext.Current.CancellationToken);
         Assert.True(firstAck.Go);
 
@@ -274,7 +274,7 @@ public class AzureServiceBusNegotiationTransportTests
         await Task.Delay(TimeSpan.FromSeconds(6), TestContext.Current.CancellationToken);
 
         var secondAck = await subscriberTransport.SendCapabilityAsync(
-            new Capability { DataTopic = DataTopic, InstanceId = "sub-long-idle", WireNames = ["v1"] },
+            new Capability { DataTopic = DataTopic, FamilyWireName = Family, InstanceId = "sub-long-idle", WireNames = ["v1"] },
             TestContext.Current.CancellationToken);
         Assert.True(secondAck.Go);
 
@@ -304,7 +304,7 @@ public class AzureServiceBusNegotiationTransportTests
 
     private static ServiceBusMessage BuildCapabilityMessage(string instanceId)
     {
-        var capability = new Capability { DataTopic = DataTopic, InstanceId = instanceId, WireNames = ["v1"] };
+        var capability = new Capability { DataTopic = DataTopic, FamilyWireName = Family, InstanceId = instanceId, WireNames = ["v1"] };
         var msg = new ServiceBusMessage(JsonSerializer.SerializeToUtf8Bytes(
             capability, NegotiationJsonContext.Default.Capability))
         {

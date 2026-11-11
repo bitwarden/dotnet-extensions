@@ -13,6 +13,7 @@ namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 public class AdmissionOrderingTests
 {
     private const string Topic = "topic";
+    private const string Family = "user.created";
     private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(5);
 
     [Fact]
@@ -24,7 +25,7 @@ public class AdmissionOrderingTests
         //    and the send times out at AdmissionTimeout, mimicking a subscriber that boots first
         //    and continues past its timeout via proceedOnAdmissionTimeout.
         await harness.SubscriberSendsCapabilityAndTimesOutAsync(instanceId: "sub-1", wireNames: ["v1"]);
-        Assert.Null(await harness.State.TryGetSubscriberAsync(Topic, "sub-1", TestContext.Current.CancellationToken));
+        Assert.Null(await harness.State.TryGetSubscriberAsync(Topic, Family, "sub-1", TestContext.Current.CancellationToken));
 
         // 2. Publisher's listener starts. FIFO drain processes the queued Capability first, so
         //    the subscriber lands in the cache before any publisher does.
@@ -36,7 +37,7 @@ public class AdmissionOrderingTests
         var ack = await harness.PublisherSendsJoinAsync(instanceId: "pub-1", wireNames: ["v1"]);
 
         Assert.True(ack.Go);
-        Assert.NotNull(await harness.State.TryGetPublisherAsync(Topic, "pub-1", TestContext.Current.CancellationToken));
+        Assert.NotNull(await harness.State.TryGetPublisherAsync(Topic, Family, "pub-1", TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -55,7 +56,7 @@ public class AdmissionOrderingTests
 
         Assert.False(ack.Go);
         Assert.Equal("sub-1", Assert.Single(ack.Offenders).InstanceId);
-        Assert.Null(await harness.State.TryGetPublisherAsync(Topic, "pub-1", TestContext.Current.CancellationToken));
+        Assert.Null(await harness.State.TryGetPublisherAsync(Topic, Family, "pub-1", TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -68,7 +69,7 @@ public class AdmissionOrderingTests
         await using var harness = new Harness();
 
         await harness.PublisherSendsJoinAndTimesOutAsync(instanceId: "pub-1", wireNames: ["v1"]);
-        Assert.Null(await harness.State.TryGetPublisherAsync(Topic, "pub-1", TestContext.Current.CancellationToken));
+        Assert.Null(await harness.State.TryGetPublisherAsync(Topic, Family, "pub-1", TestContext.Current.CancellationToken));
 
         harness.StartListener();
         await harness.WaitForPublisherInCacheAsync("pub-1");
@@ -76,7 +77,7 @@ public class AdmissionOrderingTests
         var ack = await harness.SubscriberSendsCapabilityAsync(instanceId: "sub-1", wireNames: ["v1"]);
 
         Assert.True(ack.Go);
-        Assert.NotNull(await harness.State.TryGetSubscriberAsync(Topic, "sub-1", TestContext.Current.CancellationToken));
+        Assert.NotNull(await harness.State.TryGetSubscriberAsync(Topic, Family, "sub-1", TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -93,7 +94,7 @@ public class AdmissionOrderingTests
 
         Assert.False(ack.Go);
         Assert.Equal("pub-1", Assert.Single(ack.Offenders).InstanceId);
-        Assert.Null(await harness.State.TryGetSubscriberAsync(Topic, "sub-1", TestContext.Current.CancellationToken));
+        Assert.Null(await harness.State.TryGetSubscriberAsync(Topic, Family, "sub-1", TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -160,7 +161,7 @@ public class AdmissionOrderingTests
         {
             using var cts = new CancellationTokenSource(_options.Value.AdmissionTimeout);
             var send = _subscriberSender.SendCapabilityAsync(
-                new Capability { DataTopic = Topic, InstanceId = instanceId, WireNames = [.. wireNames] },
+                new Capability { DataTopic = Topic, FamilyWireName = Family, InstanceId = instanceId, WireNames = [.. wireNames] },
                 cts.Token);
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => send);
         }
@@ -169,19 +170,19 @@ public class AdmissionOrderingTests
         {
             using var cts = new CancellationTokenSource(_options.Value.AdmissionTimeout);
             var send = _publisherSender.SendJoinAsync(
-                new PublisherJoin { DataTopic = Topic, InstanceId = instanceId, WireNames = [.. wireNames] },
+                new PublisherJoin { DataTopic = Topic, FamilyWireName = Family, InstanceId = instanceId, WireNames = [.. wireNames] },
                 cts.Token);
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => send);
         }
 
         public Task<NegotiationAck> SubscriberSendsCapabilityAsync(string instanceId, string[] wireNames)
             => _subscriberSender.SendCapabilityAsync(
-                new Capability { DataTopic = Topic, InstanceId = instanceId, WireNames = [.. wireNames] },
+                new Capability { DataTopic = Topic, FamilyWireName = Family, InstanceId = instanceId, WireNames = [.. wireNames] },
                 TestContext.Current.CancellationToken);
 
         public Task<NegotiationAck> PublisherSendsJoinAsync(string instanceId, string[] wireNames)
             => _publisherSender.SendJoinAsync(
-                new PublisherJoin { DataTopic = Topic, InstanceId = instanceId, WireNames = [.. wireNames] },
+                new PublisherJoin { DataTopic = Topic, FamilyWireName = Family, InstanceId = instanceId, WireNames = [.. wireNames] },
                 TestContext.Current.CancellationToken);
 
         public void StartListener()
@@ -194,12 +195,12 @@ public class AdmissionOrderingTests
 
         public Task WaitForSubscriberInCacheAsync(string instanceId)
             => WaitUntilAsync(
-                async () => (await _state.TryGetSubscriberAsync(Topic, instanceId, TestContext.Current.CancellationToken)) is not null,
+                async () => (await _state.TryGetSubscriberAsync(Topic, Family, instanceId, TestContext.Current.CancellationToken)) is not null,
                 $"Subscriber '{instanceId}' did not appear in the cache within {TestTimeout}.");
 
         public Task WaitForPublisherInCacheAsync(string instanceId)
             => WaitUntilAsync(
-                async () => (await _state.TryGetPublisherAsync(Topic, instanceId, TestContext.Current.CancellationToken)) is not null,
+                async () => (await _state.TryGetPublisherAsync(Topic, Family, instanceId, TestContext.Current.CancellationToken)) is not null,
                 $"Publisher '{instanceId}' did not appear in the cache within {TestTimeout}.");
 
         private static async Task WaitUntilAsync(Func<Task<bool>> predicate, string failureMessage)

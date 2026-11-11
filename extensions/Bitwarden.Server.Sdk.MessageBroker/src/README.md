@@ -189,8 +189,12 @@ no distributed cache.
 
 Cross-process backends run a deploy-time admission handshake before any process starts publishing
 or consuming. The invariant: at any moment, every live publisher and every live subscriber for a
-given data-topic share at least one wire-name in their variant chains. If a booting instance would
-break that invariant, it exits non-zero and the deployment fails.
+given `(data-topic, family)` share at least one wire-name in their variant chains. If a booting
+instance would break that invariant, it exits non-zero and the deployment fails.
+
+Admission is scoped per `(data-topic, family)` — a `user.created` publisher is never checked
+against `user.deleted` subscribers on the same topic. A publisher or subscriber of two families
+on one topic sends two admission requests at startup, each admitted independently.
 
 Admission fires at host startup and re-fires every `HeartbeatInterval` to refresh the fleet
 cache entry.
@@ -238,8 +242,10 @@ startup.
 
 Both backends use broker-native mutual exclusion. Only one instance of a given publisher-service
 holds the "active consumer" role for a given data-topic at a time; that instance processes every
-admission decision for the topic, writes the cache, and replies to the requester. Failover on
-shutdown or crash is transparent — the broker hands the role to the next candidate.
+admission decision for the topic, writes the cache, and replies to the requester. Single-active-consumer
+is per topic (not per family) — the active holder dispatches by family internally, so the
+`(topic, family)` cache buckets stay independent. Failover on shutdown or crash is transparent —
+the broker hands the role to the next candidate.
 
 - **Azure Service Bus** — session-enabled subscription with session id equal to the data-topic
   name. The broker's session lock is per `(subscription × session)`, giving one active consumer
@@ -267,13 +273,16 @@ message property, a Rabbit routing key.
 
 ### Wire messages
 
-| Message           | Direction              | Reply-expected | Purpose                                                                                        |
-| ----------------- | ---------------------- | -------------- | ---------------------------------------------------------------------------------------------- |
-| `Capability`      | subscriber → publisher | Yes            | "Here are the wire-names I can decode for topic X — admit me?"                                 |
-| `PublisherJoin`   | new publisher → active | Yes            | "Here are the wire-names I can produce for topic X — admit me?"                                |
-| `NegotiationAck`  | active → requester     | —              | Go / no-go, with an offender list on no-go.                                                    |
-| `PublisherLeave`  | publisher → active     | No             | Clean-shutdown withdrawal; the active listener removes the instance's cache entry immediately. |
-| `SubscriberLeave` | subscriber → active    | No             | Same, for a subscriber.                                                                        |
+Every admission and leave message carries a `FamilyWireName` alongside its `DataTopic`, so each
+`(topic, family)` is admitted and tracked independently.
+
+| Message           | Direction              | Reply-expected | Purpose                                                                                                  |
+| ----------------- | ---------------------- | -------------- | -------------------------------------------------------------------------------------------------------- |
+| `Capability`      | subscriber → publisher | Yes            | "For `(topic, family)`, here are the wire-names I can decode — admit me?"                                |
+| `PublisherJoin`   | new publisher → active | Yes            | "For `(topic, family)`, here are the wire-names I can produce — admit me?"                               |
+| `NegotiationAck`  | active → requester     | —              | Go / no-go, with a per-family offender list on no-go.                                                    |
+| `PublisherLeave`  | publisher → active     | No             | Clean-shutdown withdrawal for one `(topic, family)`; the active listener removes the cache entry immediately. |
+| `SubscriberLeave` | subscriber → active    | No             | Same, for a subscriber.                                                                                  |
 
 The two leave messages are fire-and-forget — the sender returns as soon as the outbound publish
 completes, does not await an acknowledgement, and disposes the transport. Crash-path removal falls back to
@@ -292,8 +301,8 @@ TTL expiration.
 | `NegotiationListener.cs`                                                   | Runs on the single-active-consumer instance; performs admission checks and cache updates.                    |
 | `NegotiationListenerCoordinator.cs`                                        | Hosted service that owns listener lifecycle and reconciles ASB filter rules at startup.                      |
 | `PublisherJoinRequester.cs` / `SubscriberJoinRequester.cs`                 | `BackgroundService`s that send join/capability at startup, run heartbeat loops, and fire leaves at shutdown. |
-| `FusionCacheNegotiationState.cs`                                           | Fleet-state cache backing, per-instance keys under `negotiation/{topic}/{role}/{instanceId}`.                |
-| `NegotiationMetrics.cs`                                                    | Admissions counter and topics-served gauge (see [Observability](#observability)).                            |
+| `FusionCacheNegotiationState.cs`                                           | Fleet-state cache backing, per-instance keys under `negotiation/{topic}/{family}/{role}/{instanceId}`.       |
+| `NegotiationMetrics.cs`                                                    | Admissions counter and families-served gauge (see [Observability](#observability)).                          |
 
 ## TODO
 

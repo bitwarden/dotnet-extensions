@@ -35,6 +35,10 @@ namespace Microsoft.Extensions.DependencyInjection;
 internal sealed class AzureServiceBusNegotiationTransport : INegotiationTransport
 {
     private const string DataTopicPropertyName = "data-topic";
+    // FamilyWireName rides as an application property purely for observability/inspection
+    // (dashboards, DLQ triage). Routing stays per-topic via SessionId; the authoritative value
+    // for state lookup comes from the deserialized message body, so this property is informational.
+    private const string FamilyWireNamePropertyName = "family";
     private const string CapabilitySubject = "capability";
     private const string JoinSubject = "join";
     private const string SubscriberLeaveSubject = "subscriber-leave";
@@ -98,6 +102,7 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
     public Task<NegotiationAck> SendCapabilityAsync(Capability capability, CancellationToken cancellationToken = default)
         => SendAndAwaitAsync(
             capability.DataTopic,
+            capability.FamilyWireName,
             JsonSerializer.SerializeToUtf8Bytes(capability, NegotiationJsonContext.Default.Capability),
             CapabilitySubject,
             cancellationToken);
@@ -105,6 +110,7 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
     public Task<NegotiationAck> SendJoinAsync(PublisherJoin join, CancellationToken cancellationToken = default)
         => SendAndAwaitAsync(
             join.DataTopic,
+            join.FamilyWireName,
             JsonSerializer.SerializeToUtf8Bytes(join, NegotiationJsonContext.Default.PublisherJoin),
             JoinSubject,
             cancellationToken);
@@ -112,6 +118,7 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
     public Task SendPublisherLeaveAsync(PublisherLeave leave, CancellationToken cancellationToken = default)
         => SendFireAndForgetAsync(
             leave.DataTopic,
+            leave.FamilyWireName,
             JsonSerializer.SerializeToUtf8Bytes(leave, NegotiationJsonContext.Default.PublisherLeave),
             PublisherLeaveSubject,
             cancellationToken);
@@ -119,12 +126,14 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
     public Task SendSubscriberLeaveAsync(SubscriberLeave leave, CancellationToken cancellationToken = default)
         => SendFireAndForgetAsync(
             leave.DataTopic,
+            leave.FamilyWireName,
             JsonSerializer.SerializeToUtf8Bytes(leave, NegotiationJsonContext.Default.SubscriberLeave),
             SubscriberLeaveSubject,
             cancellationToken);
 
     private Task SendFireAndForgetAsync(
         string dataTopic,
+        string familyWireName,
         byte[] body,
         string subject,
         CancellationToken cancellationToken)
@@ -138,11 +147,13 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
             // No MessageId + no ReplyTo — the listener sees no reply address and skips replying.
         };
         msg.ApplicationProperties[DataTopicPropertyName] = dataTopic;
+        msg.ApplicationProperties[FamilyWireNamePropertyName] = familyWireName;
         return _sender.SendMessageAsync(msg, cancellationToken);
     }
 
     private async Task<NegotiationAck> SendAndAwaitAsync(
         string dataTopic,
+        string familyWireName,
         byte[] body,
         string subject,
         CancellationToken cancellationToken)
@@ -167,6 +178,7 @@ internal sealed class AzureServiceBusNegotiationTransport : INegotiationTranspor
                 ReplyToSessionId = _replySessionId,
             };
             msg.ApplicationProperties[DataTopicPropertyName] = dataTopic;
+            msg.ApplicationProperties[FamilyWireNamePropertyName] = familyWireName;
 
             await _sender.SendMessageAsync(msg, cancellationToken);
 

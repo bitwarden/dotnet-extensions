@@ -20,7 +20,8 @@ public class PublisherCacheDependencyTests
         services.AddPublisher<MyItemPayload, MyItem>("test");
         var provider = services.BuildServiceProvider();
 
-        var publisher = provider.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>("test");
+        var publisher = provider.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(
+            MessageBrokerKeys.Publisher<MyItemPayload>("test"));
         Assert.NotNull(publisher);
     }
 

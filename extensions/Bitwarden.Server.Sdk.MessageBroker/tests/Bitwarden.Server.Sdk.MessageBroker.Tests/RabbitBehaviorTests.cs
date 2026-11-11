@@ -1,3 +1,4 @@
+using Bitwarden.Server.Sdk.Caching;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using Microsoft.Extensions.Configuration;
@@ -261,9 +262,14 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitFixture>
             .ConfigureServices(services =>
             {
                 services.AddMetrics();
+                // Rabbit resolves its negotiation cache eagerly, so register both a backing
+                // IDistributedCache and AddBitwardenCaching before the publisher/subscriber.
+                services.AddDistributedMemoryCache();
+                services.AddBitwardenCaching();
                 services.AddPublisher<UserDeletedPayload, UserDeleted>(misconfiguredTopic);
                 services.AddSubscriber<UserCreatedPayload, UserCreated>(misconfiguredTopic, MisfilteredSubscription);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
+                services.Configure<NegotiationOptions>(o => o.ServiceName = "negotiation");
             })
             .Build();
         await host.StartAsync(TestContext.Current.CancellationToken);

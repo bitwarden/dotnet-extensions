@@ -83,7 +83,7 @@ public class RabbitNegotiationTransportTests
         await ready.Task;
 
         var ack = await negotiationTransport.SendJoinAsync(
-            new PublisherJoin { DataTopic = "topic", InstanceId = "self", WireNames = ["v1"] },
+            new PublisherJoin { DataTopic = "topic", FamilyWireName = Family, InstanceId = "self", WireNames = ["v1"] },
             TestContext.Current.CancellationToken);
 
         Assert.True(ack.Go);

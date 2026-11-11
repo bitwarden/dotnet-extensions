@@ -73,7 +73,7 @@ internal sealed class NegotiationListenerCoordinator : IHostedLifecycleService
     public async Task StartingAsync(CancellationToken cancellationToken)
     {
         await ReconcileAsbRulesIfNeededAsync(cancellationToken);
-        _metrics.RegisterPublisherTopics(_markers.Select(m => m.TopicName).Distinct());
+        _metrics.RegisterPublisherFamilies(_markers.Select(m => (m.TopicName, m.FamilyWireName)));
         var pairs = BuildPairs();
         _listenerStopSignal = new CancellationTokenSource();
         _running = [.. pairs.Select(p => (
@@ -160,13 +160,13 @@ internal sealed class NegotiationListenerCoordinator : IHostedLifecycleService
 
         if (!string.IsNullOrEmpty(messaging.AzureServiceBusConnectionString))
         {
-            // ASB works per topic. Each listener holds SAC for its single data-topic
-            // so the state handed to it is scoped to the topic
+            // ASB works per topic. Each listener holds SAC for its single data-topic;
+            // state writes within that listener key by (topic, family) so a single topic
+            // carrying multiple families stays isolated without an extra wrapper.
             return [.. topics.Select(topic =>
             {
                 var transport = AzureServiceBusNegotiationTransport.ForListener(_messagingOptions, _negotiationOptions, topic);
-                var scoped = new TopicScopedNegotiationState(inner, topic);
-                return (new NegotiationListener(transport, scoped, _metrics), transport);
+                return (new NegotiationListener(transport, inner, _metrics), transport);
             })];
         }
 

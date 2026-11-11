@@ -13,6 +13,9 @@ public abstract class NegotiationTransportBehaviorTests : IAsyncLifetime
     /// </summary>
     protected virtual string ServiceName => "negotiation";
 
+    /// <summary>Family wire name used throughout the shared negotiation tests.</summary>
+    protected const string Family = "user.created";
+
     /// <summary>Builds a transport instance with the given operator label.</summary>
     internal abstract Task<INegotiationTransport> CreateTransportAsync(string processDisplayName);
 
@@ -50,7 +53,7 @@ public abstract class NegotiationTransportBehaviorTests : IAsyncLifetime
         await ready.Task;
 
         var ack = await subscriberTransport.SendCapabilityAsync(
-            new Capability { DataTopic = "topic", InstanceId = "sub-1", WireNames = ["v1"] },
+            new Capability { DataTopic = "topic", FamilyWireName = Family, InstanceId = "sub-1", WireNames = ["v1"] },
             TestContext.Current.CancellationToken);
 
         Assert.True(ack.Go);
@@ -90,6 +93,7 @@ public abstract class NegotiationTransportBehaviorTests : IAsyncLifetime
                             new NegotiationIncompatibility
                             {
                                 InstanceId = "sub-blocking",
+                                FamilyWireName = Family,
                                 WireNames = ["v99"],
                             },
                         ],
@@ -101,7 +105,7 @@ public abstract class NegotiationTransportBehaviorTests : IAsyncLifetime
         await ready.Task;
 
         var ack = await bootingTransport.SendJoinAsync(
-            new PublisherJoin { DataTopic = "topic", InstanceId = "pub-1", WireNames = ["v1"] },
+            new PublisherJoin { DataTopic = "topic", FamilyWireName = Family, InstanceId = "pub-1", WireNames = ["v1"] },
             TestContext.Current.CancellationToken);
 
         Assert.False(ack.Go);
@@ -148,6 +152,7 @@ public abstract class NegotiationTransportBehaviorTests : IAsyncLifetime
                             new NegotiationIncompatibility
                             {
                                 InstanceId = incoming.InstanceId,
+                                FamilyWireName = Family,
                                 WireNames = ["echo"],
                             },
                         ],
@@ -159,10 +164,10 @@ public abstract class NegotiationTransportBehaviorTests : IAsyncLifetime
         await ready.Task;
 
         var ackATask = subATransport.SendCapabilityAsync(
-            new Capability { DataTopic = "topic", InstanceId = "sub-A", WireNames = ["v1"] },
+            new Capability { DataTopic = "topic", FamilyWireName = Family, InstanceId = "sub-A", WireNames = ["v1"] },
             TestContext.Current.CancellationToken);
         var ackBTask = subBTransport.SendCapabilityAsync(
-            new Capability { DataTopic = "topic", InstanceId = "sub-B", WireNames = ["v1"] },
+            new Capability { DataTopic = "topic", FamilyWireName = Family, InstanceId = "sub-B", WireNames = ["v1"] },
             TestContext.Current.CancellationToken);
 
         var ackA = await ackATask;

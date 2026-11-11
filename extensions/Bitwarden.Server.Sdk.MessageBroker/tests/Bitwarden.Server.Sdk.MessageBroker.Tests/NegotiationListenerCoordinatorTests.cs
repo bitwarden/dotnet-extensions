@@ -17,7 +17,7 @@ public class NegotiationListenerCoordinatorTests
         // No ASB connection string, no Rabbit URI — the in-memory channel backend is selected
         // by MessagingOptions, and negotiation is skipped by design (one assembly version, no skew).
         var coordinator = Build(
-            markers: [new PublisherRoleMarker("topic", new HashSet<string> { "v1" })],
+            markers: [new PublisherRoleMarker("topic", "user.created", new HashSet<string> { "v1" })],
             messaging: new MessagingOptions());
 
         await coordinator.StartingAsync(TestContext.Current.CancellationToken);

@@ -7,6 +7,7 @@ namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 public class NegotiationListenerTests
 {
     private const string Topic = "topic";
+    private const string Family = "user.created";
 
     [Fact]
     public async Task CapabilityAdmittedAndUpsertedWhenAllPublishersOverlap()
@@ -19,7 +20,7 @@ public class NegotiationListenerTests
 
         Assert.True(ack.Go);
         Assert.Empty(ack.Offenders);
-        var cached = await ToListAsync(harness.State.GetSubscribersAsync(Topic, TestContext.Current.CancellationToken));
+        var cached = await ToListAsync(harness.State.GetSubscribersAsync(Topic, Family, TestContext.Current.CancellationToken));
         Assert.Equal("sub-1", cached.Single().InstanceId);
     }
 
@@ -34,7 +35,7 @@ public class NegotiationListenerTests
 
         Assert.False(ack.Go);
         Assert.Equal("pub-blocker", ack.Offenders.Single().InstanceId);
-        var cached = await ToListAsync(harness.State.GetSubscribersAsync(Topic, TestContext.Current.CancellationToken));
+        var cached = await ToListAsync(harness.State.GetSubscribersAsync(Topic, Family, TestContext.Current.CancellationToken));
         Assert.Empty(cached);
     }
 
@@ -78,7 +79,7 @@ public class NegotiationListenerTests
         var ack = await harness.Sender.SendJoinAsync(Pub("pub-1", "v2"), TestContext.Current.CancellationToken);
 
         Assert.True(ack.Go);
-        var cached = await ToListAsync(harness.State.GetPublishersAsync(Topic, TestContext.Current.CancellationToken));
+        var cached = await ToListAsync(harness.State.GetPublishersAsync(Topic, Family, TestContext.Current.CancellationToken));
         Assert.Equal("pub-1", cached.Single().InstanceId);
     }
 
@@ -92,8 +93,51 @@ public class NegotiationListenerTests
 
         Assert.False(ack.Go);
         Assert.Equal("sub-old", ack.Offenders.Single().InstanceId);
-        var cached = await ToListAsync(harness.State.GetPublishersAsync(Topic, TestContext.Current.CancellationToken));
+        var cached = await ToListAsync(harness.State.GetPublishersAsync(Topic, Family, TestContext.Current.CancellationToken));
         Assert.Empty(cached);
+    }
+
+    [Fact]
+    public async Task CapabilityIgnoresPublishersOfOtherFamiliesOnSameTopic()
+    {
+        // Two families share one topic. A user.deleted publisher has incompatible wire-names
+        // with a user.created subscriber, but the admission check is per-family — the
+        // subscriber must be admitted because no same-family publisher blocks it.
+        await using var harness = StartListener();
+        const string OtherFamily = "user.deleted";
+        await harness.State.UpsertPublisherAsync(Topic, new PublisherJoin
+        {
+            DataTopic = Topic,
+            FamilyWireName = OtherFamily,
+            InstanceId = "pub-other-family",
+            WireNames = ["v99"],
+        }, TestContext.Current.CancellationToken);
+
+        var ack = await harness.Sender.SendCapabilityAsync(Cap("sub-1", "v1"), TestContext.Current.CancellationToken);
+
+        Assert.True(ack.Go);
+        Assert.Empty(ack.Offenders);
+    }
+
+    [Fact]
+    public async Task JoinIgnoresSubscribersOfOtherFamiliesOnSameTopic()
+    {
+        // Mirror: a user.deleted subscriber with incompatible wire-names must not block a
+        // user.created publisher on the same topic.
+        await using var harness = StartListener();
+        const string OtherFamily = "user.deleted";
+        await harness.State.UpsertSubscriberAsync(Topic, new Capability
+        {
+            DataTopic = Topic,
+            FamilyWireName = OtherFamily,
+            InstanceId = "sub-other-family",
+            WireNames = ["v99"],
+        }, TestContext.Current.CancellationToken);
+
+        var ack = await harness.Sender.SendJoinAsync(Pub("pub-1", "v1"), TestContext.Current.CancellationToken);
+
+        Assert.True(ack.Go);
+        Assert.Empty(ack.Offenders);
     }
 
     [Fact]
@@ -104,16 +148,16 @@ public class NegotiationListenerTests
         await harness.State.UpsertPublisherAsync(Topic, Pub("pub-2", "v1"), TestContext.Current.CancellationToken);
 
         await harness.Sender.SendPublisherLeaveAsync(
-            new PublisherLeave { DataTopic = Topic, InstanceId = "pub-1" },
+            new PublisherLeave { DataTopic = Topic, FamilyWireName = Family, InstanceId = "pub-1" },
             TestContext.Current.CancellationToken);
 
         // Leave is fire-and-forget so give the listener a moment to process before asserting.
         await WaitUntilAsync(
-            async () => (await harness.State.TryGetPublisherAsync(Topic, "pub-1", TestContext.Current.CancellationToken)) is null,
+            async () => (await harness.State.TryGetPublisherAsync(Topic, Family, "pub-1", TestContext.Current.CancellationToken)) is null,
             TimeSpan.FromSeconds(5));
 
-        Assert.Null(await harness.State.TryGetPublisherAsync(Topic, "pub-1", TestContext.Current.CancellationToken));
-        Assert.NotNull(await harness.State.TryGetPublisherAsync(Topic, "pub-2", TestContext.Current.CancellationToken));
+        Assert.Null(await harness.State.TryGetPublisherAsync(Topic, Family, "pub-1", TestContext.Current.CancellationToken));
+        Assert.NotNull(await harness.State.TryGetPublisherAsync(Topic, Family, "pub-2", TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -124,15 +168,15 @@ public class NegotiationListenerTests
         await harness.State.UpsertSubscriberAsync(Topic, Cap("sub-2", "v1"), TestContext.Current.CancellationToken);
 
         await harness.Sender.SendSubscriberLeaveAsync(
-            new SubscriberLeave { DataTopic = Topic, InstanceId = "sub-1" },
+            new SubscriberLeave { DataTopic = Topic, FamilyWireName = Family, InstanceId = "sub-1" },
             TestContext.Current.CancellationToken);
 
         await WaitUntilAsync(
-            async () => (await harness.State.TryGetSubscriberAsync(Topic, "sub-1", TestContext.Current.CancellationToken)) is null,
+            async () => (await harness.State.TryGetSubscriberAsync(Topic, Family, "sub-1", TestContext.Current.CancellationToken)) is null,
             TimeSpan.FromSeconds(5));
 
-        Assert.Null(await harness.State.TryGetSubscriberAsync(Topic, "sub-1", TestContext.Current.CancellationToken));
-        Assert.NotNull(await harness.State.TryGetSubscriberAsync(Topic, "sub-2", TestContext.Current.CancellationToken));
+        Assert.Null(await harness.State.TryGetSubscriberAsync(Topic, Family, "sub-1", TestContext.Current.CancellationToken));
+        Assert.NotNull(await harness.State.TryGetSubscriberAsync(Topic, Family, "sub-2", TestContext.Current.CancellationToken));
     }
 
     private static async Task WaitUntilAsync(Func<Task<bool>> predicate, TimeSpan timeout)
@@ -161,10 +205,10 @@ public class NegotiationListenerTests
     }
 
     private static Capability Cap(string id, params string[] wireNames)
-        => new() { DataTopic = Topic, InstanceId = id, WireNames = [.. wireNames] };
+        => new() { DataTopic = Topic, FamilyWireName = Family, InstanceId = id, WireNames = [.. wireNames] };
 
     private static PublisherJoin Pub(string id, params string[] wireNames)
-        => new() { DataTopic = Topic, InstanceId = id, WireNames = [.. wireNames] };
+        => new() { DataTopic = Topic, FamilyWireName = Family, InstanceId = id, WireNames = [.. wireNames] };
 
     private static async Task<List<T>> ToListAsync<T>(IAsyncEnumerable<T> source)
     {

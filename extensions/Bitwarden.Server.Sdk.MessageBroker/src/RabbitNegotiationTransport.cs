@@ -22,6 +22,10 @@ namespace Microsoft.Extensions.DependencyInjection;
 internal sealed class RabbitNegotiationTransport : INegotiationTransport
 {
     private const string DirectReplyToQueueName = "amq.rabbitmq.reply-to";
+    // FamilyWireName rides as a message header purely for observability/inspection. Routing
+    // stays per-topic via the direct exchange's routing key; the authoritative value for state
+    // lookup comes from the deserialized message body.
+    private const string FamilyWireNameHeader = "family";
     private const string CapabilityType = "capability";
     private const string JoinType = "join";
     private const string SubscriberLeaveType = "subscriber-leave";
@@ -84,6 +88,7 @@ internal sealed class RabbitNegotiationTransport : INegotiationTransport
     public Task<NegotiationAck> SendCapabilityAsync(Capability capability, CancellationToken cancellationToken = default)
         => SendAndAwaitAsync(
             capability.DataTopic,
+            capability.FamilyWireName,
             JsonSerializer.SerializeToUtf8Bytes(capability, NegotiationJsonContext.Default.Capability),
             CapabilityType,
             cancellationToken);
@@ -91,6 +96,7 @@ internal sealed class RabbitNegotiationTransport : INegotiationTransport
     public Task<NegotiationAck> SendJoinAsync(PublisherJoin join, CancellationToken cancellationToken = default)
         => SendAndAwaitAsync(
             join.DataTopic,
+            join.FamilyWireName,
             JsonSerializer.SerializeToUtf8Bytes(join, NegotiationJsonContext.Default.PublisherJoin),
             JoinType,
             cancellationToken);
@@ -98,6 +104,7 @@ internal sealed class RabbitNegotiationTransport : INegotiationTransport
     public Task SendPublisherLeaveAsync(PublisherLeave leave, CancellationToken cancellationToken = default)
         => SendFireAndForgetAsync(
             leave.DataTopic,
+            leave.FamilyWireName,
             JsonSerializer.SerializeToUtf8Bytes(leave, NegotiationJsonContext.Default.PublisherLeave),
             PublisherLeaveType,
             cancellationToken);
@@ -105,12 +112,14 @@ internal sealed class RabbitNegotiationTransport : INegotiationTransport
     public Task SendSubscriberLeaveAsync(SubscriberLeave leave, CancellationToken cancellationToken = default)
         => SendFireAndForgetAsync(
             leave.DataTopic,
+            leave.FamilyWireName,
             JsonSerializer.SerializeToUtf8Bytes(leave, NegotiationJsonContext.Default.SubscriberLeave),
             SubscriberLeaveType,
             cancellationToken);
 
     private async Task SendFireAndForgetAsync(
         string dataTopic,
+        string familyWireName,
         byte[] body,
         string type,
         CancellationToken cancellationToken)
@@ -118,7 +127,11 @@ internal sealed class RabbitNegotiationTransport : INegotiationTransport
         var channel = await EnsureAsync(cancellationToken);
 
         // No MessageId + no ReplyTo — the listener sees no reply address and skips replying.
-        var props = new BasicProperties { Type = type };
+        var props = new BasicProperties
+        {
+            Type = type,
+            Headers = new Dictionary<string, object?> { [FamilyWireNameHeader] = familyWireName },
+        };
         await channel.BasicPublishAsync(
             _options.ControlTopicName,
             routingKey: dataTopic,
@@ -130,6 +143,7 @@ internal sealed class RabbitNegotiationTransport : INegotiationTransport
 
     private async Task<NegotiationAck> SendAndAwaitAsync(
         string dataTopic,
+        string familyWireName,
         byte[] body,
         string type,
         CancellationToken cancellationToken)
@@ -148,6 +162,7 @@ internal sealed class RabbitNegotiationTransport : INegotiationTransport
                 CorrelationId = messageId,
                 Type = type,
                 ReplyTo = DirectReplyToQueueName,
+                Headers = new Dictionary<string, object?> { [FamilyWireNameHeader] = familyWireName },
             };
             await channel.BasicPublishAsync(
                 _options.ControlTopicName,

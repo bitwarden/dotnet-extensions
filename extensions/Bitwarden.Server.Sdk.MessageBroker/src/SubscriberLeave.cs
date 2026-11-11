@@ -15,6 +15,14 @@ internal sealed record SubscriberLeave
     public required string DataTopic { get; init; }
 
     /// <summary>
+    /// The payload family this subscriber is leaving. Matches the family declared on the
+    /// corresponding <see cref="Capability"/>; a subscriber of two families on one topic
+    /// sends two leaves at shutdown.
+    /// </summary>
+    [JsonPropertyName("familyWireName")]
+    public required string FamilyWireName { get; init; }
+
+    /// <summary>
     /// Composite instance identifier from <c>NegotiationOptions.InstanceId</c>; typically
     /// <c>"{processDisplayName}-{guid}"</c>. Matches the identifier used on the corresponding
     /// <see cref="Capability"/>.

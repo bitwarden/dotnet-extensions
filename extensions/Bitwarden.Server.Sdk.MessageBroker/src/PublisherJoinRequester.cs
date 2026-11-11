@@ -191,7 +191,12 @@ internal sealed class PublisherJoinRequester : BackgroundService, IHostedLifecyc
         try
         {
             await sender.SendPublisherLeaveAsync(
-                new PublisherLeave { DataTopic = marker.TopicName, InstanceId = instanceId },
+                new PublisherLeave
+                {
+                    DataTopic = marker.TopicName,
+                    FamilyWireName = marker.FamilyWireName,
+                    InstanceId = instanceId,
+                },
                 cancellationToken);
         }
         catch (Exception ex)
@@ -213,6 +218,7 @@ internal sealed class PublisherJoinRequester : BackgroundService, IHostedLifecyc
         var join = new PublisherJoin
         {
             DataTopic = marker.TopicName,
+            FamilyWireName = marker.FamilyWireName,
             InstanceId = negotiation.InstanceId,
             WireNames = [.. marker.WireNames],
         };

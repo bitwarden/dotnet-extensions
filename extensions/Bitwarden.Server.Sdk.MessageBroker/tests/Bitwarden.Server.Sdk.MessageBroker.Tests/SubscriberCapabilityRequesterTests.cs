@@ -25,7 +25,7 @@ public class SubscriberCapabilityRequesterTests
         await using var harness = TestHarness.Build(reply: _ => new NegotiationAck
         {
             Go = false,
-            Offenders = [new NegotiationIncompatibility { InstanceId = "incompatible-pub", WireNames = new HashSet<string> { "v99" } }],
+            Offenders = [new NegotiationIncompatibility { InstanceId = "incompatible-pub", FamilyWireName = MyItemPayload.WireName, WireNames = new HashSet<string> { "v99" } }],
         });
         harness.RegisterSubscriber(Topic, "sub");
 
@@ -73,7 +73,7 @@ public class SubscriberCapabilityRequesterTests
         await using var harness = TestHarness.Build(reply: _ => new NegotiationAck
         {
             Go = false,
-            Offenders = [new NegotiationIncompatibility { InstanceId = "incompatible-pub", WireNames = new HashSet<string> { "v99" } }],
+            Offenders = [new NegotiationIncompatibility { InstanceId = "incompatible-pub", FamilyWireName = MyItemPayload.WireName, WireNames = new HashSet<string> { "v99" } }],
         });
         harness.RegisterSubscriber(Topic, "sub", proceedOnAdmissionTimeout: true);
 
@@ -162,6 +162,35 @@ public class SubscriberCapabilityRequesterTests
     }
 
     [Fact]
+    public async Task TwoFamiliesOnOneTopicSendOneCapabilityAndOneLeavePerFamily()
+    {
+        // The topic-per-service model: one topic carries multiple payload families. The
+        // requester must emit one Capability per (topic, family) marker and one SubscriberLeave
+        // per family on shutdown. The dedupe pass is now keyed by (topic, family), so same-topic
+        // different-family markers no longer collapse to one send.
+        await using var harness = TestHarness.Build(reply: _ => new NegotiationAck { Go = true });
+        harness.RegisterTwoFamiliesOnOneTopic(Topic, "sub-created", "sub-deleted");
+
+        var requester = harness.Requester;
+        await requester.StartingAsync(TestContext.Current.CancellationToken);
+        await requester.StopAsync(TestContext.Current.CancellationToken);
+
+        await harness.WaitForLeavesAsync(count: 2);
+
+        var caps = harness.ObservedCapabilities;
+        Assert.Equal(2, caps.Count);
+        Assert.All(caps, c => Assert.Equal(Topic, c.DataTopic));
+        Assert.Contains(caps, c => c.FamilyWireName == UserCreatedPayload.WireName);
+        Assert.Contains(caps, c => c.FamilyWireName == UserDeletedPayload.WireName);
+
+        var leaves = harness.ObservedSubscriberLeaves;
+        Assert.Equal(2, leaves.Count);
+        Assert.All(leaves, l => Assert.Equal(Topic, l.DataTopic));
+        Assert.Contains(leaves, l => l.FamilyWireName == UserCreatedPayload.WireName);
+        Assert.Contains(leaves, l => l.FamilyWireName == UserDeletedPayload.WireName);
+    }
+
+    [Fact]
     public async Task StopAsyncSendsSubscriberLeaveForEachAdmittedMarker()
     {
         await using var harness = TestHarness.Build(reply: _ => new NegotiationAck { Go = true });
@@ -195,6 +224,7 @@ public class SubscriberCapabilityRequesterTests
         private Task? _listenerRunTask;
         private readonly CapturingLoggerProvider _loggerProvider = new();
         private int _observedCapabilityCount;
+        private readonly List<Capability> _observedCapabilities = [];
         private readonly List<SubscriberLeave> _observedSubscriberLeaves = [];
         private ServiceProvider? _provider;
 
@@ -246,6 +276,8 @@ public class SubscriberCapabilityRequesterTests
                         {
                             case CapabilityRequest cr:
                                 Interlocked.Increment(ref harness._observedCapabilityCount);
+                                lock (harness._observedCapabilities)
+                                    harness._observedCapabilities.Add(cr.Capability);
                                 NegotiationAck ack;
                                 try { ack = reply(cr.Capability); }
                                 catch
@@ -275,6 +307,20 @@ public class SubscriberCapabilityRequesterTests
 
         public void RegisterSubscriber(string topic, string subscription, bool proceedOnAdmissionTimeout = false)
             => _services.AddSubscriber<MyItemPayload, MyItem>(topic, subscription, proceedOnAdmissionTimeout);
+
+        // TopicSubscriptionClaim enforces one payload family per (topic, subscription), so each
+        // family needs its own subscription name. In production this is the common case: one
+        // subscription per family the subscriber consumes.
+        public void RegisterTwoFamiliesOnOneTopic(string topic, string createdSubscription, string deletedSubscription)
+        {
+            _services.AddSubscriber<UserCreatedPayload, UserCreated>(topic, createdSubscription);
+            _services.AddSubscriber<UserDeletedPayload, UserDeleted>(topic, deletedSubscription);
+        }
+
+        public IReadOnlyList<Capability> ObservedCapabilities
+        {
+            get { lock (_observedCapabilities) return [.. _observedCapabilities]; }
+        }
 
         public void ConfigureNegotiation(Action<NegotiationOptions> configure)
             => _services.Configure(configure);

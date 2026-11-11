@@ -95,13 +95,14 @@ internal sealed class SubscriberJoinRequester : BackgroundService, IHostedLifecy
     {
         var messaging = _messagingOptions.Value;
         // A single AddSubscriber<TPayload>(topic, subscriptionName) call registers one marker;
-        // multiple subscription-groups on the same topic share one Capability entry (identical
-        // wire-names, same InstanceId), so dedupe by topic before sending. When registrations
-        // for the same topic disagree on ProceedOnAdmissionTimeout, the strictest wins — the
-        // topic only softens if every registration opts in. Soft-failing a hard-requiring
-        // subscriber is undefined behavior; hard-failing a soft-declared one is merely annoying.
+        // multiple subscription-groups on the same (topic, family) share one Capability entry
+        // (identical wire-names, same InstanceId), so dedupe by (topic, family) before sending.
+        // When registrations for the same (topic, family) disagree on ProceedOnAdmissionTimeout,
+        // the strictest wins — the pair only softens if every registration opts in.
+        // Soft-failing a hard-requiring subscriber is undefined behavior; hard-failing a
+        // soft-declared one is merely annoying.
         var markers = _markers
-            .GroupBy(m => m.TopicName)
+            .GroupBy(m => (m.TopicName, m.FamilyWireName))
             .Select(g => g.First() with { ProceedOnAdmissionTimeout = g.All(m => m.ProceedOnAdmissionTimeout) })
             .ToList();
         if (markers.Count == 0
@@ -113,12 +114,12 @@ internal sealed class SubscriberJoinRequester : BackgroundService, IHostedLifecy
         }
 
         var negotiation = _negotiationOptions.Value;
-        var topics = markers.Select(m => m.TopicName).ToArray();
+        var topics = markers.Select(m => m.TopicName).Distinct().ToArray();
 
-        // Register the topics this instance subscribes to with the metrics gauge before
-        // sending admission requests. Even a marker whose admission ultimately fails represents
-        // a deployment intent worth surfacing until the process exits.
-        _metrics.RegisterSubscriberTopics(topics);
+        // Register the (topic, family) pairs this instance subscribes to with the metrics gauge
+        // before sending admission requests. Even a marker whose admission ultimately fails
+        // represents a deployment intent worth surfacing until the process exits.
+        _metrics.RegisterSubscriberFamilies(markers.Select(m => (m.TopicName, m.FamilyWireName)));
 
         // One transport handles sending across all topics — send-side is data-topic-agnostic
         // (the outgoing message's DataTopic carries the routing), and the per-InstanceId reply
@@ -227,7 +228,12 @@ internal sealed class SubscriberJoinRequester : BackgroundService, IHostedLifecy
         try
         {
             await sender.SendSubscriberLeaveAsync(
-                new SubscriberLeave { DataTopic = marker.TopicName, InstanceId = instanceId },
+                new SubscriberLeave
+                {
+                    DataTopic = marker.TopicName,
+                    FamilyWireName = marker.FamilyWireName,
+                    InstanceId = instanceId,
+                },
                 cancellationToken);
         }
         catch (Exception ex)
@@ -269,6 +275,7 @@ internal sealed class SubscriberJoinRequester : BackgroundService, IHostedLifecy
         var capability = new Capability
         {
             DataTopic = marker.TopicName,
+            FamilyWireName = marker.FamilyWireName,
             InstanceId = negotiation.InstanceId,
             WireNames = [.. marker.WireNames],
         };

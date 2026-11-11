@@ -1,20 +1,26 @@
 namespace Bitwarden.Server.Sdk.MessageBroker;
 
 /// <summary>
-/// Access to the fleet-state cache used for message-plane version negotiation. Implementations
-/// do not serialize concurrent writes; callers must ensure a single writer per data-topic (the
-/// negotiation transport's single-active-consumer semantics provide this).
+/// Access to the fleet-state cache used for message-plane version negotiation. Entries are
+/// keyed by <c>(dataTopic, familyWireName, instanceId)</c> so a <c>user.created</c> publisher
+/// and a <c>user.deleted</c> publisher on the same topic are independent. Implementations do
+/// not serialize concurrent writes; callers must ensure a single writer per
+/// <c>(dataTopic, familyWireName)</c> bucket (the negotiation transport's single-active-consumer
+/// semantics per topic provide this, and one family is only ever written by the SAC holder
+/// for its topic).
 /// </summary>
 internal interface INegotiationState
 {
-    /// <summary>Streams every live publisher registered for the data-topic.</summary>
+    /// <summary>Streams every live publisher registered for the <c>(dataTopic, familyWireName)</c>.</summary>
     IAsyncEnumerable<PublisherJoin> GetPublishersAsync(
         string dataTopic,
+        string familyWireName,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Streams every live subscriber registered for the data-topic.</summary>
+    /// <summary>Streams every live subscriber registered for the <c>(dataTopic, familyWireName)</c>.</summary>
     IAsyncEnumerable<Capability> GetSubscribersAsync(
         string dataTopic,
+        string familyWireName,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -24,12 +30,14 @@ internal interface INegotiationState
     /// </summary>
     Task<PublisherJoin?> TryGetPublisherAsync(
         string dataTopic,
+        string familyWireName,
         string instanceId,
         CancellationToken cancellationToken = default);
 
     /// <summary>Direct lookup of a single subscriber by instance identifier.</summary>
     Task<Capability?> TryGetSubscriberAsync(
         string dataTopic,
+        string familyWireName,
         string instanceId,
         CancellationToken cancellationToken = default);
 
@@ -51,6 +59,7 @@ internal interface INegotiationState
     /// </summary>
     Task RemovePublisherAsync(
         string dataTopic,
+        string familyWireName,
         string instanceId,
         CancellationToken cancellationToken = default);
 
@@ -60,6 +69,7 @@ internal interface INegotiationState
     /// </summary>
     Task RemoveSubscriberAsync(
         string dataTopic,
+        string familyWireName,
         string instanceId,
         CancellationToken cancellationToken = default);
 }
