@@ -25,6 +25,7 @@ on:
           - Bitwarden.Server.Sdk.Infrastructure
           - Bitwarden.Server.Sdk.Infrastructure.Testing
           - Bitwarden.Server.Sdk.MessageBroker
+          - Bitwarden.Server.Sdk.RateLimiting
           - Bitwarden.Server.Sdk.Resources.Caching.Abstractions
           - Bitwarden.Server.Sdk.RestrictedDependencies
           - Bitwarden.Server.Sdk.Sagas

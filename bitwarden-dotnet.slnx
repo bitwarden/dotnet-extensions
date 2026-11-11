@@ -111,6 +111,9 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.MessageBroker/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.MessageBroker/tests/Bitwarden.Server.Sdk.MessageBroker.Tests/Bitwarden.Server.Sdk.MessageBroker.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.RateLimiting/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.RateLimiting/src/Bitwarden.Server.Sdk.RateLimiting.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Resources.Caching.Abstractions/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Resources.Caching.Abstractions/src/Bitwarden.Server.Sdk.Resources.Caching.Abstractions.csproj" />
   </Folder>
