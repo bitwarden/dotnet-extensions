@@ -60,6 +60,8 @@ for a complete program.
 
 ### How a write's key is made
 
+- A client sends a key only to an operation whose service's contract marks it `x-bitwarden-idempotency-key`
+  (`IdempotencyKeys.Extension`).
 - Outside an operation, a client sends a fresh key per call, which covers its own retries of that call.
 - Inside one, `IdempotentOperation.KeyForWrite` derives the key from the operation's key, the method, the address, the
   body, and how many identical writes the operation made before. A write whose body differs from the first run's gets
@@ -76,6 +78,6 @@ for a complete program.
 
 | Type                              | Purpose                                                                     |
 | --------------------------------- | --------------------------------------------------------------------------- |
-| `IdempotencyKeys`                 | The `Idempotency-Key` and `Idempotency-Replayed` headers, and a key's rules |
+| `IdempotencyKeys`                 | The headers, the contract extension, and a key's rules                      |
 | `IdempotentOperation`             | Names one logical operation, so its writes repeat the same keys             |
 | `PerCallIdempotencyKeysAttribute` | Takes a handler or job out of its operation, and says why                   |
