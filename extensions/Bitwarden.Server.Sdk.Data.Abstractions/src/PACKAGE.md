@@ -2,9 +2,10 @@
 
 ## About
 
-Declarations a Bitwarden service's model and its data layer share: `[Encrypted]` for a field holding Protected Data
-(ciphertext the service never decrypts), `[PersonalData]` for an attribute about an identifiable person,
-`IRowOwnership` for the owner every restricted query is narrowed to, and `RequestMemo` for facts read once per request.
+Declarations a Bitwarden service's model and its data layer share. A service stores Vault Data only as Protected Data:
+ciphertext a client encrypted, which the service never decrypts. This package lets a model say which fields hold that
+ciphertext (`[Encrypted]`) and which hold personal data (`[PersonalData]`), lets a data layer narrow every restricted
+query to the owner the request concerns (`IRowOwnership`), and remembers facts read once per request (`RequestMemo`).
 
 It references only Bitwarden.Server.Sdk.Context, Bitwarden.Server.Sdk.Errors and
 Microsoft.Extensions.DependencyInjection.Abstractions, so a model can declare these without depending on a database or
@@ -20,9 +21,13 @@ dotnet add package Bitwarden.Server.Sdk.Data.Abstractions
 
 The package reads no settings.
 
-## Getting started
+## Usage
 
-Mark a field that holds ciphertext, with the longest value it accepts:
+### Mark a field that holds encrypted data
+
+An encrypted string carries its encryption type, an initialization vector, the ciphertext and a MAC, so even a short
+secret is longer than a typical default string limit. `[Encrypted]` marks a string as ciphertext and replaces that limit
+with the longest value you accept:
 
 ```csharp
 using Bitwarden.Server.Sdk.Data;
@@ -34,19 +39,28 @@ public sealed record Note
 
     // Encrypted on the person's device. Only its length and shape are checked.
     [Encrypted(MaxLength = 10_000, WellFormed = true)]
-    public required string Body { get; init; }
+    public string? Body { get; init; }
 }
 ```
 
-A value longer than `MaxLength` is refused with `The field Body must be an encrypted string of at most 10000
-characters.` With `WellFormed = true`, a value that isn't shaped like an encrypted string is refused with `Body is not a
-valid encrypted string.` Nothing is decrypted. See the
-[README](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Data.Abstractions/src/README.md)
-for a complete program.
+- A value longer than `MaxLength` is refused with `The field Body must be an encrypted string of at most 10000
+characters.`
+- With `WellFormed = true`, a value that isn't shaped like an encrypted string (a known encryption type, the pieces that
+  type calls for, and their base64) is refused with `Body is not a valid encrypted string.` So is a value that isn't a
+  string, and a malformed value that is also too long: the shape is reported before the length. `EncryptedStringFormat.IsWellFormed` makes the same check in code.
+- A null value is valid; whether a member may be absent is left to its nullability.
+- Every `[Encrypted]` needs a bound. A `MaxLength` that isn't positive throws `InvalidOperationException` when the
+  attribute validates, and Bitwarden.Server.Sdk.Resources refuses it on a resource.
+- Nothing is decrypted or decoded. The check can't tell real ciphertext from random bytes of the right shape: it keeps
+  out plaintext a client sent by mistake, not a client that means to send something else.
 
-## Documentation
+`[PersonalData]` marks an attribute about an identifiable person that isn't Protected Data, such as a name or an
+address. It changes nothing a caller sees or the service validates; code that could copy the attribute to more readers
+than the resource has, such as a cache shared across owners, reads it to keep the field out.
 
 ### Narrow a query to its owner
+
+Ask `IRowOwnership` for the owner, and filter by it:
 
 ```csharp
 using Bitwarden.Server.Sdk.Data;
@@ -64,11 +78,18 @@ public sealed class SharedWidgetQueries(IRowOwnership ownership, IWidgetRows row
 }
 ```
 
-`RequireOrganization()`, `RequireUser()` and `RequireProvider()` throw `ForbiddenException` when the request names no
-such owner, so a missing header is refused rather than read as "no restriction". `DefaultRowOwnership` reads the owner
-from `IContext`; Bitwarden.Server.Sdk.Service registers it for every service.
+`RequireOrganization()`, `RequireUser()` and `RequireProvider()` throw `ForbiddenException`, which a service answers
+with `403`, when the request names no such owner. A missing header is refused rather than read as "no restriction".
+Use them for rows that always have an owner of that kind, and the nullable `Organization()`, `User()` and `Provider()`
+only for rows a person or an organization may own.
+
+`DefaultRowOwnership` reads the owner from `IContext`, which Bitwarden.Server.Sdk.Authorization registers.
+Bitwarden.Server.Sdk.Service registers `DefaultRowOwnership` as the `IRowOwnership` of every service. A service whose rows are owned by something else registers
+its own `IRowOwnership`.
 
 ### Remember a lookup for the rest of a request
+
+Register the memo once, then ask it for a fact. It is read the first time and remembered until the request ends:
 
 ```csharp
 using Bitwarden.Server.Sdk.Data;
@@ -87,10 +108,13 @@ public sealed class WidgetGrants(RequestMemo memo, IWidgetRows rows)
 }
 ```
 
-A memo lives for one request and is never shared across callers. Call `Forget()` after a write that could change a
-remembered fact.
+- A memo is scoped to one request, and each fact is keyed by its name, the organization and the subject, so it is
+  never shared across callers.
+- Call `Forget()` after a write that could change a remembered fact.
+- A scope opened for the same request can use the request's facts by calling `Share(requestMemo)` on its own memo.
+- A memo is not thread-safe: a request's work runs one step at a time.
 
-### Types
+## Types
 
 | Type                                   | Purpose                                                                  |
 | -------------------------------------- | ------------------------------------------------------------------------ |
