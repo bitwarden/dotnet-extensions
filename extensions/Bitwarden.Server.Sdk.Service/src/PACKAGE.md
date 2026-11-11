@@ -156,6 +156,9 @@ service named in `Authentication:Schemes:Bearer:Authority`.
   recorded. Idempotency's
   [Opt an operation in](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Idempotency/src/PACKAGE.md#opt-an-operation-in)
   shows how, and its PACKAGE.md lists the `Idempotency:*` settings.
+- **A check tagged `HealthCheckTags.Monitoring` never fails readiness.** `Service` leaves it out of
+  the readiness probe and publishes its status as the `bitwarden.health.status` metric (0 healthy,
+  1 degraded, 2 unhealthy), with a log line on each change: alert on that.
 - **Roles don't work in a domain service,** and startup doesn't refuse a role requirement there; see
   [Authentication and authorization](https://contributing.bitwarden.com/contributing/server-sdk/running-a-service/authentication-and-authorization#things-to-know).
 - **The documentation UI's token URL** is `{url}/connect/token` from `Service:PublicIdentityUrl`, or
