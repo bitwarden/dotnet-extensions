@@ -1,5 +1,7 @@
 # Bitwarden.Server.Sdk.Errors
 
+**Audience:** engineers changing this package.
+
 The error document and standard failures that every Bitwarden service and every caller of it agree on. See
 [PACKAGE.md](PACKAGE.md) for how to use it.
 
