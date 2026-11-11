@@ -76,7 +76,10 @@ public static class BitwardenClientServiceCollectionExtensions
     /// <c>Services:Reference</c>.
     /// </param>
     /// <param name="scopes">The scopes the client needs. Declared by the client package.</param>
-    /// <param name="configure">Applied last, so a consumer can override anything conventional.</param>
+    /// <param name="configure">
+    /// Applied after the conventions, so a consumer can override anything conventional; only
+    /// <c>Services:{Name}:Timeout</c>, <c>:Retries</c> and <c>:RetryDelay</c>, where a deployment sets them, apply after it.
+    /// </param>
     public static IHttpClientBuilder AddBitwardenClient<TClient,
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TImplementation>(
         this IServiceCollection services,
@@ -109,6 +112,7 @@ public static class BitwardenClientServiceCollectionExtensions
                 Conventions.Apply(options, configuration, serviceName);
                 options.Scopes = scopes;
                 configure?.Invoke(options);
+                Conventions.ApplyTiming(options, configuration, serviceName);
             })
             // At startup, not on the first call: a service missing a downstream address should
             // fail to start rather than fail the first request that needed it.
