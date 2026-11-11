@@ -12,6 +12,7 @@ on:
           - Bitwarden.Extensions.Configuration
           - Bitwarden.Server.Sdk
           - Bitwarden.Server.Sdk.Authentication
+          - Bitwarden.Server.Sdk.Authorization
           - Bitwarden.Server.Sdk.Caching
           - Bitwarden.Server.Sdk.Context
           - Bitwarden.Server.Sdk.Data.Abstractions
