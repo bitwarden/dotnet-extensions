@@ -1,19 +1,13 @@
 # Bitwarden.Server.Sdk.Sagas
 
+**Audience:** engineers writing a Bitwarden service operation whose writes span services, or a host or client that
+counts those writes.
+
 ## About
 
-Each Bitwarden service has a store of its own, so no transaction spans services. An operation (an endpoint, a message
-handler or a job) that makes two or more writes, at least one of them to another service called synchronously, is a
-saga: a failure between its writes leaves it part way done. Two writes to the same other service count too: a failure
-between them leaves that service half done.
-
-This package notices a saga and makes its operation declare how it handles a failure part way. It counts the writes of
-the operation running now and carries that declaration. It does not run or orchestrate sagas: the operation's own code
-makes each write, in the order and with the undo it declares.
-
-It has no dependencies. In a service built on Bitwarden.Server.Sdk.Service, the SDK's Service, Messaging, Jobs, Data
-and Client packages count the writes of endpoints, message handlers, outbox handlers and jobs for you. The Service
-package's guard logs and counts every span, and refuses an undeclared one when `SpansServices:RefuseUndeclared` is on.
+This package notices a saga, an operation whose writes span services, and makes the operation declare how it handles
+a failure part way. It counts the writes of the operation running now and carries that declaration. It has no
+dependencies.
 
 ## Installing
 
@@ -21,9 +15,28 @@ package's guard logs and counts every span, and refuses an undeclared one when `
 dotnet add package Bitwarden.Server.Sdk.Sagas
 ```
 
+## Key concepts
+
+- **What a saga is.** Each Bitwarden service has a store of its own, so no transaction spans services. An operation
+  (an endpoint, a message handler or a job) that makes two or more writes, at least one of them to another service
+  called synchronously, is a saga: a failure between its writes leaves it part way done. Two writes to the same other
+  service count too: a failure between them leaves that service half done.
+- **The package doesn't run sagas.** It neither runs nor orchestrates them: the operation's own code makes each write,
+  in the order and with the undo it declares.
+- **The SDK counts for you.** In a service built on Bitwarden.Server.Sdk.Service, the SDK's Service, Messaging, Jobs,
+  Data and Client packages count the writes of endpoints, message handlers, outbox handlers and jobs. The Service
+  package's guard logs and counts every span, and refuses an undeclared one when `SpansServices:RefuseUndeclared` is
+  on.
+- **How writes are counted.** The operation flows on the execution context: whatever it awaits is counted with it, and
+  nothing outside it is. A write to another service is counted once per idempotency key, so a retry that sends the
+  same key is one write. A write sent without a key is counted every time, so an operation that retries one itself
+  makes two writes. Every save is counted.
+
 ## Usage
 
 ### Declare how an operation handles a failure part way
+
+In `MemberEndpoints.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Sagas;
@@ -49,14 +62,12 @@ Name one or more shapes:
 | `StageThenCommit`  | Stage, then commit (like two-phase commit) | has each service stage its part, then one commit makes them take effect, rolling forward after it      |
 
 - `[SpansServices]` goes on an endpoint's handler method, or on a message handler's, outbox handler's or job's class.
-- Choose the shape the code really implements, and say in the reason how it implements it. A blank reason, or no
-  shape, throws `ArgumentException`.
 - A message published through the outbox after the commit is not a synchronous write and needs no declaration.
 
 ### Admit an operation that doesn't handle it yet
 
 An operation with no handling yet is a defect. Never declare a shape it doesn't implement; admit it, saying what a
-failure part way leaves behind and where the defect is recorded:
+failure part way leaves behind and where the defect is recorded. In `SeatPurchaseHandler.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Sagas;
@@ -74,7 +85,7 @@ as an undeclared one. A host that refuses undeclared operations lets it through.
 
 A test host can stand in for another service with a double of its client, and then count writes by the client method's
 name: `Get`, `List`, `Check`, `Find` and the other reading verbs read, and anything else writes. A method whose name
-misleads says what it does on the client's interface:
+misleads says what it does on the client's interface. In `IAccountCalls.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Sagas;
@@ -93,13 +104,12 @@ The request the client sends is unchanged.
 `ReadingRoutes.Reads` tells a client which write-method requests only read, by address: an action named `check`,
 `find`, `validate`, `look-up`, `resolve`, `get`, `filter` or `holds`, alone or followed by more words
 (`.../actions/find-by-identifier`), a collection of previews (`/api/v1/invoice-previews`), or `validateOnly=true` in the
-query. The rule trusts the name, so a write named with a reading verb (`.../actions/resolve-and-refund`) counts as a
-read. Name a write with a verb that says it writes.
+query.
 
 ### Count an operation's writes in your own host
 
 A host begins an operation around each endpoint, message handler and job, its clients report each write they send to
-another service, and its data layer each save:
+another service, and its data layer each save. In `Program.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Sagas;
@@ -122,16 +132,18 @@ sealed class PrintingGuard : IServiceWritesGuard
 
 This prints that `invite-member` spans services, undeclared, then its two steps: `database` and `vault-service`.
 
-- The operation flows on the execution context: whatever it awaits is counted with it, and nothing outside it is.
-- A write to another service is counted once per idempotency key, so a retry that sends the same key is one write. A
-  write sent without a key is counted every time, so an operation that retries one itself makes two writes. Every save
-  is counted.
-- The guard is told once, before the write that makes the operation span services, with the steps by name only
+## Gotchas and constraints
+
+- **Declare only the shape the code really implements,** and say in the reason how it implements it. A blank reason,
+  or no shape, throws `ArgumentException`.
+- **`ReadingRoutes` trusts the name,** so a write named with a reading verb (`.../actions/resolve-and-refund`) counts
+  as a read. Name a write with a verb that says it writes.
+- **The guard is told once,** before the write that makes the operation span services, with the steps by name only
   (a service's name or `database`), never a value the write carries.
-- A guard refuses by throwing. That write and every later write of the operation are refused the same way, including
+- **A guard refuses by throwing.** That write and every later write of the operation are refused the same way, including
   one made by the operation's other work while the guard was deciding. A guard must not wait for another write of the
   same operation.
-- Call `ServiceWriteScope.ThrowIfRefused` when the operation returns: it throws the refusal again if the operation
+- **Call `ServiceWriteScope.ThrowIfRefused` when the operation returns.** It throws the refusal again if the operation
   caught it and went on, so it can't finish as if its refused write had been made.
 
 ## Types
