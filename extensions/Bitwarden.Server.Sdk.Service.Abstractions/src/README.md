@@ -1,5 +1,7 @@
 # Bitwarden.Server.Sdk.Service.Abstractions
 
+**Audience:** engineers changing this package.
+
 The contract between a package that configures every service referencing it and the host that applies it. See
 [PACKAGE.md](PACKAGE.md) for how to use it.
 
