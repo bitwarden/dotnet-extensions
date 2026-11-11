@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.Errors;
 
 /// <summary>
 /// The caller is known but may not perform this operation.

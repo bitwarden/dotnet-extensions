@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.Errors;
 
 /// <summary>
 /// The caller presented no credential, or one that is not valid.

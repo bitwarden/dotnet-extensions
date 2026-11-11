@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Common.Errors;
+namespace Bitwarden.Server.Sdk.Errors;
 
 /// <summary>
 /// The body of every unsuccessful response.

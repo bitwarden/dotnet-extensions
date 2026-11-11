@@ -1,14 +1,12 @@
-using Bitwarden.Server.Sdk.Common.Errors;
-
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.Errors;
 
 /// <summary>
 /// The resource addressed by the URL does not exist, or the caller may not know that it does.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Answered with <c>404</c>, whether the resource is absent or the caller may not know about it, so
-/// existence never leaks through the difference between <c>403</c> and <c>404</c>.
+/// A host answers it with <c>404</c>, whether the resource is absent or the caller may not know about
+/// it, so existence never leaks through the difference between <c>403</c> and <c>404</c>.
 /// </para>
 /// <para>
 /// A resource referenced inside a payload rather than addressed by the URL is a <c>422</c> instead.

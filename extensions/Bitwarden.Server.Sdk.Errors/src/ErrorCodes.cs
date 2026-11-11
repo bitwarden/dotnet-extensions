@@ -1,4 +1,4 @@
-namespace Bitwarden.Server.Sdk.Common.Errors;
+namespace Bitwarden.Server.Sdk.Errors;
 
 /// <summary>
 /// The stable, machine-readable codes a caller branches on.

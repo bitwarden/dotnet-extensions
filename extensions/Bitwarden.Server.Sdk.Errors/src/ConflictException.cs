@@ -1,12 +1,10 @@
-using Bitwarden.Server.Sdk.Common.Errors;
-
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.Errors;
 
 /// <summary>
 /// The request conflicts with the resource's current state.
 /// </summary>
 /// <remarks>
-/// Answered with <c>409</c>. For a change racing another, such as a version that no longer matches
+/// A host answers it with <c>409</c>. For a change racing another, such as a version that no longer matches
 /// the stored one. A request that was invalid to begin with is a <c>422</c> instead.
 /// </remarks>
 public sealed class ConflictException : Exception
