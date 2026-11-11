@@ -3,8 +3,10 @@
 Do a write another Bitwarden service sends at most once, and answer a repeat with the first answer.
 
 A write that fails in transit may or may not have been done, so a service client sends it again with the same
-`Idempotency-Key`. This package records each keyed write from another service as it runs, keeps its answer, and
-replays that answer to a repeat instead of doing the write twice.
+`Idempotency-Key`. For an operation that opts in with `[AcceptsIdempotencyKey]`, this package records each keyed write
+from another service as it runs, keeps its answer, and replays that answer to a repeat instead of doing the write
+twice. Only operations that a repeat would do twice need it, so it is opt-in: each keyed write costs two round trips to
+the store and holds its answer there for `Idempotency:Retention`.
 
 - **At most once per key.** A repeat with the same method, path, query and body gets the first answer, marked
   `Idempotency-Replayed: true`.
@@ -16,15 +18,16 @@ replays that answer to a repeat instead of doing the write twice.
   instance is still answered once.
 - **Sealed.** A kept answer is sealed with the service's data protection keys before it is stored.
 
-Bitwarden.Server.Sdk.Service registers and orders it for every service. Reference it directly only to compose a host
-yourself, or to leave an operation out with `[IgnoreIdempotencyKey]`.
+Bitwarden.Server.Sdk.Service registers and orders it for every service, and publishes each marked operation in the
+service's contract (`x-bitwarden-idempotency-key`), so a client package built from it sends a key to that operation and
+no other. Reference it directly to mark an operation with `[AcceptsIdempotencyKey]`, or to compose a host yourself.
 
 ## What it applies to
 
 A request is recorded only when all of these hold. Everything else passes through untouched:
 
 - it is a write: any method but `GET`, `HEAD`, `OPTIONS` and `TRACE`;
-- it reached a mapped operation that isn't marked `[IgnoreIdempotencyKey]`;
+- it reached a mapped operation marked `[AcceptsIdempotencyKey]`;
 - it doesn't ask only to be checked (`validateOnly=true`);
 - it comes from another service: a token whose `client_id` is `internal.{service}` (`InternalCaller`);
 - it carries `Idempotency-Key`.
@@ -66,7 +69,7 @@ app.UseAuthorization();
 app.UseCallChainCheck();
 app.UseIdempotencyKeys();
 
-app.MapPost("/api/v1/widgets", () => Results.Created("/api/v1/widgets/1", new CreatedWidget("1")));
+app.MapPost("/api/v1/widgets", [AcceptsIdempotencyKey] () => Results.Created("/api/v1/widgets/1", new CreatedWidget("1")));
 
 app.Run();
 
@@ -82,38 +85,41 @@ internal sealed class WidgetServiceIdentity : IServiceIdentity
 
 Another service that sends `POST /api/v1/widgets` twice with the same `Idempotency-Key` gets `201` both times; the
 second answer carries `Idempotency-Replayed: true`, and the handler ran once. A generated client in
-Bitwarden.Server.Sdk.Client sends the key on every write for you.
+Bitwarden.Server.Sdk.Client sends the key for you, to every operation the service's contract marks.
 
 ## Examples
 
-### Leave an operation out
+### Opt an operation in
 
-Mark an operation that must answer from the state now, or is idempotent by its own state:
+Mark an operation whose repeat would do something twice that the state it leaves doesn't absorb: a create with an
+identifier the service chooses, a charge or purchase, a mail or message sent, a secret issued, a count added to:
 
 ```csharp
 using Bitwarden.Server.Sdk.Idempotency;
 
-public static class WidgetChecks
+public static class WidgetPurchases
 {
     /// <summary>
-    /// Check a widget's name is free
+    /// Buy a widget
     /// </summary>
-    [IgnoreIdempotencyKey]
-    public static NameCheck CheckName(NameCheck request) => request;
+    [AcceptsIdempotencyKey]
+    public static Purchase Buy(Purchase request) => request;
 }
 
-public sealed record NameCheck(string Name, bool Free);
+public sealed record Purchase(string Widget, int Quantity);
 ```
 
-It goes on the handler method or its class. Service clients retry a keyed write after a failed connection, so an
-operation left out must be safe to receive twice.
+It goes on the handler method or its class. Leave it off a replace, a delete, a write that sets a value, and anything
+that only reads, which must answer from the state now. A service client retries a write without a key only when its
+connection never opened, so it can't arrive twice from a retry; an operation run again after a failure (a message
+redelivered, a job's next attempt) still sends it again, so an unmarked write must be safe to receive twice.
 
 ## Configuration
 
 | Setting                           | Default      | What it does                                                                                                                      |
 | --------------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------- |
 | `Idempotency:Enabled`             | `true`       | Whether keys are honoured at all.                                                                                                 |
-| `Idempotency:Retention`           | `1.00:00:00` | How long a completed write's answer is kept for its key. A repeat after that is done again.                                       |
+| `Idempotency:Retention`           | `00:10:00`   | How long a completed write's answer is kept for its key. A repeat after that is done again.                                       |
 | `Idempotency:Lease`               | `00:02:00`   | How long a write in progress holds its key. A repeat after that, should the instance running it have stopped, is done again.      |
 | `Idempotency:MaximumBytes`        | `1048576`    | The largest request body fingerprinted, and the largest answer kept. A write past either runs without a key.                      |
 | `Idempotency:Redis:Configuration` | None         | The Redis records are kept in. With it, and a shared data protection key ring, records are kept there; otherwise in this process. |
@@ -162,3 +168,4 @@ The middleware is also tested inside a whole service host, in Bitwarden.Server.S
 - **Records sealed, under the protector's original purpose.** Renaming the purpose would make every kept answer
   unopenable.
 - **Between services only.** A browser's write is never recorded.
+- **Opt-in.** An operation without `[AcceptsIdempotencyKey]` is never recorded, whatever it carries.

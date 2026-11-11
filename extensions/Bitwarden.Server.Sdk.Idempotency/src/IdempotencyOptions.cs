@@ -20,10 +20,15 @@ public sealed class IdempotencyOptions
     public const string RedisConfigurationKey = "Idempotency:Redis:Configuration";
 
     /// <summary>
-    /// How long a completed write's answer is kept for its key: a repeat after that is done again. 24 hours by
-    /// default, as payment processors keep theirs.
+    /// How long a completed write's answer is kept for its key: a repeat after that is done again. 10 minutes by
+    /// default.
     /// </summary>
-    public TimeSpan Retention { get; set; } = TimeSpan.FromHours(24);
+    /// <remarks>
+    /// Long enough for a client's retries, which end within the call's deadline, and for an operation run again after
+    /// a failure: a write held by <see cref="Lease"/>, then a dispatcher's backoff of at most five minutes. Records are
+    /// held in the store for this long, so the store holds about the answers of this many minutes of keyed writes.
+    /// </remarks>
+    public TimeSpan Retention { get; set; } = TimeSpan.FromMinutes(10);
 
     /// <summary>
     /// How long a write in progress holds its key: a repeat meanwhile is refused <c>409</c>; one after, should the

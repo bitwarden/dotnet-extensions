@@ -19,10 +19,10 @@ namespace Bitwarden.Server.Sdk.Idempotency;
 /// <remarks>
 /// <para>
 /// Applies to a write (any method but <c>GET</c>, <c>HEAD</c>, <c>OPTIONS</c> and <c>TRACE</c>) to a mapped operation
-/// without <see cref="IgnoreIdempotencyKeyAttribute"/> and not asked only to be checked (<c>validateOnly=true</c>), from
-/// another service's credential
-/// (<see cref="InternalCaller"/>), carrying the header. Everything else passes untouched: a browser's write, and so
-/// every client-facing operation, runs every time it arrives, whatever headers it carries.
+/// declaring <see cref="AcceptsIdempotencyKeyAttribute"/> and not asked only to be checked (<c>validateOnly=true</c>),
+/// from another service's credential (<see cref="InternalCaller"/>), carrying the header. Everything else passes
+/// untouched: an operation that doesn't declare it, and a browser's write, and so every client-facing operation, run
+/// every time they arrive, whatever headers they carry.
 /// </para>
 /// <para>
 /// A record is kept per caller (its <c>client_id</c>), key, and the owners its context names. The first request with a key holds it while it runs
@@ -64,7 +64,7 @@ internal sealed class IdempotentWrites(
             || !IsWrite(http.Request.Method)
             || !http.Request.Headers.TryGetValue(IdempotencyKeys.Header, out var values)
             || http.GetEndpoint() is not { } endpoint
-            || endpoint.Metadata.GetMetadata<IgnoreIdempotencyKeyAttribute>() is not null
+            || endpoint.Metadata.GetMetadata<AcceptsIdempotencyKeyAttribute>() is null
             || IsValidateOnly(http.Request)
             || !InternalCaller.Is(http.User))
         {
