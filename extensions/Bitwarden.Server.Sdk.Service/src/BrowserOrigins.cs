@@ -135,11 +135,11 @@ internal static class BrowserOrigins
         // The wildcard is allowed in one place only, as the host's first label.
         var schemeEnd = entry.IndexOf("://", StringComparison.Ordinal);
         var star = entry.IndexOf('*', StringComparison.Ordinal);
-        if (star >= 0
-            && (schemeEnd < 0
-                || star != schemeEnd + 3
-                || !entry.AsSpan(star).StartsWith(WildcardLabel, StringComparison.Ordinal)
-                || entry.IndexOf('*', star + 1) >= 0))
+        var leadsTheHost = schemeEnd >= 0
+            && star == schemeEnd + 3
+            && entry.AsSpan(star).StartsWith(WildcardLabel, StringComparison.Ordinal);
+        var onlyOne = star < 0 || entry.IndexOf('*', star + 1) < 0;
+        if (star >= 0 && !(leadsTheHost && onlyOne))
         {
             throw Invalid(entry, $"A wildcard may only lead the host, as in 'http://{WildcardLabel}example.com'.");
         }

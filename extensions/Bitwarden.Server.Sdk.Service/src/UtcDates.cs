@@ -82,7 +82,15 @@ public static class UtcDates
         {
             var time = text.IndexOf('T', StringComparison.OrdinalIgnoreCase);
 
-            return time >= 0 && (text.EndsWith('Z') || text.IndexOfAny(['+', '-'], time) >= 0);
+            if (time < 0)
+            {
+                return false;
+            }
+
+            var utc = text.EndsWith('Z');
+            var offset = text.IndexOfAny(['+', '-'], time) >= 0;
+
+            return utc || offset;
         }
 
         /// <inheritdoc />
