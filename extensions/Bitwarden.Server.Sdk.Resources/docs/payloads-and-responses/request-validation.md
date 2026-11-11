@@ -209,11 +209,12 @@ public static class LegacyWidgetsEndpoints
   convert is still refused `400`.
 - The handler validates everything else itself.
 
-## Declare nested members without `required`
+## Nested members
 
-A member of a nested object declared with C#'s `required` keyword fails with `500` when it is absent
-or of the wrong JSON kind, not `422`. The package doesn't report it at the member. To have it
-reported like any other member, declare it non-nullable without `required`, or nullable:
+A member of a nested object is refused at its own pointer, such as `/data/attributes/part/label`. One
+declared with C#'s `required` keyword and left out is refused `422` `field-required`, and one holding
+a value its type can't, such as a string for an `int`, `422` `invalid-value`. A member declared
+non-nullable without `required`, or nullable, is validated like any other:
 
 ```csharp
 public sealed record WidgetPart
