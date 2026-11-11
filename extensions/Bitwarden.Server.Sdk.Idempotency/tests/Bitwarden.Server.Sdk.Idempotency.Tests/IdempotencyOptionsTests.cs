@@ -8,7 +8,7 @@ public sealed class IdempotencyOptionsTests
     {
         var options = new IdempotencyOptions();
 
-        Assert.Equal(TimeSpan.FromHours(24), options.Retention);
+        Assert.Equal(TimeSpan.FromMinutes(10), options.Retention);
         Assert.Equal(TimeSpan.FromMinutes(2), options.Lease);
         Assert.Equal(1024 * 1024, options.MaximumBytes);
         Assert.True(options.Enabled);
