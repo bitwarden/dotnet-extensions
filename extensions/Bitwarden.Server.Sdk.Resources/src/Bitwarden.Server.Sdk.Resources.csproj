@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- The resource documents' attributes envelope is applied by a reflection-based JsonConverterFactory,
+         which cannot be proven trim- or AOT-safe. Declared honestly rather than suppressed: this
+         package is not AOT-compatible, and native AOT is already ruled out for any service with a
+         database (EF Core has no AOT path). -->
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <PreReleaseVersionLabel>alpha</PreReleaseVersionLabel>
+    <PreReleaseVersionIteration>1</PreReleaseVersionIteration>
+    <VersionSuffix Condition="'$(VersionSuffix)' == '' AND '$(IsPreRelease)' == 'true'">$(PreReleaseVersionLabel).$(PreReleaseVersionIteration)</VersionSuffix>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Description>Resources for Bitwarden services: the resource documents, querying, standard endpoints and their OpenAPI description.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Bitwarden.Server.Sdk.Environment" Version="0.1.0" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Authorization\src\Bitwarden.Server.Sdk.Authorization.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Context\src\Bitwarden.Server.Sdk.Context.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Data.Abstractions\src\Bitwarden.Server.Sdk.Data.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Errors\src\Bitwarden.Server.Sdk.Errors.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Resources.Tests" />
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Service.Tests" />
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Service.MinimalApi.Tests" />
+    <!-- The service-owned cache names resources and reads their stored fields exactly as the standard operations do. -->
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Resources.Caching" />
+  </ItemGroup>
+
+</Project>
