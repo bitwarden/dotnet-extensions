@@ -4,7 +4,7 @@ A service makes two kinds of outbound call: to an address someone outside Bitwar
 an organization's webhook or identity provider, and to the deployment's other services. Guard the
 first with `AddSsrfProtection()` so it can't reach the private network, and run the second over a
 Trusted Channel with `Tls:*` settings. The guard, and the `InternalTls` settings type, are in
-[Bitwarden.Server.Sdk.Http](../../../Bitwarden.Server.Sdk.Http/src/README.md), which has no ASP.NET Core
+[Bitwarden.Server.Sdk.Http](../../../Bitwarden.Server.Sdk.Http/src/PACKAGE.md), which has no ASP.NET Core
 dependency; `Service` reads the `Tls:*` settings, trusts the named authorities for every client and
 serves HTTPS with them.
 

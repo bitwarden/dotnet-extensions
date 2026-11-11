@@ -3,9 +3,9 @@
 A request is about someone: an organization, a person, a provider, and the client and address it
 came from. Your handlers read that from `IContext`, and the package fills it in from the session or
 from the context another service sends. `IContext` and the context headers are in
-[Bitwarden.Server.Sdk.Context](../../../Bitwarden.Server.Sdk.Context/src/README.md); filling
+[Bitwarden.Server.Sdk.Context](../../../Bitwarden.Server.Sdk.Context/src/PACKAGE.md); filling
 in and checking them is
-[Bitwarden.Server.Sdk.Authorization](../../../Bitwarden.Server.Sdk.Authorization/src/README.md)'s work,
+[Bitwarden.Server.Sdk.Authorization](../../../Bitwarden.Server.Sdk.Authorization/src/PACKAGE.md)'s work,
 which `Service` registers for you.
 
 ## Read whom a request concerns
