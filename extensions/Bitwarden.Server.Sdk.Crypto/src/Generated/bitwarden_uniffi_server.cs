@@ -848,10 +848,6 @@ static class _UniFFILib {
     
     
     
-    
-    
-    
-    
 
     static _UniFFILib() {
         _UniFFILib.uniffiCheckContractApiVersion();
@@ -934,28 +930,6 @@ static class _UniFFILib {
     public static extern
 #endif
      void uniffi_bitwarden_uniffi_server_fn_free_cryptoparsingclient(ulong @handle,ref UniffiRustCallStatus _uniffi_out_err
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_get_encrypted_by_key_id_encstring(ulong @ptr,RustBuffer @encString,ref UniffiRustCallStatus _uniffi_out_err
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_get_encrypted_by_key_id_symmetrickeyenvelope(ulong @ptr,RustBuffer @envelope,ref UniffiRustCallStatus _uniffi_out_err
     );
 
     #if NET8_0_OR_GREATER
@@ -1659,28 +1633,6 @@ static class _UniFFILib {
     [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
     public static extern
 #endif
-     ushort uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_get_encrypted_by_key_id_encstring(
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     ushort uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_get_encrypted_by_key_id_symmetrickeyenvelope(
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
      ushort uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_data_envelope(
     );
 
@@ -1816,18 +1768,6 @@ static class _UniFFILib {
             }
         }
         {
-            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_get_encrypted_by_key_id_encstring();
-            if (checksum != 33288) {
-                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_get_encrypted_by_key_id_encstring` checksum `33288`, library returned `{checksum}`");
-            }
-        }
-        {
-            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_get_encrypted_by_key_id_symmetrickeyenvelope();
-            if (checksum != 23205) {
-                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_get_encrypted_by_key_id_symmetrickeyenvelope` checksum `23205`, library returned `{checksum}`");
-            }
-        }
-        {
             var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_data_envelope();
             if (checksum != 11979) {
                 throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_data_envelope` checksum `11979`, library returned `{checksum}`");
@@ -1956,16 +1896,6 @@ class FfiConverterString: FfiConverter<string, RustBuffer> {
 /// Parses SDK crypto objects and reads the key ids they name, without decrypting or verifying.
 /// </summary>
 internal interface ICryptoParsingClient {
-    /// <summary>
-    /// The id of the key `enc_string` was encrypted with, if it names one.
-    /// </summary>
-    /// <exception cref="ServerException"></exception>
-    string? GetEncryptedByKeyIdEncstring(string @encString);
-    /// <summary>
-    /// The id of the key `envelope` is sealed with.
-    /// </summary>
-    /// <exception cref="ServerException"></exception>
-    string? GetEncryptedByKeyIdSymmetrickeyenvelope(string @envelope);
     /// <summary>
     /// Inspects a DataEnvelope: the content-encryption key it is sealed with.
     /// </summary>
@@ -2103,30 +2033,6 @@ internal class CryptoParsingClient : ICryptoParsingClient, IDisposable {
         }
     }
 
-    
-    /// <summary>
-    /// The id of the key `enc_string` was encrypted with, if it names one.
-    /// </summary>
-    /// <exception cref="ServerException"></exception>
-    public string? GetEncryptedByKeyIdEncstring(string @encString) {
-        return CallWithPointer(thisPtr => FfiConverterOptionalString.INSTANCE.Lift(
-    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
-    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_get_encrypted_by_key_id_encstring(thisPtr, FfiConverterString.INSTANCE.Lower(@encString), ref _status)
-)));
-    }
-    
-    
-    /// <summary>
-    /// The id of the key `envelope` is sealed with.
-    /// </summary>
-    /// <exception cref="ServerException"></exception>
-    public string? GetEncryptedByKeyIdSymmetrickeyenvelope(string @envelope) {
-        return CallWithPointer(thisPtr => FfiConverterOptionalString.INSTANCE.Lift(
-    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
-    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_get_encrypted_by_key_id_symmetrickeyenvelope(thisPtr, FfiConverterString.INSTANCE.Lower(@envelope), ref _status)
-)));
-    }
-    
     
     /// <summary>
     /// Inspects a DataEnvelope: the content-encryption key it is sealed with.

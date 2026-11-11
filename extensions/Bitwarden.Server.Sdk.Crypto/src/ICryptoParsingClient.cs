@@ -3,7 +3,7 @@ namespace Bitwarden.Server.Sdk.Crypto;
 /// <summary>
 /// Parses SDK crypto objects and reads the key ids they name, without decrypting or verifying.
 /// </summary>
-public interface ICryptoObjectInspector
+public interface ICryptoParsingClient
 {
     /// <summary>
     /// Inspects an EncString: its algorithm and encrypting key.

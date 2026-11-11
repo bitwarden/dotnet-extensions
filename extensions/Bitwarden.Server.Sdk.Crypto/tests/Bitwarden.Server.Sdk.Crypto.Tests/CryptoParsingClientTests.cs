@@ -2,8 +2,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Bitwarden.Server.Sdk.Crypto.Tests;
 
-// Exercises ICryptoObjectInspector through the native library against sdk-internal test vectors.
-public class CryptoObjectInspectorTests
+// Exercises ICryptoParsingClient through the native library against sdk-internal test vectors.
+public class CryptoParsingClientTests
 {
     private const string Garbage = "garbage";
 
@@ -14,22 +14,14 @@ public class CryptoObjectInspectorTests
         .AddServerSdkCrypto()
         .BuildServiceProvider();
 
-    private ICryptoObjectInspector Inspector => _provider.GetRequiredService<ICryptoObjectInspector>();
-
-    [Fact]
-    public void AddServerSdkCrypto_SharesInspector()
-    {
-        var reader = _provider.GetRequiredService<IEncryptionKeyIdReader>();
-
-        Assert.Same(reader, Inspector);
-    }
+    private ICryptoParsingClient Client => _provider.GetRequiredService<ICryptoParsingClient>();
 
     [Fact]
     public void InspectEncString_Cose_ReturnsKeyId()
     {
         var expected = new EncStringInfo(EncStringAlgorithm.XAes256Gcm, Fixtures.KeyId);
 
-        Assert.Equal(expected, Inspector.InspectEncString(Fixtures.CoseEncString));
+        Assert.Equal(expected, Client.InspectEncString(Fixtures.CoseEncString));
     }
 
     [Fact]
@@ -37,7 +29,7 @@ public class CryptoObjectInspectorTests
     {
         var expected = new EncStringInfo(EncStringAlgorithm.Aes256CbcHmac, null);
 
-        Assert.Equal(expected, Inspector.InspectEncString(Fixtures.LegacyEncString));
+        Assert.Equal(expected, Client.InspectEncString(Fixtures.LegacyEncString));
     }
 
     // An UnsignedSharedKey is not an EncString.
@@ -45,13 +37,13 @@ public class CryptoObjectInspectorTests
     public void InspectEncString_UnsignedSharedKey_Throws()
     {
         Assert.Throws<InvalidEncryptedDataException>(
-            () => Inspector.InspectEncString(InspectorFixtures.UnsignedSharedKey));
+            () => Client.InspectEncString(InspectorFixtures.UnsignedSharedKey));
     }
 
     [Fact]
     public void InspectEncString_Invalid_Throws()
     {
-        var ex = Assert.Throws<InvalidEncryptedDataException>(() => Inspector.InspectEncString(Garbage));
+        var ex = Assert.Throws<InvalidEncryptedDataException>(() => Client.InspectEncString(Garbage));
 
         Assert.NotNull(ex.InnerException);
     }
@@ -61,7 +53,7 @@ public class CryptoObjectInspectorTests
     {
         var expected = new UnsignedSharedKeyInfo(UnsignedSharedKeyAlgorithm.Rsa2048OaepSha1);
 
-        Assert.Equal(expected, Inspector.InspectUnsignedSharedKey(InspectorFixtures.UnsignedSharedKey));
+        Assert.Equal(expected, Client.InspectUnsignedSharedKey(InspectorFixtures.UnsignedSharedKey));
     }
 
     // A symmetric EncString is valid, but not an UnsignedSharedKey.
@@ -69,7 +61,7 @@ public class CryptoObjectInspectorTests
     public void InspectUnsignedSharedKey_Symmetric_Throws()
     {
         Assert.Throws<InvalidEncryptedDataException>(
-            () => Inspector.InspectUnsignedSharedKey(Fixtures.CoseEncString));
+            () => Client.InspectUnsignedSharedKey(Fixtures.CoseEncString));
     }
 
     [Fact]
@@ -77,14 +69,14 @@ public class CryptoObjectInspectorTests
     {
         var expected = new CryptoObjectKeyIds(Fixtures.KeyId, InspectorFixtures.EnvelopeSealingKeyId, null);
 
-        Assert.Equal(expected, Inspector.InspectSymmetricKeyEnvelope(Fixtures.Envelope));
+        Assert.Equal(expected, Client.InspectSymmetricKeyEnvelope(Fixtures.Envelope));
     }
 
     [Fact]
     public void InspectSymmetricKeyEnvelope_Invalid_Throws()
     {
         Assert.Throws<InvalidEncryptedDataException>(
-            () => Inspector.InspectSymmetricKeyEnvelope(Fixtures.CoseEncString));
+            () => Client.InspectSymmetricKeyEnvelope(Fixtures.CoseEncString));
     }
 
     [Fact]
@@ -95,7 +87,7 @@ public class CryptoObjectInspectorTests
             InspectorFixtures.LegacyCompatEnvelopeSealingKeyId,
             null);
 
-        var actual = Inspector.InspectLegacyCompatSymmetricKeyEnvelope(InspectorFixtures.LegacyCompatEnvelope);
+        var actual = Client.InspectLegacyCompatSymmetricKeyEnvelope(InspectorFixtures.LegacyCompatEnvelope);
 
         Assert.Equal(expected, actual);
     }
@@ -106,7 +98,7 @@ public class CryptoObjectInspectorTests
     {
         var expected = new CryptoObjectKeyIds(null, InspectorFixtures.LegacyCompatEncStringSealingKeyId, null);
 
-        var actual = Inspector.InspectLegacyCompatSymmetricKeyEnvelope(InspectorFixtures.LegacyCompatEncString);
+        var actual = Client.InspectLegacyCompatSymmetricKeyEnvelope(InspectorFixtures.LegacyCompatEncString);
 
         Assert.Equal(expected, actual);
     }
@@ -116,7 +108,7 @@ public class CryptoObjectInspectorTests
     public void InspectLegacyCompat_Invalid_Throws()
     {
         Assert.Throws<InvalidEncryptedDataException>(
-            () => Inspector.InspectLegacyCompatSymmetricKeyEnvelope("2.AAAA|AAAA"));
+            () => Client.InspectLegacyCompatSymmetricKeyEnvelope("2.AAAA|AAAA"));
     }
 
     [Fact]
@@ -124,7 +116,7 @@ public class CryptoObjectInspectorTests
     {
         var expected = new CryptoObjectKeyIds(null, null, null);
 
-        var actual = Inspector.InspectPasswordProtectedKeyEnvelope(InspectorFixtures.PasswordProtectedEnvelope);
+        var actual = Client.InspectPasswordProtectedKeyEnvelope(InspectorFixtures.PasswordProtectedEnvelope);
 
         Assert.Equal(expected, actual);
     }
@@ -133,7 +125,7 @@ public class CryptoObjectInspectorTests
     public void InspectPasswordProtected_Invalid_Throws()
     {
         Assert.Throws<InvalidEncryptedDataException>(
-            () => Inspector.InspectPasswordProtectedKeyEnvelope(Fixtures.Envelope));
+            () => Client.InspectPasswordProtectedKeyEnvelope(Fixtures.Envelope));
     }
 
     [Fact]
@@ -141,13 +133,13 @@ public class CryptoObjectInspectorTests
     {
         var expected = new CryptoObjectKeyIds(null, InspectorFixtures.DataEnvelopeKeyId, null);
 
-        Assert.Equal(expected, Inspector.InspectDataEnvelope(InspectorFixtures.DataEnvelope));
+        Assert.Equal(expected, Client.InspectDataEnvelope(InspectorFixtures.DataEnvelope));
     }
 
     [Fact]
     public void InspectDataEnvelope_Invalid_Throws()
     {
-        Assert.Throws<InvalidEncryptedDataException>(() => Inspector.InspectDataEnvelope(NotCose));
+        Assert.Throws<InvalidEncryptedDataException>(() => Client.InspectDataEnvelope(NotCose));
     }
 
     [Fact]
@@ -155,13 +147,13 @@ public class CryptoObjectInspectorTests
     {
         var expected = new CryptoObjectKeyIds(null, null, InspectorFixtures.VerifyingKeyId);
 
-        Assert.Equal(expected, Inspector.InspectSignedObject(InspectorFixtures.SignedObject));
+        Assert.Equal(expected, Client.InspectSignedObject(InspectorFixtures.SignedObject));
     }
 
     [Fact]
     public void InspectSignedObject_Invalid_Throws()
     {
-        Assert.Throws<InvalidEncryptedDataException>(() => Inspector.InspectSignedObject(NotCose));
+        Assert.Throws<InvalidEncryptedDataException>(() => Client.InspectSignedObject(NotCose));
     }
 
     [Fact]
@@ -169,13 +161,13 @@ public class CryptoObjectInspectorTests
     {
         var expected = new VerifyingKeyInfo(VerifyingKeyAlgorithm.Ed25519, InspectorFixtures.VerifyingKeyId);
 
-        Assert.Equal(expected, Inspector.InspectVerifyingKey(InspectorFixtures.VerifyingKey));
+        Assert.Equal(expected, Client.InspectVerifyingKey(InspectorFixtures.VerifyingKey));
     }
 
     [Fact]
     public void InspectVerifyingKey_Invalid_Throws()
     {
-        Assert.Throws<InvalidEncryptedDataException>(() => Inspector.InspectVerifyingKey(NotCose));
+        Assert.Throws<InvalidEncryptedDataException>(() => Client.InspectVerifyingKey(NotCose));
     }
 
     [Fact]
@@ -183,18 +175,18 @@ public class CryptoObjectInspectorTests
     {
         var expected = new PublicKeyInfo(PublicKeyAlgorithm.RsaOaepSha1, InspectorFixtures.PublicKeyId);
 
-        Assert.Equal(expected, Inspector.InspectPublicKey(InspectorFixtures.PublicKey));
+        Assert.Equal(expected, Client.InspectPublicKey(InspectorFixtures.PublicKey));
     }
 
     [Fact]
     public void InspectPublicKey_Invalid_Throws()
     {
-        Assert.Throws<InvalidEncryptedDataException>(() => Inspector.InspectPublicKey(NotCose));
+        Assert.Throws<InvalidEncryptedDataException>(() => Client.InspectPublicKey(NotCose));
     }
 
     [Fact]
     public void Inspect_Null_Throws()
     {
-        Assert.Throws<ArgumentNullException>(() => Inspector.InspectDataEnvelope(null!));
+        Assert.Throws<ArgumentNullException>(() => Client.InspectDataEnvelope(null!));
     }
 }

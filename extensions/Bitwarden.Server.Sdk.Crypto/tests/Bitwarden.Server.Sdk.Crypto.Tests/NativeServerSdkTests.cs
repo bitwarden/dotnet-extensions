@@ -9,7 +9,7 @@ public class NativeServerSdkTests
         .AddServerSdkCrypto()
         .BuildServiceProvider();
 
-    private IEncryptionKeyIdReader Reader => _provider.GetRequiredService<IEncryptionKeyIdReader>();
+    private ICryptoParsingClient Client => _provider.GetRequiredService<ICryptoParsingClient>();
 
     [Fact]
     public void Version_IsNotEmpty()
@@ -20,52 +20,20 @@ public class NativeServerSdkTests
     }
 
     [Fact]
-    public void FromEncString_Cose_ReturnsKeyId()
-    {
-        Assert.Equal(Fixtures.KeyId, Reader.FromEncString(Fixtures.CoseEncString));
-    }
-
-    [Fact]
-    public void FromEncString_Legacy_ReturnsNull()
-    {
-        Assert.Null(Reader.FromEncString(Fixtures.LegacyEncString));
-    }
-
-    [Fact]
-    public void FromEncString_Invalid_Throws()
-    {
-        var ex = Assert.Throws<InvalidEncryptedDataException>(() => Reader.FromEncString("garbage"));
-
-        Assert.NotNull(ex.InnerException);
-    }
-
-    [Fact]
-    public void FromSymmetricKeyEnvelope_ReturnsKeyId()
-    {
-        Assert.Equal(InspectorFixtures.EnvelopeSealingKeyId, Reader.FromSymmetricKeyEnvelope(Fixtures.Envelope));
-    }
-
-    [Fact]
-    public void FromSymmetricKeyEnvelope_Invalid_Throws()
-    {
-        Assert.Throws<InvalidEncryptedDataException>(() => Reader.FromSymmetricKeyEnvelope("garbage"));
-    }
-
-    [Fact]
     public void AddServerSdkCrypto_SharesOneNativeClient()
     {
         var info = _provider.GetRequiredService<IServerSdkInfo>();
 
-        Assert.Same(info, Reader);
+        Assert.Same(info, Client);
     }
 
     // Many threads on one instance: the Rust client is documented as thread-safe.
     [Fact]
-    public void FromEncString_Concurrent_ReturnsKeyId()
+    public void InspectEncString_Concurrent_ReturnsKeyId()
     {
         var results = new string?[1000];
 
-        Parallel.For(0, results.Length, i => results[i] = Reader.FromEncString(Fixtures.CoseEncString));
+        Parallel.For(0, results.Length, i => results[i] = Client.InspectEncString(Fixtures.CoseEncString).EncryptedByKeyId);
 
         Assert.All(results, id => Assert.Equal(Fixtures.KeyId, id));
     }
