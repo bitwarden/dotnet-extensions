@@ -2,14 +2,18 @@
 
 ## About
 
-A business operation whose writes span Bitwarden services, with no transaction around it, is a saga: no transaction
-spans services, so a failure between its writes leaves it part way done. This package notices a saga and makes the
-operation declare how it handles a failure part way, with `[SpansServices]`. It counts the writes of the operation
-running now, so one that makes two or more writes, at least one of them to another service called synchronously, is
-noticed before the write that makes it so. It does not run or orchestrate sagas.
+Each Bitwarden service has a store of its own, so no transaction spans services. An operation (an endpoint, a message
+handler or a job) that makes two or more writes, at least one of them to another service called synchronously, is a
+saga: a failure between its writes leaves it part way done. Two writes to the same other service count too: a failure
+between them leaves that service half done.
 
-It has no dependencies. A host begins an operation around each endpoint, message handler and job, its clients and data
-layer report the writes they make, and it provides the guard that decides what an undeclared span means.
+This package notices a saga and makes its operation declare how it handles a failure part way. It counts the writes of
+the operation running now and carries that declaration. It does not run or orchestrate sagas: the operation's own code
+makes each write, in the order and with the undo it declares.
+
+It has no dependencies. In a service built on Bitwarden.Server.Sdk.Service, the SDK's Service, Messaging, Jobs, Data
+and Client packages count the writes of endpoints, message handlers, outbox handlers and jobs for you. The Service
+package's guard logs and counts every span, and refuses an undeclared one when `SpansServices:RefuseUndeclared` is on.
 
 ## Installing
 
@@ -17,13 +21,9 @@ layer report the writes they make, and it provides the guard that decides what a
 dotnet add package Bitwarden.Server.Sdk.Sagas
 ```
 
-## Configuration
+## Usage
 
-The package reads no settings.
-
-## Getting started
-
-Declare how an operation that writes in two services handles a failure between those writes:
+### Declare how an operation handles a failure part way
 
 ```csharp
 using Bitwarden.Server.Sdk.Sagas;
@@ -39,26 +39,7 @@ public static class MemberEndpoints
 }
 ```
 
-See the
-[README](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Sagas/src/README.md)
-for a complete program.
-
-## Documentation
-
-### How writes are counted
-
-- `ServiceWrites.Begin` starts an operation, which flows on the execution context: whatever it awaits is counted with
-  it, and nothing outside it is.
-- A write sent to another service is counted once per `Idempotency-Key`, so a retry is one write. A save to the
-  service's own database is counted each time it is reported.
-- Two or more writes, one of them to another service, and the operation spans services; two writes to the same other
-  service count. The guard is told once, before
-  the write that makes it so, with the steps by name only.
-- A guard that throws refuses that write and every later one of the operation, including one made while it was
-  deciding. `ServiceWriteScope.ThrowIfRefused`
-  throws the refusal again if the operation caught it and went on.
-
-### Shapes
+Name one or more shapes:
 
 | Shape              | In saga terms                              | The operation                                                                                          |
 | ------------------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
@@ -67,10 +48,93 @@ for a complete program.
 | `RetrySafeByState` | Retriable steps                            | writes whole values in an order that lets the same request, or the same message again, finish it       |
 | `StageThenCommit`  | Stage, then commit (like two-phase commit) | has each service stage its part, then one commit makes them take effect, rolling forward after it      |
 
-An operation with no handling yet admits it with `[SpansServicesUnhandled(reason)]`, never a shape it doesn't
-implement.
+- `[SpansServices]` goes on an endpoint's handler method, or on a message handler's, outbox handler's or job's class.
+- Choose the shape the code really implements, and say in the reason how it implements it. A blank reason, or no
+  shape, throws `ArgumentException`.
+- A message published through the outbox after the commit is not a synchronous write and needs no declaration.
 
-### Types
+### Admit an operation that doesn't handle it yet
+
+An operation with no handling yet is a defect. Never declare a shape it doesn't implement; admit it, saying what a
+failure part way leaves behind and where the defect is recorded:
+
+```csharp
+using Bitwarden.Server.Sdk.Sagas;
+
+[SpansServicesUnhandled("A failure after the seats are bought leaves them bought with no member; tracked as a defect.")]
+public sealed class SeatPurchaseHandler
+{
+}
+```
+
+The guard is still told every time the operation spans services, with this declaration, and should report it as loudly
+as an undeclared one. A host that refuses undeclared operations lets it through.
+
+### Mark a client method that only reads
+
+A test host can stand in for another service with a double of its client, and then count writes by the client method's
+name: `Get`, `List`, `Check`, `Find` and the other reading verbs read, and anything else writes. A method whose name
+misleads says what it does on the client's interface:
+
+```csharp
+using Bitwarden.Server.Sdk.Sagas;
+
+public interface IAccountCalls
+{
+    [SendsWrites(false)]
+    Task<bool> VerifyPasswordAsync(Guid account, string serverHash, CancellationToken cancellationToken);
+}
+```
+
+The request the client sends is unchanged.
+
+### Name a reading POST so it isn't counted
+
+`ReadingRoutes.Reads` tells a client which write-method requests only read, by address: an action named `check`,
+`find`, `validate`, `look-up`, `resolve`, `get`, `filter` or `holds`, alone or followed by more words
+(`.../actions/find-by-identifier`), a collection of previews (`/api/v1/invoice-previews`), or `validateOnly=true` in the
+query. The rule trusts the name, so a write named with a reading verb (`.../actions/resolve-and-refund`) counts as a
+read. Name a write with a verb that says it writes.
+
+### Count an operation's writes in your own host
+
+A host begins an operation around each endpoint, message handler and job, its clients report each write they send to
+another service, and its data layer each save:
+
+```csharp
+using Bitwarden.Server.Sdk.Sagas;
+
+using (var operation = ServiceWrites.Begin("invite-member", declared: null, guard: new PrintingGuard()))
+{
+    ServiceWrites.Saving();
+    ServiceWrites.Outgoing("vault-service", idempotencyKey: "key-1");
+    ServiceWrites.Outgoing("vault-service", idempotencyKey: "key-1");
+
+    Console.WriteLine($"Steps: {string.Join(", ", operation.Steps)}; spans services: {operation.Spans}");
+}
+
+sealed class PrintingGuard : IServiceWritesGuard
+{
+    public void Spanned(string operation, IReadOnlyList<string> steps, SpanDeclarationAttribute? declared) =>
+        Console.WriteLine($"{operation} spans services, declared: {declared is not null}");
+}
+```
+
+This prints that `invite-member` spans services, undeclared, then its two steps: `database` and `vault-service`.
+
+- The operation flows on the execution context: whatever it awaits is counted with it, and nothing outside it is.
+- A write to another service is counted once per idempotency key, so a retry that sends the same key is one write. A
+  write sent without a key is counted every time, so an operation that retries one itself makes two writes. Every save
+  is counted.
+- The guard is told once, before the write that makes the operation span services, with the steps by name only
+  (a service's name or `database`), never a value the write carries.
+- A guard refuses by throwing. That write and every later write of the operation are refused the same way, including
+  one made by the operation's other work while the guard was deciding. A guard must not wait for another write of the
+  same operation.
+- Call `ServiceWriteScope.ThrowIfRefused` when the operation returns: it throws the refusal again if the operation
+  caught it and went on, so it can't finish as if its refused write had been made.
+
+## Types
 
 | Type                                    | Purpose                                                                |
 | --------------------------------------- | ---------------------------------------------------------------------- |
