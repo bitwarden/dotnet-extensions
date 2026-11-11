@@ -1,0 +1,14 @@
+{
+  "openapi": "3.1.1",
+  "paths": {
+    "/things": {
+      "post": { "operationId": "CreateThing", "x-bitwarden-idempotency-key": true },
+      "put": { "operationId": "ReplaceThings", "x-bitwarden-idempotency-key": true },
+      "patch": { "operationId": "UpdateThings", "x-bitwarden-idempotency-key": true },
+      "delete": { "operationId": "DeleteThings", "x-bitwarden-idempotency-key": true }
+    },
+    "/settings/{id}": {
+      "put": { "operationId": "ReplaceSetting" }
+    }
+  }
+}
