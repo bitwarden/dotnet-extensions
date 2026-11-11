@@ -25,6 +25,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The probes' contract, as a client package embeds its service's: the operations a client sends keys to. -->
+    <EmbeddedResource Include="TestHost\IdempotencyProbes.openapi.json" LogicalName="openapi.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.Service.csproj" />
     <!-- The calling side, so a test can watch what a service sends downstream. -->
     <ProjectReference Include="..\..\..\Bitwarden.Server.Sdk.Client\src\Bitwarden.Server.Sdk.Client.csproj" />

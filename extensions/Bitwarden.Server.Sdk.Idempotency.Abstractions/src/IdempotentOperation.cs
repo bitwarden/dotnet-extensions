@@ -6,12 +6,12 @@ namespace Bitwarden.Server.Sdk.Idempotency;
 
 /// <summary>
 /// Names one logical operation, so that when it is run again its writes carry the same idempotency keys and each
-/// callee does each of them at most once.
+/// callee that accepts keys does each of them at most once.
 /// </summary>
 /// <remarks>
 /// <para>
-/// A client that sends an <c>Idempotency-Key</c> (<see cref="IdempotencyKeys.Header"/>) on its writes asks
-/// <see cref="KeyForWrite"/> for it. Outside an operation the client sends a fresh key for each call, which covers its
+/// A client that sends an <c>Idempotency-Key</c> (<see cref="IdempotencyKeys.Header"/>) on a write, to an operation
+/// whose service's contract marks it (<see cref="IdempotencyKeys.Extension"/>), asks <see cref="KeyForWrite"/> for it. Outside an operation the client sends a fresh key for each call, which covers its
 /// own retries of that call. Inside one, the key is derived from the operation's key, the method, the address, the body, and how many identical writes the
 /// operation has made before: so an operation that is run again from the start (a message redelivered, a job's
 /// occurrence run again, an attempt of a retry loop) with the same key sends the same keys, and the callees replay what

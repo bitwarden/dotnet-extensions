@@ -26,6 +26,12 @@ public static class IdempotencyKeys
     public const string ReplayedHeader = "Idempotency-Replayed";
 
     /// <summary>
+    /// The OpenAPI extension, <c>true</c>, on an operation that honours the header: a client sends a key only to an
+    /// operation its contract marks so.
+    /// </summary>
+    public const string Extension = "x-bitwarden-idempotency-key";
+
+    /// <summary>
     /// The longest key accepted.
     /// </summary>
     public const int MaximumLength = 255;

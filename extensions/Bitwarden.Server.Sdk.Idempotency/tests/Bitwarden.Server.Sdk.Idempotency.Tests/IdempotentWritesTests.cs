@@ -14,7 +14,7 @@ namespace Bitwarden.Server.Sdk.Idempotency.Tests;
 /// <summary>
 /// A write another service sends with an <c>Idempotency-Key</c> is done at most once: a repeat is answered with the
 /// first answer, a repeat with another request is refused 422, one while the first runs 409. A browser's write, and a
-/// write to an operation that opts out, run every time.
+/// write to an operation that doesn't accept keys, run every time.
 /// </summary>
 public sealed class IdempotentWritesTests
 {
@@ -122,13 +122,14 @@ public sealed class IdempotentWritesTests
     }
 
     [Fact]
-    public async Task AnOperationThatOptsOut_RunsEveryTime()
+    public async Task AnOperationThatDoesNotAcceptKeys_RunsEveryTime()
     {
-        await SendAsync(Request(endpoint: Endpoint(new IgnoreIdempotencyKeyAttribute())));
-        var second = await SendAsync(Request(endpoint: Endpoint(new IgnoreIdempotencyKeyAttribute())));
+        await SendAsync(Request(endpoint: Endpoint()));
+        var second = await SendAsync(Request(endpoint: Endpoint()));
 
         Assert.False(second.Response.Headers.ContainsKey(IdempotencyKeys.ReplayedHeader));
         Assert.Equal(2, _operation.Runs);
+        Assert.Equal(0, _store.Claims);
     }
 
     // No operation was chosen: nothing to record against.
@@ -622,7 +623,7 @@ public sealed class IdempotentWritesTests
 
         if (withEndpoint)
         {
-            http.SetEndpoint(endpoint ?? Endpoint());
+            http.SetEndpoint(endpoint ?? Endpoint(new AcceptsIdempotencyKeyAttribute()));
         }
 
         return http;

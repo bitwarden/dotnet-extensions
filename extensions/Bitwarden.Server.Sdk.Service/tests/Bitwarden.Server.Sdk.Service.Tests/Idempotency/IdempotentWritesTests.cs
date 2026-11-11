@@ -16,7 +16,7 @@ namespace Bitwarden.Server.Sdk.Service.Tests.Idempotency;
 /// <summary>
 /// A write another service sends with an <c>Idempotency-Key</c> is done at most once: a repeat is answered with the
 /// first answer, a repeat with another request is refused 422, one while the first runs 409. A browser's write, and a
-/// write to an operation that opts out, behave as they always have. Run with and without the request delegate
+/// write to an operation that doesn't accept keys, run every time. Run with and without the request delegate
 /// generator (the MinimalApi test project).
 /// </summary>
 public sealed class IdempotentWritesTests : IAsyncLifetime
@@ -143,9 +143,10 @@ public sealed class IdempotentWritesTests : IAsyncLifetime
         Assert.Equal(2, Counter.Count);
     }
 
-    // [IgnoreIdempotencyKey] on the handler: seen alike by the generated and the runtime request delegates.
+    // No [AcceptsIdempotencyKey] on the handler, which the others carry: seen alike by the generated and the runtime
+    // request delegates.
     [Fact]
-    public async Task AnOperationThatOptsOut_RunsEveryTime()
+    public async Task AnOperationThatDoesNotAcceptKeys_RunsEveryTime()
     {
         using var first = await SendAsync("POST", "/api/v1/idempotency-probes/ignored", "key-1", "a");
         using var second = await SendAsync("POST", "/api/v1/idempotency-probes/ignored", "key-1", "a");

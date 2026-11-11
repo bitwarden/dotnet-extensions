@@ -16,6 +16,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The callee's contract, as a client package embeds it: it marks the operations that accept keys. -->
+    <EmbeddedResource Include="openapi.json" LogicalName="openapi.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.Client.csproj" />
   </ItemGroup>
 
