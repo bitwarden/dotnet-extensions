@@ -26,14 +26,21 @@ public sealed class ResourceDocumentJsonConverterFactory : JsonConverterFactory
 {
     /// <inheritdoc />
     public override bool CanConvert(Type typeToConvert)
-        => typeToConvert.IsGenericType
-           && (typeToConvert.GetGenericTypeDefinition() == typeof(ResourceDocument<>)
-               || typeToConvert.GetGenericTypeDefinition() == typeof(ResourceListDocument<>)
-               || typeToConvert.GetGenericTypeDefinition() == typeof(PagedResourceListDocument<>)
-               || typeToConvert.GetGenericTypeDefinition() == typeof(CursorPagedResourceListDocument<>)
-               || typeToConvert.GetGenericTypeDefinition() == typeof(BulkCreate<>)
-               || typeToConvert.GetGenericTypeDefinition() == typeof(BulkCreatedDocument<>)
-               || typeToConvert.GetGenericTypeDefinition() == typeof(BulkReplace<>));
+        => typeToConvert.IsGenericType && Enveloped.Contains(typeToConvert.GetGenericTypeDefinition());
+
+    /// <summary>
+    /// The generic documents whose resource is written enveloped.
+    /// </summary>
+    private static readonly HashSet<Type> Enveloped =
+    [
+        typeof(ResourceDocument<>),
+        typeof(ResourceListDocument<>),
+        typeof(PagedResourceListDocument<>),
+        typeof(CursorPagedResourceListDocument<>),
+        typeof(BulkCreate<>),
+        typeof(BulkCreatedDocument<>),
+        typeof(BulkReplace<>),
+    ];
 
     /// <inheritdoc />
     public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
