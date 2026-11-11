@@ -1,7 +1,8 @@
 # Bitwarden.Server.Sdk.Service
 
 The `Service` base class and the fixed startup order every Bitwarden .NET service runs. See
-[PACKAGE.md](PACKAGE.md) for how to use it.
+[PACKAGE.md](PACKAGE.md) for using it, and the [developer guide](../docs/README.md) for writing a
+service with it.
 
 ## What belongs here
 
@@ -60,6 +61,8 @@ service belongs in Client.
 
 ## Known limitations
 
+The developer guide gives the workaround for each.
+
 - **Startup checks miss a role requirement on a domain service.** Contradictory authorization stops
   a service at startup, but a role requirement on a domain service doesn't, though `ICallerRole`
   always answers `None` there, so every call is refused `403`
@@ -76,7 +79,8 @@ dotnet test --project extensions/Bitwarden.Server.Sdk.Service/tests/Bitwarden.Se
 dotnet test --project extensions/Bitwarden.Server.Sdk.Service/tests/Bitwarden.Server.Sdk.Service.MinimalApi.Tests
 ```
 
-The tests start the service in process and need no container. The main project compiles its
+The tests start the service in process and need no container. The packages `Service` composes have
+test projects of their own, under each package's `tests/` folder. The main project compiles its
 handlers with the request delegate generator, as a service does; the MinimalApi project compiles
 the same files without it, covering the runtime request delegate factory. A change must pass both.
 
@@ -84,8 +88,25 @@ the same files without it, covering the runtime request delegate factory. A chan
   and body of every request in `MinimalApiParityTests`, and `MinimalApiParity.openapi.golden.json`
   the OpenAPI document. For a deliberate change, rerun with `RECORD_PARITY=1` and review the diff.
 - **Security behaviour is pinned:** context refusal and belief (`ProductServiceAttributeTests`,
-  `CallerDelegationTests`, `DomainServiceSessionTests`), audiences (`ServiceAudienceTests`), CORS
+  `CallerDelegationTests`, `DomainServiceSessionTests`), an asserted context naming a person refused
+  unless the operation accepts it (`AcceptsAssertedContextAttributeTests`), audiences (`ServiceAudienceTests`), CORS
   never admitting every origin or credentials (`BrowserOriginsTests`), and defaults `Build()`
   supplies, such as request lines kept out of the log (`ServiceTests`).
+- **Composed packages pin their own:** only a trusted proxy's last forwarded address is believed
+  (`ForwardedClientAddressTests`, Authorization), rate limits are chosen and counted as
+  `IpRateLimitingTests` describes (RateLimiting), and a guarded client never connects to an internal
+  address, redirects included (`SsrfProtectionHandlerTests`, `IPAddressExtensionsTests`, Http).
 - **Zero knowledge.** Nothing here decrypts, logs or inspects an encrypted value, and no test
   fixture may hold plaintext Vault Data.
+
+## Documentation
+
+- **`docs/`** is the developer guide for Service and Resources together: `docs/README.md` is its
+  table of contents, and each topic has a page of its own. List a new page there.
+- **Each page** is code a service writes and what the developer needs to know about it. It doesn't
+  restate or link the API standards, and it shows no example requests or responses.
+- **Samples must compile.** A sample shows code as a service writes it. Before changing one, build
+  it against the package in a scratch web project with `EnableRequestDelegateGenerator` on.
+- **A behaviour change** that a page describes updates that page in the same pull request.
+- **`PACKAGE.md`** is the readme shown on nuget.org. It stays short, says nothing the guide says, and
+  links to the guide with absolute URLs, because nuget.org doesn't resolve relative links.
