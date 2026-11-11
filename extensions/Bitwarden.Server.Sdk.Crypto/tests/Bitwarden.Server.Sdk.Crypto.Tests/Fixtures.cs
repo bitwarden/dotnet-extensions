@@ -3,18 +3,18 @@ namespace Bitwarden.Server.Sdk.Crypto.Tests;
 /// <summary>
 /// Inputs mirrored from the bitwarden-uniffi-server Rust tests in sdk-internal, so both sides agree.
 /// <see cref="CoseEncString"/> is encrypted with, and <see cref="Envelope"/> seals, the
-/// XChaCha20-Poly1305 key <see cref="KeyId"/>.
+/// XAES-256-GCM key <see cref="KeyId"/>.
 /// </summary>
 internal static class Fixtures
 {
-    public const string KeyId = "5367fc06796da8e62b61afdc5c02b9f1";
+    public const string KeyId = "786b476843503fe1f6deb3951ef8f037";
 
     public const string CoseEncString =
-        "7.g1g/owE6AAERbwN4I2FwcGxpY2F0aW9uL3guYml0d2FyZGVuLnV0ZjgtcGFkZGVkBFBTZ/wGeW2o5ithr9xcArnxoQVYGK4ToRVEH/cowcY3KzAn0K4jqgl06xAWpVgwY5qRRgNeYMc9KUbZmghWPKJAz10ENbQdS0/u0XeWRDQz5TRXJiNl+TDyrlI6731b";
+        "7.g1g/owE6AAEReQN4I2FwcGxpY2F0aW9uL3guYml0d2FyZGVuLnV0ZjgtcGFkZGVkBFB4a0doQ1A/4fbes5Ue+PA3oQVYGDyfZwmpm8qoMQ6T/GkNaSNiH0xURegyi1gwqCiYSKv1pO6JGK65CMOYx4dAUaqpKz5JlvFE/XdTX6VcOggf2PX0H9iCB/rDjvng";
 
     public const string LegacyEncString =
         "2.lydV844NLeMlZyw+lBvavQ==|g/ybWBsaTkyTDJYL1kcrZQ==|2ZeoX1YiRQoaowBuGS7feAH9PZvz3VDy6QuPtMNu7R4=";
 
     public const string Envelope =
-        "g1g+pgE6AAEReQMYZQRQNPLyvvUn/ZOFjUStHRQPvzoAARVcUFNn/AZ5bajmK2Gv3FwCufE6AAE4gQM6AAE4gAKhBVgYqKO9y+PFmZQr6GR5Nmj5bzc1uvqHm4FTWFRUAxgMKOBrC0T0iM0bqLFjzmBCkXA6fJ9qzG6e2iIWW4mJ7/j1+T/90Yi6syHtD+5mvda+rg6BF+BLzB48oItIfasxUcYthwzxVW33CfVk/JoNU+U=";
+        "g1g+pgE6AAEReQMYZQRQ8UUgSvckp9zxEdxy+99QTDoAARVcUHhrR2hDUD/h9t6zlR748Dc6AAE4gQM6AAE4gAKhBVgYHYM4amZXcPx+ioIiaBQXy/itml3h/5kpWFR2SQ9uMP9TBs/iL2+tuzwOcGtphqCkEpSBBlifIzT9oow7+hYJ9N4hKxXYLEn0ldNDdfi7ryjXgAscY0OTDPOEIwUaqJZGKESUEDDhohHVoaGgZrY=";
 }
