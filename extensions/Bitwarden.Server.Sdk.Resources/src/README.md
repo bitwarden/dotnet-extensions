@@ -2,7 +2,8 @@
 
 What a Bitwarden service's API looks like to its callers: resource documents, standard operations
 and their checks, the error document, querying, bulk operations and their OpenAPI description. See
-[PACKAGE.md](PACKAGE.md) for how to use it.
+[PACKAGE.md](PACKAGE.md) for using it, and the
+[developer guide](../../Bitwarden.Server.Sdk.Service/docs/README.md) for writing a service with it.
 
 ## What belongs here
 
@@ -49,7 +50,8 @@ filters do around a controller action.
 
 Where the package falls short of the
 [API standards](https://contributing.bitwarden.com/architecture/server/apis) or would surprise a
-service author. PACKAGE.md gives the workaround where there is one; a fix removes its entry.
+service author. The developer guide gives the workaround where there is one; a fix removes its
+entry.
 
 **Requests the standards refuse and the package accepts**
 
@@ -173,3 +175,8 @@ dotnet test --project extensions/Bitwarden.Server.Sdk.Service/tests/Bitwarden.Se
   `MinimalApiParityTests`' matrix, and `MinimalApiParity.openapi.golden.json` the published
   document. A change that alters either changes what every caller sees; when it is deliberate, rerun
   with `RECORD_PARITY=1` and review the diff.
+
+## Documentation
+
+The developer guide for this package is in Service's [`docs/`](../../Bitwarden.Server.Sdk.Service/docs/README.md),
+and [Service's README](../../Bitwarden.Server.Sdk.Service/src/README.md) says how it is maintained.
