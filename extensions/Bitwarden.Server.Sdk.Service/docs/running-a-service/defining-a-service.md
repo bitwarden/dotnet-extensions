@@ -113,8 +113,8 @@ The platform's middleware runs in this order, outermost first:
 9. Authentication, then the context check (domain services only), then authorization.
 10. The call-chain check: the services a call passed through, and a call back into this service.
 11. Feature-flag checks.
-12. Idempotency keys: a write another service repeats with the same `Idempotency-Key` is answered
-    from its first run.
+12. Idempotency keys: a write another service repeats with the same `Idempotency-Key`, to an operation
+    marked `[AcceptsIdempotencyKey]`, is answered from its first run.
 
 `AddPlatformServices` and `UsePlatformMiddleware` are virtual too, but overriding either replaces
 the platform's baseline wholesale. Use the hooks on either side of them instead.
