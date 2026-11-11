@@ -270,39 +270,39 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
         try
         {
 
-        var deletedPublisher = host.Services.GetRequiredKeyedService<Publisher<UserDeletedPayload, UserDeleted>>(
-            MessageBrokerKeys.Publisher<UserDeletedPayload>(misconfiguredTopic));
-        var misfiltered = host.Services.GetRequiredKeyedService<ISubscriber<UserCreatedPayload, UserCreated>>(
-            $"{misconfiguredTopic}/{MisfilteredSubscription}");
+            var deletedPublisher = host.Services.GetRequiredKeyedService<Publisher<UserDeletedPayload, UserDeleted>>(
+                MessageBrokerKeys.Publisher<UserDeletedPayload>(misconfiguredTopic));
+            var misfiltered = host.Services.GetRequiredKeyedService<ISubscriber<UserCreatedPayload, UserCreated>>(
+                $"{misconfiguredTopic}/{MisfilteredSubscription}");
 
-        await deletedPublisher.Publish(new UserDeleted(Guid.NewGuid(), "test")).SendAsync(TestContext.Current.CancellationToken);
+            await deletedPublisher.Publish(new UserDeleted(Guid.NewGuid(), "test")).SendAsync(TestContext.Current.CancellationToken);
 
-        // Prove the subscriber never yields the mismatched message. The cancellation fires once
-        // we've given the receiver enough time to see (and dead-letter) the message.
-        using var receiveCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        receiveCts.CancelAfter(TimeSpan.FromSeconds(5));
-        var receivedAny = false;
-        try
-        {
-            await foreach (var _ in misfiltered.SubscribeAsync(receiveCts.Token))
+            // Prove the subscriber never yields the mismatched message. The cancellation fires once
+            // we've given the receiver enough time to see (and dead-letter) the message.
+            using var receiveCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+            receiveCts.CancelAfter(TimeSpan.FromSeconds(5));
+            var receivedAny = false;
+            try
             {
-                receivedAny = true;
-                break;
+                await foreach (var _ in misfiltered.SubscribeAsync(receiveCts.Token))
+                {
+                    receivedAny = true;
+                    break;
+                }
             }
-        }
-        catch (OperationCanceledException) { /* expected: subscriber drained nothing yieldable */ }
-        catch (BrokerDisconnectedException) { /* expected: channel closed on iterator dispose */ }
+            catch (OperationCanceledException) { /* expected: subscriber drained nothing yieldable */ }
+            catch (BrokerDisconnectedException) { /* expected: channel closed on iterator dispose */ }
 
-        Assert.False(receivedAny, "Defensive check should have dead-lettered the mismatched family before yielding.");
+            Assert.False(receivedAny, "Defensive check should have dead-lettered the mismatched family before yielding.");
 
-        // The message must land in the dead-letter queue the operator wired up.
-        await using var inspectConn = await new ConnectionFactory { Uri = new Uri(_fixture.GetUri()) }
-            .CreateConnectionAsync(TestContext.Current.CancellationToken);
-        await using var inspectChannel = await inspectConn.CreateChannelAsync(cancellationToken: TestContext.Current.CancellationToken);
-        var result = await inspectChannel.BasicGetAsync(deadLetterQueue, autoAck: true, TestContext.Current.CancellationToken);
-        Assert.NotNull(result);
-        var familyBytes = (byte[])result.BasicProperties.Headers![BrokerProperties.PayloadFamily]!;
-        Assert.Equal(UserDeletedPayload.WireName, System.Text.Encoding.UTF8.GetString(familyBytes));
+            // The message must land in the dead-letter queue the operator wired up.
+            await using var inspectConn = await new ConnectionFactory { Uri = new Uri(_fixture.GetUri()) }
+                .CreateConnectionAsync(TestContext.Current.CancellationToken);
+            await using var inspectChannel = await inspectConn.CreateChannelAsync(cancellationToken: TestContext.Current.CancellationToken);
+            var result = await inspectChannel.BasicGetAsync(deadLetterQueue, autoAck: true, TestContext.Current.CancellationToken);
+            Assert.NotNull(result);
+            var familyBytes = (byte[])result.BasicProperties.Headers![BrokerProperties.PayloadFamily]!;
+            Assert.Equal(UserDeletedPayload.WireName, System.Text.Encoding.UTF8.GetString(familyBytes));
         }
         finally
         {
