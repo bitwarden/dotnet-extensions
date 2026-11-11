@@ -1,160 +1,33 @@
 # Bitwarden.Server.Sdk.Idempotency
 
-Do a write another Bitwarden service sends at most once, and answer a repeat with the first answer.
+The middleware and store that do a keyed write from another Bitwarden service at most once. See
+[PACKAGE.md](PACKAGE.md) for how to use it.
 
-A write that fails in transit may or may not have been done, so a service client sends it again with the same
-`Idempotency-Key`. For an operation that opts in with `[AcceptsIdempotencyKey]`, this package records each keyed write
-from another service as it runs, keeps its answer, and replays that answer to a repeat instead of doing the write
-twice. Only operations that a repeat would do twice need it, so it is opt-in: each keyed write costs two round trips to
-the store and holds its answer there for `Idempotency:Retention`.
+## What belongs here
 
-- **At most once per key.** A repeat with the same method, path, query and body gets the first answer, marked
-  `Idempotency-Replayed: true`.
-- **Misuse refused.** A key reused for a different request is refused `422` (an `InvalidRequestException`, which
-  Bitwarden.Server.Sdk.Service's exception handler answers `422`; a host without one answers `500`). A repeat that
-  arrives while the first is still running is refused `409` with `Retry-After`, which a service client waits for.
-- **Failures not kept.** A write that fails with a `5xx` or an exception keeps nothing, so its repeat runs again.
-- **Shared across instances.** Records are kept in Redis when one is configured, so a repeat that reaches another
-  instance is still answered once.
-- **Sealed.** A kept answer is sealed with the service's data protection keys before it is stored.
+The server side of idempotency keys only: deciding which requests are recorded, the record, and its stores. The header
+name, the key's rules and what a client sends live in Bitwarden.Server.Sdk.Idempotency.Abstractions, which a client
+references without ASP.NET Core. Publishing the mark in a service's contract lives in Bitwarden.Server.Sdk.Service.
 
-Bitwarden.Server.Sdk.Service registers and orders it for every service, and publishes each marked operation in the
-service's contract (`x-bitwarden-idempotency-key`), so a client package built from it sends a key to that operation and
-no other. Reference it directly to mark an operation with `[AcceptsIdempotencyKey]`, or to compose a host yourself.
+## How it works
 
-## What it applies to
+- **`IdempotentWrites`** is the middleware. It needs the endpoint chosen and the caller authenticated, which is why
+  `UseIdempotencyKeys()` goes last. A refusal earlier in the pipeline is never recorded.
+- **The record.** `StorageKey` and `Owners` build the key; `FingerprintAsync` buffers the body and rewinds it for the
+  operation.
+- **Claim, then complete or release.** `IIdempotencyStore.ClaimAsync` stores a pending record with a nonce for
+  `Lease`, so only the request that holds it releases it. A completed answer replaces it for `Retention`; a `5xx`, an
+  exception or an answer past `MaximumBytes` (`CapturingStream.Overflowed`) releases it. `ClaimOutcome.Unavailable`,
+  which the Redis store returns on a `RedisException` or timeout, runs the request without a key.
+- **The `409` is written, not thrown,** because the exception handler would clear `Retry-After`.
+- **Sealing.** Purpose `Bitwarden.Server.Sdk.Service.Idempotency.v1`; it isn't this package's name, and must stay as it
+  is, or every kept answer becomes unopenable.
+- **Choosing the store.** `AddIdempotencyKeys` checks `KeyManagementOptions.XmlRepository`.
 
-A request is recorded only when all of these hold. Everything else passes through untouched:
+## Testing
 
-- it is a write: any method but `GET`, `HEAD`, `OPTIONS` and `TRACE`;
-- it reached a mapped operation marked `[AcceptsIdempotencyKey]`;
-- it doesn't ask only to be checked (`validateOnly=true`);
-- it comes from another service: a token whose `client_id` is `internal.{service}` (`InternalCaller`);
-- it carries `Idempotency-Key`.
-
-A browser's write, and so every operation people call directly, runs every time it arrives, whatever headers it
-carries. A key that isn't one value of 1 to 255 visible ASCII characters is refused `400`.
-
-## Getting started
-
-A host that composes the package itself registers it, with the authorization it reads the caller from, and adds its
-middleware last, as Bitwarden.Server.Sdk.Service does, so a request is authenticated, authorized and routed before
-anything is recorded:
-
-```bash
-dotnet new web -n WidgetService
-cd WidgetService
-dotnet add package Bitwarden.Server.Sdk.Idempotency --prerelease
-```
-
-```csharp
-using Bitwarden.Server.Sdk.Authorization;
-using Bitwarden.Server.Sdk.Context;
-using Bitwarden.Server.Sdk.Idempotency;
-
-var builder = WebApplication.CreateBuilder(args);
-
-builder.Services.AddSingleton<IServiceIdentity>(new WidgetServiceIdentity());
-builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddBitwardenAuthentication();
-builder.Services.AddCallerAuthorization(isProductService: false);
-builder.Services.AddIdempotencyKeys(builder.Configuration);
-
-var app = builder.Build();
-
-app.UseForwardedClientAddress();
-app.UseBitwardenAuthentication();
-app.UseContextHeaders();
-app.UseAuthorization();
-app.UseCallChainCheck();
-app.UseIdempotencyKeys();
-
-app.MapPost("/api/v1/widgets", [AcceptsIdempotencyKey] () => Results.Created("/api/v1/widgets/1", new CreatedWidget("1")));
-
-app.Run();
-
-internal sealed record CreatedWidget(string Id);
-
-internal sealed class WidgetServiceIdentity : IServiceIdentity
-{
-    public string Name => "widget-service";
-
-    public string Title => "Widget Service";
-}
-```
-
-Another service that sends `POST /api/v1/widgets` twice with the same `Idempotency-Key` gets `201` both times; the
-second answer carries `Idempotency-Replayed: true`, and the handler ran once. A generated client in
-Bitwarden.Server.Sdk.Client sends the key for you, to every operation the service's contract marks.
-
-## Examples
-
-### Opt an operation in
-
-Mark an operation whose repeat would do something twice that the state it leaves doesn't absorb: a create with an
-identifier the service chooses, a charge or purchase, a mail or message sent, a secret issued, a count added to:
-
-```csharp
-using Bitwarden.Server.Sdk.Idempotency;
-
-public static class WidgetPurchases
-{
-    /// <summary>
-    /// Buy a widget
-    /// </summary>
-    [AcceptsIdempotencyKey]
-    public static Purchase Buy(Purchase request) => request;
-}
-
-public sealed record Purchase(string Widget, int Quantity);
-```
-
-It goes on the handler method or its class. Leave it off a replace, a delete, a write that sets a value, and anything
-that only reads, which must answer from the state now. A service client retries a write without a key only when its
-connection never opened, so it can't arrive twice from a retry; an operation run again after a failure (a message
-redelivered, a job's next attempt) still sends it again, so an unmarked write must be safe to receive twice.
-
-## Configuration
-
-| Setting                           | Default      | What it does                                                                                                                      |
-| --------------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| `Idempotency:Enabled`             | `true`       | Whether keys are honoured at all.                                                                                                 |
-| `Idempotency:Retention`           | `00:10:00`   | How long a completed write's answer is kept for its key. A repeat after that is done again.                                       |
-| `Idempotency:Lease`               | `00:02:00`   | How long a write in progress holds its key. A repeat after that, should the instance running it have stopped, is done again.      |
-| `Idempotency:MaximumBytes`        | `1048576`    | The largest request body fingerprinted, and the largest answer kept. A write past either runs without a key.                      |
-| `Idempotency:Redis:Configuration` | None         | The Redis records are kept in. With it, and a shared data protection key ring, records are kept there; otherwise in this process. |
-
-- **Where records live.** In Redis, under the service's own prefix as `{service}:idempotency:{SHA-256 of the caller,
-the key and the context's owners}`, only when `Idempotency:Redis:Configuration` is set and the service's data protection key ring is
-  persisted where every instance reads it (the host configures a key repository, such as `PersistKeysToFileSystem` on a volume every instance mounts).
-  Otherwise each instance keeps its own, in memory, and a repeat that reaches another instance runs again.
-- **A Redis shared with other services.** Every key starts with `{service}:`, so a Redis user that may write only the
-  service's own prefix can keep its records, and point `Idempotency:Redis:Configuration` at the same login as any other
-  Redis the service writes under that prefix.
-- **While Redis is away**, a keyed write runs as if it carried no key.
-
-## Security
-
-- **What is kept is what was already answered.** A record holds the status, the `Content-Type`, `Location`, `ETag` and
-  `Last-Modified` headers, and the body the operation sent the caller: Protected Data or metadata, never Vault Data in
-  the clear, which no service holds.
-- **Sealed before it is stored.** The Redis may be shared with other services that can read the service's prefix, so
-  every record is sealed with the service's data protection keys. A record this instance can't open is taken as still running, refused `409`, and
-  never run past.
-- **Per caller and per person.** A record is keyed by the calling service's `client_id`, its key, and the
-  organization, user and provider its verified context names, so one service can't replay another's answers, and a
-  service that sends one key for two people's requests runs both rather than answering one with the other's answer.
-
-## Requirements
-
-- .NET 10 and ASP.NET Core.
-- Bitwarden.Server.Sdk.Authorization (it reads the caller), Bitwarden.Server.Sdk.Context, Bitwarden.Server.Sdk.Errors,
-  Bitwarden.Server.Sdk.Idempotency.Abstractions and StackExchange.Redis.
-- An `IServiceIdentity` registration, which Bitwarden.Server.Sdk.Service provides.
-
-## Contributing
-
-Every type with logic has a test class of the same name in the package's `tests` folder; the Redis store's start a Redis container, so they need Docker. Run them from the repository root:
+Every type with logic has a test class of the same name in `tests/Bitwarden.Server.Sdk.Idempotency.Tests`. The Redis
+store's tests start a Redis container, so they need Docker.
 
 ```bash
 dotnet test --project extensions/Bitwarden.Server.Sdk.Idempotency/tests/Bitwarden.Server.Sdk.Idempotency.Tests
@@ -165,7 +38,6 @@ The middleware is also tested inside a whole service host, in Bitwarden.Server.S
 - **At most once.** A write never runs twice for one caller and key while its record is kept, even across instances
   and when a record can't be opened.
 - **Failures never replayed.** Only an answer below `500`, written by the operation, is kept.
-- **Records sealed, under the protector's original purpose.** Renaming the purpose would make every kept answer
-  unopenable.
+- **Records sealed, under the protector's original purpose.**
 - **Between services only.** A browser's write is never recorded.
 - **Opt-in.** An operation without `[AcceptsIdempotencyKey]` is never recorded, whatever it carries.
