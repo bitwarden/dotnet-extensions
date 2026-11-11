@@ -135,7 +135,12 @@ public static class CallChain
     /// <param name="name">The candidate.</param>
     public static bool IsServiceName(string? name)
     {
-        if (string.IsNullOrEmpty(name) || name.Length > MaximumNameLength || name[0] is < 'a' or > 'z' || name[^1] == '-')
+        if (string.IsNullOrEmpty(name) || name.Length > MaximumNameLength)
+        {
+            return false;
+        }
+
+        if (name[0] is < 'a' or > 'z' || name[^1] == '-')
         {
             return false;
         }
