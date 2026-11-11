@@ -2,10 +2,9 @@
 
 ## About
 
-The small set of types that a Bitwarden service and the code that calls it both need to agree on:
-what an error response looks like, which error codes a caller can rely on, and which exception
-means "not found", "conflict" or "bad request". The context headers, values and tokens are in
-Bitwarden.Server.Sdk.Context.
+The small set of types that a Bitwarden service and the code that calls it both need to agree on. The
+error document, its codes and the standard exceptions are in Bitwarden.Server.Sdk.Errors, and the
+context headers, values and tokens in Bitwarden.Server.Sdk.Context.
 
 The package has almost no dependencies, so a program that only calls a service does not have to
 depend on the framework that hosts it.
@@ -17,58 +16,6 @@ dotnet add package Bitwarden.Server.Sdk.Common
 ```
 
 ## Usage
-
-### Report a failure the standard way
-
-Throw one of the standard exceptions. The service host turns each into the right HTTP status and a
-standard error document.
-
-```csharp
-using Bitwarden.Server.Sdk.Common;
-
-public async Task<Widget> GetWidgetAsync(Guid id)
-{
-    var widget = await _store.FindAsync(id)
-        ?? throw new NotFoundException("widget", id.ToString());
-
-    if (widget.IsLocked)
-    {
-        throw new ConflictException("The widget is locked.");
-    }
-
-    return widget;
-}
-
-public void Rename(Widget widget, string name)
-{
-    if (string.IsNullOrWhiteSpace(name))
-    {
-        throw new InvalidRequestException("A name is required.", pointer: "/data/attributes/name");
-    }
-}
-```
-
-| Exception                     | Status |
-| ----------------------------- | ------ |
-| `InvalidRequestException`     | 422    |
-| `UnauthenticatedException`    | 401    |
-| `ForbiddenException`          | 403    |
-| `NotFoundException`           | 404    |
-| `ConflictException`           | 409    |
-| `PendingServiceException`     | 501    |
-| `ServiceUnavailableException` | 503    |
-
-A caller branches on the stable `code` in the error document, never on the human-readable text. The
-error document's types and codes are in `Bitwarden.Server.Sdk.Common.Errors`:
-
-```csharp
-using Bitwarden.Server.Sdk.Common.Errors;
-
-if (error.Code == ErrorCodes.NotFound)
-{
-    // ...
-}
-```
 
 ### Remember a lookup for the rest of a request
 
@@ -152,16 +99,11 @@ starts. Every service and client sharing the cache must use the same secret.
 
 ## Types
 
-| Type                                                                     | Purpose                                                                                  |
-| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `ErrorResponse`, `Error`, `ErrorSource`, `FailedResource`                | The body of every unsuccessful response (namespace `Bitwarden.Server.Sdk.Common.Errors`) |
-| `ErrorCodes`, `ErrorTitles`, `ErrorDetails`                              | The codes a caller branches on, and the text that accompanies them (also in `.Errors`)   |
-| `NotFoundException`, `ConflictException`, `InvalidRequestException`, ... | The standard failures, each answered with its own status                                 |
-| `IProvideErrors`                                                         | An exception that reports several errors at once                                         |
-| `IExceptionTranslator`                                                   | Says which standard exception a library's own exception means                            |
-| `RequestMemo`                                                            | Facts read once in a request and remembered until it ends                                |
-| `EncryptedAttribute`, `PersonalDataAttribute`                            | Mark a field as Protected Data or as personal data                                       |
-| `OwnedCacheEntry`                                                        | How a service-owned cache entry is stored in Redis                                       |
-| `OwnedAnswerKey`                                                         | How a service-owned answer is keyed in the same cache                                    |
-| `InternalTls`                                                            | Which certificate authorities a service trusts for calls between services                |
-| `IServiceExtension`, `ServiceExtensionAttribute`                         | How a package configures every service that references it                                |
+| Type                                             | Purpose                                                                   |
+| ------------------------------------------------ | ------------------------------------------------------------------------- |
+| `RequestMemo`                                    | Facts read once in a request and remembered until it ends                 |
+| `EncryptedAttribute`, `PersonalDataAttribute`    | Mark a field as Protected Data or as personal data                        |
+| `OwnedCacheEntry`                                | How a service-owned cache entry is stored in Redis                        |
+| `OwnedAnswerKey`                                 | How a service-owned answer is keyed in the same cache                     |
+| `InternalTls`                                    | Which certificate authorities a service trusts for calls between services |
+| `IServiceExtension`, `ServiceExtensionAttribute` | How a package configures every service that references it                 |
