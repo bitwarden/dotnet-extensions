@@ -1,5 +1,7 @@
 # Bitwarden.Server.Sdk.Client
 
+**Audience:** engineers changing this package.
+
 The HTTP pipeline a Bitwarden service's client package calls that service through. See [PACKAGE.md](PACKAGE.md) for how
 to use it.
 
