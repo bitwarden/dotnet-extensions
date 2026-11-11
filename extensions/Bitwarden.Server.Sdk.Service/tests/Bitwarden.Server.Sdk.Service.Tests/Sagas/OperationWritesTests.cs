@@ -34,7 +34,7 @@ public sealed class OperationWritesTests
         Assert.Equal(1, Writes.Made("undeclared"));
         Assert.Contains("database, then billing-service", refused.Message, StringComparison.Ordinal);
         Assert.Contains("[SpansServices(SpanShape.", refused.Message, StringComparison.Ordinal);
-        Assert.Contains("Bitwarden.Server.Sdk.Sagas README", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("Bitwarden.Server.Sdk.Sagas PACKAGE.md", refused.Message, StringComparison.Ordinal);
         Assert.Contains(host.Logs, log => log.Level == LogLevel.Warning && log.Message.Contains("Undeclared writes across services", StringComparison.Ordinal));
         Assert.Contains(host.Spans, span => span.Operation.Contains("Undeclared", StringComparison.Ordinal) && !span.Declared);
     }
