@@ -179,5 +179,6 @@ dotnet test --project extensions/Bitwarden.Server.Sdk.Service/tests/Bitwarden.Se
 
 ## Documentation
 
-The developer guide for this package is in Service's [`docs/`](../../Bitwarden.Server.Sdk.Service/docs/README.md),
-and [Service's README](../../Bitwarden.Server.Sdk.Service/src/README.md) says how it is maintained.
+The [developer guide](https://contributing.bitwarden.com/contributing/server-sdk/) covers this package together
+with Service, and lives in bitwarden/contributing-docs. [Service's README](../../Bitwarden.Server.Sdk.Service/src/README.md)
+says how it is maintained.
