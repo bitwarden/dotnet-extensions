@@ -14,6 +14,11 @@ namespace Bitwarden.Server.Sdk.Client;
 internal sealed class BitwardenClientOptionsValidator(string serviceName)
     : IValidateOptions<BitwardenClientOptions>
 {
+    /// <summary>
+    /// The service whose client this validates.
+    /// </summary>
+    public string ServiceName => serviceName;
+
     public ValidateOptionsResult Validate(string? name, BitwardenClientOptions options)
     {
         if (name != serviceName)
