@@ -1,16 +1,15 @@
 # Bitwarden.Server.Sdk.Authorization
 
+**Audience:** engineers writing a Bitwarden service who declare who may call its operations, and engineers composing a
+service host without Bitwarden.Server.Sdk.Service.
+
 ## About
 
-Who may call a Bitwarden service's operation, on whose behalf, and for which owner. It fills `IContext` from a person's
-session at a product service, or from the context Identity signed for one call at a domain service; refuses a context
-it can't believe; checks each operation's `[Authorization]` against it; and closes every operation that doesn't say
-otherwise. A refused caller gets `401` or `403` with the standard error document, naming the requirement not met.
-
-Bitwarden.Server.Sdk.Service registers and orders all of this for every service, and Bitwarden.Server.Sdk.Resources
-settles each operation's `[Authorization]` as it maps it. Reference this package directly to compose a host yourself,
-or to declare an operation's requirements in a library. It depends on ASP.NET Core, Bitwarden.Server.Sdk.Authentication,
-Bitwarden.Server.Sdk.Context and Bitwarden.Server.Sdk.Errors.
+Who may call a Bitwarden service's operation, on whose behalf, and for which owner: it fills `IContext`, refuses a
+context it can't believe, and checks each operation's `[Authorization]`. Bitwarden.Server.Sdk.Service registers and
+orders it for every service; reference it directly to compose a host yourself, or to declare an operation's
+requirements in a library. It depends on ASP.NET Core, Bitwarden.Server.Sdk.Authentication, Bitwarden.Server.Sdk.Context
+and Bitwarden.Server.Sdk.Errors.
 
 ## Installing
 
@@ -30,11 +29,30 @@ A trusted proxy chooses the address a request is recorded and rate-limited under
 the service" below. The bearer handler's settings, `Authentication:Schemes:Bearer:*`, are read by
 Bitwarden.Server.Sdk.Authentication.
 
+## Key concepts
+
+- **Closed by default.** An operation that says nothing demands an authenticated caller. A refused caller gets `401` or
+  `403` with the standard error document, naming the requirement not met.
+- **Product or domain service.** A product service is called by people and fills `IContext` from their session. A
+  domain service is called with the calling service's own token, never a person's, and believes a context only from
+  the context token Identity signed for that one call. "Know what each kind of service believes" below has the detail.
+- **Delegated or asserted context.** A context token is either delegated, proven by a person's, organization's or
+  machine account's own token, or asserted, the calling service's own word.
+- **The most specific declaration wins.** `AuthorizationDefaults` says what a service's operations demand, and
+  `[Authorization]` on a handler or its class says where one differs: the handler's, then its class's, then the
+  defaults.
+- **A token names its service.** A token is accepted only where its `aud` names the service
+  (`IServiceIdentity.Audience`, its name unless overridden); this is not a setting. A token naming several audiences is
+  accepted when one is this service's.
+- **Operations, not rows.** Authorization decides whether a caller may invoke an operation, not which rows it reaches.
+  Filter queries by `IContext`, or by `IRowOwnership` (Bitwarden.Server.Sdk.Data.Abstractions).
+
 ## Usage
 
 ### Compose a host
 
-A host that doesn't build on Bitwarden.Server.Sdk.Service registers the package and adds its middleware in this order:
+A host that doesn't build on Bitwarden.Server.Sdk.Service registers the package and adds its middleware in this order,
+in `Program.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Authorization;
@@ -101,21 +119,16 @@ Bitwarden.Server.Sdk.Service adds its exception handler, status pages, CORS and 
 
 Every registration but the authorization handlers and the fallback policy is `TryAdd`: register your own `IContext`,
 `ICallerRole`, `ICallerProof` or `IRequestNamedOwner` first to replace it. Make a replacement a singleton that reads the
-current request through `IHttpContextAccessor` and holds nothing. The package is not AOT-compatible.
+current request through `IHttpContextAccessor` and holds nothing.
 
-Without a token, `GET /api/v1/context` answers `401` with the error code `unauthenticated`. A token is accepted only
-where its `aud` names the service (`IServiceIdentity.Audience`, its name unless overridden); this is not a setting. A
-token naming several audiences is accepted when one is this service's. Audiences you add to the bearer options are
-accepted at every endpoint: if only one surface should accept an extra audience, check `aud` yourself on the other
-operations (an `IAuthorizesOperation`), or host that surface in its own service. At a product service, a token without
-a GUID `sub` is refused `401`, except a credential an operation accepts.
+Without a token, `GET /api/v1/context` answers `401` with the error code `unauthenticated`. At a product service, a
+token without a GUID `sub` is refused `401`, except a credential an operation accepts.
 
 ### Declare what an operation demands
 
-`AuthorizationDefaults` says what a service's operations demand, and `[Authorization]` on a handler or its class says
-where one differs. The most specific wins: the handler's, then its class's, then the defaults.
 Bitwarden.Server.Sdk.Resources settles each operation mapped with `WithStandards()` and refuses at startup a declaration
-that contradicts the operation. A host without it settles each endpoint with `OperationAuthorization`:
+that contradicts the operation. A host without it settles each endpoint with `OperationAuthorization`, as in
+`WidgetEndpoints.cs`:
 
 ```csharp
 using System.Reflection;
@@ -169,15 +182,10 @@ public static class WidgetEndpoints
 
 - `GetWidget` demands `widgets.read` and accepts a request naming no organization. `DeleteSharedWidget` demands
   `widgets.admin` and an organization; a caller without them is refused `403`, naming what is missing. `Ping` is open
-  to callers with no token. Nothing that touches a caller's data should set `Anonymous`.
-- With `ReadScope` and `WriteScope` set, every read demands the first and everything else the second. Set both:
-  without them, an operation that declares no scope demands none.
+  to callers with no token.
+- With `ReadScope` and `WriteScope` set, every read demands the first and everything else the second.
 - `Organization`, `User` and `Provider` are each `Required`, `Optional` or `Forbidden`. Unless set, an organization is
   required, a user optional and a provider forbidden.
-- A role, a permission and `Anonymous` count on the handler only, never inherited from its class.
-- An `[Authorization]` that is never settled demands nothing beyond the fallback policy's authenticated caller.
-- Authorization decides whether a caller may invoke an operation, not which rows it reaches. Filter queries by
-  `IContext`, or by `IRowOwnership` (Bitwarden.Server.Sdk.Data.Abstractions).
 
 For a check `[Authorization]` can't express, put an attribute implementing `IAuthorizesOperation`
 (Bitwarden.Server.Sdk.Resources) on a handler mapped with `WithStandards()`, or on its class. It runs after
@@ -191,8 +199,6 @@ only. Set `OrganizationRole`, `Permission` or `ProviderRole` on `[Authorization]
 - A role is satisfied by it or any role above it (`User`, `Custom`, `Admin`, `Owner`).
 - An owner or administrator holds every permission; a custom member must have been granted it.
 - A role counts only in the organization the session names.
-- On a domain service `ICallerRole` answers `None`, so an operation demanding a role refuses every call `403`. The
-  package doesn't refuse such a declaration at startup: authorize a domain service by scope and context instead.
 
 ### Accept other callers and owners
 
@@ -227,10 +233,7 @@ is:
 - unexpired, and addressed (`aud`) to this service by its own name;
 - issued to the caller presenting the service token (its `client_id` matches).
 
-A domain service is called with the calling service's own token, never a person's: the caller exchanges a context
-token from Identity for each callee instead.
-
-The context is then the token's, and a plain header that is present must say the same. From a person's token, a Send's
+The calling service exchanges a context token from Identity for each callee. The context is then the token's, and a plain header that is present must say the same. From a person's token, a Send's
 token or no token the headers are not read and the context is empty. Each refusal names the header at fault in the
 error's `source.header`:
 
@@ -243,9 +246,8 @@ error's `source.header`:
 | A malformed `Bitwarden-Context` object in the token                           | `400`  | `Bitwarden-Context`    |
 | An asserted context naming a person, at an operation not admitting the caller | `403`  | `Bitwarden-Delegation` |
 
-A context token is either delegated, proven by a person's, organization's or machine account's own token, or asserted,
-the calling service's own word. An asserted context naming nobody, and a delegated one, are accepted everywhere. An
-operation that accepts an asserted context naming a person names the services that may send one, and why:
+An asserted context naming nobody, and a delegated one, are accepted everywhere. An operation that accepts an asserted
+context naming a person names the services that may send one, and why, as in `WidgetExpiryEndpoints.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Authorization;
@@ -259,9 +261,6 @@ public static class WidgetExpiryEndpoints
     }
 }
 ```
-
-`IContext.Credential`, `RecordedUserId` and `RecordedProviderId` are for audit records, and `UserOrganizationIds` for
-feature flag targeting only: never let any of them drive authorization, a row filter or a cache.
 
 ### Trust the proxies in front of the service
 
@@ -278,8 +277,7 @@ feature flag targeting only: never let any of them drive authorization, a row fi
   `X-Forwarded-For`, it is the last address there, the one that proxy added. The last `X-Forwarded-Proto` (`http` or
   `https`) from a trusted proxy is the request's scheme.
 - Loopback is always trusted. A host name in `KnownProxies` is looked up again at most every 30 seconds, so a proxy
-  that starts later or moves is trusted without a restart; one that can't be looked up trusts nobody. A network that
-  doesn't parse is ignored.
+  that starts later or moves is trusted without a restart.
 - A product service records this address and passes it on in `Bitwarden-Context`, which it refuses from a client, so a
   client can't choose the address its actions are recorded with.
 
@@ -293,7 +291,7 @@ refuses it `500`. Turn that on in tests and Development, so a new loop-back fail
 the health, readiness and startup probes are never a re-entry.
 
 Remove a loop-back where you can. Where it must stay, declare it on the handler with the reason; it is then counted and
-logged at information, never refused:
+logged at information, never refused, as in `WidgetTransferEndpoints.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Authorization;
@@ -310,7 +308,7 @@ public static class WidgetTransferEndpoints
 ### Validate a token from another issuer
 
 `DiscoveredIssuerTokens` verifies an access token another OpenID Connect issuer signed: a key its discovery document
-publishes, the issuer it names, the lifetime with five minutes' skew, and the type `at+jwt`:
+publishes, the issuer it names, the lifetime with five minutes' skew, and the type `at+jwt`. In `PartnerTokens.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Authorization;
@@ -329,10 +327,7 @@ public sealed class PartnerTokens(IHttpClientFactory clients)
 }
 ```
 
-It doesn't check the audience. If the issuer sets one, compare `aud` with the value you expect before trusting the
-token.
-
-### Keep the security guarantees
+## Gotchas and constraints
 
 - **Strip the context headers at the proxy.** Every proxy must remove `BitwardenHeaders.All` from what clients send. A
   product service refuses them anyway; a domain service reached through a public entry point relies on the proxy.
@@ -344,6 +339,24 @@ token.
 - **Tokens and contexts carry identifiers and scopes only.** Never put a key or an encrypted value in a context. Vault
   Data reaches a service only as Protected Data, in request bodies, and never in a header that reaches logs;
   authorization never reads it.
+- **Audit and targeting fields don't authorize.** `IContext.Credential`, `RecordedUserId` and `RecordedProviderId` are
+  for audit records, and `UserOrganizationIds` for feature flag targeting only: never let any of them drive
+  authorization, a row filter or a cache.
+- **Nothing that touches a caller's data should set `Anonymous`.**
+- **Set both `ReadScope` and `WriteScope`.** Without them, an operation that declares no scope demands none.
+- **A role, a permission and `Anonymous` count on the handler only,** never inherited from its class.
+- **An `[Authorization]` that is never settled** demands nothing beyond the fallback policy's authenticated caller.
+- **A role on a domain service refuses every call.** There `ICallerRole` answers `None`, so an operation demanding a
+  role refuses every call `403`. The package doesn't refuse such a declaration at startup: authorize a domain service
+  by scope and context instead.
+- **Extra audiences reach every endpoint.** Audiences you add to the bearer options are accepted at every endpoint: if
+  only one surface should accept an extra audience, check `aud` yourself on the other operations (an
+  `IAuthorizesOperation`), or host that surface in its own service.
+- **`DiscoveredIssuerTokens` doesn't check the audience.** If the issuer sets one, compare `aud` with the value you
+  expect before trusting the token.
+- **A proxy setting that fails trusts nobody.** A host name in `KnownProxies` that can't be looked up trusts nobody,
+  and a network that doesn't parse is ignored.
+- **Not AOT-compatible.**
 
 ## Types
 
