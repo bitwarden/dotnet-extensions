@@ -1,5 +1,7 @@
 # Bitwarden.Server.Sdk.Sagas
 
+**Audience:** engineers changing this package.
+
 Counts an operation's writes and carries how it handles a failure part way. See [PACKAGE.md](PACKAGE.md) for how to
 use it.
 
