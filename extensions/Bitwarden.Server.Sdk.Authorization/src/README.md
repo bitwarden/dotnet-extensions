@@ -1,5 +1,7 @@
 # Bitwarden.Server.Sdk.Authorization
 
+**Audience:** engineers changing this package.
+
 Context authorization for Bitwarden services: who may call an operation, on whose behalf, and for which owner. See
 [PACKAGE.md](PACKAGE.md) for how to use it.
 
