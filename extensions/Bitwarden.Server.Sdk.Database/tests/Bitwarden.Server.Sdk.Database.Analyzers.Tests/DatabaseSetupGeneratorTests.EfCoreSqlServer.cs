@@ -191,6 +191,26 @@ public partial class DatabaseSetupGeneratorTests
     }
 
     [Fact]
+    public async Task ForwardedConstructor_GeneratedCliResolvesItsParameters()
+    {
+        // The migration executable resolves the context from its own services to migrate it, so the
+        // schema's design-time services supply what the constructor takes beyond its options there too.
+        var assembly = EmitAndLoad(RunGenerator(await BuildCompilationAsync(ForwardedConstructorSchema)));
+
+        var connectionString = $"Data Source={Guid.NewGuid()};Mode=Memory;Cache=Shared";
+        await using var keepAlive = new SqliteConnection(connectionString);
+        await keepAlive.OpenAsync(TestContext.Current.CancellationToken);
+
+        var output = new StringWriter();
+        var exitCode = await InvokeCliAsync(assembly, output, "--sqlite", connectionString);
+
+        Assert.True(exitCode == 0, $"CLI exited {exitCode}: {output}");
+        using var cmd = keepAlive.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(1) FROM sqlite_master WHERE type='table' AND name='__EFMigrationsHistory'";
+        Assert.Equal(1L, await cmd.ExecuteScalarAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task ForwardedConstructor_DesignTimeFactoryResolvesItsParameters()
     {
         // What `dotnet ef` calls, for a context that takes more than its options.
