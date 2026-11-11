@@ -68,11 +68,15 @@ public abstract class Envelope<TPayload, TCeiling>
         // Walk down the declared chain from TCeiling. The first position with a received variant
         // is the highest one at or below the ceiling; upcast that variant back up to TCeiling via
         // IPureUp — every non-ceiling variant in a validated chain has a pure upcast.
-        for (Type? cur = typeof(TCeiling); cur is not null; cur = ChainWalk.PreviousInChain(cur))
+        //
+        // The chain positions and the wire-name map are immutable for a given
+        // (TPayload, TCeiling), so ChainResolutionCache pre-computes them once per closed generic
+        // and the receive path avoids reflection and Variants-list rematerialization per message.
+        foreach (var cur in ChainResolutionCache.PositionsFromCeilingDown)
         {
             if (!_variantsByType.TryGetValue(cur, out var variant)) continue;
 
-            var wireName = LookupWireName(cur);
+            var wireName = ChainResolutionCache.WireNamesByType[cur];
             var current = variant;
             while (current is not TCeiling && current is Payload<TPayload>.IPureUp step)
                 current = step.Upcast();
@@ -93,13 +97,29 @@ public abstract class Envelope<TPayload, TCeiling>
     /// </summary>
     internal Activity? Activity => _activity;
 
-    private static string LookupWireName(Type variantType)
+    // Per-closed-generic cache. Populated once by the runtime on first access, then every
+    // subsequent envelope of this (TPayload, TCeiling) reads from static fields instead of
+    // walking Type.GetInterfaces() and rematerializing TPayload.Variants.
+    private static class ChainResolutionCache
     {
-        foreach (var (type, name) in TPayload.Variants)
-            if (type == variantType) return name;
-        // Unreachable: variants that survived deserialization are drawn from TPayload.Variants.
-        throw new InvalidOperationException(
-            $"Received variant {variantType.Name} has no entry in {typeof(TPayload).Name}.Variants.");
+        internal static readonly Type[] PositionsFromCeilingDown = BuildPositions();
+        internal static readonly Dictionary<Type, string> WireNamesByType = BuildWireNames();
+
+        private static Type[] BuildPositions()
+        {
+            var positions = new List<Type>();
+            for (Type? cur = typeof(TCeiling); cur is not null; cur = ChainWalk.PreviousInChain(cur))
+                positions.Add(cur);
+            return [.. positions];
+        }
+
+        private static Dictionary<Type, string> BuildWireNames()
+        {
+            var map = new Dictionary<Type, string>();
+            foreach (var (type, name) in TPayload.Variants)
+                map[type] = name;
+            return map;
+        }
     }
 
     /// <summary>A unique identifier for the message assigned by the publisher.</summary>
