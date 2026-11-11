@@ -1,5 +1,7 @@
 # Bitwarden.Server.Sdk.Data.Abstractions
 
+**Audience:** engineers changing this package.
+
 Data classification and row ownership shared by a Bitwarden service's model and its data layer. See
 [PACKAGE.md](PACKAGE.md) for how to use it.
 
