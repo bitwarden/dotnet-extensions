@@ -33,16 +33,16 @@ The package reads no settings of its own. `[SelfHostedOnly]` and `[NotSelfHosted
 
 - **A resource and its document.** `Resource`, `ResourceDocument<T>` and the list documents wrap and
   unwrap the envelope (`data`, `attributes`, `meta`), so a handler takes and returns plain records.
-  See [Payload shape](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/payloads-and-responses/payload-shape.md).
+  See [Payload shape](https://contributing.bitwarden.com/contributing/server-sdk/payloads-and-responses/payload-shape).
 - **Standard operations.** `[StandardCreate]`, `[StandardReadOne]` and the rest, applied by
   `WithStandards()`, bind and validate the request before the handler runs, set the status and
   `Location`, name the operation and settle its authorization. See
-  [Verbs](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/operations/verbs.md).
+  [Verbs](https://contributing.bitwarden.com/contributing/server-sdk/operations/verbs).
 - **Startup checks.** A handler mapped against its attribute or an operation identifier used twice
   stops the service at startup, every problem listed at once. See
-  [Keep the Map line and the attribute in step](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/operations/verbs.md#keep-the-map-line-and-the-attribute-in-step).
+  [Keep the Map line and the attribute in step](https://contributing.bitwarden.com/contributing/server-sdk/operations/verbs#keep-the-map-line-and-the-attribute-in-step).
 - **The standard error document** is written for every refusal and every exception. See
-  [Errors](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/payloads-and-responses/errors.md).
+  [Errors](https://contributing.bitwarden.com/contributing/server-sdk/payloads-and-responses/errors).
 - **Zero knowledge.** Bitwarden services store and synchronize Vault Data only as Protected Data,
   encrypted on the client. `[Encrypted]` checks an encrypted value's length and, if asked, its
   shape. Nothing in the package decrypts or logs one.
@@ -137,7 +137,7 @@ app.Run();
   error document carries members such as `"id": null`.
 - The project file settings that let handlers compile ahead of time and their XML comments reach
   the document are in
-  [OpenAPI](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/contracts/openapi.md#turn-on-the-document).
+  [OpenAPI](https://contributing.bitwarden.com/contributing/server-sdk/contracts/openapi#turn-on-the-document).
 
 ## Gotchas and constraints
 
@@ -151,63 +151,63 @@ app.Run();
 
 ## Developer guide
 
-The [developer guide](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/README.md),
+The [developer guide](https://contributing.bitwarden.com/contributing/server-sdk/),
 in Bitwarden.Server.Sdk.Service, covers this package one topic per page.
 
 **Running a service**
 
-- [Keep an operation to one kind of install](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/running-a-service/configuration-and-self-hosting.md#keep-an-operation-to-one-kind-of-install): `[SelfHostedOnly]` and `[NotSelfHostedOnly]`.
-- [Add to the standard endpoints from a package](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/running-a-service/caching-and-extensions.md#add-to-the-standard-endpoints-from-a-package): `IStandardEndpointFilterProvider`, `IStandardEndpointCheck` and `ServedByPlatform<T>()`.
+- [Keep an operation to one kind of install](https://contributing.bitwarden.com/contributing/server-sdk/running-a-service/configuration-and-self-hosting#keep-an-operation-to-one-kind-of-install): `[SelfHostedOnly]` and `[NotSelfHostedOnly]`.
+- [Add to the standard endpoints from a package](https://contributing.bitwarden.com/contributing/server-sdk/running-a-service/caching-and-extensions#add-to-the-standard-endpoints-from-a-package): `IStandardEndpointFilterProvider`, `IStandardEndpointCheck` and `ServedByPlatform<T>()`.
 
 **Contracts**
 
-- [OpenAPI](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/contracts/openapi.md): the generated document, operation identifiers and committing the contract.
-- [API paths](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/contracts/api-paths.md): collection and resource paths, and checking your own at startup.
-- [Breaking changes and versioning](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/contracts/breaking-changes-and-versioning.md)
-- [Unrecognized fields, query parameters, and headers](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/contracts/unrecognized-fields-query-parameters-and-headers.md)
-- [Deprecation](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/contracts/deprecation.md)
+- [OpenAPI](https://contributing.bitwarden.com/contributing/server-sdk/contracts/openapi): the generated document, operation identifiers and committing the contract.
+- [API paths](https://contributing.bitwarden.com/contributing/server-sdk/contracts/api-paths): collection and resource paths, and checking your own at startup.
+- [Breaking changes and versioning](https://contributing.bitwarden.com/contributing/server-sdk/contracts/breaking-changes-and-versioning)
+- [Unrecognized fields, query parameters, and headers](https://contributing.bitwarden.com/contributing/server-sdk/contracts/unrecognized-fields-query-parameters-and-headers)
+- [Deprecation](https://contributing.bitwarden.com/contributing/server-sdk/contracts/deprecation)
 
 **Payloads and responses**
 
-- [Payload shape](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/payloads-and-responses/payload-shape.md): resources, the document envelope and resource fields.
-- [JSON](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/payloads-and-responses/json.md): dates, enumerations and free-form values.
-- [Naming conventions](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/payloads-and-responses/naming-conventions.md)
-- [Standard fields](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/payloads-and-responses/standard-fields.md): `id`, `type`, `version` and the audit fields.
-- [Content negotiation](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/payloads-and-responses/content-negotiation.md)
-- [Standard responses](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/payloads-and-responses/standard-responses.md): the response helpers and status codes.
-- [Request validation](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/payloads-and-responses/request-validation.md)
-- [Errors](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/payloads-and-responses/errors.md): the error document and the exceptions that produce it.
+- [Payload shape](https://contributing.bitwarden.com/contributing/server-sdk/payloads-and-responses/payload-shape): resources, the document envelope and resource fields.
+- [JSON](https://contributing.bitwarden.com/contributing/server-sdk/payloads-and-responses/json): dates, enumerations and free-form values.
+- [Naming conventions](https://contributing.bitwarden.com/contributing/server-sdk/payloads-and-responses/naming-conventions)
+- [Standard fields](https://contributing.bitwarden.com/contributing/server-sdk/payloads-and-responses/standard-fields): `id`, `type`, `version` and the audit fields.
+- [Content negotiation](https://contributing.bitwarden.com/contributing/server-sdk/payloads-and-responses/content-negotiation)
+- [Standard responses](https://contributing.bitwarden.com/contributing/server-sdk/payloads-and-responses/standard-responses): the response helpers and status codes.
+- [Request validation](https://contributing.bitwarden.com/contributing/server-sdk/payloads-and-responses/request-validation)
+- [Errors](https://contributing.bitwarden.com/contributing/server-sdk/payloads-and-responses/errors): the error document and the exceptions that produce it.
 
 **Operations**
 
-- [Verbs](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/operations/verbs.md): the standard attributes and how routes are checked.
-- [Creating resources](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/operations/creating-resources.md)
-- [Reading resources](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/operations/reading-resources.md)
-- [Updating resources](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/operations/updating-resources.md)
-- [Partial updates](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/operations/partial-updates.md)
-- [Optimistic concurrency](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/operations/optimistic-concurrency.md)
-- [Deleting resources](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/operations/deleting-resources.md), including soft deletes.
-- [Acting upon resources](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/operations/acting-upon-resources.md)
+- [Verbs](https://contributing.bitwarden.com/contributing/server-sdk/operations/verbs): the standard attributes and how routes are checked.
+- [Creating resources](https://contributing.bitwarden.com/contributing/server-sdk/operations/creating-resources)
+- [Reading resources](https://contributing.bitwarden.com/contributing/server-sdk/operations/reading-resources)
+- [Updating resources](https://contributing.bitwarden.com/contributing/server-sdk/operations/updating-resources)
+- [Partial updates](https://contributing.bitwarden.com/contributing/server-sdk/operations/partial-updates)
+- [Optimistic concurrency](https://contributing.bitwarden.com/contributing/server-sdk/operations/optimistic-concurrency)
+- [Deleting resources](https://contributing.bitwarden.com/contributing/server-sdk/operations/deleting-resources), including soft deletes.
+- [Acting upon resources](https://contributing.bitwarden.com/contributing/server-sdk/operations/acting-upon-resources)
 
 **Querying**
 
-- [Filtering](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/querying/filtering.md), including multi-value parameters and ranges.
-- [Paging](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/querying/paging.md): offset and cursor paging.
-- [Sorting](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/querying/sorting.md)
-- [Sparse fieldsets](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/querying/sparse-fieldsets.md)
-- [Advanced queries](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/querying/advanced-queries.md): searches with filter expressions.
+- [Filtering](https://contributing.bitwarden.com/contributing/server-sdk/querying/filtering), including multi-value parameters and ranges.
+- [Paging](https://contributing.bitwarden.com/contributing/server-sdk/querying/paging): offset and cursor paging.
+- [Sorting](https://contributing.bitwarden.com/contributing/server-sdk/querying/sorting)
+- [Sparse fieldsets](https://contributing.bitwarden.com/contributing/server-sdk/querying/sparse-fieldsets)
+- [Advanced queries](https://contributing.bitwarden.com/contributing/server-sdk/querying/advanced-queries): searches with filter expressions.
 
 **Bulk and asynchronous work**
 
-- [Bulk operations](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/bulk-and-asynchronous-work/bulk-operations/index.md)
-    - [Targeting](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/bulk-and-asynchronous-work/bulk-operations/targeting.md)
-    - [Per-resource rules](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/bulk-and-asynchronous-work/bulk-operations/per-resource-rules.md)
-    - [All-or-nothing and best-effort](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/bulk-and-asynchronous-work/bulk-operations/all-or-nothing-and-best-effort.md)
-    - [Synchronous and asynchronous](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/bulk-and-asynchronous-work/bulk-operations/synchronous-and-asynchronous.md)
-    - [Bulk responses](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/bulk-and-asynchronous-work/bulk-operations/bulk-responses.md)
-    - [Bulk creates](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/bulk-and-asynchronous-work/bulk-operations/bulk-creates.md)
-    - [Bulk updates](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/bulk-and-asynchronous-work/bulk-operations/bulk-updates.md)
-    - [Bulk replaces](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/bulk-and-asynchronous-work/bulk-operations/bulk-replaces.md)
-    - [Bulk deletes](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/bulk-and-asynchronous-work/bulk-operations/bulk-deletes.md)
-    - [Bulk actions](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/bulk-and-asynchronous-work/bulk-operations/bulk-actions.md)
-- [Jobs](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/bulk-and-asynchronous-work/jobs.md)
+- [Bulk operations](https://contributing.bitwarden.com/contributing/server-sdk/bulk-and-asynchronous-work/bulk-operations/)
+    - [Targeting](https://contributing.bitwarden.com/contributing/server-sdk/bulk-and-asynchronous-work/bulk-operations/targeting)
+    - [Per-resource rules](https://contributing.bitwarden.com/contributing/server-sdk/bulk-and-asynchronous-work/bulk-operations/per-resource-rules)
+    - [All-or-nothing and best-effort](https://contributing.bitwarden.com/contributing/server-sdk/bulk-and-asynchronous-work/bulk-operations/all-or-nothing-and-best-effort)
+    - [Synchronous and asynchronous](https://contributing.bitwarden.com/contributing/server-sdk/bulk-and-asynchronous-work/bulk-operations/synchronous-and-asynchronous)
+    - [Bulk responses](https://contributing.bitwarden.com/contributing/server-sdk/bulk-and-asynchronous-work/bulk-operations/bulk-responses)
+    - [Bulk creates](https://contributing.bitwarden.com/contributing/server-sdk/bulk-and-asynchronous-work/bulk-operations/bulk-creates)
+    - [Bulk updates](https://contributing.bitwarden.com/contributing/server-sdk/bulk-and-asynchronous-work/bulk-operations/bulk-updates)
+    - [Bulk replaces](https://contributing.bitwarden.com/contributing/server-sdk/bulk-and-asynchronous-work/bulk-operations/bulk-replaces)
+    - [Bulk deletes](https://contributing.bitwarden.com/contributing/server-sdk/bulk-and-asynchronous-work/bulk-operations/bulk-deletes)
+    - [Bulk actions](https://contributing.bitwarden.com/contributing/server-sdk/bulk-and-asynchronous-work/bulk-operations/bulk-actions)
+- [Jobs](https://contributing.bitwarden.com/contributing/server-sdk/bulk-and-asynchronous-work/jobs)
