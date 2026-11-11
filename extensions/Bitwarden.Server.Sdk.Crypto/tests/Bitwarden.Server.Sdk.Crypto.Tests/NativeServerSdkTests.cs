@@ -11,22 +11,6 @@ public class NativeServerSdkTests
 
     private ICryptoParsingClient Client => _provider.GetRequiredService<ICryptoParsingClient>();
 
-    [Fact]
-    public void Version_IsNotEmpty()
-    {
-        var info = _provider.GetRequiredService<IServerSdkInfo>();
-
-        Assert.False(string.IsNullOrWhiteSpace(info.Version));
-    }
-
-    [Fact]
-    public void AddServerSdkCrypto_SharesOneNativeClient()
-    {
-        var info = _provider.GetRequiredService<IServerSdkInfo>();
-
-        Assert.Same(info, Client);
-    }
-
     // Many threads on one instance: the Rust client is documented as thread-safe.
     [Fact]
     public void InspectEncString_Concurrent_ReturnsKeyId()

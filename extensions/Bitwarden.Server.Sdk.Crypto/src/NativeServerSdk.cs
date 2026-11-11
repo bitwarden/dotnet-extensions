@@ -20,7 +20,7 @@ namespace Bitwarden.Server.Sdk.Crypto;
 /// The Rust clients are stateless and thread-safe, so one instance serves the whole process. Generated
 /// exceptions are translated, keeping UniFFI types out of the public API.
 /// </remarks>
-internal sealed class NativeServerSdk : ICryptoParsingClient, IServerSdkInfo, IDisposable
+internal sealed class NativeServerSdk : ICryptoParsingClient, IDisposable
 {
     private readonly ServerClient _client;
     private readonly CryptoParsingClient _parsing;
@@ -36,8 +36,6 @@ internal sealed class NativeServerSdk : ICryptoParsingClient, IServerSdkInfo, ID
         _client = new ServerClient();
         _parsing = _client.CryptoParsing();
     }
-
-    public string Version => _client.Version();
 
     public EncStringInfo InspectEncString(string encString) =>
         ToPublic(Parse(encString, _parsing.InspectEncString));

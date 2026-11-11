@@ -846,8 +846,6 @@ static class _UniFFILib {
     
     
     
-    
-    
 
     static _UniFFILib() {
         _UniFFILib.uniffiCheckContractApiVersion();
@@ -897,17 +895,6 @@ static class _UniFFILib {
     public static extern
 #endif
      ulong uniffi_bitwarden_uniffi_server_fn_method_serverclient_crypto_parsing(ulong @ptr,ref UniffiRustCallStatus _uniffi_out_err
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_serverclient_version(ulong @ptr,ref UniffiRustCallStatus _uniffi_out_err
     );
 
     #if NET8_0_OR_GREATER
@@ -1622,17 +1609,6 @@ static class _UniFFILib {
     [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
     public static extern
 #endif
-     ushort uniffi_bitwarden_uniffi_server_checksum_method_serverclient_version(
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
      ushort uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_data_envelope(
     );
 
@@ -1759,12 +1735,6 @@ static class _UniFFILib {
             var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_serverclient_crypto_parsing();
             if (checksum != 59849) {
                 throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_serverclient_crypto_parsing` checksum `59849`, library returned `{checksum}`");
-            }
-        }
-        {
-            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_serverclient_version();
-            if (checksum != 42073) {
-                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_serverclient_version` checksum `42073`, library returned `{checksum}`");
             }
         }
         {
@@ -2180,10 +2150,6 @@ internal interface IServerClient {
     /// Parses SDK crypto objects and reads the key ids they name, without decrypting.
     /// </summary>
     CryptoParsingClient CryptoParsing();
-    /// <summary>
-    /// The SDK version this library was built from.
-    /// </summary>
-    string Version();
 }
 /// <summary>
 /// Entry point of the server bindings.
@@ -2292,17 +2258,6 @@ internal class ServerClient : IServerClient, IDisposable {
         return CallWithPointer(thisPtr => FfiConverterTypeCryptoParsingClient.INSTANCE.Lift(
     _UniffiHelpers.RustCall( (ref UniffiRustCallStatus _status) =>
     _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_serverclient_crypto_parsing(thisPtr,  ref _status)
-)));
-    }
-    
-    
-    /// <summary>
-    /// The SDK version this library was built from.
-    /// </summary>
-    public string Version() {
-        return CallWithPointer(thisPtr => FfiConverterString.INSTANCE.Lift(
-    _UniffiHelpers.RustCall( (ref UniffiRustCallStatus _status) =>
-    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_serverclient_version(thisPtr,  ref _status)
 )));
     }
     
