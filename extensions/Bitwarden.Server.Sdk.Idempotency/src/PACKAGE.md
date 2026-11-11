@@ -2,8 +2,9 @@
 
 ## About
 
-At-most-once writes for Bitwarden services: a write another service sends with an `Idempotency-Key` is done once, and
-a repeat with the same key is answered with the first answer instead of being done again. A key reused for a
+At-most-once writes for Bitwarden services: a write another service sends with an `Idempotency-Key`, to an operation
+marked `[AcceptsIdempotencyKey]`, is done once, and a repeat with the same key is answered with the first answer
+instead of being done again. A key reused for a
 different request is refused `422` (by Bitwarden.Server.Sdk.Service's exception handler), and a repeat that arrives while the first is still running `409` with
 `Retry-After`.
 
@@ -22,7 +23,7 @@ dotnet add package Bitwarden.Server.Sdk.Idempotency
 | Setting                           | Default      | What it does                                                                                                                      |
 | --------------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------- |
 | `Idempotency:Enabled`             | `true`       | Whether keys are honoured at all.                                                                                                 |
-| `Idempotency:Retention`           | `1.00:00:00` | How long a completed write's answer is kept for its key. A repeat after that is done again.                                       |
+| `Idempotency:Retention`           | `00:10:00`   | How long a completed write's answer is kept for its key. A repeat after that is done again.                                       |
 | `Idempotency:Lease`               | `00:02:00`   | How long a write in progress holds its key. A repeat after that, should the instance running it have stopped, is done again.      |
 | `Idempotency:MaximumBytes`        | `1048576`    | The largest request body fingerprinted, and the largest answer kept. A write past either runs without a key.                      |
 | `Idempotency:Redis:Configuration` | None         | The Redis records are kept in. With it, and a shared data protection key ring, records are kept there; otherwise in this process. |
@@ -58,7 +59,7 @@ app.UseAuthorization();
 app.UseCallChainCheck();
 app.UseIdempotencyKeys();
 
-app.MapPost("/api/v1/widgets", () => Results.Created("/api/v1/widgets/1", new CreatedWidget("1")));
+app.MapPost("/api/v1/widgets", [AcceptsIdempotencyKey] () => Results.Created("/api/v1/widgets/1", new CreatedWidget("1")));
 
 app.Run();
 
@@ -79,17 +80,22 @@ for which requests are recorded.
 ## Documentation
 
 - Only a write (any method but `GET`, `HEAD`, `OPTIONS` and `TRACE`) from another service (`client_id`
-  `internal.{service}`), carrying the header, to a mapped operation not marked `[IgnoreIdempotencyKey]` and not asked
-  only to be checked (`validateOnly=true`), is recorded. A browser's write always runs.
+  `internal.{service}`), carrying the header, to a mapped operation marked `[AcceptsIdempotencyKey]` and not asked only
+  to be checked (`validateOnly=true`), is recorded. Every other write, and a browser's, runs every time.
 - A repeat with the same method, path, query and body gets the first answer: its status, `Content-Type`, `Location`,
   `ETag`, `Last-Modified` and body, marked `Idempotency-Replayed: true`.
 - A write that fails with a `5xx` or an exception keeps nothing, so its repeat runs again.
 - A key that isn't one value of 1 to 255 visible ASCII characters is refused `400`.
-- `[IgnoreIdempotencyKey]` on a handler or its class leaves an operation out. It must be safe to receive twice.
+- `[AcceptsIdempotencyKey]` on a handler or its class opts an operation in. Mark one whose repeat would do something
+  twice that the state it leaves doesn't absorb: a create with an identifier the service chooses, a charge or purchase,
+  a mail or message sent, a secret issued, a count added to. Leave it off a replace, a delete, a write that sets a
+  value, and anything that only reads. Bitwarden.Server.Sdk.Service publishes the mark in the contract
+  (`x-bitwarden-idempotency-key`), and Bitwarden.Server.Sdk.Client sends a key only to marked operations.
+- Each keyed write costs two round trips to the store, and its answer is held for `Idempotency:Retention`.
 
 | Type                                      | Purpose                                                |
 | ----------------------------------------- | ------------------------------------------------------ |
 | `IdempotencyServiceCollectionExtensions`  | `AddIdempotencyKeys(configuration)`: options and store |
 | `IdempotencyApplicationBuilderExtensions` | `UseIdempotencyKeys()`: the middleware                 |
 | `IdempotencyOptions`                      | The `Idempotency` settings                             |
-| `IgnoreIdempotencyKeyAttribute`           | Leaves an operation out                                |
+| `AcceptsIdempotencyKeyAttribute`          | Opts an operation in                                   |
