@@ -75,7 +75,10 @@ public static class BitwardenClientServiceCollectionExtensions
     /// The service being called, as it appears in configuration: <c>Reference</c> binds
     /// <c>Services:Reference</c>.
     /// </param>
-    /// <param name="scopes">The scopes the client needs. Declared by the client package.</param>
+    /// <param name="scopes">
+    /// The scopes the client needs. Declared by the client package. Where more than one client is registered for the
+    /// same service, the token for it carries the scopes of all of them.
+    /// </param>
     /// <param name="configure">
     /// Applied after the conventions, so a consumer can override anything conventional; only
     /// <c>Services:{Name}:Timeout</c>, <c>:Retries</c> and <c>:RetryDelay</c>, where a deployment sets them, apply after it.
@@ -106,20 +109,34 @@ public static class BitwardenClientServiceCollectionExtensions
                     provider.GetRequiredService<IConfiguration>()[$"{OutgoingCallOptions.SectionName}:{nameof(OutgoingCallOptions.RefuseEventActor)}"],
                     out var refuse) && refuse));
 
-        services.AddOptions<BitwardenClientOptions>(serviceName)
+        // A service's clients share one set of options, so a second client for the same service adds to what the first
+        // set rather than starting again: the conventions and the validator once, the scopes of every client together
+        // (one token serves them all), and each client's own overrides in the order they were registered.
+        var first = !services.Any(descriptor =>
+            !descriptor.IsKeyedService
+            && descriptor.ImplementationInstance is BitwardenClientOptionsValidator validator
+            && validator.ServiceName == serviceName);
+
+        var builder = services.AddOptions<BitwardenClientOptions>(serviceName);
+
+        if (first)
+        {
+            builder.Configure<IConfiguration>((options, configuration) => Conventions.Apply(options, configuration, serviceName));
+
+            services.AddSingleton<IValidateOptions<BitwardenClientOptions>>(
+                new BitwardenClientOptionsValidator(serviceName));
+        }
+
+        builder
             .Configure<IConfiguration>((options, configuration) =>
             {
-                Conventions.Apply(options, configuration, serviceName);
-                options.Scopes = scopes;
+                options.Scopes = [.. options.Scopes.Union(scopes, StringComparer.Ordinal)];
                 configure?.Invoke(options);
                 Conventions.ApplyTiming(options, configuration, serviceName);
             })
             // At startup, not on the first call: a service missing a downstream address should
             // fail to start rather than fail the first request that needed it.
             .ValidateOnStart();
-
-        services.AddSingleton<IValidateOptions<BitwardenClientOptions>>(
-            new BitwardenClientOptionsValidator(serviceName));
 
         // Keyed, and by interface: a test substitutes its own for this service without
         // disturbing any other client the same application registers.

@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace Bitwarden.Server.Sdk.Idempotency;
 
 /// <summary>
@@ -25,6 +27,9 @@ public sealed class PerCallIdempotencyKeysAttribute(string reason) : Attribute
     /// Whether <paramref name="type"/> declares it.
     /// </summary>
     /// <param name="type">A handler's or job's type.</param>
+    /// <exception cref="ArgumentException">The type declares it with a blank reason.</exception>
     public static bool IsOn(Type type) =>
-        Attribute.IsDefined(type ?? throw new ArgumentNullException(nameof(type)), typeof(PerCallIdempotencyKeysAttribute), inherit: false);
+        // Builds the attribute rather than reading its metadata, so a blank reason is refused here too.
+        (type ?? throw new ArgumentNullException(nameof(type)))
+            .GetCustomAttribute<PerCallIdempotencyKeysAttribute>(inherit: false) is not null;
 }
