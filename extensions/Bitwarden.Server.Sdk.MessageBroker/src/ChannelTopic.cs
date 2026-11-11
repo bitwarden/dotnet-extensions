@@ -5,15 +5,15 @@ using Microsoft.Extensions.Hosting;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>An in-memory fan-out topic that delivers each message to every registered subscriber channel.</summary>
-internal sealed class ChannelTopic<TPayload, TCeiling> : IHostedService
-    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
-    where TCeiling : Payload<TPayload>.ICeiling
+internal sealed class ChannelTopic<TFamily, TCeiling> : IHostedService
+    where TFamily : FamilyCeiling<TFamily, TCeiling>, IFamilyVariants<TFamily>, IFamilyWireName<TFamily>
+    where TCeiling : Family<TFamily>.ICeiling
 {
     private readonly string _topicName;
     private readonly ConcurrentDictionary<string, Subscription> _subscribers = new();
 
     /// <param name="subscriptionNames">
-    /// Names pre-registered via <see cref="MessageBrokerServiceCollectionExtensions.AddSubscriber{TPayload,TCeiling}"/>
+    /// Names pre-registered via <see cref="MessageBrokerServiceCollectionExtensions.AddSubscriber{TFamily,TCeiling}"/>
     /// in the same DI container. Channels are created eagerly so messages published before a subscriber
     /// is resolved are buffered rather than dropped.
     /// </param>
@@ -24,7 +24,7 @@ internal sealed class ChannelTopic<TPayload, TCeiling> : IHostedService
     /// </param>
     /// <param name="metrics">Registers a queue-depth observation for this topic.</param>
     /// <param name="topicName">The topic name, used as the <c>messaging.destination.name</c> tag.</param>
-    public ChannelTopic(IEnumerable<string> subscriptionNames, IEnumerable<ChannelEscrowRegistration<TPayload, TCeiling>> escrowRegistrations, MessageBrokerMetrics metrics, string topicName)
+    public ChannelTopic(IEnumerable<string> subscriptionNames, IEnumerable<ChannelEscrowRegistration<TFamily, TCeiling>> escrowRegistrations, MessageBrokerMetrics metrics, string topicName)
     {
         _topicName = topicName;
 
@@ -35,22 +35,22 @@ internal sealed class ChannelTopic<TPayload, TCeiling> : IHostedService
             if (reg.TopicName == topicName)
                 reg.RegisterWith(this);
 
-        metrics.RegisterQueueDepthProvider(topicName, TPayload.WireName, () => _subscribers.Values.Sum(s => (long)s.Channel.Reader.Count));
+        metrics.RegisterQueueDepthProvider(topicName, TFamily.WireName, () => _subscribers.Values.Sum(s => (long)s.Channel.Reader.Count));
     }
 
-    public Channel<Envelope<TPayload, TCeiling>> GetOrAddSubscription(string subscriptionName)
+    public Channel<Envelope<TFamily, TCeiling>> GetOrAddSubscription(string subscriptionName)
         => _subscribers.GetOrAdd(subscriptionName, _ => new Subscription()).Channel;
 
-    /// <inheritdoc cref="ChannelEscrowRegistration{TPayload, TCeiling}.RegisterWith"/>
-    public void SetEscrowFallback(string subscriptionName, Func<Envelope<TPayload, TCeiling>, CancellationToken, Task> fallback)
+    /// <inheritdoc cref="ChannelEscrowRegistration{TFamily, TCeiling}.RegisterWith"/>
+    public void SetEscrowFallback(string subscriptionName, Func<Envelope<TFamily, TCeiling>, CancellationToken, Task> fallback)
         => _subscribers.GetOrAdd(subscriptionName, _ => new Subscription()).EscrowFallback = fallback;
 
-    /// <inheritdoc cref="ChannelEscrowRegistration{TPayload, TCeiling}.RegisterWith"/>
-    public void SetStartupRecovery(string subscriptionName, Func<ChannelWriter<Envelope<TPayload, TCeiling>>, CancellationToken, Task> recovery)
+    /// <inheritdoc cref="ChannelEscrowRegistration{TFamily, TCeiling}.RegisterWith"/>
+    public void SetStartupRecovery(string subscriptionName, Func<ChannelWriter<Envelope<TFamily, TCeiling>>, CancellationToken, Task> recovery)
         => _subscribers.GetOrAdd(subscriptionName, _ => new Subscription()).StartupRecovery = recovery;
 
-    /// <inheritdoc cref="ChannelEscrowRegistration{TPayload, TCeiling}.RegisterWith"/>
-    public void SetShutdownDrain(string subscriptionName, Func<IReadOnlyList<Envelope<TPayload, TCeiling>>, CancellationToken, Task> drain)
+    /// <inheritdoc cref="ChannelEscrowRegistration{TFamily, TCeiling}.RegisterWith"/>
+    public void SetShutdownDrain(string subscriptionName, Func<IReadOnlyList<Envelope<TFamily, TCeiling>>, CancellationToken, Task> drain)
         => _subscribers.GetOrAdd(subscriptionName, _ => new Subscription()).ShutdownDrain = drain;
 
     /// <summary>
@@ -61,7 +61,7 @@ internal sealed class ChannelTopic<TPayload, TCeiling> : IHostedService
     /// caller retry can double-deliver to them; this fail-fast ordering bounds the duplicate
     /// set to the subscriptions already visited rather than every open subscription.
     /// </summary>
-    public async ValueTask WriteAsync(Func<ChannelWriter<Envelope<TPayload, TCeiling>>, Func<Envelope<TPayload, TCeiling>, CancellationToken, Task>?, Envelope<TPayload, TCeiling>> factory, CancellationToken cancellationToken = default)
+    public async ValueTask WriteAsync(Func<ChannelWriter<Envelope<TFamily, TCeiling>>, Func<Envelope<TFamily, TCeiling>, CancellationToken, Task>?, Envelope<TFamily, TCeiling>> factory, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -87,7 +87,7 @@ internal sealed class ChannelTopic<TPayload, TCeiling> : IHostedService
         {
             if (sub.ShutdownDrain is not null)
             {
-                var remaining = new List<Envelope<TPayload, TCeiling>>();
+                var remaining = new List<Envelope<TFamily, TCeiling>>();
                 while (sub.Channel.Reader.TryRead(out var envelope))
                     remaining.Add(envelope);
                 if (remaining.Count > 0)
@@ -100,9 +100,9 @@ internal sealed class ChannelTopic<TPayload, TCeiling> : IHostedService
 
     private sealed class Subscription
     {
-        public Channel<Envelope<TPayload, TCeiling>> Channel { get; } = System.Threading.Channels.Channel.CreateUnbounded<Envelope<TPayload, TCeiling>>();
-        public Func<Envelope<TPayload, TCeiling>, CancellationToken, Task>? EscrowFallback;
-        public Func<ChannelWriter<Envelope<TPayload, TCeiling>>, CancellationToken, Task>? StartupRecovery;
-        public Func<IReadOnlyList<Envelope<TPayload, TCeiling>>, CancellationToken, Task>? ShutdownDrain;
+        public Channel<Envelope<TFamily, TCeiling>> Channel { get; } = System.Threading.Channels.Channel.CreateUnbounded<Envelope<TFamily, TCeiling>>();
+        public Func<Envelope<TFamily, TCeiling>, CancellationToken, Task>? EscrowFallback;
+        public Func<ChannelWriter<Envelope<TFamily, TCeiling>>, CancellationToken, Task>? StartupRecovery;
+        public Func<IReadOnlyList<Envelope<TFamily, TCeiling>>, CancellationToken, Task>? ShutdownDrain;
     }
 }

@@ -15,7 +15,7 @@ internal sealed record PublisherLeave
     public required string DataTopic { get; init; }
 
     /// <summary>
-    /// The payload family this publisher is leaving. Matches the family declared on the
+    /// The family this publisher is leaving. Matches the family declared on the
     /// corresponding <see cref="PublisherJoin"/>; a publisher of two families on one topic
     /// sends two leaves at shutdown.
     /// </summary>

@@ -4,9 +4,9 @@ using Azure.Messaging.ServiceBus;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>
-    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
-    where TCeiling : Payload<TPayload>.ICeiling
+internal sealed class AzureServiceBusSubscriber<TFamily, TCeiling> : ISubscriber<TFamily, TCeiling>
+    where TFamily : FamilyCeiling<TFamily, TCeiling>, IFamilyVariants<TFamily>, IFamilyWireName<TFamily>
+    where TCeiling : Family<TFamily>.ICeiling
 {
     private readonly string _topicName;
     private readonly string _subscriptionName;
@@ -23,7 +23,7 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
         _metrics = metrics;
     }
 
-    public async IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<Envelope<TFamily, TCeiling>> SubscribeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await using var receiver = _client
             .CreateReceiver(_topicName, _subscriptionName, new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.PeekLock });
@@ -56,21 +56,21 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
             {
                 // Defense in depth: when the operator-declared Correlation filter routes correctly,
                 // only matching messages arrive. A missing or wrong filter could deliver another
-                // family's message here; decoding it against TPayload would silently discard every
+                // family's message here; decoding it against TFamily would silently discard every
                 // variant and dead-letter on the length check below with no indication the real
                 // problem was the subscription filter. Fail fast with the actual reason.
-                if (sbMessage.ApplicationProperties.TryGetValue(BrokerProperties.PayloadFamily, out var familyObj)
+                if (sbMessage.ApplicationProperties.TryGetValue(BrokerProperties.Family, out var familyObj)
                     && familyObj is string familyName
-                    && familyName != TPayload.WireName)
+                    && familyName != TFamily.WireName)
                 {
                     await receiver.DeadLetterMessageAsync(sbMessage, cancellationToken: cancellationToken);
                     continue;
                 }
 
-                IReadOnlyList<Payload<TPayload>.IVariant> variants;
+                IReadOnlyList<Family<TFamily>.IVariant> variants;
                 try
                 {
-                    variants = _serializer.DeserializeVariants<TPayload>(sbMessage.Body.ToArray());
+                    variants = _serializer.DeserializeVariants<TFamily>(sbMessage.Body.ToArray());
                 }
                 catch (Exception)
                 {
@@ -86,7 +86,7 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
                 }
 
                 var traceId = sbMessage.ApplicationProperties.TryGetValue(BrokerProperties.TraceParent, out var tp) ? tp as string : null;
-                var activity = MessageBrokerActivitySource.StartConsumerActivity(_topicName, TPayload.WireName, traceId);
+                var activity = MessageBrokerActivitySource.StartConsumerActivity(_topicName, TFamily.WireName, traceId);
 
                 AzureServiceBusEnvelope envelope;
                 try
@@ -101,19 +101,19 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
                     continue;
                 }
 
-                _metrics.RecordConsume(_topicName, TPayload.WireName, envelope.ConsumedVariantWireName);
+                _metrics.RecordConsume(_topicName, TFamily.WireName, envelope.ConsumedVariantWireName);
                 yield return envelope;
             }
         }
     }
 
-    private sealed class AzureServiceBusEnvelope : Envelope<TPayload, TCeiling>
+    private sealed class AzureServiceBusEnvelope : Envelope<TFamily, TCeiling>
     {
         private readonly ServiceBusReceiver _receiver;
         private readonly ServiceBusReceivedMessage _sbMessage;
 
         public AzureServiceBusEnvelope(
-            IReadOnlyList<Payload<TPayload>.IVariant> variants,
+            IReadOnlyList<Family<TFamily>.IVariant> variants,
             ServiceBusReceiver receiver,
             ServiceBusReceivedMessage sbMessage,
             Activity? activity)

@@ -6,23 +6,23 @@ using Microsoft.Extensions.Options;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Registers per-subscription escrow callbacks with <see cref="ChannelTopic{TPayload, TCeiling}"/>
+/// Registers per-subscription escrow callbacks with <see cref="ChannelTopic{TFamily, TCeiling}"/>
 /// so that the topic handles startup recovery and shutdown drain as part of its own
 /// <see cref="Microsoft.Extensions.Hosting.IHostedService"/> lifecycle — no separate hosted
 /// service is required. Registered by
-/// <see cref="MessageBrokerServiceCollectionExtensions.AddMessageConsumer{TPayload, TCeiling, TConsumer}"/>
+/// <see cref="MessageBrokerServiceCollectionExtensions.AddMessageConsumer{TFamily, TCeiling, TConsumer}"/>
 /// for the in-memory channel backend; no-ops when Azure Service Bus or RabbitMQ is configured.
 /// </summary>
-internal sealed class ChannelEscrowRegistration<TPayload, TCeiling>
-    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
-    where TCeiling : Payload<TPayload>.ICeiling
+internal sealed class ChannelEscrowRegistration<TFamily, TCeiling>
+    where TFamily : FamilyCeiling<TFamily, TCeiling>, IFamilyVariants<TFamily>, IFamilyWireName<TFamily>
+    where TCeiling : Family<TFamily>.ICeiling
 {
     private readonly string _subscriptionName;
     private readonly string _subscriptionKey;
     private readonly IMessageSerializer _serializer;
     private readonly IOptions<MessagingOptions> _messagingOptions;
     private readonly IMessageEscrowStore? _primaryStore;
-    private readonly ILogger<ChannelEscrowRegistration<TPayload, TCeiling>> _logger;
+    private readonly ILogger<ChannelEscrowRegistration<TFamily, TCeiling>> _logger;
 
     public string TopicName { get; }
 
@@ -33,7 +33,7 @@ internal sealed class ChannelEscrowRegistration<TPayload, TCeiling>
         IMessageSerializer serializer,
         IOptions<MessagingOptions> messagingOptions,
         IMessageEscrowStore? primaryStore,
-        ILogger<ChannelEscrowRegistration<TPayload, TCeiling>> logger)
+        ILogger<ChannelEscrowRegistration<TFamily, TCeiling>> logger)
     {
         TopicName = topicName;
         _subscriptionName = subscriptionName;
@@ -48,14 +48,14 @@ internal sealed class ChannelEscrowRegistration<TPayload, TCeiling>
     /// Registers startup recovery, shutdown drain, and mid-flight abandon callbacks with
     /// <paramref name="topic"/> for this subscription.
     /// </summary>
-    public void RegisterWith(ChannelTopic<TPayload, TCeiling> topic)
+    public void RegisterWith(ChannelTopic<TFamily, TCeiling> topic)
     {
         topic.SetStartupRecovery(_subscriptionName, StartupRecoveryAsync);
         topic.SetShutdownDrain(_subscriptionName, ShutdownDrainAsync);
         topic.SetEscrowFallback(_subscriptionName, EscrowDirectAsync);
     }
 
-    private async Task StartupRecoveryAsync(ChannelWriter<Envelope<TPayload, TCeiling>> writer, CancellationToken cancellationToken)
+    private async Task StartupRecoveryAsync(ChannelWriter<Envelope<TFamily, TCeiling>> writer, CancellationToken cancellationToken)
     {
         if (IsExternalBackend() || _primaryStore is null)
             return;
@@ -78,10 +78,10 @@ internal sealed class ChannelEscrowRegistration<TPayload, TCeiling>
 
         foreach (var entry in escrowed)
         {
-            IReadOnlyList<Payload<TPayload>.IVariant> variants;
+            IReadOnlyList<Family<TFamily>.IVariant> variants;
             try
             {
-                variants = _serializer.DeserializeVariants<TPayload>(entry.Payload);
+                variants = _serializer.DeserializeVariants<TFamily>(entry.Payload);
             }
             catch (Exception ex)
             {
@@ -95,14 +95,14 @@ internal sealed class ChannelEscrowRegistration<TPayload, TCeiling>
                 continue;
             }
 
-            ChannelEnvelope<TPayload, TCeiling> envelope;
+            ChannelEnvelope<TFamily, TCeiling> envelope;
             try
             {
-                envelope = new ChannelEnvelope<TPayload, TCeiling>(writer, EscrowDirectAsync, variants, entry.MessageId, entry.TraceId, entry.DeliveryCount, maxDeliveryCount, _logger, TopicName);
+                envelope = new ChannelEnvelope<TFamily, TCeiling>(writer, EscrowDirectAsync, variants, entry.MessageId, entry.TraceId, entry.DeliveryCount, maxDeliveryCount, _logger, TopicName);
             }
             catch (InvalidOperationException ex)
             {
-                _logger.LogWarning(ex, "Escrowed payload for message {MessageId} in {Key} cannot be resolved to the subscriber's preferred payload variant; discarding.", entry.MessageId, _subscriptionKey);
+                _logger.LogWarning(ex, "Escrowed payload for message {MessageId} in {Key} cannot be resolved to the subscriber's preferred family variant; discarding.", entry.MessageId, _subscriptionKey);
                 continue;
             }
 
@@ -112,7 +112,7 @@ internal sealed class ChannelEscrowRegistration<TPayload, TCeiling>
         _logger.LogInformation("Recovered {Count} escrowed messages for {Key}.", escrowed.Count, _subscriptionKey);
     }
 
-    private async Task ShutdownDrainAsync(IReadOnlyList<Envelope<TPayload, TCeiling>> messages, CancellationToken cancellationToken)
+    private async Task ShutdownDrainAsync(IReadOnlyList<Envelope<TFamily, TCeiling>> messages, CancellationToken cancellationToken)
     {
         if (IsExternalBackend())
             return;
@@ -123,7 +123,7 @@ internal sealed class ChannelEscrowRegistration<TPayload, TCeiling>
             try
             {
                 var payloadWriter = new ArrayBufferWriter<byte>();
-                _serializer.SerializeVariants<TPayload>(envelope.Variants, payloadWriter);
+                _serializer.SerializeVariants<TFamily>(envelope.Variants, payloadWriter);
                 escrowed.Add(new EscrowedMessage(envelope.MessageId, envelope.TraceId, envelope.DeliveryCount, payloadWriter.WrittenMemory.ToArray()));
             }
             catch (Exception ex)
@@ -160,7 +160,7 @@ internal sealed class ChannelEscrowRegistration<TPayload, TCeiling>
 
     // Safety net: called when RequeueCoreAsync cannot write back to the channel because the
     // writer is already closed. Writes the single message straight to the store so it is not lost.
-    private async Task EscrowDirectAsync(Envelope<TPayload, TCeiling> envelope, CancellationToken cancellationToken)
+    private async Task EscrowDirectAsync(Envelope<TFamily, TCeiling> envelope, CancellationToken cancellationToken)
     {
         if (IsExternalBackend())
             return;
@@ -169,7 +169,7 @@ internal sealed class ChannelEscrowRegistration<TPayload, TCeiling>
         try
         {
             var payloadWriter = new ArrayBufferWriter<byte>();
-            _serializer.SerializeVariants<TPayload>(envelope.Variants, payloadWriter);
+            _serializer.SerializeVariants<TFamily>(envelope.Variants, payloadWriter);
             payload = payloadWriter.WrittenMemory.ToArray();
         }
         catch (Exception ex)

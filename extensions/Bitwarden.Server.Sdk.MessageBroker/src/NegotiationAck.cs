@@ -39,7 +39,7 @@ internal sealed record NegotiationIncompatibility
     public required string InstanceId { get; init; }
 
     /// <summary>
-    /// The payload family the overlap was checked against — same value as the requester's own
+    /// The family the overlap was checked against — same value as the requester's own
     /// <c>FamilyWireName</c>, repeated here so the rejection log line is self-contained.
     /// </summary>
     [JsonPropertyName("familyWireName")]

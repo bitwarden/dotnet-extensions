@@ -15,7 +15,7 @@ internal sealed record SubscriberLeave
     public required string DataTopic { get; init; }
 
     /// <summary>
-    /// The payload family this subscriber is leaving. Matches the family declared on the
+    /// The family this subscriber is leaving. Matches the family declared on the
     /// corresponding <see cref="Capability"/>; a subscriber of two families on one topic
     /// sends two leaves at shutdown.
     /// </summary>

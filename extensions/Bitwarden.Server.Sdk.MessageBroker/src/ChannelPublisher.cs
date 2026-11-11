@@ -2,22 +2,22 @@ using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-internal sealed class ChannelPublisher<TPayload, TCeiling> : Publisher<TPayload, TCeiling>
-    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
-    where TCeiling : Payload<TPayload>.ICeiling
+internal sealed class ChannelPublisher<TFamily, TCeiling> : Publisher<TFamily, TCeiling>
+    where TFamily : FamilyCeiling<TFamily, TCeiling>, IFamilyVariants<TFamily>, IFamilyWireName<TFamily>
+    where TCeiling : Family<TFamily>.ICeiling
 {
-    private readonly ChannelTopic<TPayload, TCeiling> _topic;
+    private readonly ChannelTopic<TFamily, TCeiling> _topic;
     private readonly string _topicName;
     private readonly MessageBrokerMetrics _metrics;
     private readonly int _maxDeliveryCount;
-    private readonly ILogger<ChannelPublisher<TPayload, TCeiling>> _logger;
+    private readonly ILogger<ChannelPublisher<TFamily, TCeiling>> _logger;
 
     public ChannelPublisher(
-        ChannelTopic<TPayload, TCeiling> topic,
+        ChannelTopic<TFamily, TCeiling> topic,
         string topicName,
         MessageBrokerMetrics metrics,
         int maxDeliveryCount,
-        ILogger<ChannelPublisher<TPayload, TCeiling>> logger)
+        ILogger<ChannelPublisher<TFamily, TCeiling>> logger)
     {
         _topic = topic;
         _topicName = topicName;
@@ -27,18 +27,18 @@ internal sealed class ChannelPublisher<TPayload, TCeiling> : Publisher<TPayload,
     }
 
     protected internal override async Task SendAsync(
-        IReadOnlyList<Payload<TPayload>.IVariant> variants,
+        IReadOnlyList<Family<TFamily>.IVariant> variants,
         CancellationToken cancellationToken)
     {
-        using var activity = MessageBrokerActivitySource.StartProducerActivity(_topicName, TPayload.WireName);
-        _metrics.RecordPublish(_topicName, TPayload.WireName);
+        using var activity = MessageBrokerActivitySource.StartProducerActivity(_topicName, TFamily.WireName);
+        _metrics.RecordPublish(_topicName, TFamily.WireName);
         var messageId = Guid.NewGuid().ToString();
         var traceId = activity?.Id;
         await _topic.WriteAsync(
             (writer, escrowFallback) =>
             {
-                var consumerActivity = MessageBrokerActivitySource.StartConsumerActivity(_topicName, TPayload.WireName, traceId);
-                return new ChannelEnvelope<TPayload, TCeiling>(writer, escrowFallback, variants, messageId, traceId,
+                var consumerActivity = MessageBrokerActivitySource.StartConsumerActivity(_topicName, TFamily.WireName, traceId);
+                return new ChannelEnvelope<TFamily, TCeiling>(writer, escrowFallback, variants, messageId, traceId,
                     deliveryCount: 1, _maxDeliveryCount, _logger, _topicName, consumerActivity);
             },
             cancellationToken);

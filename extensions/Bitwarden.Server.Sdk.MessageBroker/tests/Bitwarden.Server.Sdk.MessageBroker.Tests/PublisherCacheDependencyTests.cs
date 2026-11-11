@@ -17,11 +17,11 @@ public class PublisherCacheDependencyTests
         var services = new ServiceCollection();
         services.AddMetrics();
         services.AddLogging();
-        services.AddPublisher<MyItemPayload, MyItem>("test");
+        services.AddPublisher<MyItemFamily, MyItem>("test");
         var provider = services.BuildServiceProvider();
 
-        var publisher = provider.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(
-            MessageBrokerKeys.Publisher<MyItemPayload>("test"));
+        var publisher = provider.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(
+            MessageBrokerKeys.Publisher<MyItemFamily>("test"));
         Assert.NotNull(publisher);
     }
 
@@ -36,7 +36,7 @@ public class PublisherCacheDependencyTests
         var services = new ServiceCollection();
         services.AddMetrics();
         services.AddLogging();
-        services.AddPublisher<MyItemPayload, MyItem>("test");
+        services.AddPublisher<MyItemFamily, MyItem>("test");
         services.Configure<MessagingOptions>(o => o.RabbitUri = "amqp://guest:guest@localhost/");
         var provider = services.BuildServiceProvider();
 

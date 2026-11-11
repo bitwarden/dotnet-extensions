@@ -125,7 +125,7 @@ public class AzureServiceBusNegotiationTransportTests
     }
 
     [Fact(Timeout = 60 * 1000)]
-    public async Task PayloadDataTopicMismatchIsDeadLettered()
+    public async Task FamilyDataTopicMismatchIsDeadLettered()
     {
         await using var receiver = (IAsyncDisposable)CreateTransport("receiver");
         var receiverTransport = (INegotiationTransport)receiver;

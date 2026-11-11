@@ -75,8 +75,8 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
     {
         // Azure Service Bus standard tier enforces a 256 KB per-message limit.
         // Publishing a larger payload should throw ServiceBusException.
-        var host = await BuildHostAsync(services => services.AddPublisher<OversizedPayload, OversizedVariant>(TopicName));
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<OversizedPayload, OversizedVariant>>(MessageBrokerKeys.Publisher<OversizedPayload>(TopicName));
+        var host = await BuildHostAsync(services => services.AddPublisher<OversizedFamily, OversizedVariant>(TopicName));
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<OversizedFamily, OversizedVariant>>(MessageBrokerKeys.Publisher<OversizedFamily>(TopicName));
         var oversizedPayload = new string('x', 300 * 1024); // ~300 KB > 256 KB limit
         await Assert.ThrowsAsync<ServiceBusException>(() =>
             publisher.Publish(new OversizedVariant(oversizedPayload)).SendAsync(TestContext.Current.CancellationToken));
@@ -92,15 +92,15 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
     {
         var host = await BuildHostAsync(services =>
         {
-            services.AddPublisher<MyItemPayload, MyItem>(TopicName);
-            services.AddSubscriber<MyItemPayload, MyItem>(TopicName, SubscriptionName);
+            services.AddPublisher<MyItemFamily, MyItem>(TopicName);
+            services.AddSubscriber<MyItemFamily, MyItem>(TopicName, SubscriptionName);
         });
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
-        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
+        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey);
 
         await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
 
-        Envelope<MyItemPayload, MyItem>? captured = null;
+        Envelope<MyItemFamily, MyItem>? captured = null;
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {
             captured = envelope;
@@ -126,8 +126,8 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
 
     /// <summary>
     /// A misconfigured subscription — its Correlation filter selects <c>user.deleted</c>, but the
-    /// client is registered as a <see cref="UserCreatedPayload"/> subscriber. The broker filter
-    /// passes the mismatched message through; the subscriber's defensive x-bw-payload-family
+    /// client is registered as a <see cref="UserCreatedFamily"/> subscriber. The broker filter
+    /// passes the mismatched message through; the subscriber's defensive x-bw-family
     /// check must catch it, dead-letter the message, and never yield it to the consumer.
     /// </summary>
     [Fact(Timeout = 60 * 1000)]
@@ -138,13 +138,13 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
 
         var host = await BuildHostAsync(services =>
         {
-            services.AddPublisher<UserDeletedPayload, UserDeleted>(MisconfiguredTopic);
-            services.AddSubscriber<UserCreatedPayload, UserCreated>(MisconfiguredTopic, MisfilteredSubscription);
+            services.AddPublisher<UserDeletedFamily, UserDeleted>(MisconfiguredTopic);
+            services.AddSubscriber<UserCreatedFamily, UserCreated>(MisconfiguredTopic, MisfilteredSubscription);
         });
 
-        var deletedPublisher = host.Services.GetRequiredKeyedService<Publisher<UserDeletedPayload, UserDeleted>>(
-            MessageBrokerKeys.Publisher<UserDeletedPayload>(MisconfiguredTopic));
-        var misfiltered = host.Services.GetRequiredKeyedService<ISubscriber<UserCreatedPayload, UserCreated>>(
+        var deletedPublisher = host.Services.GetRequiredKeyedService<Publisher<UserDeletedFamily, UserDeleted>>(
+            MessageBrokerKeys.Publisher<UserDeletedFamily>(MisconfiguredTopic));
+        var misfiltered = host.Services.GetRequiredKeyedService<ISubscriber<UserCreatedFamily, UserCreated>>(
             $"{MisconfiguredTopic}/{MisfilteredSubscription}");
 
         await deletedPublisher.Publish(new UserDeleted(Guid.NewGuid(), "test")).SendAsync(TestContext.Current.CancellationToken);
@@ -172,13 +172,13 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
             new ServiceBusReceiverOptions { SubQueue = SubQueue.DeadLetter });
         var deadLettered = await dlqReceiver.ReceiveMessageAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         Assert.NotNull(deadLettered);
-        Assert.Equal(UserDeletedPayload.WireName, deadLettered.ApplicationProperties["x-bw-payload-family"]);
+        Assert.Equal(UserDeletedFamily.WireName, deadLettered.ApplicationProperties["x-bw-family"]);
     }
 }
 
-public sealed record OversizedVariant(string Data) : OversizedPayload.ISole;
+public sealed record OversizedVariant(string Data) : OversizedFamily.ISole;
 
-public class OversizedPayload : Payload<OversizedPayload, OversizedVariant, OversizedVariant>, IPayloadVariants<OversizedPayload>, IPayloadWireName<OversizedPayload>
+public class OversizedFamily : Family<OversizedFamily, OversizedVariant, OversizedVariant>, IFamilyVariants<OversizedFamily>, IFamilyWireName<OversizedFamily>
 {
     public static string WireName => "oversized";
     public static IReadOnlyList<(Type, string)> Variants => [(typeof(OversizedVariant), nameof(OversizedVariant))];

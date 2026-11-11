@@ -4,9 +4,9 @@ using RabbitMQ.Client.Exceptions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, TCeiling>, IAsyncDisposable
-    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
-    where TCeiling : Payload<TPayload>.ICeiling
+internal sealed class RabbitPublisher<TFamily, TCeiling> : Publisher<TFamily, TCeiling>, IAsyncDisposable
+    where TFamily : FamilyCeiling<TFamily, TCeiling>, IFamilyVariants<TFamily>, IFamilyWireName<TFamily>
+    where TCeiling : Family<TFamily>.ICeiling
 {
     private readonly string _exchangeName;
     private readonly IMessageSerializer _serializer;
@@ -31,26 +31,26 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
     }
 
     protected internal override async Task SendAsync(
-        IReadOnlyList<Payload<TPayload>.IVariant> variants,
+        IReadOnlyList<Family<TFamily>.IVariant> variants,
         CancellationToken cancellationToken)
     {
-        using var activity = MessageBrokerActivitySource.StartProducerActivity(_exchangeName, TPayload.WireName);
-        _metrics.RecordPublish(_exchangeName, TPayload.WireName);
+        using var activity = MessageBrokerActivitySource.StartProducerActivity(_exchangeName, TFamily.WireName);
+        _metrics.RecordPublish(_exchangeName, TFamily.WireName);
         try
         {
             var channel = await _channel;
             var buffer = new ArrayBufferWriter<byte>();
-            _serializer.SerializeVariants<TPayload>(variants, buffer);
+            _serializer.SerializeVariants<TFamily>(variants, buffer);
             var props = new BasicProperties
             {
                 MessageId = Guid.NewGuid().ToString(),
                 Headers = new Dictionary<string, object?>
                 {
                     [BrokerProperties.TraceParent] = activity?.Id,
-                    [BrokerProperties.PayloadFamily] = TPayload.WireName,
+                    [BrokerProperties.Family] = TFamily.WireName,
                 },
             };
-            await channel.BasicPublishAsync(_exchangeName, routingKey: TPayload.WireName, mandatory: false,
+            await channel.BasicPublishAsync(_exchangeName, routingKey: TFamily.WireName, mandatory: false,
                 props, buffer.WrittenMemory, cancellationToken);
         }
         catch (BrokerUnreachableException ex)

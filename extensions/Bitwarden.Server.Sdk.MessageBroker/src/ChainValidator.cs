@@ -1,15 +1,15 @@
 namespace Bitwarden.Server.Sdk.MessageBroker;
 
 /// <summary>
-/// Validates <typeparamref name="TPayload"/>'s variant chain shape at DI registration time.
+/// Validates <typeparamref name="TFamily"/>'s variant chain shape at DI registration time.
 /// </summary>
-internal static class ChainValidator<TPayload, TCeiling>
-    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
-    where TCeiling : Payload<TPayload>.ICeiling
+internal static class ChainValidator<TFamily, TCeiling>
+    where TFamily : FamilyCeiling<TFamily, TCeiling>, IFamilyVariants<TFamily>
+    where TCeiling : Family<TFamily>.ICeiling
 {
     private static readonly AggregateException? _error = ValidateChain();
 
-    /// <summary>Throws if any problem was found in <typeparamref name="TPayload"/>'s chain.</summary>
+    /// <summary>Throws if any problem was found in <typeparamref name="TFamily"/>'s chain.</summary>
     public static void ThrowIfInvalid()
     {
         if (_error is not null) throw _error;
@@ -18,12 +18,12 @@ internal static class ChainValidator<TPayload, TCeiling>
     private static AggregateException? ValidateChain()
     {
         var errors = new List<Exception>();
-        var declared = TPayload.Variants;
+        var declared = TFamily.Variants;
 
         if (declared.Count == 0)
         {
             errors.Add(new InvalidOperationException(
-                $"{typeof(TPayload).Name} declares no variants. A payload must have at least one variant."));
+                $"{typeof(TFamily).Name} declares no variants. A payload must have at least one variant."));
             return Wrap(errors);
         }
 
@@ -36,7 +36,7 @@ internal static class ChainValidator<TPayload, TCeiling>
         {
             if (!indexByType.TryAdd(variants[i], i))
                 errors.Add(new InvalidOperationException(
-                    $"{typeof(TPayload).Name}.Variants lists {variants[i].Name} more than once."));
+                    $"{typeof(TFamily).Name}.Variants lists {variants[i].Name} more than once."));
         }
 
         // Wire names must be unique so the polymorphic deserializer can dispatch unambiguously.
@@ -45,7 +45,7 @@ internal static class ChainValidator<TPayload, TCeiling>
         {
             if (seenWireNames.TryGetValue(wireName, out var priorType))
                 errors.Add(new InvalidOperationException(
-                    $"{typeof(TPayload).Name}.Variants assigns wire name \"{wireName}\" to both " +
+                    $"{typeof(TFamily).Name}.Variants assigns wire name \"{wireName}\" to both " +
                     $"{priorType.Name} and {type.Name}. Wire names must be unique."));
             else
                 seenWireNames[wireName] = type;
@@ -56,10 +56,10 @@ internal static class ChainValidator<TPayload, TCeiling>
         {
             if (ChainWalk.NextInChain(variant) is { } next && !indexByType.ContainsKey(next))
                 errors.Add(new InvalidOperationException(
-                    $"{variant.Name}.TUp references {next.Name}, which is not listed in {typeof(TPayload).Name}.Variants."));
+                    $"{variant.Name}.TUp references {next.Name}, which is not listed in {typeof(TFamily).Name}.Variants."));
             if (ChainWalk.PreviousInChain(variant) is { } prev && !indexByType.ContainsKey(prev))
                 errors.Add(new InvalidOperationException(
-                    $"{variant.Name}.TDown references {prev.Name}, which is not listed in {typeof(TPayload).Name}.Variants."));
+                    $"{variant.Name}.TDown references {prev.Name}, which is not listed in {typeof(TFamily).Name}.Variants."));
         }
 
         // Floor = variant with no previous. Ceiling = variant with no next.
@@ -69,20 +69,20 @@ internal static class ChainValidator<TPayload, TCeiling>
 
         if (floors.Count == 0)
             errors.Add(new InvalidOperationException(
-                $"{typeof(TPayload).Name} declares no floor: every variant has a Downcast target. " +
+                $"{typeof(TFamily).Name} declares no floor: every variant has a Downcast target. " +
                 "Exactly one variant must implement IFloor or ISole."));
         else if (floors.Count > 1)
             errors.Add(new InvalidOperationException(
-                $"{typeof(TPayload).Name} declares {floors.Count} floors ({string.Join(", ", floors.Select(f => f.Name))}). " +
+                $"{typeof(TFamily).Name} declares {floors.Count} floors ({string.Join(", ", floors.Select(f => f.Name))}). " +
                 "Exactly one variant may omit Downcast (i.e., implement IFloor or ISole)."));
 
         if (ceilings.Count == 0)
             errors.Add(new InvalidOperationException(
-                $"{typeof(TPayload).Name} declares no ceiling: every variant has an Upcast target. " +
+                $"{typeof(TFamily).Name} declares no ceiling: every variant has an Upcast target. " +
                 "Exactly one variant must implement one of the ICeiling variant kinds (or ISole)."));
         else if (ceilings.Count > 1)
             errors.Add(new InvalidOperationException(
-                $"{typeof(TPayload).Name} declares {ceilings.Count} ceilings ({string.Join(", ", ceilings.Select(c => c.Name))}). " +
+                $"{typeof(TFamily).Name} declares {ceilings.Count} ceilings ({string.Join(", ", ceilings.Select(c => c.Name))}). " +
                 "Exactly one variant may omit Upcast."));
 
         // === Exit 1: Phase 2 relies on no dupes, all refs valid, and exactly one floor/ceiling.
@@ -180,7 +180,7 @@ internal static class ChainValidator<TPayload, TCeiling>
         {
             0 => null,
             _ => new AggregateException(
-                $"{typeof(TPayload).Name}'s variant chain has {errors.Count} problem(s). See InnerExceptions.",
+                $"{typeof(TFamily).Name}'s variant chain has {errors.Count} problem(s). See InnerExceptions.",
                 errors),
         };
 }

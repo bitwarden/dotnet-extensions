@@ -10,12 +10,12 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// Two signals:
 /// <list type="bullet">
 /// <item><description><c>messaging.negotiation.admissions</c> — counter, tagged
-/// <c>(destination.name, payload.family, role, result)</c>. Emitted by the SAC-holding
+/// <c>(destination.name, family, role, result)</c>. Emitted by the SAC-holding
 /// <see cref="NegotiationListener"/> on every admission decision. The <c>result=nogo</c>
 /// slice is the primary alerting signal (a nogo means a deploying instance was rejected
 /// for wire-name incompatibility).</description></item>
 /// <item><description><c>messaging.negotiation.families_served</c> — observable gauge, tagged
-/// <c>(destination.name, payload.family, role)</c>. Emits value 1 for each
+/// <c>(destination.name, family, role)</c>. Emits value 1 for each
 /// <c>(data-topic, family)</c> this instance publishes to or subscribes from. Populated once
 /// at startup from the marker sets. Answers the "what does this pod serve?" ops question
 /// with bounded cardinality.
@@ -74,7 +74,7 @@ internal sealed class NegotiationMetrics
     private void RecordAdmission(string dataTopic, string familyWireName, string role, bool go)
         => _admissions.Add(1,
             new KeyValuePair<string, object?>("messaging.destination.name", dataTopic),
-            new KeyValuePair<string, object?>(MessageBrokerMetrics.PayloadFamilyTag, familyWireName),
+            new KeyValuePair<string, object?>(MessageBrokerMetrics.FamilyTag, familyWireName),
             new KeyValuePair<string, object?>("messaging.negotiation.role", role),
             new KeyValuePair<string, object?>("messaging.negotiation.result", go ? "go" : "nogo"));
 
@@ -83,7 +83,7 @@ internal sealed class NegotiationMetrics
         foreach (var ((topic, family, role), _) in _familiesServed)
             yield return new Measurement<long>(1,
                 new KeyValuePair<string, object?>("messaging.destination.name", topic),
-                new KeyValuePair<string, object?>(MessageBrokerMetrics.PayloadFamilyTag, family),
+                new KeyValuePair<string, object?>(MessageBrokerMetrics.FamilyTag, family),
                 new KeyValuePair<string, object?>("messaging.negotiation.role", role));
     }
 }

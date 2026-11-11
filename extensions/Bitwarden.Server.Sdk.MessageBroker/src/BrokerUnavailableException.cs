@@ -1,7 +1,7 @@
 namespace Bitwarden.Server.Sdk.MessageBroker;
 
 /// <summary>
-/// Thrown from concrete <see cref="Publisher{TPayload,TCeiling}"/> implementations when the message broker cannot
+/// Thrown from concrete <see cref="Publisher{TFamily,TCeiling}"/> implementations when the message broker cannot
 /// be reached to send a message. The original broker-specific exception is preserved as
 /// <see cref="Exception.InnerException"/>.
 /// </summary>

@@ -3,22 +3,23 @@ using System.Diagnostics;
 namespace Bitwarden.Server.Sdk.MessageBroker;
 
 /// <summary>
-/// A received payload paired with its lifecycle controls
+/// A received message paired with its lifecycle controls. The resolved message instance is
+/// exposed via <see cref="Payload"/>.
 /// </summary>
-/// <typeparam name="TPayload">The payload family.</typeparam>
+/// <typeparam name="TFamily">The family.</typeparam>
 /// <typeparam name="TCeiling">The variant the consumer knows how to handle.</typeparam>
-public abstract class Envelope<TPayload, TCeiling>
-    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
-    where TCeiling : Payload<TPayload>.ICeiling
+public abstract class Envelope<TFamily, TCeiling>
+    where TFamily : FamilyCeiling<TFamily, TCeiling>, IFamilyVariants<TFamily>
+    where TCeiling : Family<TFamily>.ICeiling
 {
     private readonly Activity? _activity;
-    private readonly Dictionary<Type, Payload<TPayload>.IVariant> _variantsByType;
+    private readonly Dictionary<Type, Family<TFamily>.IVariant> _variantsByType;
     private bool _settled;
 
     /// <summary>
     /// Initializes a new envelope. Package consumers can derive from
-    /// <see cref="Envelope{TPayload, TCeiling}"/> to construct test doubles for their
-    /// <see cref="IMessageConsumer{TPayload, TCeiling}"/> implementations; production backends
+    /// <see cref="Envelope{TFamily, TCeiling}"/> to construct test doubles for their
+    /// <see cref="IMessageConsumer{TFamily, TCeiling}"/> implementations; production backends
     /// use their own internal subclasses.
     /// </summary>
     /// <param name="variants">
@@ -33,7 +34,7 @@ public abstract class Envelope<TPayload, TCeiling>
     /// at construction and dead-letter the message so the consumer never sees an envelope without
     /// a usable <see cref="Payload"/>.
     /// </exception>
-    protected Envelope(IEnumerable<Payload<TPayload>.IVariant> variants, Activity? activity = null)
+    protected Envelope(IEnumerable<Family<TFamily>.IVariant> variants, Activity? activity = null)
     {
         _variantsByType = [];
         foreach (var variant in variants)
@@ -47,7 +48,7 @@ public abstract class Envelope<TPayload, TCeiling>
     /// the escrow store re-serializes these on shutdown. Consumers reach into the message data
     /// via <see cref="Payload"/>.
     /// </summary>
-    internal IEnumerable<Payload<TPayload>.IVariant> Variants => _variantsByType.Values;
+    internal IEnumerable<Family<TFamily>.IVariant> Variants => _variantsByType.Values;
 
     /// <summary>
     /// The variant the consumer knows how to handle: a direct match if one arrived, otherwise the
@@ -74,7 +75,7 @@ public abstract class Envelope<TPayload, TCeiling>
 
             var wireName = LookupWireName(cur);
             var current = variant;
-            while (current is not TCeiling && current is Payload<TPayload>.IPureUp step)
+            while (current is not TCeiling && current is Family<TFamily>.IPureUp step)
                 current = step.Upcast();
 
             if (current is TCeiling reached) return (reached, wireName);
@@ -89,17 +90,17 @@ public abstract class Envelope<TPayload, TCeiling>
     /// <summary>
     /// The consumer <see cref="System.Diagnostics.Activity"/> for this envelope, if any. Exposed
     /// to the in-process consumer host so it can make the span current for the duration of
-    /// <see cref="IMessageConsumer{TPayload, TCeiling}.HandleAsync"/>, parenting any telemetry the handler emits.
+    /// <see cref="IMessageConsumer{TFamily, TCeiling}.HandleAsync"/>, parenting any telemetry the handler emits.
     /// </summary>
     internal Activity? Activity => _activity;
 
     private static string LookupWireName(Type variantType)
     {
-        foreach (var (type, name) in TPayload.Variants)
+        foreach (var (type, name) in TFamily.Variants)
             if (type == variantType) return name;
-        // Unreachable: variants that survived deserialization are drawn from TPayload.Variants.
+        // Unreachable: variants that survived deserialization are drawn from TFamily.Variants.
         throw new InvalidOperationException(
-            $"Received variant {variantType.Name} has no entry in {typeof(TPayload).Name}.Variants.");
+            $"Received variant {variantType.Name} has no entry in {typeof(TFamily).Name}.Variants.");
     }
 
     /// <summary>A unique identifier for the message assigned by the publisher.</summary>
@@ -153,10 +154,10 @@ public abstract class Envelope<TPayload, TCeiling>
     /// backend the message is discarded with a warning log.
     /// </summary>
     /// <remarks>
-    /// May be called from inside <see cref="IMessageConsumer{TPayload, TCeiling}.HandleAsync"/>
+    /// May be called from inside <see cref="IMessageConsumer{TFamily, TCeiling}.HandleAsync"/>
     /// when the consumer determines a message is permanently unprocessable. The framework will
     /// skip its own settlement after
-    /// <see cref="IMessageConsumer{TPayload, TCeiling}.HandleAsync"/> returns or throws.
+    /// <see cref="IMessageConsumer{TFamily, TCeiling}.HandleAsync"/> returns or throws.
     /// </remarks>
     public Task DeadLetterAsync(string? reason = null, CancellationToken cancellationToken = default)
     {

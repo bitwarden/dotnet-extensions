@@ -4,12 +4,12 @@ namespace Microsoft.Extensions.DependencyInjection;
 internal static class BrokerProperties
 {
     /// <summary>
-    /// Carries the publisher's <see cref="IPayloadWireName{TSelf}.WireName"/>. Lets each
+    /// Carries the publisher's <see cref="IFamilyWireName{TSelf}.WireName"/>. Lets each
     /// subscriber verify that the message routed to it belongs to the family it was built to
     /// decode, even if the broker binding or subscription filter was misconfigured. Rides as a
     /// RabbitMQ header and as an Azure Service Bus <c>ApplicationProperties</c> entry.
     /// </summary>
-    internal const string PayloadFamily = "x-bw-payload-family";
+    internal const string Family = "x-bw-family";
 
     /// <summary>
     /// W3C traceparent — the serialized <see cref="System.Diagnostics.Activity.Id"/> of the publish

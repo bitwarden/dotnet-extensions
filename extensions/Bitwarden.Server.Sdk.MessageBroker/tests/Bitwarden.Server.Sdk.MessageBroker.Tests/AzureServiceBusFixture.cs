@@ -130,7 +130,7 @@ public class AzureServiceBusFixture : IAsyncLifetime
                                   "FilterType": "Correlation",
                                   "CorrelationFilter": {
                                     "Properties": {
-                                      "x-bw-payload-family": "user.deleted"
+                                      "x-bw-family": "user.deleted"
                                     }
                                   }
                                 }
@@ -164,7 +164,7 @@ public class AzureServiceBusFixture : IAsyncLifetime
                                   "FilterType": "Correlation",
                                   "CorrelationFilter": {
                                     "Properties": {
-                                      "x-bw-payload-family": "user.created"
+                                      "x-bw-family": "user.created"
                                     }
                                   }
                                 }
@@ -189,7 +189,7 @@ public class AzureServiceBusFixture : IAsyncLifetime
                                   "FilterType": "Correlation",
                                   "CorrelationFilter": {
                                     "Properties": {
-                                      "x-bw-payload-family": "user.deleted"
+                                      "x-bw-family": "user.deleted"
                                     }
                                   }
                                 }

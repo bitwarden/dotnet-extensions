@@ -3,7 +3,7 @@
 Transport-agnostic publish/subscribe messaging for Bitwarden services. Three backends share one API:
 Azure Service Bus, RabbitMQ, and an in-memory `System.Threading.Channels` fallback.
 
-A topic is a service's outbound event stream, so one topic can carry many payload families (for
+A topic is a service's outbound event stream, so one topic can carry many families (for
 example, a user service might publish `user.created` and `user.deleted` through one
 `user-events` topic). Each message is tagged with its family wire name so subscriptions bind or
 filter down to the event types they care about.
@@ -12,25 +12,25 @@ filter down to the event types they care about.
 
 ### Core abstractions
 
-- `Publisher<TPayload, TCeiling>` — publishes payloads of a named topic via the fluent
+- `Publisher<TFamily, TCeiling>` — publishes payloads of a named topic via the fluent
   `Publish(ceiling).With(assist?).SendAsync(ct)` chain
-- `ISubscriber<TPayload, TCeiling>` — receives messages from a named topic as
-  `IAsyncEnumerable<Envelope<TPayload, TCeiling>>`
-- `Envelope<TPayload, TCeiling>` — wraps a received payload with broker metadata (`MessageId`,
+- `ISubscriber<TFamily, TCeiling>` — receives messages from a named topic as
+  `IAsyncEnumerable<Envelope<TFamily, TCeiling>>`
+- `Envelope<TFamily, TCeiling>` — wraps a received payload with broker metadata (`MessageId`,
   `TraceId`, `DeliveryCount`) and settlement methods (`CompleteAsync`, `RequeueAsync`,
   `DeadLetterAsync`)
 
 Both are registered as keyed singletons. A publisher key is `{topic}#{familyWireName}` — the
 composite identity lets several families register publishers on the same topic side-by-side.
-Build it with `MessageBrokerKeys.Publisher<TPayload>(topic)` for programmatic resolution; spell it
+Build it with `MessageBrokerKeys.Publisher<TFamily>(topic)` for programmatic resolution; spell it
 literally at `[FromKeyedServices]` injection sites since attribute arguments must be compile-time
 constants. A subscriber key stays `{topic}/{subscription}` — each subscription identifies a single
 family at the broker, so the pair uniquely names the receiver.
 
 ### Backend selection
 
-`MessageBrokerServiceCollectionExtensions` (`AddPublisher<TPayload, TCeiling>` /
-`AddSubscriber<TPayload, TCeiling>`) registers the appropriate backend at DI resolution time based
+`MessageBrokerServiceCollectionExtensions` (`AddPublisher<TFamily, TCeiling>` /
+`AddSubscriber<TFamily, TCeiling>`) registers the appropriate backend at DI resolution time based
 on `MessagingOptions`:
 
 1. `AzureServiceBusConnectionString` set → Azure Service Bus
@@ -71,7 +71,7 @@ expected shape is driven by two design choices:
   queues only expose a boolean `redelivered` flag, which is not enough to drive delivery-limit
   behavior.
 - **Topic exchanges** per topic, with one durable queue per subscription bound to the exchange
-  with the payload family wire name as its routing key. Each subscription receives only its
+  with the family wire name as its routing key. Each subscription receives only its
   family's messages; several subscriptions on the same exchange with different routing keys split
   the outbound stream by family. Multiple instances sharing a subscription name act as competing
   consumers against that subscription's queue.
@@ -116,22 +116,22 @@ in RabbitMQ, `ApplicationProperties["traceparent"]` in Azure Service Bus, `Trace
 consume spans share a trace.
 
 Every publish counter, consume counter, queue-depth gauge, and activity tag carries
-`messaging.payload.family` alongside `messaging.destination.name`, so metrics and traces split by
+`messaging.family` alongside `messaging.destination.name`, so metrics and traces split by
 family on a topic that carries several.
 
-## Payload versioning
+## Family versioning
 
-A payload is a family of data structure variants forming a chain from floor (oldest known shape)
+A family is a family of data structure variants forming a chain from floor (oldest known shape)
 to ceiling (newest). Publishers send the complete ceiling-to-floor sequence in a single message;
 each subscriber picks the highest variant it can decode and, if that variant is below its declared
 ceiling, walks pure upcasts back up to reach the highest variant. Old subscribers keep working
 against new publishers as long as the old variant is still on the wire. New subscribers keep
 working against old publishers as long as the older ceiling can upcast to the newer one.
 
-Concrete payloads derive from `Payload<TSelf, TFloor, TCeiling>` and implement
-`IPayloadVariants<TSelf>` and `IPayloadWireName<TSelf>`. `IPayloadVariants<TSelf>.Variants`
+Concrete families derive from `Family<TSelf, TFloor, TCeiling>` and implement
+`IFamilyVariants<TSelf>` and `IFamilyWireName<TSelf>`. `IFamilyVariants<TSelf>.Variants`
 pairs each variant type with a stable wire name that identifies the shape within the family;
-`IPayloadWireName<TSelf>.WireName` names the family itself and rides on every outgoing message
+`IFamilyWireName<TSelf>.WireName` names the family itself and rides on every outgoing message
 as the broker's routing key (RabbitMQ) or application property (Azure Service Bus). Both
 dimensions are decoupled from CLR type names so authors can rename or move the C# types
 without breaking messages already on the wire. The wire body is a JSON array of variants with a
@@ -145,7 +145,7 @@ floor-side neighbor can be produced from the current variant alone, and **assist
 data is injected at publish time through a fluent chain: `publisher.Publish(ceiling).With(assist1).With(assist2).SendAsync()`. The compiler refuses `SendAsync` until every assisted downcast between the current
 position and the floor has been crossed, so a publisher cannot omit data an older subscriber needs.
 
-`ChainValidator<TPayload, TCeiling>` runs once per payload family at DI registration and throws
+`ChainValidator<TFamily, TCeiling>` runs once per family at DI registration and throws
 an aggregate exception if the declared variants are not complete, sparse, and linear: duplicate
 types or wire names, missing floor or ceiling, forks, cycles, or Next/Previous references that
 disagree with the variant list.
@@ -154,17 +154,17 @@ disagree with the variant list.
 
 | File                                 | Purpose                                                                                                     |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `Payload.cs`                         | Variant-side interfaces (`IFloor`, `ICeiling`, `IPure`, `IAssisted`, `IAssist`, …) and payload base classes |
+| `Family.cs`                         | Variant-side interfaces (`IFloor`, `ICeiling`, `IPure`, `IAssisted`, `IAssist`, …) and family base classes |
 | `ChainWalk.cs`                       | Reflects `TDown`/`TUp` off a variant type to walk the declared chain                                        |
 | `ChainValidator.cs`                  | DI-time chain-shape validation                                                                              |
-| `Publisher.cs`                       | `Publisher<TPayload, TCeiling>` base + `PublishBuilder` fluent chain                                        |
+| `Publisher.cs`                       | `Publisher<TFamily, TCeiling>` base + `PublishBuilder` fluent chain                                        |
 | `Envelope.cs`                        | Selects the received variant, upcasts it to the consumer's ceiling                                          |
 | `SystemTextJsonMessageSerializer.cs` | Polymorphic array wire format with `$type` discriminator                                                    |
 
 ## Observing the variant constellation
 
 Each consume emits a `messaging.client.consumed.messages` counter tick tagged with
-`messaging.destination.name`, `messaging.payload.family`, and `messaging.variant.name`. The variant
+`messaging.destination.name`, `messaging.family`, and `messaging.variant.name`. The variant
 tag is the wire name of the highest received variant at or below the subscriber's ceiling — the
 variant the subscriber actually deserialized from, before any upcast to reach `TCeiling`.
 Aggregated across every service in the deployment, these tags describe the current constellation
@@ -306,7 +306,7 @@ TTL expiration.
 
 ## TODO
 
-- Required payload-specific health check definition to surface eventual-consistency health.
+- Required family-specific health check definition to surface eventual-consistency health.
 - Assisted upcasts performed subscriber-side
 - Managed-identity auth for Azure Service Bus. `AzureServiceBusPublisher`, `AzureServiceBusSubscriber`,
   `AzureServiceBusNegotiationTransport`, and `NegotiationListenerCoordinator` all call

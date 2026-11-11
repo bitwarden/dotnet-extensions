@@ -14,7 +14,7 @@ internal sealed record Capability
     public required string DataTopic { get; init; }
 
     /// <summary>
-    /// The payload family this subscriber decodes, from <c>IPayloadWireName.WireName</c>.
+    /// The family this subscriber decodes, from <c>IFamilyWireName.WireName</c>.
     /// Admission runs within one family — a <c>user.created</c> subscriber is never checked
     /// against <c>user.deleted</c> publishers on the same topic.
     /// </summary>

@@ -48,7 +48,7 @@ internal delegate INegotiationSender SubscriberNegotiationSenderFactory(string[]
 /// <c>StartingAsync</c> phase, which the host completes for every service before invoking any
 /// <c>StartAsync</c>. That guarantee holds regardless of caller registration order: any
 /// downstream <see cref="BackgroundService"/> — including
-/// <see cref="ConsumerBackgroundService{TPayload, TCeiling, TConsumer}"/>, ASP.NET's Kestrel
+/// <see cref="ConsumerBackgroundService{TFamily, TCeiling, TConsumer}"/>, ASP.NET's Kestrel
 /// host, or a user-registered <c>IHostedService</c> that iterates a subscription — begins its
 /// <c>ExecuteAsync</c> only after subscription admission is settled.
 /// </para>
@@ -94,7 +94,7 @@ internal sealed class SubscriberJoinRequester : BackgroundService, IHostedLifecy
     public async Task StartingAsync(CancellationToken cancellationToken)
     {
         var messaging = _messagingOptions.Value;
-        // A single AddSubscriber<TPayload>(topic, subscriptionName) call registers one marker;
+        // A single AddSubscriber<TFamily>(topic, subscriptionName) call registers one marker;
         // multiple subscription-groups on the same (topic, family) share one Capability entry
         // (identical wire-names, same InstanceId), so dedupe by (topic, family) before sending.
         // When registrations for the same (topic, family) disagree on ProceedOnAdmissionTimeout,

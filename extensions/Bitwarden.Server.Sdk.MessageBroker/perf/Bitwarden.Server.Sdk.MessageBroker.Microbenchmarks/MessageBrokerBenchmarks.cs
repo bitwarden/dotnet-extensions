@@ -5,9 +5,9 @@ using Microsoft.Extensions.Hosting;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Microbenchmarks;
 
-public sealed record BenchmarkMessage(int Id) : BenchmarkPayload.ISole;
+public sealed record BenchmarkMessage(int Id) : BenchmarkFamily.ISole;
 
-public class BenchmarkPayload : Payload<BenchmarkPayload, BenchmarkMessage, BenchmarkMessage>, IPayloadVariants<BenchmarkPayload>, IPayloadWireName<BenchmarkPayload>
+public class BenchmarkFamily : Family<BenchmarkFamily, BenchmarkMessage, BenchmarkMessage>, IFamilyVariants<BenchmarkFamily>, IFamilyWireName<BenchmarkFamily>
 {
     public static string WireName => "bench";
     public static IReadOnlyList<(Type, string)> Variants => [(typeof(BenchmarkMessage), nameof(BenchmarkMessage))];
@@ -21,8 +21,8 @@ public class BenchmarkPayload : Payload<BenchmarkPayload, BenchmarkMessage, Benc
 public abstract class MessageBrokerBenchmarks
 {
     private IHost? _host;
-    private Publisher<BenchmarkPayload, BenchmarkMessage>? _publisher;
-    private ISubscriber<BenchmarkPayload, BenchmarkMessage>? _subscriber;
+    private Publisher<BenchmarkFamily, BenchmarkMessage>? _publisher;
+    private ISubscriber<BenchmarkFamily, BenchmarkMessage>? _subscriber;
     private bool _configured;
 
     private const string TopicName = "bench";
@@ -63,15 +63,15 @@ public abstract class MessageBrokerBenchmarks
             .ConfigureAppConfiguration(b => b.AddInMemoryCollection(config))
             .ConfigureServices(services =>
             {
-                services.AddPublisher<BenchmarkPayload, BenchmarkMessage>(TopicName);
-                services.AddSubscriber<BenchmarkPayload, BenchmarkMessage>(TopicName, TopicName);
+                services.AddPublisher<BenchmarkFamily, BenchmarkMessage>(TopicName);
+                services.AddSubscriber<BenchmarkFamily, BenchmarkMessage>(TopicName, TopicName);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
             .Build();
 
         await _host.StartAsync();
-        _publisher = _host.Services.GetRequiredKeyedService<Publisher<BenchmarkPayload, BenchmarkMessage>>(MessageBrokerKeys.Publisher<BenchmarkPayload>(TopicName));
-        _subscriber = _host.Services.GetRequiredKeyedService<ISubscriber<BenchmarkPayload, BenchmarkMessage>>(SubscriptionKey);
+        _publisher = _host.Services.GetRequiredKeyedService<Publisher<BenchmarkFamily, BenchmarkMessage>>(MessageBrokerKeys.Publisher<BenchmarkFamily>(TopicName));
+        _subscriber = _host.Services.GetRequiredKeyedService<ISubscriber<BenchmarkFamily, BenchmarkMessage>>(SubscriptionKey);
         _configured = true;
     }
 

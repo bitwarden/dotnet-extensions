@@ -10,35 +10,35 @@ using Microsoft.Extensions.Options;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 
-public sealed record MyItem(int Id) : MyItemPayload.ISole;
+public sealed record MyItem(int Id) : MyItemFamily.ISole;
 
-public class MyItemPayload : Payload<MyItemPayload, MyItem, MyItem>, IPayloadVariants<MyItemPayload>, IPayloadWireName<MyItemPayload>
+public class MyItemFamily : Family<MyItemFamily, MyItem, MyItem>, IFamilyVariants<MyItemFamily>, IFamilyWireName<MyItemFamily>
 {
     public static string WireName => "my-item";
     public static IReadOnlyList<(Type, string)> Variants => [(typeof(MyItem), nameof(MyItem))];
 }
 
 // A user service publishes multiple event types to its own outbound topic. UserCreated and
-// UserDeleted are two independent payload families carried on the same topic, each tagged with
+// UserDeleted are two independent families carried on the same topic, each tagged with
 // its family wire name so downstream services bind to the one they care about.
 
-public sealed record UserCreated(Guid UserId, string Email) : UserCreatedPayload.ISole;
+public sealed record UserCreated(Guid UserId, string Email) : UserCreatedFamily.ISole;
 
-public class UserCreatedPayload
-    : Payload<UserCreatedPayload, UserCreated, UserCreated>,
-      IPayloadVariants<UserCreatedPayload>,
-      IPayloadWireName<UserCreatedPayload>
+public class UserCreatedFamily
+    : Family<UserCreatedFamily, UserCreated, UserCreated>,
+      IFamilyVariants<UserCreatedFamily>,
+      IFamilyWireName<UserCreatedFamily>
 {
     public static string WireName => "user.created";
     public static IReadOnlyList<(Type, string)> Variants => [(typeof(UserCreated), "v1")];
 }
 
-public sealed record UserDeleted(Guid UserId, string Reason) : UserDeletedPayload.ISole;
+public sealed record UserDeleted(Guid UserId, string Reason) : UserDeletedFamily.ISole;
 
-public class UserDeletedPayload
-    : Payload<UserDeletedPayload, UserDeleted, UserDeleted>,
-      IPayloadVariants<UserDeletedPayload>,
-      IPayloadWireName<UserDeletedPayload>
+public class UserDeletedFamily
+    : Family<UserDeletedFamily, UserDeleted, UserDeleted>,
+      IFamilyVariants<UserDeletedFamily>,
+      IFamilyWireName<UserDeletedFamily>
 {
     public static string WireName => "user.deleted";
     public static IReadOnlyList<(Type, string)> Variants => [(typeof(UserDeleted), "v1")];
@@ -50,7 +50,7 @@ public class MessagingOptionsValidationTests
     public void FailsWhenBothBackendsAreConfigured()
     {
         var services = new ServiceCollection();
-        services.AddPublisher<MyItemPayload, MyItem>("test");
+        services.AddPublisher<MyItemFamily, MyItem>("test");
         var provider = services.BuildServiceProvider();
 
         var validators = provider.GetServices<IValidateOptions<MessagingOptions>>();
@@ -74,7 +74,7 @@ public class MessagingOptionsValidationTests
         // AddBitwardenCaching satisfies PublisherCacheValidator; without it the validator would
         // fail once RabbitUri is set on the options.
         services.AddBitwardenCaching();
-        services.AddPublisher<MyItemPayload, MyItem>("test");
+        services.AddPublisher<MyItemFamily, MyItem>("test");
         var provider = services.BuildServiceProvider();
 
         var validators = provider.GetServices<IValidateOptions<MessagingOptions>>();
@@ -103,8 +103,8 @@ public abstract class BehaviorTests : IAsyncLifetime
     /// <summary>The keyed service key for the default subscriber.</summary>
     protected string SubscriptionKey => $"{TopicName}/{SubscriptionName}";
 
-    /// <summary>The keyed service key for the <see cref="Publisher{TPayload, TCeiling}"/> on <see cref="TopicName"/>.</summary>
-    protected string PublisherKey => MessageBrokerKeys.Publisher<MyItemPayload>(TopicName);
+    /// <summary>The keyed service key for the <see cref="Publisher{TFamily, TCeiling}"/> on <see cref="TopicName"/>.</summary>
+    protected string PublisherKey => MessageBrokerKeys.Publisher<MyItemFamily>(TopicName);
 
     /// <summary>
     /// Whether the broker automatically redelivers a message whose lock has expired without the
@@ -133,10 +133,10 @@ public abstract class BehaviorTests : IAsyncLifetime
     /// </summary>
     protected virtual Task<IHost> CreateInstanceAsync() => BuildHostAsync(services =>
     {
-        services.AddPublisher<MyItemPayload, MyItem>(TopicName);
-        services.AddSubscriber<MyItemPayload, MyItem>(TopicName, SubscriptionName);
-        services.AddSubscriber<MyItemPayload, MyItem>(TopicName, "pm");
-        services.AddSubscriber<MyItemPayload, MyItem>(TopicName, "sm");
+        services.AddPublisher<MyItemFamily, MyItem>(TopicName);
+        services.AddSubscriber<MyItemFamily, MyItem>(TopicName, SubscriptionName);
+        services.AddSubscriber<MyItemFamily, MyItem>(TopicName, "pm");
+        services.AddSubscriber<MyItemFamily, MyItem>(TopicName, "sm");
     });
 
     /// <summary>
@@ -148,8 +148,8 @@ public abstract class BehaviorTests : IAsyncLifetime
     protected virtual Task<IHost> CreateSecondaryInstanceAsync(IHost originalHost, string? subscriptionName = null) =>
         BuildHostAsync(services =>
         {
-            services.AddPublisher<MyItemPayload, MyItem>(TopicName);
-            services.AddSubscriber<MyItemPayload, MyItem>(TopicName, subscriptionName ?? SubscriptionName);
+            services.AddPublisher<MyItemFamily, MyItem>(TopicName);
+            services.AddSubscriber<MyItemFamily, MyItem>(TopicName, subscriptionName ?? SubscriptionName);
         });
 
     /// <summary>
@@ -160,10 +160,10 @@ public abstract class BehaviorTests : IAsyncLifetime
     /// </summary>
     protected virtual string MultiFamilyTopicName => $"{TopicName}-events";
 
-    /// <summary>Subscription name for the <see cref="UserCreatedPayload"/> subscriber in multi-family tests.</summary>
+    /// <summary>Subscription name for the <see cref="UserCreatedFamily"/> subscriber in multi-family tests.</summary>
     protected const string VaultSubscription = "vault";
 
-    /// <summary>Subscription name for the <see cref="UserDeletedPayload"/> subscriber in multi-family tests.</summary>
+    /// <summary>Subscription name for the <see cref="UserDeletedFamily"/> subscriber in multi-family tests.</summary>
     protected const string OrganizationsSubscription = "organizations";
 
     /// <summary>
@@ -173,10 +173,10 @@ public abstract class BehaviorTests : IAsyncLifetime
     /// </summary>
     protected virtual Task<IHost> CreateMultiFamilyInstanceAsync() => BuildHostAsync(services =>
     {
-        services.AddPublisher<UserCreatedPayload, UserCreated>(MultiFamilyTopicName);
-        services.AddPublisher<UserDeletedPayload, UserDeleted>(MultiFamilyTopicName);
-        services.AddSubscriber<UserCreatedPayload, UserCreated>(MultiFamilyTopicName, VaultSubscription);
-        services.AddSubscriber<UserDeletedPayload, UserDeleted>(MultiFamilyTopicName, OrganizationsSubscription);
+        services.AddPublisher<UserCreatedFamily, UserCreated>(MultiFamilyTopicName);
+        services.AddPublisher<UserDeletedFamily, UserDeleted>(MultiFamilyTopicName);
+        services.AddSubscriber<UserCreatedFamily, UserCreated>(MultiFamilyTopicName, VaultSubscription);
+        services.AddSubscriber<UserDeletedFamily, UserDeleted>(MultiFamilyTopicName, OrganizationsSubscription);
     });
 
     protected async Task<IHost> BuildHostAsync(Action<IServiceCollection> configure) => await BuildHostAsync(CreateConfig(), configure);
@@ -231,9 +231,9 @@ public abstract class BehaviorTests : IAsyncLifetime
     public async Task SimpleAsync()
     {
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
         var secondaryHost = await CreateSecondaryInstanceAsync(host);
-        var subscriber = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+        var subscriber = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey);
 
         await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
 
@@ -248,14 +248,14 @@ public abstract class BehaviorTests : IAsyncLifetime
     public async Task EarlyMessagesCanBeProcessed()
     {
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
 
         await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
         await publisher.Publish(new MyItem(2)).SendAsync(TestContext.Current.CancellationToken);
 
         var count = 0;
         var secondaryHost = await CreateSecondaryInstanceAsync(host);
-        var subscriber = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+        var subscriber = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey);
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {
             await envelope.CompleteAsync(TestContext.Current.CancellationToken);
@@ -269,8 +269,8 @@ public abstract class BehaviorTests : IAsyncLifetime
     public async Task AbandonedMessageIsRedelivered()
     {
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
-        var subscriber = (await CreateSecondaryInstanceAsync(host)).Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
+        var subscriber = (await CreateSecondaryInstanceAsync(host)).Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey);
 
         await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
 
@@ -306,9 +306,9 @@ public abstract class BehaviorTests : IAsyncLifetime
             "This backend does not requeue unsettled messages on enumerator disposal (in-memory channel discards them).");
 
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
         var subscriber = (await CreateSecondaryInstanceAsync(host)).Services
-            .GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+            .GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey);
 
         await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
 
@@ -346,9 +346,9 @@ public abstract class BehaviorTests : IAsyncLifetime
             "This backend does not support automatic lock-expiry redelivery (in-memory channel has no lock concept).");
 
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
         var subscriber = (await CreateSecondaryInstanceAsync(host)).Services
-            .GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+            .GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey);
 
         await publisher.Publish(new MyItem(99)).SendAsync(TestContext.Current.CancellationToken);
 
@@ -388,7 +388,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         const int firstBatch = 2;
 
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
 
         for (var i = 0; i < total; i++)
             await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
@@ -396,7 +396,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         // First subscriber receives and completes firstBatch messages, then stops.
         var firstHost = await CreateSecondaryInstanceAsync(host);
         var firstIds = new List<int>();
-        await foreach (var envelope in firstHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey)
+        await foreach (var envelope in firstHost.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey)
             .SubscribeAsync(TestContext.Current.CancellationToken))
         {
             await envelope.CompleteAsync(TestContext.Current.CancellationToken);
@@ -414,7 +414,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         // Remaining messages must be visible to a new subscriber.
         var secondHost = await CreateSecondaryInstanceAsync(host);
         var secondIds = new List<int>();
-        await foreach (var envelope in secondHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey)
+        await foreach (var envelope in secondHost.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey)
             .SubscribeAsync(TestContext.Current.CancellationToken))
         {
             await envelope.CompleteAsync(TestContext.Current.CancellationToken);
@@ -430,7 +430,7 @@ public abstract class BehaviorTests : IAsyncLifetime
     public async Task SubscriberCompletesWhenHostDisposed()
     {
         var host = await CreateInstanceAsync();
-        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey);
 
         // Subscribe without any external cancellation — the stream must terminate on its own
         // when the host is disposed.
@@ -475,7 +475,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         // PublisherJoin. When the broker is down, the deploy-time gate fires here and the
         // process fails to start.
         var ex = await Assert.ThrowsAsync<BrokerUnavailableException>(
-            () => BuildHostAsync(config, services => services.AddPublisher<MyItemPayload, MyItem>(TopicName)));
+            () => BuildHostAsync(config, services => services.AddPublisher<MyItemFamily, MyItem>(TopicName)));
 
         Assert.Equal(TopicName, ex.TopicName);
         Assert.NotNull(ex.InnerException);
@@ -490,10 +490,10 @@ public abstract class BehaviorTests : IAsyncLifetime
         var (config, stopBrokerAsync) = result.Value;
         var host = await BuildHostAsync(config, services =>
         {
-            services.AddPublisher<MyItemPayload, MyItem>(TopicName);
-            services.AddSubscriber<MyItemPayload, MyItem>(TopicName, SubscriptionName);
+            services.AddPublisher<MyItemFamily, MyItem>(TopicName);
+            services.AddSubscriber<MyItemFamily, MyItem>(TopicName, SubscriptionName);
         });
-        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey);
 
         var subscribeTask = Task.Run(async () =>
         {
@@ -533,9 +533,9 @@ public abstract class BehaviorTests : IAsyncLifetime
         var injected = await TryInjectInvalidMessageAsync(TopicName);
         Assert.SkipWhen(!injected, "This backend does not support raw message injection (in-memory channel only accepts typed messages).");
 
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
         var secondaryHost = await CreateSecondaryInstanceAsync(host);
-        var subscriber = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+        var subscriber = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey);
 
         // Publish a valid message after the undeserializable one.
         await publisher.Publish(new MyItem(99)).SendAsync(TestContext.Current.CancellationToken);
@@ -558,9 +558,9 @@ public abstract class BehaviorTests : IAsyncLifetime
         var injected = await TryInjectMalformedJsonMessageAsync(TopicName);
         Assert.SkipWhen(!injected, "This backend does not support raw message injection (in-memory channel only accepts typed messages).");
 
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
         var secondaryHost = await CreateSecondaryInstanceAsync(host);
-        var subscriber = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+        var subscriber = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey);
 
         // Publish a valid message after the malformed one.
         await publisher.Publish(new MyItem(99)).SendAsync(TestContext.Current.CancellationToken);
@@ -583,20 +583,20 @@ public abstract class BehaviorTests : IAsyncLifetime
         using var collector = new MetricCollector<long>(
             meterFactory, "Bitwarden.Server.Sdk.MessageBroker", "messaging.client.published.messages");
 
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
         await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
 
         var measurement = Assert.Single(collector.GetMeasurementSnapshot());
         Assert.Equal(1, measurement.Value);
         Assert.Equal(TopicName, measurement.Tags["messaging.destination.name"]);
-        Assert.Equal(MyItemPayload.WireName, measurement.Tags["messaging.payload.family"]);
+        Assert.Equal(MyItemFamily.WireName, measurement.Tags["messaging.family"]);
     }
 
     [Fact(Timeout = 60 * 1000)]
     public async Task MetricsAreEmittedOnConsume()
     {
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
 
         // The subscriber lives on the secondary host (possibly a separate DI container),
         // so the consume metric is emitted into that host's IMeterFactory.
@@ -604,7 +604,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         var meterFactory = secondaryHost.Services.GetRequiredService<IMeterFactory>();
         using var collector = new MetricCollector<long>(
             meterFactory, "Bitwarden.Server.Sdk.MessageBroker", "messaging.client.consumed.messages");
-        var subscriber = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+        var subscriber = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey);
 
         await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
 
@@ -617,7 +617,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         var measurement = Assert.Single(collector.GetMeasurementSnapshot());
         Assert.Equal(1, measurement.Value);
         Assert.Equal(TopicName, measurement.Tags["messaging.destination.name"]);
-        Assert.Equal(MyItemPayload.WireName, measurement.Tags["messaging.payload.family"]);
+        Assert.Equal(MyItemFamily.WireName, measurement.Tags["messaging.family"]);
         Assert.Equal(nameof(MyItem), measurement.Tags["messaging.variant.name"]);
     }
 
@@ -636,7 +636,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         ActivitySource.AddActivityListener(listener);
 
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
 
         // Snapshot before publish so activities from other parallel tests are excluded.
         var before = activities.ToHashSet(ReferenceEqualityComparer.Instance);
@@ -659,9 +659,9 @@ public abstract class BehaviorTests : IAsyncLifetime
         ActivitySource.AddActivityListener(activityListener);
 
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
         var secondaryHost = await CreateSecondaryInstanceAsync(host);
-        var subscriber = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+        var subscriber = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey);
 
         var before = activities.ToHashSet(ReferenceEqualityComparer.Instance);
         await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
@@ -700,16 +700,16 @@ public abstract class BehaviorTests : IAsyncLifetime
         const int messageCount = 20;
 
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
-        var subscriber1 = (await CreateSecondaryInstanceAsync(host)).Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
-        var subscriber2 = (await CreateSecondaryInstanceAsync(host)).Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
+        var subscriber1 = (await CreateSecondaryInstanceAsync(host)).Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey);
+        var subscriber2 = (await CreateSecondaryInstanceAsync(host)).Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey);
 
         var received1 = new ConcurrentBag<int>();
         var received2 = new ConcurrentBag<int>();
         var totalReceived = 0;
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
-        async Task CollectAsync(ISubscriber<MyItemPayload, MyItem> subscriber, ConcurrentBag<int> bag)
+        async Task CollectAsync(ISubscriber<MyItemFamily, MyItem> subscriber, ConcurrentBag<int> bag)
         {
             try
             {
@@ -752,19 +752,19 @@ public abstract class BehaviorTests : IAsyncLifetime
         const int totalMessages = messagesPerPublisher * 2;
 
         var host = await CreateInstanceAsync();
-        var publisher1 = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
-        var subscriber1 = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+        var publisher1 = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
+        var subscriber1 = host.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey);
 
         var secondaryHost = await CreateSecondaryInstanceAsync(host);
-        var publisher2 = secondaryHost.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
-        var subscriber2 = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+        var publisher2 = secondaryHost.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
+        var subscriber2 = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey);
 
         var received1 = new ConcurrentBag<int>();
         var received2 = new ConcurrentBag<int>();
         var totalReceived = 0;
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
-        async Task CollectAsync(ISubscriber<MyItemPayload, MyItem> subscriber, ConcurrentBag<int> bag)
+        async Task CollectAsync(ISubscriber<MyItemFamily, MyItem> subscriber, ConcurrentBag<int> bag)
         {
             try
             {
@@ -814,11 +814,11 @@ public abstract class BehaviorTests : IAsyncLifetime
         const int messagesPerPublisher = 10;
 
         var host = await CreateInstanceAsync();
-        var publisher1 = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
-        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+        var publisher1 = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
+        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey);
 
         var secondaryHost = await CreateSecondaryInstanceAsync(host);
-        var publisher2 = secondaryHost.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var publisher2 = secondaryHost.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
 
         var received = new ConcurrentBag<int>();
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
@@ -864,15 +864,15 @@ public abstract class BehaviorTests : IAsyncLifetime
     public async Task EachSubscriberGroupReceivesEveryMessage()
     {
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
         var pmHost = await CreateSecondaryInstanceAsync(host, "pm");
         var smHost = await CreateSecondaryInstanceAsync(host, "sm");
-        var pmSubscriber = pmHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>($"{TopicName}/pm");
-        var smSubscriber = smHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>($"{TopicName}/sm");
+        var pmSubscriber = pmHost.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>($"{TopicName}/pm");
+        var smSubscriber = smHost.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>($"{TopicName}/sm");
 
         var ct = TestContext.Current.CancellationToken;
 
-        static async Task<int> ReceiveOneAsync(ISubscriber<MyItemPayload, MyItem> subscriber, CancellationToken ct)
+        static async Task<int> ReceiveOneAsync(ISubscriber<MyItemFamily, MyItem> subscriber, CancellationToken ct)
         {
             await foreach (var envelope in subscriber.SubscribeAsync(ct))
             {
@@ -899,13 +899,13 @@ public abstract class BehaviorTests : IAsyncLifetime
     public async Task AbandonedMessageIsOnlyRedeliveredToSameSubscriberGroup()
     {
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
         var pmHost = await CreateSecondaryInstanceAsync(host, "pm");
         var smHost = await CreateSecondaryInstanceAsync(host, "sm");
         var ct = TestContext.Current.CancellationToken;
 
-        var pmSubscriber = pmHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>($"{TopicName}/pm");
-        var smSubscriber = smHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>($"{TopicName}/sm");
+        var pmSubscriber = pmHost.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>($"{TopicName}/pm");
+        var smSubscriber = smHost.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>($"{TopicName}/sm");
 
         var smReceiveCount = 0;
         using var smCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -966,18 +966,18 @@ public abstract class BehaviorTests : IAsyncLifetime
         const int messageCount = 20;
 
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
         var pmHost = await CreateSecondaryInstanceAsync(host, "pm");
-        var pmNode1 = pmHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>($"{TopicName}/pm");
+        var pmNode1 = pmHost.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>($"{TopicName}/pm");
         var pmNode2Host = await CreateSecondaryInstanceAsync(pmHost, "pm");
-        var pmNode2 = pmNode2Host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>($"{TopicName}/pm");
+        var pmNode2 = pmNode2Host.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>($"{TopicName}/pm");
 
         var received1 = new ConcurrentBag<int>();
         var received2 = new ConcurrentBag<int>();
         var totalReceived = 0;
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
 
-        async Task CollectAsync(ISubscriber<MyItemPayload, MyItem> subscriber, ConcurrentBag<int> bag)
+        async Task CollectAsync(ISubscriber<MyItemFamily, MyItem> subscriber, ConcurrentBag<int> bag)
         {
             try
             {
@@ -1012,7 +1012,7 @@ public abstract class BehaviorTests : IAsyncLifetime
     /// End-to-end: a user service publishes both <see cref="UserCreated"/> and
     /// <see cref="UserDeleted"/> to its <see cref="MultiFamilyTopicName"/>; a vault subscriber
     /// wants only UserCreated; an organizations subscriber wants only UserDeleted. Each sees only
-    /// its own family — on Channel because <c>ChannelTopic</c> is per-<c>TPayload</c>, on Rabbit
+    /// its own family — on Channel because <c>ChannelTopic</c> is per-<c>TFamily</c>, on Rabbit
     /// because the routing-key binding filters at the broker, on Azure Service Bus because the
     /// subscription Correlation filter does. The publisher must stamp the family wire name on
     /// every message for any of the three stories to work.
@@ -1024,13 +1024,13 @@ public abstract class BehaviorTests : IAsyncLifetime
         var (userId1, email) = (Guid.NewGuid(), "alice@example.com");
         var (userId2, reason) = (Guid.NewGuid(), "requested");
 
-        var createdPublisher = host.Services.GetRequiredKeyedService<Publisher<UserCreatedPayload, UserCreated>>(
-            MessageBrokerKeys.Publisher<UserCreatedPayload>(MultiFamilyTopicName));
-        var deletedPublisher = host.Services.GetRequiredKeyedService<Publisher<UserDeletedPayload, UserDeleted>>(
-            MessageBrokerKeys.Publisher<UserDeletedPayload>(MultiFamilyTopicName));
-        var vault = host.Services.GetRequiredKeyedService<ISubscriber<UserCreatedPayload, UserCreated>>(
+        var createdPublisher = host.Services.GetRequiredKeyedService<Publisher<UserCreatedFamily, UserCreated>>(
+            MessageBrokerKeys.Publisher<UserCreatedFamily>(MultiFamilyTopicName));
+        var deletedPublisher = host.Services.GetRequiredKeyedService<Publisher<UserDeletedFamily, UserDeleted>>(
+            MessageBrokerKeys.Publisher<UserDeletedFamily>(MultiFamilyTopicName));
+        var vault = host.Services.GetRequiredKeyedService<ISubscriber<UserCreatedFamily, UserCreated>>(
             $"{MultiFamilyTopicName}/{VaultSubscription}");
-        var organizations = host.Services.GetRequiredKeyedService<ISubscriber<UserDeletedPayload, UserDeleted>>(
+        var organizations = host.Services.GetRequiredKeyedService<ISubscriber<UserDeletedFamily, UserDeleted>>(
             $"{MultiFamilyTopicName}/{OrganizationsSubscription}");
 
         await createdPublisher.Publish(new UserCreated(userId1, email)).SendAsync(TestContext.Current.CancellationToken);

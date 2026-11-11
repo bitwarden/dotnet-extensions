@@ -25,7 +25,7 @@ public class SubscriberCapabilityRequesterTests
         await using var harness = TestHarness.Build(reply: _ => new NegotiationAck
         {
             Go = false,
-            Offenders = [new NegotiationIncompatibility { InstanceId = "incompatible-pub", FamilyWireName = MyItemPayload.WireName, WireNames = new HashSet<string> { "v99" } }],
+            Offenders = [new NegotiationIncompatibility { InstanceId = "incompatible-pub", FamilyWireName = MyItemFamily.WireName, WireNames = new HashSet<string> { "v99" } }],
         });
         harness.RegisterSubscriber(Topic, "sub");
 
@@ -73,7 +73,7 @@ public class SubscriberCapabilityRequesterTests
         await using var harness = TestHarness.Build(reply: _ => new NegotiationAck
         {
             Go = false,
-            Offenders = [new NegotiationIncompatibility { InstanceId = "incompatible-pub", FamilyWireName = MyItemPayload.WireName, WireNames = new HashSet<string> { "v99" } }],
+            Offenders = [new NegotiationIncompatibility { InstanceId = "incompatible-pub", FamilyWireName = MyItemFamily.WireName, WireNames = new HashSet<string> { "v99" } }],
         });
         harness.RegisterSubscriber(Topic, "sub", proceedOnAdmissionTimeout: true);
 
@@ -164,7 +164,7 @@ public class SubscriberCapabilityRequesterTests
     [Fact]
     public async Task TwoFamiliesOnOneTopicSendOneCapabilityAndOneLeavePerFamily()
     {
-        // The topic-per-service model: one topic carries multiple payload families. The
+        // The topic-per-service model: one topic carries multiple families. The
         // requester must emit one Capability per (topic, family) marker and one SubscriberLeave
         // per family on shutdown. The dedupe pass is now keyed by (topic, family), so same-topic
         // different-family markers no longer collapse to one send.
@@ -180,14 +180,14 @@ public class SubscriberCapabilityRequesterTests
         var caps = harness.ObservedCapabilities;
         Assert.Equal(2, caps.Count);
         Assert.All(caps, c => Assert.Equal(Topic, c.DataTopic));
-        Assert.Contains(caps, c => c.FamilyWireName == UserCreatedPayload.WireName);
-        Assert.Contains(caps, c => c.FamilyWireName == UserDeletedPayload.WireName);
+        Assert.Contains(caps, c => c.FamilyWireName == UserCreatedFamily.WireName);
+        Assert.Contains(caps, c => c.FamilyWireName == UserDeletedFamily.WireName);
 
         var leaves = harness.ObservedSubscriberLeaves;
         Assert.Equal(2, leaves.Count);
         Assert.All(leaves, l => Assert.Equal(Topic, l.DataTopic));
-        Assert.Contains(leaves, l => l.FamilyWireName == UserCreatedPayload.WireName);
-        Assert.Contains(leaves, l => l.FamilyWireName == UserDeletedPayload.WireName);
+        Assert.Contains(leaves, l => l.FamilyWireName == UserCreatedFamily.WireName);
+        Assert.Contains(leaves, l => l.FamilyWireName == UserDeletedFamily.WireName);
     }
 
     [Fact]
@@ -306,15 +306,15 @@ public class SubscriberCapabilityRequesterTests
             => new(new InMemoryNegotiationBroker(), null, configureDistributedBackend: false);
 
         public void RegisterSubscriber(string topic, string subscription, bool proceedOnAdmissionTimeout = false)
-            => _services.AddSubscriber<MyItemPayload, MyItem>(topic, subscription, proceedOnAdmissionTimeout);
+            => _services.AddSubscriber<MyItemFamily, MyItem>(topic, subscription, proceedOnAdmissionTimeout);
 
-        // TopicSubscriptionClaim enforces one payload family per (topic, subscription), so each
+        // TopicSubscriptionClaim enforces one family per (topic, subscription), so each
         // family needs its own subscription name. In production this is the common case: one
         // subscription per family the subscriber consumes.
         public void RegisterTwoFamiliesOnOneTopic(string topic, string createdSubscription, string deletedSubscription)
         {
-            _services.AddSubscriber<UserCreatedPayload, UserCreated>(topic, createdSubscription);
-            _services.AddSubscriber<UserDeletedPayload, UserDeleted>(topic, deletedSubscription);
+            _services.AddSubscriber<UserCreatedFamily, UserCreated>(topic, createdSubscription);
+            _services.AddSubscriber<UserDeletedFamily, UserDeleted>(topic, deletedSubscription);
         }
 
         public IReadOnlyList<Capability> ObservedCapabilities

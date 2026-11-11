@@ -7,7 +7,7 @@ internal sealed class MessageBrokerMetrics
 {
     internal const string MeterName = "Bitwarden.Server.Sdk.MessageBroker";
     internal const string DestinationTag = "messaging.destination.name";
-    internal const string PayloadFamilyTag = "messaging.payload.family";
+    internal const string FamilyTag = "messaging.family";
     internal const string VariantNameTag = "messaging.variant.name";
 
     private readonly Counter<long> _publishedMessages;
@@ -35,12 +35,12 @@ internal sealed class MessageBrokerMetrics
     public void RecordPublish(string topicName, string familyWireName, long count = 1) =>
         _publishedMessages.Add(count,
             new KeyValuePair<string, object?>(DestinationTag, topicName),
-            new KeyValuePair<string, object?>(PayloadFamilyTag, familyWireName));
+            new KeyValuePair<string, object?>(FamilyTag, familyWireName));
 
     public void RecordConsume(string topicName, string familyWireName, string variantWireName) =>
         _consumedMessages.Add(1,
             new KeyValuePair<string, object?>(DestinationTag, topicName),
-            new KeyValuePair<string, object?>(PayloadFamilyTag, familyWireName),
+            new KeyValuePair<string, object?>(FamilyTag, familyWireName),
             new KeyValuePair<string, object?>(VariantNameTag, variantWireName));
 
     public void RegisterQueueDepthProvider(string topicName, string familyWireName, Func<long> getCount)
@@ -51,6 +51,6 @@ internal sealed class MessageBrokerMetrics
         foreach (var ((topicName, familyWireName), getCount) in _queueDepthProviders)
             yield return new Measurement<long>(getCount(),
                 new KeyValuePair<string, object?>(DestinationTag, topicName),
-                new KeyValuePair<string, object?>(PayloadFamilyTag, familyWireName));
+                new KeyValuePair<string, object?>(FamilyTag, familyWireName));
     }
 }

@@ -25,7 +25,7 @@ public class PublisherJoinRequesterTests
         await using var harness = TestHarness.Build(reply: _ => new NegotiationAck
         {
             Go = false,
-            Offenders = [new NegotiationIncompatibility { InstanceId = "downstream-blocker", FamilyWireName = MyItemPayload.WireName, WireNames = new HashSet<string> { "v99" } }],
+            Offenders = [new NegotiationIncompatibility { InstanceId = "downstream-blocker", FamilyWireName = MyItemFamily.WireName, WireNames = new HashSet<string> { "v99" } }],
         });
         harness.RegisterPublisher(Topic);
 
@@ -119,7 +119,7 @@ public class PublisherJoinRequesterTests
     [Fact]
     public async Task TwoFamiliesOnOneTopicSendOneJoinAndOneLeavePerFamily()
     {
-        // The topic-per-service model: one topic carries multiple payload families. The
+        // The topic-per-service model: one topic carries multiple families. The
         // requester must emit one PublisherJoin per (topic, family) marker — each independently
         // admitted — and one PublisherLeave per family on shutdown. A single-family-per-topic
         // implementation would collapse both to one Join / Leave.
@@ -135,14 +135,14 @@ public class PublisherJoinRequesterTests
         var joins = harness.ObservedPublisherJoins;
         Assert.Equal(2, joins.Count);
         Assert.All(joins, j => Assert.Equal(Topic, j.DataTopic));
-        Assert.Contains(joins, j => j.FamilyWireName == UserCreatedPayload.WireName);
-        Assert.Contains(joins, j => j.FamilyWireName == UserDeletedPayload.WireName);
+        Assert.Contains(joins, j => j.FamilyWireName == UserCreatedFamily.WireName);
+        Assert.Contains(joins, j => j.FamilyWireName == UserDeletedFamily.WireName);
 
         var leaves = harness.ObservedPublisherLeaves;
         Assert.Equal(2, leaves.Count);
         Assert.All(leaves, l => Assert.Equal(Topic, l.DataTopic));
-        Assert.Contains(leaves, l => l.FamilyWireName == UserCreatedPayload.WireName);
-        Assert.Contains(leaves, l => l.FamilyWireName == UserDeletedPayload.WireName);
+        Assert.Contains(leaves, l => l.FamilyWireName == UserCreatedFamily.WireName);
+        Assert.Contains(leaves, l => l.FamilyWireName == UserDeletedFamily.WireName);
     }
 
     [Fact]
@@ -264,12 +264,12 @@ public class PublisherJoinRequesterTests
             => new(new InMemoryNegotiationBroker(), null, configureDistributedBackend: false);
 
         public void RegisterPublisher(string topic)
-            => _services.AddPublisher<MyItemPayload, MyItem>(topic);
+            => _services.AddPublisher<MyItemFamily, MyItem>(topic);
 
         public void RegisterTwoFamiliesOnOneTopic(string topic)
         {
-            _services.AddPublisher<UserCreatedPayload, UserCreated>(topic);
-            _services.AddPublisher<UserDeletedPayload, UserDeleted>(topic);
+            _services.AddPublisher<UserCreatedFamily, UserCreated>(topic);
+            _services.AddPublisher<UserDeletedFamily, UserDeleted>(topic);
         }
 
         public IReadOnlyList<PublisherJoin> ObservedPublisherJoins

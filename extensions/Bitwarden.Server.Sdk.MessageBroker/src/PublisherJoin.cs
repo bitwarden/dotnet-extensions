@@ -15,7 +15,7 @@ internal sealed record PublisherJoin
     public required string DataTopic { get; init; }
 
     /// <summary>
-    /// The payload family this publisher produces, from <c>IPayloadWireName.WireName</c>.
+    /// The family this publisher produces, from <c>IFamilyWireName.WireName</c>.
     /// Admission runs within one family — a <c>user.created</c> publisher is never checked
     /// against <c>user.deleted</c> subscribers on the same topic.
     /// </summary>

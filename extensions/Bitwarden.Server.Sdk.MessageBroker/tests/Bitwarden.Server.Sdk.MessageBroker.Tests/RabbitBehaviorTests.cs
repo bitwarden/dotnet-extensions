@@ -101,7 +101,7 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitFixture>
 
     private async Task InjectRawAsync(string topicName, byte[] body)
     {
-        // Route under the MyItemPayload family so the message reaches the subscriber's queue and
+        // Route under the MyItemFamily family so the message reaches the subscriber's queue and
         // passes the defensive family-header check — the test wants the subscriber to decide the
         // body is unusable, not the routing or header check.
         var factory = new ConnectionFactory { Uri = new Uri(_fixture.GetUri()) };
@@ -109,11 +109,11 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitFixture>
         await using var channel = await conn.CreateChannelAsync(cancellationToken: TestContext.Current.CancellationToken);
         await channel.BasicPublishAsync(
             exchange: topicName,
-            routingKey: MyItemPayload.WireName,
+            routingKey: MyItemFamily.WireName,
             mandatory: false,
             basicProperties: new BasicProperties
             {
-                Headers = new Dictionary<string, object?> { [BrokerProperties.PayloadFamily] = MyItemPayload.WireName },
+                Headers = new Dictionary<string, object?> { [BrokerProperties.Family] = MyItemFamily.WireName },
             },
             body: body,
             cancellationToken: TestContext.Current.CancellationToken);
@@ -156,8 +156,8 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitFixture>
         await container.StartAsync(TestContext.Current.CancellationToken);
 
         var config = new Dictionary<string, string?> { { "RabbitUri", GetContainerUri(container) } };
-        var host = await BuildHostAsync(config, services => services.AddPublisher<MyItemPayload, MyItem>(TopicName));
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var host = await BuildHostAsync(config, services => services.AddPublisher<MyItemFamily, MyItem>(TopicName));
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
 
         // Connection is established; now stop the broker.
         await container.StopAsync(TestContext.Current.CancellationToken);
@@ -178,7 +178,7 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitFixture>
     }
 
     /// <summary>
-    /// Verifies that calling <see cref="Envelope{TPayload, TCeiling}.RequeueAsync"/> after the iterator has been
+    /// Verifies that calling <see cref="Envelope{TFamily, TCeiling}.RequeueAsync"/> after the iterator has been
     /// disposed (rabbitChannel closed) completes without error, covering the
     /// <c>_channel.IsOpen ? ... : Task.CompletedTask</c> branch in <c>RabbitSubscriber.RequeueCoreAsync</c>.
     /// </summary>
@@ -187,15 +187,15 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitFixture>
     {
         var host = await BuildHostAsync(services =>
         {
-            services.AddPublisher<MyItemPayload, MyItem>(TopicName);
-            services.AddSubscriber<MyItemPayload, MyItem>(TopicName, SubscriptionName);
+            services.AddPublisher<MyItemFamily, MyItem>(TopicName);
+            services.AddSubscriber<MyItemFamily, MyItem>(TopicName, SubscriptionName);
         });
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
-        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
+        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey);
 
         await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
 
-        Envelope<MyItemPayload, MyItem>? captured = null;
+        Envelope<MyItemFamily, MyItem>? captured = null;
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {
             captured = envelope;
@@ -212,8 +212,8 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitFixture>
 
     /// <summary>
     /// A misconfigured queue — its routing-key binding selects <c>user.deleted</c>, but the
-    /// client is registered as a <see cref="UserCreatedPayload"/> subscriber. The broker routes
-    /// the mismatched message through; the subscriber's defensive x-bw-payload-family header
+    /// client is registered as a <see cref="UserCreatedFamily"/> subscriber. The broker routes
+    /// the mismatched message through; the subscriber's defensive x-bw-family header
     /// check must catch it, dead-letter the message, and never yield it to the consumer.
     /// </summary>
     [Fact(Timeout = 60 * 1000)]
@@ -226,7 +226,7 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitFixture>
         var misfilteredQueue = $"{misconfiguredTopic}.{MisfilteredSubscription}";
 
         // Build the misconfigured topology by hand: the subscriber's queue is bound with
-        // routing-key = "user.deleted" (the WRONG family for UserCreatedPayload), and gets a
+        // routing-key = "user.deleted" (the WRONG family for UserCreatedFamily), and gets a
         // dead-letter exchange so we can observe the dead-lettered message.
         await using (var conn = await new ConnectionFactory { Uri = new Uri(_fixture.GetUri()) }
             .CreateConnectionAsync(TestContext.Current.CancellationToken))
@@ -248,9 +248,9 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitFixture>
                     ["x-dead-letter-exchange"] = deadLetterExchange,
                 },
                 cancellationToken: TestContext.Current.CancellationToken);
-            // Routing-key binding selects user.deleted, but the subscriber reads as UserCreatedPayload.
+            // Routing-key binding selects user.deleted, but the subscriber reads as UserCreatedFamily.
             await channel.QueueBindAsync(misfilteredQueue, misconfiguredTopic,
-                routingKey: UserDeletedPayload.WireName,
+                routingKey: UserDeletedFamily.WireName,
                 cancellationToken: TestContext.Current.CancellationToken);
         }
 
@@ -266,8 +266,8 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitFixture>
                 // IDistributedCache and AddBitwardenCaching before the publisher/subscriber.
                 services.AddDistributedMemoryCache();
                 services.AddBitwardenCaching();
-                services.AddPublisher<UserDeletedPayload, UserDeleted>(misconfiguredTopic);
-                services.AddSubscriber<UserCreatedPayload, UserCreated>(misconfiguredTopic, MisfilteredSubscription);
+                services.AddPublisher<UserDeletedFamily, UserDeleted>(misconfiguredTopic);
+                services.AddSubscriber<UserCreatedFamily, UserCreated>(misconfiguredTopic, MisfilteredSubscription);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
                 services.Configure<NegotiationOptions>(o => o.ServiceName = "negotiation");
             })
@@ -276,9 +276,9 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitFixture>
         try
         {
 
-        var deletedPublisher = host.Services.GetRequiredKeyedService<Publisher<UserDeletedPayload, UserDeleted>>(
-            MessageBrokerKeys.Publisher<UserDeletedPayload>(misconfiguredTopic));
-        var misfiltered = host.Services.GetRequiredKeyedService<ISubscriber<UserCreatedPayload, UserCreated>>(
+        var deletedPublisher = host.Services.GetRequiredKeyedService<Publisher<UserDeletedFamily, UserDeleted>>(
+            MessageBrokerKeys.Publisher<UserDeletedFamily>(misconfiguredTopic));
+        var misfiltered = host.Services.GetRequiredKeyedService<ISubscriber<UserCreatedFamily, UserCreated>>(
             $"{misconfiguredTopic}/{MisfilteredSubscription}");
 
         await deletedPublisher.Publish(new UserDeleted(Guid.NewGuid(), "test")).SendAsync(TestContext.Current.CancellationToken);
@@ -307,8 +307,8 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitFixture>
         await using var inspectChannel = await inspectConn.CreateChannelAsync(cancellationToken: TestContext.Current.CancellationToken);
         var result = await inspectChannel.BasicGetAsync(deadLetterQueue, autoAck: true, TestContext.Current.CancellationToken);
         Assert.NotNull(result);
-        var familyBytes = (byte[])result.BasicProperties.Headers![BrokerProperties.PayloadFamily]!;
-        Assert.Equal(UserDeletedPayload.WireName, System.Text.Encoding.UTF8.GetString(familyBytes));
+        var familyBytes = (byte[])result.BasicProperties.Headers![BrokerProperties.Family]!;
+        Assert.Equal(UserDeletedFamily.WireName, System.Text.Encoding.UTF8.GetString(familyBytes));
         }
         finally
         {
