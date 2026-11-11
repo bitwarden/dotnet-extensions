@@ -1,5 +1,7 @@
 # Bitwarden.Server.Sdk.Resources.Caching.Abstractions
 
+**Audience:** engineers changing this package.
+
 The key layout, hash fields and settings of a service-owned cache entry, shared by the service that fills it and the
 clients that read it. See [PACKAGE.md](PACKAGE.md) for how to use it.
 

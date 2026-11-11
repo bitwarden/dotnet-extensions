@@ -1,14 +1,14 @@
 # Bitwarden.Server.Sdk.Idempotency.Abstractions
 
+**Audience:** engineers writing a Bitwarden service, client or host that sends, honors or retries writes with an
+idempotency key.
+
 ## About
 
-A write that fails in transit may or may not have been done. A client can send an `Idempotency-Key` header with a
-write, and a service that honours it does the write at most once per key, replaying its first answer to a repeat.
-
-This package names that header, says which keys are valid, and lets a piece of work (a retry loop, a message handler,
-a job) name itself once, so that when it runs again from the start its writes carry the same keys as the first time.
-It neither sends nor honours the header itself: a client sends it, a service honours it, and a host that runs message
-handlers or jobs begins an operation around each run. It has no dependencies.
+A write that fails in transit may or may not have been done. This package names the `Idempotency-Key` header a client
+sends with a write, says which keys are valid, and lets a piece of work (a retry loop, a message handler, a job) name
+itself once, so that when it runs again from the start its writes carry the same keys as the first time. It has no
+dependencies.
 
 ## Installing
 
@@ -16,27 +16,31 @@ handlers or jobs begins an operation around each run. It has no dependencies.
 dotnet add package Bitwarden.Server.Sdk.Idempotency.Abstractions
 ```
 
+## Key concepts
+
+- **At most once per key.** A service that honors the header does the write at most once per key, replaying its first
+  answer to a repeat, marked with `Idempotency-Replayed: true` (`IdempotencyKeys.ReplayedHeader`) so a log or a test
+  can tell a replay from a first answer.
+- **An operation names a piece of work.** Inside one, `IdempotentOperation.KeyForWrite(method, address, body)` returns
+  a key derived from the operation's key, the method, the address, the body, and how many identical writes the
+  operation made before. Outside one it returns null, and the client sends a fresh key per call, which covers its own
+  retries of that call.
+- **This package neither sends nor honors the header.** A client sends it, a service honors it, and a host that runs
+  message handlers or jobs begins an operation around each run.
+
 ## Usage
 
 ### Send a key with a write
 
-A service's contract marks each operation that honours the header with the OpenAPI extension
+A service's contract marks each operation that honors the header with the OpenAPI extension
 `x-bitwarden-idempotency-key` (`IdempotencyKeys.Extension`). A client sends a key only to an operation marked so, and
-sends no header to any other.
-
-For each write it sends a key to, the client asks `IdempotentOperation.KeyForWrite(method, address, body)`. Outside an
-operation that returns null and the client sends a fresh key per call, which covers its own retries of that call.
-Inside one it returns a key derived from the operation's key, the method, the address, the body, and how many
-identical writes the operation made before.
-
-A valid key is 1 to 255 visible ASCII characters (`IdempotencyKeys.IsValid`). A service marks a replayed answer with
-`Idempotency-Replayed: true` (`IdempotencyKeys.ReplayedHeader`), so a log or a test can tell a replay from a first
-answer.
+sends no header to any other. For each write it sends a key to, the client asks `KeyForWrite`. A valid key is 1 to 255
+visible ASCII characters (`IdempotencyKeys.IsValid`).
 
 ### Retry a piece of work as one operation
 
 Begin one operation per attempt, with a key minted before the first. Each callee does each write once, and replays its
-answer to the next attempt:
+answer to the next attempt. In `ArchiveWidgetWorkflow.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Idempotency;
@@ -66,16 +70,6 @@ public sealed class ArchiveWidgetWorkflow(IWidgetCalls widgets)
 }
 ```
 
-- The operation key must be stable for the logical operation and unique to it: a message's identifier, a job
-  occurrence, or one minted before the first attempt. Never a person's data: no email address, no name.
-- An operation key is 1 to 200 visible ASCII characters (`IdempotentOperation.MaximumKeyLength`); `Begin` throws
-  `ArgumentException` otherwise.
-- Begin the operation in the method that makes the writes, or one that awaits it. An operation begun inside an awaited
-  method isn't seen by its caller. Once ended, an operation is never current again, even when operations are ended out
-  of order.
-- A write whose body differs from the first run's (it carries a time, or reads something the first run changed) gets a
-  key of its own and is done as a new write. It is never refused for differing.
-
 ### Run a message handler or job as an operation
 
 A host that runs message handlers or jobs begins an operation around each run, keyed by
@@ -84,7 +78,7 @@ or an occurrence run again repeats its key; two handlers of one envelope, or the
 blank name throws `ArgumentException`, and a long one is shortened to its hash.
 
 A handler or job whose writes must be done again when it runs again, because each depends on what the callee has
-gained since, says so:
+gained since, says so. In `UsageReportJob.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Idempotency;
@@ -101,7 +95,7 @@ each of its writes carries a fresh key. The reason is required. The handler may 
 ### Name something the operation creates or sends
 
 `IdempotentOperation.DeriveId(purpose)` gives an identifier that is the same on every run of the operation, and null
-outside one:
+outside one. In `WelcomeMail.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Idempotency;
@@ -115,17 +109,30 @@ public static class WelcomeMail
 The purpose is hashed with the operation's key and never kept. Asked for twice in one run, the same purpose gives two
 identifiers, in order.
 
-### Honour the header in a service
+### Honor the header in a service
 
-A service that honours the header must store and look up each replay record under the authenticated caller and the key
-together, never under the key alone. A key is not a secret: it travels in a request header, and a key derived inside an
-operation is a hash that anyone who knows the operation's key and the write can compute. Keyed by caller, one caller
-can't receive the answer recorded for another, or block another's write by sending the same key.
-
-How a service answers a repeat with a different body, or one that arrives while the first is still running, and which
-callers' keys it honours, are its own to decide.
+Store each replay record under the authenticated caller and the key together (see "Gotchas and constraints"). How a
+service answers a repeat with a different body, or one that arrives while the first is still running, and which
+callers' keys it honors, are its own to decide.
 [Bitwarden.Server.Sdk.Idempotency](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Idempotency/src/PACKAGE.md)
-honours the header for a service built on the SDK.
+honors the header for a service built on the SDK.
+
+## Gotchas and constraints
+
+- **Key replay records by caller.** A service that honors the header must store and look up each replay record under
+  the authenticated caller and the key together, never under the key alone. A key is not a secret: it travels in a
+  request header, and a key derived inside an operation is a hash that anyone who knows the operation's key and the
+  write can compute. Keyed by caller, one caller can't receive the answer recorded for another, or block another's
+  write by sending the same key.
+- **The operation key must be stable for the logical operation and unique to it:** a message's identifier, a job
+  occurrence, or one minted before the first attempt. Never a person's data: no email address, no name.
+- **An operation key is 1 to 200 visible ASCII characters** (`IdempotentOperation.MaximumKeyLength`); `Begin` throws
+  `ArgumentException` otherwise.
+- **Begin the operation in the method that makes the writes, or one that awaits it.** An operation begun inside an
+  awaited method isn't seen by its caller. Once ended, an operation is never current again, even when operations are
+  ended out of order.
+- **A write whose body differs from the first run's** (it carries a time, or reads something the first run changed)
+  gets a key of its own and is done as a new write. It is never refused for differing.
 
 ## Types
 
