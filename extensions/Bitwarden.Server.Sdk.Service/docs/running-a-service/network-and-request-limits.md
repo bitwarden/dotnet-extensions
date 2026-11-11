@@ -3,9 +3,9 @@
 A service needs to know the address a request really came from, limit how often one address may call
 it, and decide which web pages may read its answers. The package does all three from settings, and
 refuses to start over a setting it can't honour safely. Trusted proxies are
-[Bitwarden.Server.Sdk.Authorization](../../../Bitwarden.Server.Sdk.Authorization/src/README.md)'s work,
+[Bitwarden.Server.Sdk.Authorization](../../../Bitwarden.Server.Sdk.Authorization/src/PACKAGE.md)'s work,
 and per-address limits are
-[Bitwarden.Server.Sdk.RateLimiting](../../../Bitwarden.Server.Sdk.RateLimiting/src/README.md)'s; `Service`
+[Bitwarden.Server.Sdk.RateLimiting](../../../Bitwarden.Server.Sdk.RateLimiting/src/PACKAGE.md)'s; `Service`
 registers both, in the order [Defining a service](defining-a-service.md#override-the-other-hooks)
 lists.
 
