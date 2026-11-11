@@ -41,6 +41,9 @@ public static class BitwardenClientServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
 
+        // Read once: the operations the callee's contract, embedded in the client package, marks as honouring keys.
+        var keyed = KeyedOperations.FromAssembly(typeof(TImplementation).Assembly);
+
         // Bounded for every token request, a renewal no call waits on included; a call's deadline bounds it too.
         services.AddHttpClient(ServiceTokenProvider.TokenClientName, client => client.Timeout = ServiceTokenProvider.RequestTimeout);
 
@@ -106,7 +109,7 @@ public static class BitwardenClientServiceCollectionExtensions
             .AddHttpMessageHandler(provider => new ServiceFaultHandler(
                 serviceName,
                 provider.GetRequiredService<IOptionsMonitor<BitwardenClientOptions>>().Get(serviceName).Timeout))
-            .AddHttpMessageHandler(() => new IdempotencyKeyHandler())
+            .AddHttpMessageHandler(() => new IdempotencyKeyHandler(keyed))
             .AddHttpMessageHandler(provider => new ServiceWriteHandler(
                 serviceName,
                 [.. provider.GetRequiredService<IOptionsMonitor<BitwardenClientOptions>>().Get(serviceName).ReadingPaths]))

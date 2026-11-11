@@ -4,7 +4,7 @@
 
 The calling side of a Bitwarden service. A service publishes a client package for the others to call it with, and
 that package registers its client through this one: the caller's credential, the request's context, one deadline per
-call, an idempotency key on every write, bounded retries, a circuit breaker per callee, and every failure turned into
+call, an idempotency key on each write the callee accepts one for, bounded retries, a circuit breaker per callee, and every failure turned into
 the exception it means. It also holds `OutgoingCall`, which states whom one call is about, `Undo`, which takes back
 writes that span services, `ProductClient` for calling a product service with somebody's own token, and
 `ICachedReads<TClient>` for answering a read from the callee's own cache.
@@ -164,11 +164,13 @@ a `ServiceCallException` with status `500`, this service's own failure.
 
 ### Resilience
 
-- **Idempotency keys.** Every call but a `GET`, `HEAD`, `OPTIONS` or `TRACE` carries an `Idempotency-Key`: the one the
-  call site set, one derived from the operation inside an `IdempotentOperation`, or a fresh one.
+- **Idempotency keys.** A write to an operation the callee's contract marks `x-bitwarden-idempotency-key` (read from
+  the `openapi.json` the client package embeds) carries an `Idempotency-Key`: the one the call site set, one derived
+  from the operation inside an `IdempotentOperation`, or a fresh one. Any other write carries none.
 - **Retries.** A `GET`, a `HEAD`, or a write with a key, is tried again up to `Retries` times when the connection
   failed or something in front of the callee answered `502`, `503` or `504`, with waits doubling from `RetryDelay`, all
-  within the one deadline. A keyed write the callee is still running (`409` with `Retry-After`) is waited for; still
+  within the one deadline. A write without a key is tried again only when its connection never opened (refused, a
+  name that didn't resolve, a proxy that wouldn't tunnel), so it can't have arrived. A keyed write the callee is still running (`409` with `Retry-After`) is waited for; still
   running after the last retry, it is a `ServiceUnavailableException`. The callee's own answers are never retried.
 - **Circuit breaker.** After `BreakAfter` attempts in a row find the callee not there, calls to it are refused at once
   for `BreakFor`, then one is let through to see whether it is back. Every client of the callee in the process shares
