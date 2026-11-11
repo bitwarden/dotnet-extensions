@@ -1,14 +1,14 @@
 # Bitwarden.Server.Sdk.Client
 
+**Audience:** engineers publishing a client package for their Bitwarden service, and engineers writing a service that
+calls another through one.
+
 ## About
 
 The calling side of a Bitwarden service. A service publishes a client package for the others to call it with, and that
 package registers its client through this one. Every call then gets the caller's own credential, the request's
 context, one deadline, an idempotency key on each write the callee's contract marks for one, bounded retries, a circuit
-breaker per callee, and every failure turned into the exception it means. The package also holds `OutgoingCall`, which
-states whom one call is about, `Undo`, which takes back writes that span services, `ProductClient` for calling a
-product service with somebody's own token, and `ICachedReads<TClient>` for answering a read from the callee's own
-cache.
+breaker per callee, and every failure turned into the exception it means.
 
 It depends on Bitwarden.Server.Sdk.Context, Bitwarden.Server.Sdk.Errors, Bitwarden.Server.Sdk.Http,
 Bitwarden.Server.Sdk.Idempotency.Abstractions, Bitwarden.Server.Sdk.Resources.Caching.Abstractions,
@@ -56,23 +56,30 @@ Cached reads add these:
 | `Caching:Owned:InProcess:Lifetime`               | `00:00:30` | How long an index answer is held in the process.                                                                                                                                                                                                                                                                                                         |
 | `Caching:Owned:InProcess:Capacity`               | `10000`    | How many index answers one client holds.                                                                                                                                                                                                                                                                                                                 |
 
-Settings with a security trade-off:
+`CallerSecret`, `Tls:RequireHttps` and `Caching:Owned:AnswerSecret` carry a security trade-off; see
+[Gotchas and constraints](#gotchas-and-constraints).
 
-- **A shared secret proves less than a key.** With `CallerSecret`, services that share one secret can't be told apart
-  by it; the authorization server limits only what each client id may ask for. A `CallerKey` gives each service its
-  own key, and the authorization server holds only its public half. Prefer a `CallerKey`.
-- **Calls are a Secure Channel only over TLS.** Set `Tls:RequireHttps` so a plain address stops the host at startup:
-  every `AddBitwardenClient` address and the authorization server's, and a product client's conventional address. A
-  product client over a named client of your own is yours to check.
-- **A digest of a guessable key is confirmable.** A cached answer keyed by text, such as an email address, is looked up
-  by its digest. Without `Caching:Owned:AnswerSecret` the digest is unkeyed, so anyone who can read Redis and guesses
-  the text can confirm it.
+## Key concepts
+
+- **The caller's own credential, for one callee.** The caller signs in to the authorization server with client
+  credentials as `internal.{CallerName}`, for the scopes the client package declares and the one service it calls
+  (`audience`), and presents the token on every call. The first call obtains one; a timer replaces it at `RefreshAt` of
+  its life, and a call after that time, should the timer be late or the renewal fail, obtains one itself. Each token
+  names the one service it is for, so a token leaked at one callee is refused at every other. Tokens, keys and
+  assertions are never logged.
+- **One deadline per call.** `Timeout` covers the tokens the call obtains, every retry and every wait.
+- **Whose word each header is.** The owner headers and `Bitwarden-Context` are this service's word;
+  `Bitwarden-Delegation` is the authorization server's. The client removes any of these a call site set, and leaves out
+  a value of a shape the callee would refuse rather than send it.
+- **A statement is about one outgoing call, and proves nothing.** `IContext`, row-level security and the service's own
+  authorization never see an `OutgoingCall` statement, and the callee believes it as this service's word.
 
 ## Usage
 
 ### Publish a client for your service
 
-A service's client package registers its client, and a consumer calls that package's registration:
+A service's client package registers its client, and a consumer calls that package's registration. In the client
+package's `WidgetServiceClientRegistration.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Client;
@@ -104,12 +111,6 @@ keys. Embed it in the client implementation's project with
 `<EmbeddedResource Include="..\..\openapi.json" LogicalName="openapi.json" />`; the logical name must be exactly
 `openapi.json`.
 
-The caller signs in to the authorization server with client credentials as `internal.{CallerName}`, for the scopes
-the client package declares and the one service it calls (`audience`), and presents the token on every call. The first
-call obtains one; a timer replaces it at `RefreshAt` of its life, and a call after that time, should the timer be late
-or the renewal fail, obtains one itself. Each token names the one service it is for, so a token leaked at one callee is
-refused at every other. Tokens, keys and assertions are never logged.
-
 ### Sign in with a key instead of a secret
 
 With a `CallerKey`, every token request carries a client assertion (RFC 7523's `private_key_jwt`) in place of the
@@ -120,7 +121,7 @@ SubjectPublicKeyInfo of the key's public half.
 
 ### Catch what the callee refused
 
-A refusal arrives as the exception the callee threw, so a caller catches it by type:
+A refusal arrives as the exception the callee threw, so a caller catches it by type. In `WidgetLookup.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Errors;
@@ -175,15 +176,13 @@ Every call carries these headers, from `IContext` (Bitwarden.Server.Sdk.Context)
   (RFC 8693) from the request's own proof (`ICallerProof`) when the call carries the request's person, and from the
   service's own token otherwise.
 
-The owner headers and `Bitwarden-Context` are this service's word; `Bitwarden-Delegation` is the authorization
-server's. The client removes any of these a call site set, and leaves out a value of a shape the callee would refuse
-rather than send it. `IContext` is resolved from a fresh scope on each call, because the HTTP client factory pools
-handlers, so an implementation must read ambient state or be a singleton. Without one, no owner headers are sent and
-`Bitwarden-Context` carries only its version. Trace context needs nothing: `HttpClient` sends `traceparent` itself.
+Without an `IContext`, no owner headers are sent and `Bitwarden-Context` carries only its version. Trace context
+needs nothing: `HttpClient` sends `traceparent` itself.
 
 ### State whom one call is about
 
-A domain service sometimes asks about a person the request it is handling doesn't name. Wrap exactly that call:
+A domain service sometimes asks about a person the request it is handling doesn't name. Wrap exactly that call, as in
+`WidgetReads.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Client;
@@ -224,15 +223,7 @@ public sealed class WidgetReads(IWidgetClient widgets)
 | `WithoutProvider()`                              | Everything but the provider; allowed in a product service                           |
 | `AboutOrganizationWithoutProvider(organization)` | The organization, and everything but the provider                                   |
 
-- **One call.** The first call inside a statement uses it up; a second throws `InvalidOperationException`. Statements
-  nest, and disposing one restores the one before.
-- **Outgoing only.** `IContext`, row-level security and the service's own authorization never see a statement.
-- **Not in a product service**, but for `AboutCreatedOrganization` on an operation declared to create one
-  (`IOrganizationCreation`) and `WithoutProvider`: the call throws and sends nothing.
-- **Not on an event's actor.** While a service handles an event (`ContextScope.IsEvent`), a call is the service's own
-  (an `AsSystem` statement), names its person outright, or carries no person because the event names none. Any other
-  call is logged as a warning, or refused before it is sent with `OutgoingCall:RefuseEventActor`.
-- **Proves nothing.** The callee believes a statement as this service's word.
+Statements nest, and disposing one restores the one before.
 
 ### Rely on retries and idempotency keys
 
@@ -243,9 +234,6 @@ public sealed class WidgetReads(IWidgetClient widgets)
 - **Retries.** A `GET`, a `HEAD`, or a write with a key, is tried again up to `Retries` times when the connection
   failed or something in front of the callee answered `502`, `503` or `504`, with waits doubling from `RetryDelay`, all
   within the one deadline. The callee's own answers are never retried.
-- **A write without a key is retried only when its connection never opened** (refused, a name that didn't resolve, a
-  proxy that wouldn't tunnel). What that means for the operation is in Bitwarden.Server.Sdk.Idempotency's
-  [Opt an operation in](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Idempotency/src/PACKAGE.md#opt-an-operation-in).
 - **Still running.** A keyed write the callee is still running (`409` with `Retry-After`) is waited for; still running
   after the last retry, it is a `ServiceUnavailableException`.
 - **Circuit breaker.** After `BreakAfter` attempts in a row find the callee not there, calls to it are refused at once
@@ -255,7 +243,7 @@ public sealed class WidgetReads(IWidgetClient widgets)
 ### Take back writes when a later step is refused
 
 `Undo` records each write an operation made in another service, with what takes it back, and runs the next step inside
-a guard:
+a guard. In `Grants.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Client;
@@ -291,11 +279,7 @@ public interface IGadgetStore
 
 Undos run newest first, each on its own 30-second deadline (`Undo.Deadline`) rather than the request's token, and the
 step's own failure is thrown. `Undo.IsRefusal` says whether a failure shows the callee wrote nothing; any other failure
-may follow a write that landed. `GuardAsync` takes the writes back on any failure by default (`UndoOn.AnyFailure`),
-which suits a step that writes nothing elsewhere, such as a local save. Guard a step that calls another service with
-`UndoOn.Refusal`: a timeout, an unreachable service, a `5xx` or a cancelled request may follow a write that landed, and
-the writes before it are then kept. A failed undo is logged by the text given to `Add`, so that text names identifiers
-only.
+may follow a write that landed.
 
 Each write a client sends is also reported, before it is sent and once per call (a repeat carrying the same idempotency
 key is not counted again), to the operation running now (`ServiceWrites`, Bitwarden.Server.Sdk.Sagas). A write-method
@@ -303,7 +287,8 @@ call that only reads (`ReadingRoutes`, or `BitwardenClientOptions.ReadingPaths`)
 
 ### Call a product service
 
-A product service serves people, so its client presents a token the caller hands each call, never the caller's own:
+A product service serves people, so its client presents a token the caller hands each call, never the caller's own.
+In `GadgetsClient.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Client;
@@ -337,6 +322,35 @@ requires, the entry is not a tombstone, and its owner is the one the call names.
 unreachable or slower than 250 ms), is a miss, and after Redis fails every read skips the cache for 5 seconds. A hit
 uses up an `OutgoingCall` statement as the call would have. Nothing in this package writes to Redis. `Fieldsets` builds
 a sparse fieldset from a generated attributes class, keeping the attributes its contract requires.
+
+## Gotchas and constraints
+
+- **A shared secret proves less than a key.** With `CallerSecret`, services that share one secret can't be told apart
+  by it; the authorization server limits only what each client id may ask for. A `CallerKey` gives each service its
+  own key, and the authorization server holds only its public half. Prefer a `CallerKey`.
+- **Calls are a Secure Channel only over TLS.** Set `Tls:RequireHttps` so a plain address stops the host at startup:
+  every `AddBitwardenClient` address and the authorization server's, and a product client's conventional address. A
+  product client over a named client of your own is yours to check.
+- **A digest of a guessable key is confirmable.** A cached answer keyed by text, such as an email address, is looked up
+  by its digest. Without `Caching:Owned:AnswerSecret` the digest is unkeyed, so anyone who can read Redis and guesses
+  the text can confirm it.
+- **`IContext` is resolved from a fresh scope on each call,** because the HTTP client factory pools handlers, so an
+  implementation must read ambient state or be a singleton.
+- **A statement is used up by one call.** The first call inside a statement uses it up; a second throws
+  `InvalidOperationException`.
+- **No statements in a product service**, but for `AboutCreatedOrganization` on an operation declared to create one
+  (`IOrganizationCreation`) and `WithoutProvider`: the call throws and sends nothing.
+- **Not on an event's actor.** While a service handles an event (`ContextScope.IsEvent`), a call is the service's own
+  (an `AsSystem` statement), names its person outright, or carries no person because the event names none. Any other
+  call is logged as a warning, or refused before it is sent with `OutgoingCall:RefuseEventActor`.
+- **A write without a key is retried only when its connection never opened** (refused, a name that didn't resolve, a
+  proxy that wouldn't tunnel). What that means for the operation is in Bitwarden.Server.Sdk.Idempotency's
+  [Opt an operation in](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Idempotency/src/PACKAGE.md#opt-an-operation-in).
+- **Guard a step that calls another service with `UndoOn.Refusal`.** `GuardAsync` takes the writes back on any failure
+  by default (`UndoOn.AnyFailure`), which suits a step that writes nothing elsewhere, such as a local save. After a
+  timeout, an unreachable service, a `5xx` or a cancelled request, the step's write may have landed, and
+  `UndoOn.Refusal` keeps the writes before it.
+- **A failed undo is logged by the text given to `Add`,** so that text names identifiers only.
 
 ## Types
 
