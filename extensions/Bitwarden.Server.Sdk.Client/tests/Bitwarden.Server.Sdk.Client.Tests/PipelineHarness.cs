@@ -59,6 +59,12 @@ internal static class PipelineHarness
     internal static HttpResponseMessage Refused(HttpRequestMessage request) =>
         throw new HttpRequestException(HttpRequestError.ConnectionError, "Connection refused (callee.invalid:80)");
 
+    internal static HttpResponseMessage NeverOpened(HttpRequestMessage request) =>
+        throw new HttpRequestException(
+            HttpRequestError.ConnectionError,
+            "Connection refused (callee.invalid:80)",
+            new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.ConnectionRefused));
+
     internal static HttpResponseMessage Hang(HttpRequestMessage request) => throw new UnreachableException();
 
     internal static HttpResponseMessage StillRunning(HttpRequestMessage request)
