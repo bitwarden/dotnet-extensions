@@ -1,12 +1,14 @@
 # Bitwarden.Server.Sdk.Idempotency.Abstractions
 
+**Audience:** engineers changing this package.
+
 The idempotency key header and the operations whose writes repeat the same keys. See [PACKAGE.md](PACKAGE.md) for how
 to use it.
 
 ## What belongs here
 
 Only what both the side that sends a write and the side that receives it need. Nothing here touches `HttpContext` or
-`HttpClient`, and nothing here sends or honours the header. The package has no dependencies, and must keep none.
+`HttpClient`, and nothing here sends or honors the header. The package has no dependencies, and must keep none.
 
 ## How it works
 
