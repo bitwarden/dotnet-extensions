@@ -1,5 +1,7 @@
 # Bitwarden.Server.Sdk.Idempotency
 
+**Audience:** engineers changing this package.
+
 The middleware and store that do a keyed write from another Bitwarden service at most once. See
 [PACKAGE.md](PACKAGE.md) for how to use it.
 
