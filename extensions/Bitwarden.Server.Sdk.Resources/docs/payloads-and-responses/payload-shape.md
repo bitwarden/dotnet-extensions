@@ -118,7 +118,8 @@ public static class WidgetsEndpoints
   has no `data` object, is refused `422`.
 - Attributes the resource doesn't declare, and read-only ones (see
   [Standard fields](standard-fields.md)), are dropped, not refused.
-- If a body sends `id` or `type` both outside and inside `attributes`, the outside one wins.
+- `id` and `type` are read from beside `attributes` only, and every other member from inside it.
+  Anything else beside `attributes`, and an `id` or `type` inside it, is dropped.
 
 ## Check the id yourself
 

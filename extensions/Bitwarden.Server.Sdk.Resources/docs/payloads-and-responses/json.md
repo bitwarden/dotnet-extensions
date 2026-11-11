@@ -164,7 +164,7 @@ The package reads an enumeration value differently depending on where it arrives
   is refused `422`.
 - **A resource attribute:** the upper snake case name, exactly. A name the enumeration doesn't have
   is refused `422` with the permitted values. The right name in another case passes that check and
-  then fails with `500`.
+  is then refused `422` `invalid-value`.
 - **A plain JSON body:** the upper snake case name exactly, or any number, defined or not. Anything
   else is refused `422`.
 - **A plain route, query or header parameter:** the C# member name exactly, or any number, as
