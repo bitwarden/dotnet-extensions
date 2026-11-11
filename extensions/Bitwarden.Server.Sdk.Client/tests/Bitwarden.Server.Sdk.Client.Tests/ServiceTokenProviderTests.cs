@@ -1,5 +1,7 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
+using Bitwarden.Server.Sdk.Errors;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -209,6 +211,35 @@ public sealed class ServiceTokenProviderTests
         await Assert.ThrowsAsync<ServiceCallException>(() => provider.GetContextTokenAsync(Assertion, "a.person.token", Token));
     }
 
+    // A success whose body is no token (a proxy's page, a misrouted address) is Identity not answering, raised as the
+    // exception callers already handle rather than a raw JsonException.
+    [Fact]
+    public async Task GetAsync_ASuccessThatIsNotJson_ThrowsIdentityUnavailable()
+    {
+        var identity = new FakeIdentity(lifetimeSeconds: 3600) { Answer = "<html>Sign in</html>" };
+        using var provider = Provider(identity, new SettableClock());
+
+        var unavailable = await Assert.ThrowsAsync<ServiceUnavailableException>(() => provider.GetAsync(Token));
+
+        Assert.Equal(ServiceTokenProvider.Issuer, unavailable.Service);
+        Assert.IsAssignableFrom<JsonException>(unavailable.InnerException);
+    }
+
+    // A token answer with no access token is raised, never held and sent as an empty credential.
+    [Theory]
+    [InlineData("""{"expires_in":3600,"token_type":"Bearer"}""")]
+    [InlineData("""{"access_token":"","expires_in":3600}""")]
+    [InlineData("null")]
+    public async Task GetAsync_ASuccessWithNoAccessToken_Throws(string answer)
+    {
+        var identity = new FakeIdentity(lifetimeSeconds: 3600) { Answer = answer };
+        using var provider = Provider(identity, new SettableClock());
+
+        var failure = await Assert.ThrowsAsync<ServiceCallException>(() => provider.GetAsync(Token));
+
+        Assert.Equal(HttpStatusCode.InternalServerError, failure.Status);
+    }
+
     private static ServiceTokenProvider Provider(FakeIdentity identity, TimeProvider clock) =>
         new(
             new SingleClientFactory(identity),
@@ -251,6 +282,11 @@ public sealed class ServiceTokenProviderTests
         public bool Refuse { get; init; }
 
         /// <summary>
+        /// The body of every successful answer, in place of a token.
+        /// </summary>
+        public string? Answer { get; init; }
+
+        /// <summary>
         /// The last request's form, by field.
         /// </summary>
         public Dictionary<string, string>? Form { get; private set; }
@@ -270,7 +306,7 @@ public sealed class ServiceTokenProviderTests
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(
-                    $$"""{"access_token":"token-{{issued}}","expires_in":{{lifetimeSeconds}},"token_type":"Bearer"}""",
+                    Answer ?? $$"""{"access_token":"token-{{issued}}","expires_in":{{lifetimeSeconds}},"token_type":"Bearer"}""",
                     Encoding.UTF8,
                     "application/json"),
             };

@@ -41,8 +41,18 @@ public sealed class PerCallIdempotencyKeysAttributeTests
         Assert.Throws<ArgumentNullException>(() => PerCallIdempotencyKeysAttribute.IsOn(null!));
     }
 
+    // The reason is required on a host's path too, not only when the attribute is built directly.
+    [Fact]
+    public void IsOn_ATypeMarkedWithABlankReason_Throws()
+    {
+        Assert.Throws<ArgumentException>(() => PerCallIdempotencyKeysAttribute.IsOn(typeof(OptedOutWithoutAReason)));
+    }
+
     [PerCallIdempotencyKeys("A test type.")]
     private class OptedOut;
+
+    [PerCallIdempotencyKeys(" ")]
+    private sealed class OptedOutWithoutAReason;
 
     private sealed class DerivedFromOptedOut : OptedOut;
 }
