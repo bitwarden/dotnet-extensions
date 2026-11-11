@@ -42,8 +42,10 @@ the host at startup, naming the keys that would have supplied it, for example
 
 The `services:{name}:...` keys are what .NET Aspire publishes for a referenced service, and
 `Authentication:Schemes:Bearer:Authority` is the key the serving side reads, so one setting configures both
-directions. `Timeout` (30 seconds), `Retries` (2, at most 2), `RetryDelay` (200 ms), `BreakAfter` (5), `BreakFor`
-(5 seconds) and `RefreshAt` (0.8 of a token's life) are set in code, through `AddBitwardenClient`'s `configure`.
+directions. `Timeout` (30 seconds), `Retries` (2, at most 2) and `RetryDelay` (200 ms) are read from
+`Services:{Name}:Timeout`, `:Retries` and `:RetryDelay` where set, after `AddBitwardenClient`'s `configure`, so a
+deployment can tune one callee. `BreakAfter` (5), `BreakFor` (5 seconds) and `RefreshAt` (0.8 of a token's life) are
+set in code, through `configure`.
 
 Cached reads add these:
 
