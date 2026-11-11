@@ -38,6 +38,9 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Client/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Client/src/Bitwarden.Server.Sdk.Client.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Client/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Client/tests/Bitwarden.Server.Sdk.Client.Tests/Bitwarden.Server.Sdk.Client.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Context/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Context/src/Bitwarden.Server.Sdk.Context.csproj" />
   </Folder>
