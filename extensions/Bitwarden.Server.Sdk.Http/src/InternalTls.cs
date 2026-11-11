@@ -226,7 +226,12 @@ public sealed class InternalTls
             return true;
         }
 
-        if (errors != SslPolicyErrors.RemoteCertificateChainErrors || certificate is null || chain is null || authorities.Count == 0)
+        if (errors != SslPolicyErrors.RemoteCertificateChainErrors)
+        {
+            return false;
+        }
+
+        if (certificate is null || chain is null || authorities.Count == 0)
         {
             return false;
         }

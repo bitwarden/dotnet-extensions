@@ -177,7 +177,7 @@ public sealed class RequestRefusalTests
         http.Request.Headers["X-Level"] = "high";
         var errors = new List<ModelError>();
 
-        RequestRefusal.CheckMembers(http, Parameter(nameof(Handlers.Members), "query"), errors, []);
+        RequestRefusal.CheckMembers(http, Parameter(nameof(Handlers.Members), "query"), errors);
 
         Assert.Equal(
             [
@@ -195,7 +195,7 @@ public sealed class RequestRefusalTests
         var http = Form(new() { ["n"] = "many" });
         var errors = new List<ModelError>();
 
-        RequestRefusal.CheckMembers(http, Parameter(nameof(Handlers.Members), "form"), errors, []);
+        RequestRefusal.CheckMembers(http, Parameter(nameof(Handlers.Members), "form"), errors);
 
         Assert.Equal([new ModelError("n", "The value 'many' is not valid for Count.")], errors);
     }
@@ -205,7 +205,7 @@ public sealed class RequestRefusalTests
     {
         var errors = new List<ModelError>();
 
-        RequestRefusal.CheckMembers(Http("?n=many"), Parameter(nameof(Handlers.Members), "form"), errors, []);
+        RequestRefusal.CheckMembers(Http("?n=many"), Parameter(nameof(Handlers.Members), "form"), errors);
 
         Assert.Empty(errors);
     }

@@ -215,7 +215,7 @@ internal static class StandardEndpointFilter
                     break;
 
                 case ParameterKind.Model:
-                    RequestRefusal.CheckMembers(http, parameter, errors, sources);
+                    RequestRefusal.CheckMembers(http, parameter, errors);
 
                     if (argument is not null && !errors.Any())
                     {
