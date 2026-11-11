@@ -4,7 +4,7 @@ A Bitwarden service is a class deriving from `Service`. The base class owns star
 order, and your service fills in only the hooks it needs. Startup registers the packages `Service` is
 made of, such as Bitwarden.Server.Sdk.Authorization and Bitwarden.Server.Sdk.Resources, so the
 service references Bitwarden.Server.Sdk.Service alone (see
-[What it is made of](../../README.md#what-it-is-made-of)).
+[What it is made of](../../src/PACKAGE.md#about)).
 
 ## Write the entry point
 

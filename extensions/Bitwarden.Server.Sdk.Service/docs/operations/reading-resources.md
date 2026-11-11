@@ -58,7 +58,7 @@ public static class WidgetsEndpoints
 
 - **Query parameters bind to handler parameters.** `Fields<Widget>` binds a sparse fieldset, and
   `PageNumber` and `PageSize` bind the page asked for. A `filter[...]` that no parameter declares is
-  refused.
+  ignored, not refused.
 - **Both reads answer `200`.** A collection read that finds nothing answers `200` with an empty
   list, so don't throw for an empty page.
 - **Throw `NotFoundException`** (from `Bitwarden.Server.Sdk.Errors`) for a resource that doesn't

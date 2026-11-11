@@ -51,7 +51,7 @@ internal sealed class WidgetGate(IMemoryCache cache, IWidgetPolicies policies)
 
 A package contributes to every service that references it by declaring an `IServiceExtension` on its
 assembly. `IServiceExtension` and `[ServiceExtension]` are in
-[Bitwarden.Server.Sdk.Service.Abstractions](../../../Bitwarden.Server.Sdk.Service.Abstractions/src/README.md)
+[Bitwarden.Server.Sdk.Service.Abstractions](../../../Bitwarden.Server.Sdk.Service.Abstractions/src/PACKAGE.md)
 (namespace `Bitwarden.Server.Sdk.Service`), so the extending package references that and not
 Bitwarden.Server.Sdk.Service:
 
@@ -86,7 +86,7 @@ public sealed class WidgetAuditExtension : IServiceExtension
 ## Add to the standard endpoints from a package
 
 A package that adds to the standard endpoints has three more seams, in
-[Bitwarden.Server.Sdk.Resources](../../../Bitwarden.Server.Sdk.Resources/README.md): the
+[Bitwarden.Server.Sdk.Resources](../../../Bitwarden.Server.Sdk.Resources/src/PACKAGE.md): the
 `Bitwarden.Server.Sdk.Resources.Endpoints` namespace and `StandardResponses`.
 
 - **`IStandardEndpointFilterProvider`** adds an endpoint filter to every standard endpoint it

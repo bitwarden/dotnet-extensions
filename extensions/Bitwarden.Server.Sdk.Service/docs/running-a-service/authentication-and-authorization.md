@@ -3,7 +3,7 @@
 Every operation a service maps is authenticated and authorized unless it says otherwise. You
 declare what operations demand with `AuthorizationDefaults` on the service and `[Authorization]` on
 a handler or its class. These types, and the checks behind them, are in
-[Bitwarden.Server.Sdk.Authorization](../../../Bitwarden.Server.Sdk.Authorization/src/README.md), which
+[Bitwarden.Server.Sdk.Authorization](../../../Bitwarden.Server.Sdk.Authorization/src/PACKAGE.md), which
 `Service` registers for you.
 
 ## Set the service's defaults
@@ -255,4 +255,4 @@ authorization.
 - [Context](context.md)
 - [Defining a service](defining-a-service.md)
 - [Outbound HTTP](outbound-http.md)
-- [Errors](../../../Bitwarden.Server.Sdk.Resources/docs/payloads-and-responses/errors.md)
+- [Errors](../payloads-and-responses/errors.md)
