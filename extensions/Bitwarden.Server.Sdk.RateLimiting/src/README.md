@@ -1,5 +1,7 @@
 # Bitwarden.Server.Sdk.RateLimiting
 
+**Audience:** engineers changing this package.
+
 Per-address request limits for Bitwarden services, counted in the process or in a shared Redis. See
 [PACKAGE.md](PACKAGE.md) for how to use it.
 
