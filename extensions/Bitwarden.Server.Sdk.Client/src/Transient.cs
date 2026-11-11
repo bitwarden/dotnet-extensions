@@ -20,6 +20,21 @@ internal static class Transient
             or HttpRequestError.ProxyTunnelError;
 
     /// <summary>
+    /// A connection that never opened: refused, a name that didn't resolve, or a proxy that wouldn't tunnel. Nothing of
+    /// the request reached the callee, so even a write without an <c>Idempotency-Key</c> can be sent again.
+    /// </summary>
+    public static bool NeverSent(HttpRequestException exception) =>
+        exception.HttpRequestError is HttpRequestError.NameResolutionError or HttpRequestError.ProxyTunnelError
+        || (exception.HttpRequestError is HttpRequestError.ConnectionError
+            && exception.InnerException is System.Net.Sockets.SocketException
+            {
+                SocketErrorCode: System.Net.Sockets.SocketError.ConnectionRefused
+                    or System.Net.Sockets.SocketError.HostUnreachable
+                    or System.Net.Sockets.SocketError.NetworkUnreachable
+                    or System.Net.Sockets.SocketError.HostNotFound
+            });
+
+    /// <summary>
     /// A <c>502</c>, <c>503</c> or <c>504</c> from something in front of the service (a proxy, a load balancer), not an
     /// answer of the service's own: it carries no JSON error document. A service's own <c>503</c> says what it is
     /// waiting for (a dependency down, a key rotation in progress) and is its answer; retrying it would multiply
