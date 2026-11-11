@@ -1,5 +1,7 @@
 # Bitwarden.Server.Sdk.Context
 
+**Audience:** engineers changing this package.
+
 Who and what a call between Bitwarden services concerns, and how the call carries it. See [PACKAGE.md](PACKAGE.md)
 for how to use it.
 
