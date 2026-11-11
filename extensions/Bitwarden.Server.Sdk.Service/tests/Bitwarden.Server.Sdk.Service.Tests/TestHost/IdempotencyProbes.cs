@@ -31,6 +31,7 @@ public static class IdempotencyProbes
     /// <summary>
     /// Counts, and answers 201 with where and what it wrote.
     /// </summary>
+    [AcceptsIdempotencyKey]
     public static Created<IdempotencyProbeAnswer> Write(IdempotencyProbeNote note, [FromServices] IdempotencyProbeCounter counter)
     {
         var count = counter.Increment();
@@ -40,19 +41,20 @@ public static class IdempotencyProbes
     /// <summary>
     /// Counts, and answers 200.
     /// </summary>
+    [AcceptsIdempotencyKey]
     public static Ok<IdempotencyProbeAnswer> Replace(string id, IdempotencyProbeNote note, [FromServices] IdempotencyProbeCounter counter) =>
         TypedResults.Ok(new IdempotencyProbeAnswer(counter.Increment(), $"{id}:{note.Note}"));
 
     /// <summary>
-    /// Counts, whatever key it carries.
+    /// Counts, whatever key it carries: it doesn't accept keys.
     /// </summary>
-    [IgnoreIdempotencyKey]
     public static Ok<IdempotencyProbeAnswer> WriteIgnoringKeys(IdempotencyProbeNote note, [FromServices] IdempotencyProbeCounter counter) =>
         TypedResults.Ok(new IdempotencyProbeAnswer(counter.Increment(), note.Note));
 
     /// <summary>
     /// Counts, and answers 500 itself.
     /// </summary>
+    [AcceptsIdempotencyKey]
     public static StatusCodeHttpResult Fail([FromServices] IdempotencyProbeCounter counter)
     {
         counter.Increment();
@@ -62,6 +64,7 @@ public static class IdempotencyProbes
     /// <summary>
     /// Counts, and throws, which the platform answers 500.
     /// </summary>
+    [AcceptsIdempotencyKey]
     public static Ok Throw([FromServices] IdempotencyProbeCounter counter)
     {
         counter.Increment();
@@ -71,6 +74,7 @@ public static class IdempotencyProbes
     /// <summary>
     /// Counts, then waits for the test to let it finish.
     /// </summary>
+    [AcceptsIdempotencyKey]
     public static async Task<Ok<IdempotencyProbeAnswer>> WriteSlowly(IdempotencyProbeNote note, [FromServices] IdempotencyProbeCounter counter)
     {
         var count = counter.Increment();
