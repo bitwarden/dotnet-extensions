@@ -40,9 +40,13 @@ internal static class Transient
     /// waiting for (a dependency down, a key rotation in progress) and is its answer; retrying it would multiply
     /// retries down a chain of calls.
     /// </summary>
-    public static bool Is(HttpResponseMessage response) =>
-        response.StatusCode is HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout
-        && !(response.Content.Headers.ContentType?.MediaType?.EndsWith("json", StringComparison.OrdinalIgnoreCase) ?? false);
+    public static bool Is(HttpResponseMessage response)
+    {
+        var unavailable = response.StatusCode is HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout;
+        var servicesOwnAnswer = response.Content.Headers.ContentType?.MediaType?.EndsWith("json", StringComparison.OrdinalIgnoreCase) ?? false;
+
+        return unavailable && !servicesOwnAnswer;
+    }
 
     /// <summary>
     /// The callee still running an earlier attempt of this keyed write: a <c>409</c> with <c>Retry-After</c>
