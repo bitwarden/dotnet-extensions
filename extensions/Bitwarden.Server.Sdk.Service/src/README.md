@@ -1,8 +1,7 @@
 # Bitwarden.Server.Sdk.Service
 
 The `Service` base class and the fixed startup order every Bitwarden .NET service runs. See
-[PACKAGE.md](PACKAGE.md) for using it, and the [developer guide](../docs/README.md) for writing a
-service with it.
+[PACKAGE.md](PACKAGE.md) for using it.
 
 ## What belongs here
 
@@ -101,7 +100,7 @@ the same files without it, covering the runtime request delegate factory. A chan
 
 ## Documentation
 
-- **`docs/`** is the developer guide for Service and Resources together: `docs/README.md` is its
+- **[`docs/`](../docs/README.md)** is the developer guide for Service and Resources together: `docs/README.md` is its
   table of contents, and each topic has a page of its own. List a new page there.
 - **Each page** is code a service writes and what the developer needs to know about it. It doesn't
   restate or link the API standards, and it shows no example requests or responses.
