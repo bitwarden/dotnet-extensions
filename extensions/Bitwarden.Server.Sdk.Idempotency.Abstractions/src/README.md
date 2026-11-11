@@ -7,8 +7,9 @@ and a service that honours it does the write at most once per key, replaying its
 package names that header and lets a piece of work, such as a message handler or a job, name itself once, so that when
 it runs again from the start its writes carry the same keys as the first time.
 
-- **The header.** `IdempotencyKeys` names `Idempotency-Key` and `Idempotency-Replayed`, and says which keys are
-  valid: 1 to 255 visible ASCII characters.
+- **The header.** `IdempotencyKeys` names `Idempotency-Key` and `Idempotency-Replayed`, says which keys are valid
+  (1 to 255 visible ASCII characters), and names the contract extension, `x-bitwarden-idempotency-key`, with which a
+  service marks the operations that honour it.
 - **Operations that repeat their keys.** Inside `IdempotentOperation.Begin(key)`, each write's key is derived from the
   operation's key, the method, the address, the body, and how many identical writes the operation made before.
 - **Identifiers that repeat too.** `IdempotentOperation.DeriveId(purpose)` gives the same identifier on every run, for
