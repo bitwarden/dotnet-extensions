@@ -138,6 +138,9 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Resources/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Resources/src/Bitwarden.Server.Sdk.Resources.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Resources/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Resources/tests/Bitwarden.Server.Sdk.Resources.Tests/Bitwarden.Server.Sdk.Resources.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.RestrictedDependencies/">
     <Project Path="extensions/Bitwarden.Server.Sdk.RestrictedDependencies/src/Bitwarden.Server.Sdk.RestrictedDependencies.csproj" />
   </Folder>
