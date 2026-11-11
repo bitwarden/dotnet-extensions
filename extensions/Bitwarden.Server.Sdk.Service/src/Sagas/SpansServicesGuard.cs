@@ -22,7 +22,7 @@ internal sealed class SpansServicesGuard(
     /// Where a newcomer reads what to do.
     /// </summary>
     internal const string Guide =
-        "Read the Bitwarden.Server.Sdk.Sagas README to choose the shape";
+        "Read the Bitwarden.Server.Sdk.Sagas PACKAGE.md to choose the shape";
 
     public void Spanned(string operation, IReadOnlyList<string> steps, SpanDeclarationAttribute? declared)
     {
