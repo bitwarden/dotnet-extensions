@@ -76,7 +76,8 @@ internal static class ModelValidation
     /// <param name="errors">Where failures are added.</param>
     public static void Validate(object model, string prefix, IServiceProvider services, List<ModelError> errors)
     {
-        Visit(model, model.GetType(), prefix, services, errors, depth: 0, visited: new HashSet<object>(ReferenceEqualityComparer.Instance));
+        Visit(model, model.GetType(), prefix, services, errors, depth: 0, visited: new HashSet<object>(ReferenceEqualityComparer.Instance),
+            container: model);
     }
 
     /// <summary>
@@ -86,7 +87,7 @@ internal static class ModelValidation
     public static void ValidateBound(object model, IServiceProvider services, List<ModelError> errors)
     {
         Visit(model, model.GetType(), string.Empty, services, errors, depth: 0,
-            visited: new HashSet<object>(ReferenceEqualityComparer.Instance), boundNames: true);
+            visited: new HashSet<object>(ReferenceEqualityComparer.Instance), container: model, boundNames: true);
     }
 
     /// <summary>
@@ -102,6 +103,12 @@ internal static class ModelValidation
     /// <summary>
     /// Visits a complex value: its members, then, if they pass, its own rules.
     /// </summary>
+    /// <remarks>
+    /// <c>container</c> is set when the value's type's own attributes are this visit's to run: the
+    /// model itself at the root, or the list or dictionary an item is in, which is what a controller
+    /// hands those attributes as the object being validated. It is null for a member's value, whose
+    /// member runs them alongside its own.
+    /// </remarks>
     private static bool Visit(
         object model,
         Type type,
@@ -110,6 +117,7 @@ internal static class ModelValidation
         List<ModelError> errors,
         int depth,
         HashSet<object> visited,
+        object? container = null,
         bool boundNames = false)
     {
         // Once the errors are full nothing more is recorded, so the value has not passed and the
@@ -149,7 +157,7 @@ internal static class ModelValidation
                         throw TooDeep($"{key}[{entryKey}]");
                     }
 
-                    Visit(value, value.GetType(), $"{key}[{entryKey}]", services, errors, depth + 1, visited);
+                    Visit(value, value.GetType(), $"{key}[{entryKey}]", services, errors, depth + 1, visited, container: model);
                 }
             }
         }
@@ -171,7 +179,7 @@ internal static class ModelValidation
                         throw TooDeep($"{key}[{index}]");
                     }
 
-                    Visit(item, item.GetType(), $"{key}[{index}]", services, errors, depth + 1, visited);
+                    Visit(item, item.GetType(), $"{key}[{index}]", services, errors, depth + 1, visited, container: model);
                 }
 
                 index++;
@@ -213,7 +221,13 @@ internal static class ModelValidation
             return false;
         }
 
-        // The object's own rules, only once everything in it passes.
+        // The object's own rules, only once everything in it passes: its class-level attributes, then
+        // its IValidatableObject, all of them run as a controller runs them.
+        if (container is not null)
+        {
+            RunOwn(model, container, type, key, services, errors);
+        }
+
         if (model is IValidatableObject validatable)
         {
             var context = new ValidationContext(model, services, items: null) { DisplayName = type.Name };
@@ -275,6 +289,36 @@ internal static class ModelValidation
             foreach (var other in others)
             {
                 Add(errors, new ModelError(Join(key, other), message));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Runs a type's own validation attributes against a value that is not a member's: the model
+    /// itself, or an item in a list or dictionary.
+    /// </summary>
+    private static void RunOwn(object model, object container, Type type, string key, IServiceProvider services, List<ModelError> errors)
+    {
+        foreach (var validator in type.GetCustomAttributes(inherit: true).OfType<ValidationAttribute>())
+        {
+            var context = new ValidationContext(container, services, items: null) { DisplayName = type.Name };
+            var result = validator.GetValidationResult(model, context);
+
+            if (result == ValidationResult.Success || result is null)
+            {
+                continue;
+            }
+
+            var names = result.MemberNames?.ToList() ?? [];
+
+            if (names.Count == 0)
+            {
+                Add(errors, new ModelError(key, result.ErrorMessage ?? string.Empty));
+            }
+
+            foreach (var name in names)
+            {
+                Add(errors, new ModelError(Join(key, name), result.ErrorMessage ?? string.Empty));
             }
         }
     }

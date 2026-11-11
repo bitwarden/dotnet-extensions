@@ -307,11 +307,11 @@ public sealed class ServiceTokenProvider : IServiceTokenProvider, IDisposable
     /// <param name="refused">Why Identity might refuse it, for the one who reads the log.</param>
     /// <param name="cancellationToken">The call's own, bounded by its client's deadline.</param>
     /// <exception cref="ServiceUnavailableException">
-    /// Identity could not be reached, did not answer within <see cref="RequestTimeout"/>, or answered <c>502</c>,
-    /// <c>503</c> or <c>504</c>.
+    /// Identity could not be reached, did not answer within <see cref="RequestTimeout"/>, answered <c>502</c>,
+    /// <c>503</c> or <c>504</c>, or answered a success whose body is not JSON.
     /// </exception>
     /// <exception cref="ServiceCallException">
-    /// Identity refused, or answered anything else unsuccessful. Its <see cref="ServiceCallException.Status"/> is
+    /// Identity refused, answered anything else unsuccessful, or answered with no access token. Its <see cref="ServiceCallException.Status"/> is
     /// <c>500</c>, this service's own failure, so no caller reads Identity's status as the callee's (a <c>404</c> as
     /// "not found"); Identity's status is in the message and the inner <see cref="HttpRequestException.StatusCode"/>.
     /// </exception>
@@ -349,10 +349,29 @@ public sealed class ServiceTokenProvider : IServiceTokenProvider, IDisposable
                     new HttpRequestException(message, null, response.StatusCode));
             }
 
-            return await response.Content.ReadFromJsonAsync(ServiceClientJsonContext.Default.IssuedToken, cancellationToken)
-                ?? throw new ServiceCallException(
+            IssuedToken? issued;
+
+            try
+            {
+                issued = await response.Content.ReadFromJsonAsync(ServiceClientJsonContext.Default.IssuedToken, cancellationToken);
+            }
+            catch (JsonException exception)
+            {
+                // A success whose body is no token at all (a proxy's page, a misrouted address): Identity was not the
+                // one that answered.
+                throw new ServiceUnavailableException(
+                    Issuer,
+                    $"answered {(int)response.StatusCode} with no readable token when asked for {what} for calls to {_options.Audience}",
+                    exception);
+            }
+
+            // A token answer with no access token would send the call with no credential, and the callee's 401 would
+            // point at the wrong place.
+            return issued is { AccessToken.Length: > 0 }
+                ? issued
+                : throw new ServiceCallException(
                     HttpStatusCode.InternalServerError,
-                    $"The token endpoint returned nothing when asked for {what}.");
+                    $"The token endpoint returned no access token when asked for {what}.");
         }
         catch (HttpRequestException exception)
         {
