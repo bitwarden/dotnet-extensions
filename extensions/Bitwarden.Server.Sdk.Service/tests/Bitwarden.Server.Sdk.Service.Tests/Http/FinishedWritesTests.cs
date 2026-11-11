@@ -53,6 +53,26 @@ public sealed class FinishedWritesTests
         Assert.True(connection.Aborted);
     }
 
+    // Only the client's leaving is ignored: a token the pipeline assigns, as request timeouts do, still applies.
+    [Fact]
+    public async Task AWrite_GivenATokenByThePipeline_SeesIt()
+    {
+        var connection = new Connection();
+        connection.Leave();
+        var http = Context("POST", connection);
+        using var timeout = new CancellationTokenSource();
+        var seen = default(CancellationToken);
+
+        await new FinishedWrites(context =>
+        {
+            context.RequestAborted = timeout.Token;
+            seen = context.RequestAborted;
+            return Task.CompletedTask;
+        }).InvokeAsync(http);
+
+        Assert.Equal(timeout.Token, seen);
+    }
+
     private static async Task<CancellationToken> Seen(string method, Connection connection)
     {
         var http = Context(method, connection);
