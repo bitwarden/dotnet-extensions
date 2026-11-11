@@ -1,5 +1,7 @@
 # Bitwarden.Server.Sdk.Resources
 
+**Audience:** engineers changing this package.
+
 What a Bitwarden service's API looks like to its callers: resource documents, standard operations
 and their checks, the error document, querying, bulk operations and their OpenAPI description. See
 [PACKAGE.md](PACKAGE.md) for using it.
@@ -13,7 +15,7 @@ Bitwarden.Server.Sdk.Errors.
 
 - **Entry points stay few and explicit:** `AddStandardErrors`, `AddStandardEndpoints`,
   `UseStandardStatusCodePages`, `WithStandards`, `RequireStandards` and `DescribeResources`. Service
-  calls them for every service. A new behaviour hangs off one of these rather than asking each
+  calls them for every service. A new behavior hangs off one of these rather than asking each
   service for another call.
 - **Zero knowledge.** `[Encrypted]` checks an encrypted value's length and shape and nothing else.
   Nothing here decrypts, logs or inspects an encrypted value, and no test fixture holds plaintext

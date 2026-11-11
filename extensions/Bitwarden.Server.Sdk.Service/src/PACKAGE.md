@@ -1,10 +1,12 @@
 # Bitwarden.Server.Sdk.Service
 
+**Audience:** engineers writing a Bitwarden .NET service.
+
 ## About
 
 The package a Bitwarden .NET service references. A service derives one class from `Service`, gives
-it an identifier and a title, and maps its endpoints as minimal APIs. `Service` owns the rest of
-startup in a fixed order, because the order of registration and middleware is security-relevant.
+it an identifier and a title, and maps its endpoints as minimal APIs; `Service` does the rest of
+startup.
 
 A service references this package alone. It brings these packages, and registers them in the order security needs:
 
@@ -27,14 +29,7 @@ A service references this package alone. It brings these packages, and registers
 | [Features](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Features/src/PACKAGE.md)                                             | Feature flags: `IFeatureService` and `[RequireFeature]`.                             |
 
 All are `Bitwarden.Server.Sdk.*`. It also brings ASP.NET Core's OpenAPI generator, an embedded
-documentation UI and the OpenTelemetry exporter and instrumentation. `Service` itself keeps the base
-class and its startup order, self-hosting, the system endpoints and health probes, telemetry, the
-documentation UI, a product service's config resource, serving internal TLS, finishing writes whose
-client left, the guard on operations whose writes span services, and `GetOrResolveOnceAsync`.
-
-Bitwarden services are zero knowledge: they store and synchronize Vault Data only as Protected Data,
-encrypted on the client. Nothing in this package decrypts an encrypted value. A resource declares an
-encrypted member with `[Encrypted]` (Data.Abstractions).
+documentation UI and the OpenTelemetry exporter and instrumentation.
 
 ## Installing
 
@@ -42,9 +37,24 @@ encrypted member with `[Encrypted]` (Data.Abstractions).
 dotnet add package Bitwarden.Server.Sdk.Service --prerelease
 ```
 
+## Key concepts
+
+- **`Service` owns startup, in a fixed order,** because the order of registration and middleware is
+  security-relevant. A service fills in only the hooks it needs; see
+  [Defining a service](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/running-a-service/defining-a-service.md).
+- **There are three kinds of service:** a domain service (the default), a product service and a
+  product domain service. They differ in who calls them and what they believe about a request; see
+  [Choose the kind of service](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/running-a-service/defining-a-service.md#choose-the-kind-of-service).
+- **A resource** is a record deriving from `Resource`, which handlers take and return wrapped in a
+  document; see [Payload shape](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/payloads-and-responses/payload-shape.md). Each handler carries one
+  standard attribute; see [Verbs](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/operations/verbs.md).
+- **Bitwarden services are zero knowledge:** they store and synchronize Vault Data only as Protected
+  Data, encrypted on the client. Nothing in this package decrypts an encrypted value. A resource
+  declares an encrypted member with `[Encrypted]` (Data.Abstractions).
+
 ## Getting started
 
-In a `Microsoft.NET.Sdk.Web` project, turn on the request delegate generator and XML documentation.
+In the project file of a `Microsoft.NET.Sdk.Web` project, turn on the request delegate generator and XML documentation.
 A handler documents only what a caller sends, not the services it takes, so `CS1573` is off as well
 as `CS1591`:
 
@@ -128,30 +138,26 @@ Run it and open its address: `/` redirects to the documentation UI. Every operat
 documentation and health probes answers `401` until the caller sends a token from the Identity
 service named in `Authentication:Schemes:Bearer:Authority`.
 
-## Writes that span services
+## Gotchas and constraints
 
-`Service` notices an operation that writes to another service and anywhere else without declaring,
-with `[SpansServices]` (Sagas), how it handles a failure part way. This check is the innermost of the
-platform's middleware, inside idempotency keys, so a replayed answer isn't counted.
-
-- It logs a warning and counts the operation in `bitwarden.operation.spans`. With
-  `SpansServices:RefuseUndeclared` on (default `false`) it also refuses the write, as an unexpected
-  failure. Turn it on in tests and Development.
-- `[SpansServicesUnhandled]` admits a known defect: logged and counted as loudly, never refused.
-- [Sagas](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Sagas/src/PACKAGE.md)
-  describes the shapes to choose from.
-
-## Idempotency keys
-
-`Service` turns on
-[Idempotency](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Idempotency/src/PACKAGE.md)
-for every service, after authorization and the feature-flag checks, so a refusal is never recorded.
-A write is done at most once only when its operation is marked `[AcceptsIdempotencyKey]`; Idempotency's
-[Opt an operation in](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Idempotency/src/PACKAGE.md#opt-an-operation-in)
-shows how, and its PACKAGE.md lists the `Idempotency:*` settings.
-
-## Things to know
-
+- **Declare an operation whose writes span services.** `Service` notices an operation that writes to
+  another service and anywhere else without declaring, with `[SpansServices]` (Sagas), how it
+  handles a failure part way. It logs a warning and counts the operation in
+  `bitwarden.operation.spans`. With `SpansServices:RefuseUndeclared` on (default `false`) it also
+  refuses the write, as an unexpected failure; turn it on in tests and Development.
+  `[SpansServicesUnhandled]` admits a known defect: logged and counted as loudly, never refused.
+  This check is the innermost of the platform's middleware, inside idempotency keys, so a replayed
+  answer isn't counted.
+  [Sagas](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Sagas/src/PACKAGE.md) describes the shapes to choose from.
+- **A write is done at most once only when its operation is marked `[AcceptsIdempotencyKey]`.**
+  `Service` turns on
+  [Idempotency](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Idempotency/src/PACKAGE.md)
+  for every service, after authorization and the feature-flag checks, so a refusal is never
+  recorded. Idempotency's
+  [Opt an operation in](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Idempotency/src/PACKAGE.md#opt-an-operation-in)
+  shows how, and its PACKAGE.md lists the `Idempotency:*` settings.
+- **Roles don't work in a domain service,** and startup doesn't refuse a role requirement there; see
+  [Authentication and authorization](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/running-a-service/authentication-and-authorization.md#things-to-know).
 - **The documentation UI's token URL** is `{url}/connect/token` from `Service:PublicIdentityUrl`, or
   else from `Authentication:Schemes:Bearer:Authority`, `globalSettings:baseServiceUri:internalIdentity`
   or `globalSettings:baseServiceUri:identity`, the first set. With none, the OpenAPI document has no
