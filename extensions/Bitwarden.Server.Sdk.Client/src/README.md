@@ -16,7 +16,7 @@ ordinary way. Every call then goes through one pipeline:
 - **Failures as exceptions.** A refusal becomes the exception the callee threw (`NotFoundException`,
   `ConflictException` and the rest), and a callee that can't be reached or doesn't answer in time becomes a
   `ServiceUnavailableException` naming it.
-- **Resilience.** One deadline per call, an idempotency key on every write, bounded retries of a callee that wasn't
+- **Resilience.** One deadline per call, an idempotency key on each write the callee's contract accepts one for, bounded retries of a callee that wasn't
   there, and a circuit breaker per callee.
 - **Writes that span services.** Each write is reported to the operation running now, and `Undo` takes back the
   writes an operation made elsewhere when a later step is refused.
@@ -271,7 +271,7 @@ A change must keep:
 
 - **One deadline per call**, covering the tokens the call obtains as well as the call, with the authorization server's
   failure said as its own and never as the callee's.
-- **Retries only of what is safe to send twice**: a `GET` or `HEAD`, or a write carrying an idempotency key, and never
-  an answer the callee gave itself.
+- **Retries only of what is safe to send twice**: a `GET` or `HEAD`, a write carrying an idempotency key, or a write
+  whose connection never opened, and never an answer the callee gave itself.
 - **Context written in one place.** `ContextHandler` writes every context header and removes whatever a call site set.
 - **No secret in a log, a message or `ToString()`.**
