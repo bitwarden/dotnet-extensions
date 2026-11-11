@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Bitwarden.Server.Sdk.Client;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -17,6 +18,53 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </remarks>
 public static class BitwardenClientServiceCollectionExtensions
 {
+    /// <summary>
+    /// Lets <typeparamref name="TClient"/> answer the reads its service declares cacheable from
+    /// that service's owned cache (<see cref="ICachedReads{TClient}"/>).
+    /// </summary>
+    /// <typeparam name="TClient">
+    /// The client implementation; its assembly must embed the service's contract as
+    /// <c>openapi.json</c>, which is where the declarations are read from.
+    /// </typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <param name="serviceName">The service being called, as its client registers it.</param>
+    /// <returns>The service collection.</returns>
+    /// <remarks>
+    /// Called by the client package a service publishes, beside <c>AddBitwardenClient</c>. With no
+    /// <c>Caching:Owned:Redis:Configuration</c> every read is a miss and the service is asked. With
+    /// one, outside <c>Development</c>, the host refuses to start without
+    /// <c>Caching:Owned:AnswerSecret</c>.
+    /// </remarks>
+    public static IServiceCollection AddCachedReads<TClient>(this IServiceCollection services, string serviceName)
+        where TClient : class
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+
+        // At startup, not on the first read: a deployment missing the answer secret fails to start.
+        services.AddOptions<AnswerSecretCheck>()
+            .Configure<IConfiguration, IHostEnvironment>((check, configuration, environment) =>
+                check.Secret = Bitwarden.Server.Sdk.Resources.Caching.OwnedAnswerKey.ReadSecret(configuration, environment.EnvironmentName))
+            .ValidateOnStart();
+
+        services.TryAddSingleton(provider => new CachedReadsConnectionHolder(
+            provider.GetRequiredService<IConfiguration>()[Bitwarden.Server.Sdk.Resources.Caching.OwnedCacheEntry.ConnectionKey],
+            provider.GetService<TimeProvider>()));
+
+        services.TryAddSingleton<ICachedReads<TClient>>(provider => new CachedReads<TClient>(
+            serviceName,
+            CacheableRead.FromAssembly(typeof(TClient).Assembly),
+            CacheableIndexRead.FromAssembly(typeof(TClient).Assembly),
+            provider.GetRequiredService<CachedReadsConnectionHolder>().Connection,
+            provider.GetRequiredService<IOptionsMonitor<BitwardenClientOptions>>(),
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            provider.GetRequiredService<IConfiguration>(),
+            provider.GetRequiredService<ILogger<CachedReads<TClient>>>(),
+            CacheableAnswerRead.FromAssembly(typeof(TClient).Assembly)));
+
+        return services;
+    }
+
     /// <summary>
     /// Registers <typeparamref name="TImplementation"/> as the client for a service.
     /// </summary>
