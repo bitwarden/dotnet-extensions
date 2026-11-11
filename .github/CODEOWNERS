@@ -17,3 +17,6 @@
 .claude/ @bitwarden/team-ai-sme
 .github/workflows/respond.yml @bitwarden/team-ai-sme
 .github/workflows/review-code.yml @bitwarden/team-ai-sme
+
+# Key Management team
+extensions/Bitwarden.Server.Sdk.PasswordHashing @bitwarden/team-key-management-dev
