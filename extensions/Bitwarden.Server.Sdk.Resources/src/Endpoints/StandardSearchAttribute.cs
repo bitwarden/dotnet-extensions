@@ -23,7 +23,7 @@ namespace Bitwarden.Server.Sdk.Resources;
 /// </remarks>
 /// <param name="collection">
 /// The collection's path, without a trailing slash, such as <c>api/v1/events</c>. See
-/// <c>StandardBulkUpdateAttribute</c> for why it is given rather than derived.
+/// <see cref="StandardBulkUpdateAttribute"/> for why it is given rather than derived.
 /// </param>
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class StandardSearchAttribute(string collection)
