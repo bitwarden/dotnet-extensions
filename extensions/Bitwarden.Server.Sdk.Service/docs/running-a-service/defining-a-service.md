@@ -37,8 +37,9 @@ internal sealed class WidgetService(string[] args) : Service("widget-service", "
 - The identifier must be lowercase letters, digits and hyphens (`^[a-z0-9]+(-[a-z0-9]+)*$`), or the
   constructor throws. This catches the identifier and title passed the wrong way round.
 - The identifier names the service's outbound credential (`internal.{name}`), the token audience it
-  accepts, its telemetry resource and its rate-limit keys. The package supplies it as
-  `Bitwarden:ServiceName`, the lowest-precedence setting, so a deployment can override it.
+  accepts, its telemetry resource and its rate-limit keys. The package also supplies it as
+  `Bitwarden:ServiceName`, the lowest-precedence setting, which only the outbound credential reads: a
+  deployment that sets it changes the name the service authenticates as, and nothing else.
 - The title is the title of the OpenAPI document and the documentation UI.
 - Most services need only `Authorization`, `ConfigureServices` and `MapEndpoints`.
 - Once every endpoint is mapped, the package reads them all. When an endpoint is declared wrongly or
