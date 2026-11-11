@@ -14,8 +14,8 @@ crates/bitwarden-uniffi-server ──cdylib──▶ native/runtimes/<rid>/nativ
                                                                IServerSdkInfo
 ```
 
-Generated types stay `internal`; only the domain interfaces and their result types
-(`CryptoObjectKeyIds`, `EncStringInfo`, `EncStringFamily`) are public.
+Generated types stay `internal`; only the domain interfaces and their result records and
+algorithm enums are public.
 
 ## Local development
 

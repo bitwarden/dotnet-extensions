@@ -17,10 +17,10 @@ public interface IEncryptionKeyIdReader
     string? FromEncString(string encString);
 
     /// <summary>
-    /// The id of the key sealed in <paramref name="envelope"/>.
+    /// The id of the key <paramref name="envelope"/> is sealed with.
     /// </summary>
     /// <param name="envelope">A base64 serialized SymmetricKeyEnvelope.</param>
-    /// <returns>The key id, or <see langword="null"/> if the envelope carries none.</returns>
+    /// <returns>The key id.</returns>
     /// <exception cref="InvalidEncryptedDataException">The input is not a valid envelope.</exception>
     string? FromSymmetricKeyEnvelope(string envelope);
 }

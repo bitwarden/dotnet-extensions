@@ -42,7 +42,7 @@ public class NativeServerSdkTests
     [Fact]
     public void FromSymmetricKeyEnvelope_ReturnsKeyId()
     {
-        Assert.Equal(Fixtures.KeyId, Reader.FromSymmetricKeyEnvelope(Fixtures.Envelope));
+        Assert.Equal(InspectorFixtures.EnvelopeSealingKeyId, Reader.FromSymmetricKeyEnvelope(Fixtures.Envelope));
     }
 
     [Fact]

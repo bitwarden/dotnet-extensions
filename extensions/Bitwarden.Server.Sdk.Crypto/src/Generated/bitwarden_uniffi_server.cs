@@ -900,139 +900,7 @@ static class _UniFFILib {
     [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
     public static extern
 #endif
-     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_serverclient_get_encrypted_by_key_id_encstring(ulong @ptr,RustBuffer @encString,ref UniffiRustCallStatus _uniffi_out_err
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_serverclient_get_encrypted_by_key_id_symmetrickeyenvelope(ulong @ptr,RustBuffer @envelope,ref UniffiRustCallStatus _uniffi_out_err
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_data_envelope(ulong @ptr,RustBuffer @envelope,ref UniffiRustCallStatus _uniffi_out_err
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_enc_string(ulong @ptr,RustBuffer @encString,ref UniffiRustCallStatus _uniffi_out_err
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_legacy_compat_symmetric_key_envelope(ulong @ptr,RustBuffer @envelope,ref UniffiRustCallStatus _uniffi_out_err
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_password_protected_key_envelope(ulong @ptr,RustBuffer @envelope,ref UniffiRustCallStatus _uniffi_out_err
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_public_key(ulong @ptr,RustBuffer @publicKey,ref UniffiRustCallStatus _uniffi_out_err
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_signed_object(ulong @ptr,RustBuffer @signedObject,ref UniffiRustCallStatus _uniffi_out_err
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_signed_public_key(ulong @ptr,RustBuffer @signedPublicKey,ref UniffiRustCallStatus _uniffi_out_err
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_signed_security_state(ulong @ptr,RustBuffer @signedSecurityState,ref UniffiRustCallStatus _uniffi_out_err
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_symmetric_key_envelope(ulong @ptr,RustBuffer @envelope,ref UniffiRustCallStatus _uniffi_out_err
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_unsigned_shared_key(ulong @ptr,RustBuffer @sharedKey,ref UniffiRustCallStatus _uniffi_out_err
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_verifying_key(ulong @ptr,RustBuffer @verifyingKey,ref UniffiRustCallStatus _uniffi_out_err
+     ulong uniffi_bitwarden_uniffi_server_fn_method_serverclient_crypto_parsing(ulong @ptr,ref UniffiRustCallStatus _uniffi_out_err
     );
 
     #if NET8_0_OR_GREATER
@@ -1044,6 +912,149 @@ static class _UniFFILib {
     public static extern
 #endif
      RustBuffer uniffi_bitwarden_uniffi_server_fn_method_serverclient_version(ulong @ptr,ref UniffiRustCallStatus _uniffi_out_err
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     ulong uniffi_bitwarden_uniffi_server_fn_clone_cryptoparsingclient(ulong @handle,ref UniffiRustCallStatus _uniffi_out_err
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     void uniffi_bitwarden_uniffi_server_fn_free_cryptoparsingclient(ulong @handle,ref UniffiRustCallStatus _uniffi_out_err
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_get_encrypted_by_key_id_encstring(ulong @ptr,RustBuffer @encString,ref UniffiRustCallStatus _uniffi_out_err
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_get_encrypted_by_key_id_symmetrickeyenvelope(ulong @ptr,RustBuffer @envelope,ref UniffiRustCallStatus _uniffi_out_err
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_inspect_data_envelope(ulong @ptr,RustBuffer @envelope,ref UniffiRustCallStatus _uniffi_out_err
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_inspect_enc_string(ulong @ptr,RustBuffer @encString,ref UniffiRustCallStatus _uniffi_out_err
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_inspect_legacy_compat_symmetric_key_envelope(ulong @ptr,RustBuffer @envelope,ref UniffiRustCallStatus _uniffi_out_err
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_inspect_password_protected_key_envelope(ulong @ptr,RustBuffer @envelope,ref UniffiRustCallStatus _uniffi_out_err
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_inspect_public_key(ulong @ptr,RustBuffer @publicKey,ref UniffiRustCallStatus _uniffi_out_err
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_inspect_signed_object(ulong @ptr,RustBuffer @signedObject,ref UniffiRustCallStatus _uniffi_out_err
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_inspect_symmetric_key_envelope(ulong @ptr,RustBuffer @envelope,ref UniffiRustCallStatus _uniffi_out_err
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_inspect_unsigned_shared_key(ulong @ptr,RustBuffer @sharedKey,ref UniffiRustCallStatus _uniffi_out_err
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_inspect_verifying_key(ulong @ptr,RustBuffer @verifyingKey,ref UniffiRustCallStatus _uniffi_out_err
     );
 
     #if NET8_0_OR_GREATER
@@ -1626,139 +1637,7 @@ static class _UniFFILib {
     [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
     public static extern
 #endif
-     ushort uniffi_bitwarden_uniffi_server_checksum_method_serverclient_get_encrypted_by_key_id_encstring(
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     ushort uniffi_bitwarden_uniffi_server_checksum_method_serverclient_get_encrypted_by_key_id_symmetrickeyenvelope(
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     ushort uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_data_envelope(
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     ushort uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_enc_string(
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     ushort uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_legacy_compat_symmetric_key_envelope(
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     ushort uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_password_protected_key_envelope(
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     ushort uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_public_key(
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     ushort uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_signed_object(
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     ushort uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_signed_public_key(
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     ushort uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_signed_security_state(
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     ushort uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_symmetric_key_envelope(
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     ushort uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_unsigned_shared_key(
-    );
-
-    #if NET8_0_OR_GREATER
-    [LibraryImport("bitwarden_uniffi_server")]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    public static partial
-#else
-    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
-    public static extern
-#endif
-     ushort uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_verifying_key(
+     ushort uniffi_bitwarden_uniffi_server_checksum_method_serverclient_crypto_parsing(
     );
 
     #if NET8_0_OR_GREATER
@@ -1770,6 +1649,127 @@ static class _UniFFILib {
     public static extern
 #endif
      ushort uniffi_bitwarden_uniffi_server_checksum_method_serverclient_version(
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     ushort uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_get_encrypted_by_key_id_encstring(
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     ushort uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_get_encrypted_by_key_id_symmetrickeyenvelope(
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     ushort uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_data_envelope(
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     ushort uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_enc_string(
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     ushort uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_legacy_compat_symmetric_key_envelope(
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     ushort uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_password_protected_key_envelope(
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     ushort uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_public_key(
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     ushort uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_signed_object(
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     ushort uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_symmetric_key_envelope(
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     ushort uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_unsigned_shared_key(
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     ushort uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_verifying_key(
     );
 
     #if NET8_0_OR_GREATER
@@ -1804,87 +1804,81 @@ static class _UniFFILib {
     }
     static void uniffiCheckApiChecksums() {
         {
-            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_serverclient_get_encrypted_by_key_id_encstring();
-            if (checksum != 36618) {
-                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_serverclient_get_encrypted_by_key_id_encstring` checksum `36618`, library returned `{checksum}`");
-            }
-        }
-        {
-            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_serverclient_get_encrypted_by_key_id_symmetrickeyenvelope();
-            if (checksum != 56634) {
-                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_serverclient_get_encrypted_by_key_id_symmetrickeyenvelope` checksum `56634`, library returned `{checksum}`");
-            }
-        }
-        {
-            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_data_envelope();
-            if (checksum != 59233) {
-                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_data_envelope` checksum `59233`, library returned `{checksum}`");
-            }
-        }
-        {
-            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_enc_string();
-            if (checksum != 17770) {
-                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_enc_string` checksum `17770`, library returned `{checksum}`");
-            }
-        }
-        {
-            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_legacy_compat_symmetric_key_envelope();
-            if (checksum != 48907) {
-                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_legacy_compat_symmetric_key_envelope` checksum `48907`, library returned `{checksum}`");
-            }
-        }
-        {
-            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_password_protected_key_envelope();
-            if (checksum != 47160) {
-                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_password_protected_key_envelope` checksum `47160`, library returned `{checksum}`");
-            }
-        }
-        {
-            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_public_key();
-            if (checksum != 43207) {
-                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_public_key` checksum `43207`, library returned `{checksum}`");
-            }
-        }
-        {
-            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_signed_object();
-            if (checksum != 11084) {
-                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_signed_object` checksum `11084`, library returned `{checksum}`");
-            }
-        }
-        {
-            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_signed_public_key();
-            if (checksum != 4701) {
-                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_signed_public_key` checksum `4701`, library returned `{checksum}`");
-            }
-        }
-        {
-            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_signed_security_state();
-            if (checksum != 17279) {
-                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_signed_security_state` checksum `17279`, library returned `{checksum}`");
-            }
-        }
-        {
-            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_symmetric_key_envelope();
-            if (checksum != 40132) {
-                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_symmetric_key_envelope` checksum `40132`, library returned `{checksum}`");
-            }
-        }
-        {
-            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_unsigned_shared_key();
-            if (checksum != 55036) {
-                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_unsigned_shared_key` checksum `55036`, library returned `{checksum}`");
-            }
-        }
-        {
-            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_verifying_key();
-            if (checksum != 8627) {
-                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_serverclient_inspect_verifying_key` checksum `8627`, library returned `{checksum}`");
+            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_serverclient_crypto_parsing();
+            if (checksum != 59849) {
+                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_serverclient_crypto_parsing` checksum `59849`, library returned `{checksum}`");
             }
         }
         {
             var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_serverclient_version();
             if (checksum != 42073) {
                 throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_serverclient_version` checksum `42073`, library returned `{checksum}`");
+            }
+        }
+        {
+            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_get_encrypted_by_key_id_encstring();
+            if (checksum != 33288) {
+                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_get_encrypted_by_key_id_encstring` checksum `33288`, library returned `{checksum}`");
+            }
+        }
+        {
+            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_get_encrypted_by_key_id_symmetrickeyenvelope();
+            if (checksum != 23205) {
+                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_get_encrypted_by_key_id_symmetrickeyenvelope` checksum `23205`, library returned `{checksum}`");
+            }
+        }
+        {
+            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_data_envelope();
+            if (checksum != 11979) {
+                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_data_envelope` checksum `11979`, library returned `{checksum}`");
+            }
+        }
+        {
+            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_enc_string();
+            if (checksum != 50812) {
+                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_enc_string` checksum `50812`, library returned `{checksum}`");
+            }
+        }
+        {
+            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_legacy_compat_symmetric_key_envelope();
+            if (checksum != 46185) {
+                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_legacy_compat_symmetric_key_envelope` checksum `46185`, library returned `{checksum}`");
+            }
+        }
+        {
+            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_password_protected_key_envelope();
+            if (checksum != 1945) {
+                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_password_protected_key_envelope` checksum `1945`, library returned `{checksum}`");
+            }
+        }
+        {
+            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_public_key();
+            if (checksum != 60393) {
+                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_public_key` checksum `60393`, library returned `{checksum}`");
+            }
+        }
+        {
+            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_signed_object();
+            if (checksum != 52210) {
+                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_signed_object` checksum `52210`, library returned `{checksum}`");
+            }
+        }
+        {
+            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_symmetric_key_envelope();
+            if (checksum != 17221) {
+                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_symmetric_key_envelope` checksum `17221`, library returned `{checksum}`");
+            }
+        }
+        {
+            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_unsigned_shared_key();
+            if (checksum != 27997) {
+                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_unsigned_shared_key` checksum `27997`, library returned `{checksum}`");
+            }
+        }
+        {
+            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_verifying_key();
+            if (checksum != 24539) {
+                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_verifying_key` checksum `24539`, library returned `{checksum}`");
             }
         }
         {
@@ -1900,32 +1894,6 @@ static class _UniFFILib {
 
 #pragma warning disable 8625
 
-
-
-
-class FfiConverterUInt8: FfiConverter<byte, byte> {
-    public static FfiConverterUInt8 INSTANCE = new FfiConverterUInt8();
-
-    public override byte Lift(byte value) {
-        return value;
-    }
-
-    public override byte Read(BigEndianStream stream) {
-        return stream.ReadByte();
-    }
-
-    public override byte Lower(byte value) {
-        return value;
-    }
-
-    public override int AllocationSize(byte value) {
-        return 1;
-    }
-
-    public override void Write(byte value, BigEndianStream stream) {
-        stream.WriteByte(value);
-    }
-}
 
 
 
@@ -1985,22 +1953,16 @@ class FfiConverterString: FfiConverter<string, RustBuffer> {
 
 
 /// <summary>
-/// Entry point of the server bindings.
-///
-/// Stateless: the server can share one instance across threads.
+/// Parses SDK crypto objects and reads the key ids they name, without decrypting or verifying.
 /// </summary>
-internal interface IServerClient {
+internal interface ICryptoParsingClient {
     /// <summary>
-    /// The id of the key `enc_string` was encrypted with, as 32 lowercase hex characters.
-    ///
-    /// [None] for legacy (non-COSE) EncStrings, which carry no key id.
+    /// The id of the key `enc_string` was encrypted with, if it names one.
     /// </summary>
     /// <exception cref="ServerException"></exception>
     string? GetEncryptedByKeyIdEncstring(string @encString);
     /// <summary>
-    /// The id of the key sealed in `envelope`, as 32 lowercase hex characters.
-    ///
-    /// [None] if the envelope carries no key id.
+    /// The id of the key `envelope` is sealed with.
     /// </summary>
     /// <exception cref="ServerException"></exception>
     string? GetEncryptedByKeyIdSymmetrickeyenvelope(string @envelope);
@@ -2010,61 +1972,308 @@ internal interface IServerClient {
     /// <exception cref="ServerException"></exception>
     CryptoObjectKeyIds InspectDataEnvelope(string @envelope);
     /// <summary>
-    /// Inspects any EncString: symmetric (types 0, 2, 7) or asymmetric (types 3 to 6).
+    /// Inspects an EncString: its algorithm and encrypting key.
     /// </summary>
     /// <exception cref="ServerException"></exception>
     EncStringInfo InspectEncString(string @encString);
     /// <summary>
-    /// Inspects a LegacyCompatSymmetricKeyEnvelope, in either form.
-    ///
-    /// The EncString form names no sealed key, and a sealing key only if it is COSE (type 7).
+    /// Inspects a LegacyCompatSymmetricKeyEnvelope: the sealed key and the sealing key.
     /// </summary>
     /// <exception cref="ServerException"></exception>
     CryptoObjectKeyIds InspectLegacyCompatSymmetricKeyEnvelope(string @envelope);
     /// <summary>
-    /// Inspects a PasswordProtectedKeyEnvelope: the sealed key, if named. Legacy (non-COSE) sealed
-    /// keys have no id.
+    /// Inspects a PasswordProtectedKeyEnvelope: the sealed key.
     /// </summary>
     /// <exception cref="ServerException"></exception>
     CryptoObjectKeyIds InspectPasswordProtectedKeyEnvelope(string @envelope);
     /// <summary>
-    /// Validates a base64 DER SPKI RSA PublicKey. The SDK defines no key id for it, so all ids are
-    /// [None].
+    /// Inspects a PublicKey: its algorithm and key id.
     /// </summary>
     /// <exception cref="ServerException"></exception>
-    CryptoObjectKeyIds InspectPublicKey(string @publicKey);
+    PublicKeyInfo InspectPublicKey(string @publicKey);
     /// <summary>
-    /// Inspects a base64 COSE Sign1 SignedObject: the signing key.
+    /// Inspects a SignedObject: the signing key.
     /// </summary>
     /// <exception cref="ServerException"></exception>
     CryptoObjectKeyIds InspectSignedObject(string @signedObject);
     /// <summary>
-    /// Inspects a SignedPublicKey: the signing key.
-    /// </summary>
-    /// <exception cref="ServerException"></exception>
-    CryptoObjectKeyIds InspectSignedPublicKey(string @signedPublicKey);
-    /// <summary>
-    /// Inspects a SignedSecurityState: the signing key.
-    ///
-    /// Its version is not returned: the SDK only reads it after verifying the signature.
-    /// </summary>
-    /// <exception cref="ServerException"></exception>
-    CryptoObjectKeyIds InspectSignedSecurityState(string @signedSecurityState);
-    /// <summary>
-    /// Inspects a SymmetricKeyEnvelope: the sealed key (if named) and the sealing key.
+    /// Inspects a SymmetricKeyEnvelope: the sealed key and the sealing key.
     /// </summary>
     /// <exception cref="ServerException"></exception>
     CryptoObjectKeyIds InspectSymmetricKeyEnvelope(string @envelope);
     /// <summary>
-    /// Inspects an RSA-encrypted UnsignedSharedKey (EncString types 3 to 6). Names no key.
+    /// Inspects an UnsignedSharedKey: its algorithm.
     /// </summary>
     /// <exception cref="ServerException"></exception>
-    EncStringInfo InspectUnsignedSharedKey(string @sharedKey);
+    UnsignedSharedKeyInfo InspectUnsignedSharedKey(string @sharedKey);
     /// <summary>
-    /// Inspects a base64 COSE VerifyingKey: its own id, as `contained_key_id`.
+    /// Inspects a VerifyingKey: its algorithm and key id.
     /// </summary>
     /// <exception cref="ServerException"></exception>
-    CryptoObjectKeyIds InspectVerifyingKey(string @verifyingKey);
+    VerifyingKeyInfo InspectVerifyingKey(string @verifyingKey);
+}
+/// <summary>
+/// Parses SDK crypto objects and reads the key ids they name, without decrypting or verifying.
+/// </summary>
+internal class CryptoParsingClient : ICryptoParsingClient, IDisposable {
+    protected ulong pointer;
+    private int _wasDestroyed = 0;
+    private long _callCounter = 1;
+
+    public CryptoParsingClient(ulong pointer) {
+        this.pointer = pointer;
+    }
+
+    ~CryptoParsingClient() {
+        Destroy();
+    }
+
+    protected void FreeRustArcPtr() {
+        _UniffiHelpers.RustCall((ref UniffiRustCallStatus status) => {
+            _UniFFILib.uniffi_bitwarden_uniffi_server_fn_free_cryptoparsingclient(this.pointer, ref status);
+        });
+    }
+
+    protected ulong CloneRustArcPtr() {
+        return _UniffiHelpers.RustCall((ref UniffiRustCallStatus status) => {
+            return _UniFFILib.uniffi_bitwarden_uniffi_server_fn_clone_cryptoparsingclient(this.pointer, ref status);
+        });
+    }
+
+    public void Destroy()
+    {
+        // Only allow a single call to this method.
+        if (Interlocked.CompareExchange(ref _wasDestroyed, 1, 0) == 0)
+        {
+            // This decrement always matches the initial count of 1 given at creation time.
+            if (Interlocked.Decrement(ref _callCounter) == 0)
+            {
+                FreeRustArcPtr();
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        Destroy();
+        GC.SuppressFinalize(this); // Suppress finalization to avoid unnecessary GC overhead.
+    }
+
+    private void IncrementCallCounter() 
+    {
+        // Check and increment the call counter, to keep the object alive.
+        // This needs a compare-and-set retry loop in case of concurrent updates.
+        long count;
+        do
+        {
+            count = Interlocked.Read(ref _callCounter);
+            if (count == 0L) throw new System.ObjectDisposedException(String.Format("'{0}' object has already been destroyed", this.GetType().Name));
+            if (count == long.MaxValue) throw new System.OverflowException(String.Format("'{0}' call counter would overflow", this.GetType().Name));
+
+        } while (Interlocked.CompareExchange(ref _callCounter, count + 1, count) != count);
+    }
+
+    private void DecrementCallCounter() 
+    {
+        // This decrement always matches the increment we performed above.
+        if (Interlocked.Decrement(ref _callCounter) == 0) {
+            FreeRustArcPtr();
+        }
+    }
+
+    internal void CallWithPointer(Action<ulong> action)
+    {
+        IncrementCallCounter();
+        try {
+            action(CloneRustArcPtr());
+        }
+        finally {
+            DecrementCallCounter();
+        }
+    }
+
+    internal T CallWithPointer<T>(Func<ulong, T> func)
+    {   
+        IncrementCallCounter();
+        try {
+            return func(CloneRustArcPtr());
+        }
+        finally {
+            DecrementCallCounter();
+        }
+    }
+
+    
+    /// <summary>
+    /// The id of the key `enc_string` was encrypted with, if it names one.
+    /// </summary>
+    /// <exception cref="ServerException"></exception>
+    public string? GetEncryptedByKeyIdEncstring(string @encString) {
+        return CallWithPointer(thisPtr => FfiConverterOptionalString.INSTANCE.Lift(
+    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
+    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_get_encrypted_by_key_id_encstring(thisPtr, FfiConverterString.INSTANCE.Lower(@encString), ref _status)
+)));
+    }
+    
+    
+    /// <summary>
+    /// The id of the key `envelope` is sealed with.
+    /// </summary>
+    /// <exception cref="ServerException"></exception>
+    public string? GetEncryptedByKeyIdSymmetrickeyenvelope(string @envelope) {
+        return CallWithPointer(thisPtr => FfiConverterOptionalString.INSTANCE.Lift(
+    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
+    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_get_encrypted_by_key_id_symmetrickeyenvelope(thisPtr, FfiConverterString.INSTANCE.Lower(@envelope), ref _status)
+)));
+    }
+    
+    
+    /// <summary>
+    /// Inspects a DataEnvelope: the content-encryption key it is sealed with.
+    /// </summary>
+    /// <exception cref="ServerException"></exception>
+    public CryptoObjectKeyIds InspectDataEnvelope(string @envelope) {
+        return CallWithPointer(thisPtr => FfiConverterTypeCryptoObjectKeyIds.INSTANCE.Lift(
+    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
+    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_inspect_data_envelope(thisPtr, FfiConverterString.INSTANCE.Lower(@envelope), ref _status)
+)));
+    }
+    
+    
+    /// <summary>
+    /// Inspects an EncString: its algorithm and encrypting key.
+    /// </summary>
+    /// <exception cref="ServerException"></exception>
+    public EncStringInfo InspectEncString(string @encString) {
+        return CallWithPointer(thisPtr => FfiConverterTypeEncStringInfo.INSTANCE.Lift(
+    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
+    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_inspect_enc_string(thisPtr, FfiConverterString.INSTANCE.Lower(@encString), ref _status)
+)));
+    }
+    
+    
+    /// <summary>
+    /// Inspects a LegacyCompatSymmetricKeyEnvelope: the sealed key and the sealing key.
+    /// </summary>
+    /// <exception cref="ServerException"></exception>
+    public CryptoObjectKeyIds InspectLegacyCompatSymmetricKeyEnvelope(string @envelope) {
+        return CallWithPointer(thisPtr => FfiConverterTypeCryptoObjectKeyIds.INSTANCE.Lift(
+    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
+    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_inspect_legacy_compat_symmetric_key_envelope(thisPtr, FfiConverterString.INSTANCE.Lower(@envelope), ref _status)
+)));
+    }
+    
+    
+    /// <summary>
+    /// Inspects a PasswordProtectedKeyEnvelope: the sealed key.
+    /// </summary>
+    /// <exception cref="ServerException"></exception>
+    public CryptoObjectKeyIds InspectPasswordProtectedKeyEnvelope(string @envelope) {
+        return CallWithPointer(thisPtr => FfiConverterTypeCryptoObjectKeyIds.INSTANCE.Lift(
+    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
+    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_inspect_password_protected_key_envelope(thisPtr, FfiConverterString.INSTANCE.Lower(@envelope), ref _status)
+)));
+    }
+    
+    
+    /// <summary>
+    /// Inspects a PublicKey: its algorithm and key id.
+    /// </summary>
+    /// <exception cref="ServerException"></exception>
+    public PublicKeyInfo InspectPublicKey(string @publicKey) {
+        return CallWithPointer(thisPtr => FfiConverterTypePublicKeyInfo.INSTANCE.Lift(
+    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
+    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_inspect_public_key(thisPtr, FfiConverterString.INSTANCE.Lower(@publicKey), ref _status)
+)));
+    }
+    
+    
+    /// <summary>
+    /// Inspects a SignedObject: the signing key.
+    /// </summary>
+    /// <exception cref="ServerException"></exception>
+    public CryptoObjectKeyIds InspectSignedObject(string @signedObject) {
+        return CallWithPointer(thisPtr => FfiConverterTypeCryptoObjectKeyIds.INSTANCE.Lift(
+    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
+    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_inspect_signed_object(thisPtr, FfiConverterString.INSTANCE.Lower(@signedObject), ref _status)
+)));
+    }
+    
+    
+    /// <summary>
+    /// Inspects a SymmetricKeyEnvelope: the sealed key and the sealing key.
+    /// </summary>
+    /// <exception cref="ServerException"></exception>
+    public CryptoObjectKeyIds InspectSymmetricKeyEnvelope(string @envelope) {
+        return CallWithPointer(thisPtr => FfiConverterTypeCryptoObjectKeyIds.INSTANCE.Lift(
+    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
+    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_inspect_symmetric_key_envelope(thisPtr, FfiConverterString.INSTANCE.Lower(@envelope), ref _status)
+)));
+    }
+    
+    
+    /// <summary>
+    /// Inspects an UnsignedSharedKey: its algorithm.
+    /// </summary>
+    /// <exception cref="ServerException"></exception>
+    public UnsignedSharedKeyInfo InspectUnsignedSharedKey(string @sharedKey) {
+        return CallWithPointer(thisPtr => FfiConverterTypeUnsignedSharedKeyInfo.INSTANCE.Lift(
+    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
+    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_inspect_unsigned_shared_key(thisPtr, FfiConverterString.INSTANCE.Lower(@sharedKey), ref _status)
+)));
+    }
+    
+    
+    /// <summary>
+    /// Inspects a VerifyingKey: its algorithm and key id.
+    /// </summary>
+    /// <exception cref="ServerException"></exception>
+    public VerifyingKeyInfo InspectVerifyingKey(string @verifyingKey) {
+        return CallWithPointer(thisPtr => FfiConverterTypeVerifyingKeyInfo.INSTANCE.Lift(
+    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
+    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_inspect_verifying_key(thisPtr, FfiConverterString.INSTANCE.Lower(@verifyingKey), ref _status)
+)));
+    }
+    
+    
+
+    
+}
+class FfiConverterTypeCryptoParsingClient: FfiConverter<CryptoParsingClient, ulong> {
+    public static FfiConverterTypeCryptoParsingClient INSTANCE = new FfiConverterTypeCryptoParsingClient();
+
+
+    public override ulong Lower(CryptoParsingClient value) {
+        return value.CallWithPointer(thisPtr => thisPtr);
+    }
+
+    public override CryptoParsingClient Lift(ulong value) {
+        return new CryptoParsingClient(value);
+    }
+
+    public override CryptoParsingClient Read(BigEndianStream stream) {
+        return Lift(stream.ReadULong());
+    }
+
+    public override int AllocationSize(CryptoParsingClient value) {
+        return 8;
+    }
+
+    public override void Write(CryptoParsingClient value, BigEndianStream stream) {
+        stream.WriteULong(Lower(value));
+    }
+}
+
+
+
+/// <summary>
+/// Entry point of the server bindings.
+/// </summary>
+internal interface IServerClient {
+    /// <summary>
+    /// Parses SDK crypto objects and reads the key ids they name, without decrypting.
+    /// </summary>
+    CryptoParsingClient CryptoParsing();
     /// <summary>
     /// The SDK version this library was built from.
     /// </summary>
@@ -2072,8 +2281,6 @@ internal interface IServerClient {
 }
 /// <summary>
 /// Entry point of the server bindings.
-///
-/// Stateless: the server can share one instance across threads.
 /// </summary>
 internal class ServerClient : IServerClient, IDisposable {
     protected ulong pointer;
@@ -2173,167 +2380,12 @@ internal class ServerClient : IServerClient, IDisposable {
 
     
     /// <summary>
-    /// The id of the key `enc_string` was encrypted with, as 32 lowercase hex characters.
-    ///
-    /// [None] for legacy (non-COSE) EncStrings, which carry no key id.
+    /// Parses SDK crypto objects and reads the key ids they name, without decrypting.
     /// </summary>
-    /// <exception cref="ServerException"></exception>
-    public string? GetEncryptedByKeyIdEncstring(string @encString) {
-        return CallWithPointer(thisPtr => FfiConverterOptionalString.INSTANCE.Lift(
-    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
-    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_serverclient_get_encrypted_by_key_id_encstring(thisPtr, FfiConverterString.INSTANCE.Lower(@encString), ref _status)
-)));
-    }
-    
-    
-    /// <summary>
-    /// The id of the key sealed in `envelope`, as 32 lowercase hex characters.
-    ///
-    /// [None] if the envelope carries no key id.
-    /// </summary>
-    /// <exception cref="ServerException"></exception>
-    public string? GetEncryptedByKeyIdSymmetrickeyenvelope(string @envelope) {
-        return CallWithPointer(thisPtr => FfiConverterOptionalString.INSTANCE.Lift(
-    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
-    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_serverclient_get_encrypted_by_key_id_symmetrickeyenvelope(thisPtr, FfiConverterString.INSTANCE.Lower(@envelope), ref _status)
-)));
-    }
-    
-    
-    /// <summary>
-    /// Inspects a DataEnvelope: the content-encryption key it is sealed with.
-    /// </summary>
-    /// <exception cref="ServerException"></exception>
-    public CryptoObjectKeyIds InspectDataEnvelope(string @envelope) {
-        return CallWithPointer(thisPtr => FfiConverterTypeCryptoObjectKeyIds.INSTANCE.Lift(
-    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
-    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_data_envelope(thisPtr, FfiConverterString.INSTANCE.Lower(@envelope), ref _status)
-)));
-    }
-    
-    
-    /// <summary>
-    /// Inspects any EncString: symmetric (types 0, 2, 7) or asymmetric (types 3 to 6).
-    /// </summary>
-    /// <exception cref="ServerException"></exception>
-    public EncStringInfo InspectEncString(string @encString) {
-        return CallWithPointer(thisPtr => FfiConverterTypeEncStringInfo.INSTANCE.Lift(
-    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
-    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_enc_string(thisPtr, FfiConverterString.INSTANCE.Lower(@encString), ref _status)
-)));
-    }
-    
-    
-    /// <summary>
-    /// Inspects a LegacyCompatSymmetricKeyEnvelope, in either form.
-    ///
-    /// The EncString form names no sealed key, and a sealing key only if it is COSE (type 7).
-    /// </summary>
-    /// <exception cref="ServerException"></exception>
-    public CryptoObjectKeyIds InspectLegacyCompatSymmetricKeyEnvelope(string @envelope) {
-        return CallWithPointer(thisPtr => FfiConverterTypeCryptoObjectKeyIds.INSTANCE.Lift(
-    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
-    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_legacy_compat_symmetric_key_envelope(thisPtr, FfiConverterString.INSTANCE.Lower(@envelope), ref _status)
-)));
-    }
-    
-    
-    /// <summary>
-    /// Inspects a PasswordProtectedKeyEnvelope: the sealed key, if named. Legacy (non-COSE) sealed
-    /// keys have no id.
-    /// </summary>
-    /// <exception cref="ServerException"></exception>
-    public CryptoObjectKeyIds InspectPasswordProtectedKeyEnvelope(string @envelope) {
-        return CallWithPointer(thisPtr => FfiConverterTypeCryptoObjectKeyIds.INSTANCE.Lift(
-    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
-    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_password_protected_key_envelope(thisPtr, FfiConverterString.INSTANCE.Lower(@envelope), ref _status)
-)));
-    }
-    
-    
-    /// <summary>
-    /// Validates a base64 DER SPKI RSA PublicKey. The SDK defines no key id for it, so all ids are
-    /// [None].
-    /// </summary>
-    /// <exception cref="ServerException"></exception>
-    public CryptoObjectKeyIds InspectPublicKey(string @publicKey) {
-        return CallWithPointer(thisPtr => FfiConverterTypeCryptoObjectKeyIds.INSTANCE.Lift(
-    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
-    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_public_key(thisPtr, FfiConverterString.INSTANCE.Lower(@publicKey), ref _status)
-)));
-    }
-    
-    
-    /// <summary>
-    /// Inspects a base64 COSE Sign1 SignedObject: the signing key.
-    /// </summary>
-    /// <exception cref="ServerException"></exception>
-    public CryptoObjectKeyIds InspectSignedObject(string @signedObject) {
-        return CallWithPointer(thisPtr => FfiConverterTypeCryptoObjectKeyIds.INSTANCE.Lift(
-    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
-    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_signed_object(thisPtr, FfiConverterString.INSTANCE.Lower(@signedObject), ref _status)
-)));
-    }
-    
-    
-    /// <summary>
-    /// Inspects a SignedPublicKey: the signing key.
-    /// </summary>
-    /// <exception cref="ServerException"></exception>
-    public CryptoObjectKeyIds InspectSignedPublicKey(string @signedPublicKey) {
-        return CallWithPointer(thisPtr => FfiConverterTypeCryptoObjectKeyIds.INSTANCE.Lift(
-    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
-    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_signed_public_key(thisPtr, FfiConverterString.INSTANCE.Lower(@signedPublicKey), ref _status)
-)));
-    }
-    
-    
-    /// <summary>
-    /// Inspects a SignedSecurityState: the signing key.
-    ///
-    /// Its version is not returned: the SDK only reads it after verifying the signature.
-    /// </summary>
-    /// <exception cref="ServerException"></exception>
-    public CryptoObjectKeyIds InspectSignedSecurityState(string @signedSecurityState) {
-        return CallWithPointer(thisPtr => FfiConverterTypeCryptoObjectKeyIds.INSTANCE.Lift(
-    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
-    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_signed_security_state(thisPtr, FfiConverterString.INSTANCE.Lower(@signedSecurityState), ref _status)
-)));
-    }
-    
-    
-    /// <summary>
-    /// Inspects a SymmetricKeyEnvelope: the sealed key (if named) and the sealing key.
-    /// </summary>
-    /// <exception cref="ServerException"></exception>
-    public CryptoObjectKeyIds InspectSymmetricKeyEnvelope(string @envelope) {
-        return CallWithPointer(thisPtr => FfiConverterTypeCryptoObjectKeyIds.INSTANCE.Lift(
-    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
-    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_symmetric_key_envelope(thisPtr, FfiConverterString.INSTANCE.Lower(@envelope), ref _status)
-)));
-    }
-    
-    
-    /// <summary>
-    /// Inspects an RSA-encrypted UnsignedSharedKey (EncString types 3 to 6). Names no key.
-    /// </summary>
-    /// <exception cref="ServerException"></exception>
-    public EncStringInfo InspectUnsignedSharedKey(string @sharedKey) {
-        return CallWithPointer(thisPtr => FfiConverterTypeEncStringInfo.INSTANCE.Lift(
-    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
-    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_unsigned_shared_key(thisPtr, FfiConverterString.INSTANCE.Lower(@sharedKey), ref _status)
-)));
-    }
-    
-    
-    /// <summary>
-    /// Inspects a base64 COSE VerifyingKey: its own id, as `contained_key_id`.
-    /// </summary>
-    /// <exception cref="ServerException"></exception>
-    public CryptoObjectKeyIds InspectVerifyingKey(string @verifyingKey) {
-        return CallWithPointer(thisPtr => FfiConverterTypeCryptoObjectKeyIds.INSTANCE.Lift(
-    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
-    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_serverclient_inspect_verifying_key(thisPtr, FfiConverterString.INSTANCE.Lower(@verifyingKey), ref _status)
+    public CryptoParsingClient CryptoParsing() {
+        return CallWithPointer(thisPtr => FfiConverterTypeCryptoParsingClient.INSTANCE.Lift(
+    _UniffiHelpers.RustCall( (ref UniffiRustCallStatus _status) =>
+    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_serverclient_crypto_parsing(thisPtr,  ref _status)
 )));
     }
     
@@ -2381,12 +2433,9 @@ class FfiConverterTypeServerClient: FfiConverter<ServerClient, ulong> {
 
 /// <summary>
 /// The key ids a crypto object names, each as 32 lowercase hex characters.
-///
-/// Read from headers only: nothing is decrypted or verified, so the server must not trust them
-/// beyond routing and consistency checks.
 /// </summary>
 /// <param name="ContainedKeyId">
-/// The key this object holds (envelopes) or is (verifying keys), if it names one.
+/// The key this object holds or is, if it names one.
 /// </param>
 /// <param name="EncryptedByKeyId">
 /// The key this object is encrypted or sealed with, if it names one.
@@ -2396,7 +2445,7 @@ class FfiConverterTypeServerClient: FfiConverter<ServerClient, ulong> {
 /// </param>
 internal record CryptoObjectKeyIds (
     /// <summary>
-    /// The key this object holds (envelopes) or is (verifying keys), if it names one.
+    /// The key this object holds or is, if it names one.
     /// </summary>
     string? ContainedKeyId, 
     /// <summary>
@@ -2440,26 +2489,19 @@ class FfiConverterTypeCryptoObjectKeyIds: FfiConverterRustBuffer<CryptoObjectKey
 /// <summary>
 /// What an EncString carries.
 /// </summary>
-/// <param name="EncryptionType">
-/// The numeric type prefix, e.g. `2` for an AES-CBC-HMAC EncString (`2.iv|data|mac`).
-/// </param>
-/// <param name="Family">
-/// Symmetric or asymmetric, derived from `encryption_type`.
+/// <param name="Algorithm">
+/// The algorithm it is encrypted with.
 /// </param>
 /// <param name="EncryptedByKeyId">
-/// The id of the encrypting key. Only COSE EncStrings (type 7) carry one.
+/// The id of the encrypting key, if it names one.
 /// </param>
 internal record EncStringInfo (
     /// <summary>
-    /// The numeric type prefix, e.g. `2` for an AES-CBC-HMAC EncString (`2.iv|data|mac`).
+    /// The algorithm it is encrypted with.
     /// </summary>
-    byte EncryptionType, 
+    EncStringAlgorithm Algorithm, 
     /// <summary>
-    /// Symmetric or asymmetric, derived from `encryption_type`.
-    /// </summary>
-    EncStringFamily Family, 
-    /// <summary>
-    /// The id of the encrypting key. Only COSE EncStrings (type 7) carry one.
+    /// The id of the encrypting key, if it names one.
     /// </summary>
     string? EncryptedByKeyId
 ) {
@@ -2470,65 +2512,205 @@ class FfiConverterTypeEncStringInfo: FfiConverterRustBuffer<EncStringInfo> {
 
     public override EncStringInfo Read(BigEndianStream stream) {
         return new EncStringInfo(
-            EncryptionType: FfiConverterUInt8.INSTANCE.Read(stream),
-            Family: FfiConverterTypeEncStringFamily.INSTANCE.Read(stream),
+            Algorithm: FfiConverterTypeEncStringAlgorithm.INSTANCE.Read(stream),
             EncryptedByKeyId: FfiConverterOptionalString.INSTANCE.Read(stream)
         );
     }
 
     public override int AllocationSize(EncStringInfo value) {
         return 0
-            + FfiConverterUInt8.INSTANCE.AllocationSize(value.EncryptionType)
-            + FfiConverterTypeEncStringFamily.INSTANCE.AllocationSize(value.Family)
+            + FfiConverterTypeEncStringAlgorithm.INSTANCE.AllocationSize(value.Algorithm)
             + FfiConverterOptionalString.INSTANCE.AllocationSize(value.EncryptedByKeyId);
     }
 
     public override void Write(EncStringInfo value, BigEndianStream stream) {
-            FfiConverterUInt8.INSTANCE.Write(value.EncryptionType, stream);
-            FfiConverterTypeEncStringFamily.INSTANCE.Write(value.Family, stream);
+            FfiConverterTypeEncStringAlgorithm.INSTANCE.Write(value.Algorithm, stream);
             FfiConverterOptionalString.INSTANCE.Write(value.EncryptedByKeyId, stream);
     }
 }
 
 
 
+/// <summary>
+/// What a PublicKey carries.
+/// </summary>
+/// <param name="Algorithm">
+/// The encryption algorithm.
+/// </param>
+/// <param name="KeyId">
+/// The key id, as 32 lowercase hex characters.
+/// </param>
+internal record PublicKeyInfo (
+    /// <summary>
+    /// The encryption algorithm.
+    /// </summary>
+    PublicKeyAlgorithm Algorithm, 
+    /// <summary>
+    /// The key id, as 32 lowercase hex characters.
+    /// </summary>
+    string KeyId
+) {
+}
+
+class FfiConverterTypePublicKeyInfo: FfiConverterRustBuffer<PublicKeyInfo> {
+    public static FfiConverterTypePublicKeyInfo INSTANCE = new FfiConverterTypePublicKeyInfo();
+
+    public override PublicKeyInfo Read(BigEndianStream stream) {
+        return new PublicKeyInfo(
+            Algorithm: FfiConverterTypePublicKeyAlgorithm.INSTANCE.Read(stream),
+            KeyId: FfiConverterString.INSTANCE.Read(stream)
+        );
+    }
+
+    public override int AllocationSize(PublicKeyInfo value) {
+        return 0
+            + FfiConverterTypePublicKeyAlgorithm.INSTANCE.AllocationSize(value.Algorithm)
+            + FfiConverterString.INSTANCE.AllocationSize(value.KeyId);
+    }
+
+    public override void Write(PublicKeyInfo value, BigEndianStream stream) {
+            FfiConverterTypePublicKeyAlgorithm.INSTANCE.Write(value.Algorithm, stream);
+            FfiConverterString.INSTANCE.Write(value.KeyId, stream);
+    }
+}
+
 
 
 /// <summary>
-/// Whether an EncString is encrypted with a symmetric key or an RSA public key.
+/// What an UnsignedSharedKey carries.
 /// </summary>
-internal enum EncStringFamily: int {
+/// <param name="Algorithm">
+/// The public-key algorithm it is encrypted with.
+/// </param>
+internal record UnsignedSharedKeyInfo (
     /// <summary>
-    /// Types 0, 2 and 7.
+    /// The public-key algorithm it is encrypted with.
     /// </summary>
-    Symmetric,
-    /// <summary>
-    /// Types 3 to 6 (`UnsignedSharedKey`).
-    /// </summary>
-    Asymmetric
+    UnsignedSharedKeyAlgorithm Algorithm
+) {
 }
 
-class FfiConverterTypeEncStringFamily: FfiConverterRustBuffer<EncStringFamily> {
-    public static FfiConverterTypeEncStringFamily INSTANCE = new FfiConverterTypeEncStringFamily();
+class FfiConverterTypeUnsignedSharedKeyInfo: FfiConverterRustBuffer<UnsignedSharedKeyInfo> {
+    public static FfiConverterTypeUnsignedSharedKeyInfo INSTANCE = new FfiConverterTypeUnsignedSharedKeyInfo();
 
-    public override EncStringFamily Read(BigEndianStream stream) {
+    public override UnsignedSharedKeyInfo Read(BigEndianStream stream) {
+        return new UnsignedSharedKeyInfo(
+            Algorithm: FfiConverterTypeUnsignedSharedKeyAlgorithm.INSTANCE.Read(stream)
+        );
+    }
+
+    public override int AllocationSize(UnsignedSharedKeyInfo value) {
+        return 0
+            + FfiConverterTypeUnsignedSharedKeyAlgorithm.INSTANCE.AllocationSize(value.Algorithm);
+    }
+
+    public override void Write(UnsignedSharedKeyInfo value, BigEndianStream stream) {
+            FfiConverterTypeUnsignedSharedKeyAlgorithm.INSTANCE.Write(value.Algorithm, stream);
+    }
+}
+
+
+
+/// <summary>
+/// What a VerifyingKey carries.
+/// </summary>
+/// <param name="Algorithm">
+/// The signature algorithm.
+/// </param>
+/// <param name="KeyId">
+/// The key id, as 32 lowercase hex characters.
+/// </param>
+internal record VerifyingKeyInfo (
+    /// <summary>
+    /// The signature algorithm.
+    /// </summary>
+    VerifyingKeyAlgorithm Algorithm, 
+    /// <summary>
+    /// The key id, as 32 lowercase hex characters.
+    /// </summary>
+    string KeyId
+) {
+}
+
+class FfiConverterTypeVerifyingKeyInfo: FfiConverterRustBuffer<VerifyingKeyInfo> {
+    public static FfiConverterTypeVerifyingKeyInfo INSTANCE = new FfiConverterTypeVerifyingKeyInfo();
+
+    public override VerifyingKeyInfo Read(BigEndianStream stream) {
+        return new VerifyingKeyInfo(
+            Algorithm: FfiConverterTypeVerifyingKeyAlgorithm.INSTANCE.Read(stream),
+            KeyId: FfiConverterString.INSTANCE.Read(stream)
+        );
+    }
+
+    public override int AllocationSize(VerifyingKeyInfo value) {
+        return 0
+            + FfiConverterTypeVerifyingKeyAlgorithm.INSTANCE.AllocationSize(value.Algorithm)
+            + FfiConverterString.INSTANCE.AllocationSize(value.KeyId);
+    }
+
+    public override void Write(VerifyingKeyInfo value, BigEndianStream stream) {
+            FfiConverterTypeVerifyingKeyAlgorithm.INSTANCE.Write(value.Algorithm, stream);
+            FfiConverterString.INSTANCE.Write(value.KeyId, stream);
+    }
+}
+
+
+
+
+
+/// <summary>
+/// The symmetric algorithm an EncString is encrypted with.
+/// </summary>
+internal enum EncStringAlgorithm: int {
+    /// <summary>
+    /// AES-256-CBC.
+    /// </summary>
+    Aes256Cbc,
+    /// <summary>
+    /// AES-256-CBC with HMAC-SHA256.
+    /// </summary>
+    Aes256CbcHmac,
+    /// <summary>
+    /// AES-256-GCM.
+    /// </summary>
+    Aes256Gcm,
+    /// <summary>
+    /// XAES-256-GCM.
+    /// </summary>
+    XAes256Gcm,
+    /// <summary>
+    /// XChaCha20-Poly1305.
+    /// </summary>
+    XChaCha20Poly1305
+}
+
+class FfiConverterTypeEncStringAlgorithm: FfiConverterRustBuffer<EncStringAlgorithm> {
+    public static FfiConverterTypeEncStringAlgorithm INSTANCE = new FfiConverterTypeEncStringAlgorithm();
+
+    public override EncStringAlgorithm Read(BigEndianStream stream) {
         var value = stream.ReadInt();
         switch (value) {
-            case 1: return EncStringFamily.Symmetric;
-            case 2: return EncStringFamily.Asymmetric;
-            default: throw new InternalException(String.Format("invalid enum value '{0}' in FfiConverterTypeEncStringFamily.Read()", value));
+            case 1: return EncStringAlgorithm.Aes256Cbc;
+            case 2: return EncStringAlgorithm.Aes256CbcHmac;
+            case 3: return EncStringAlgorithm.Aes256Gcm;
+            case 4: return EncStringAlgorithm.XAes256Gcm;
+            case 5: return EncStringAlgorithm.XChaCha20Poly1305;
+            default: throw new InternalException(String.Format("invalid enum value '{0}' in FfiConverterTypeEncStringAlgorithm.Read()", value));
         }
     }
 
-    public override int AllocationSize(EncStringFamily value) {
+    public override int AllocationSize(EncStringAlgorithm value) {
         return 4;
     }
 
-    public override void Write(EncStringFamily value, BigEndianStream stream) {
+    public override void Write(EncStringAlgorithm value, BigEndianStream stream) {
         switch (value) {
-            case EncStringFamily.Symmetric: stream.WriteInt(1); break;
-            case EncStringFamily.Asymmetric: stream.WriteInt(2); break;
-            default: throw new InternalException(String.Format("invalid enum value '{0}' in FfiConverterTypeEncStringFamily.Write()", value));
+            case EncStringAlgorithm.Aes256Cbc: stream.WriteInt(1); break;
+            case EncStringAlgorithm.Aes256CbcHmac: stream.WriteInt(2); break;
+            case EncStringAlgorithm.Aes256Gcm: stream.WriteInt(3); break;
+            case EncStringAlgorithm.XAes256Gcm: stream.WriteInt(4); break;
+            case EncStringAlgorithm.XChaCha20Poly1305: stream.WriteInt(5); break;
+            default: throw new InternalException(String.Format("invalid enum value '{0}' in FfiConverterTypeEncStringAlgorithm.Write()", value));
         }
     }
 }
@@ -2540,10 +2722,49 @@ class FfiConverterTypeEncStringFamily: FfiConverterRustBuffer<EncStringFamily> {
 
 
 /// <summary>
-/// Errors returned across the server UniFFI boundary.
+/// The encryption algorithm of a PublicKey.
+/// </summary>
+internal enum PublicKeyAlgorithm: int {
+    /// <summary>
+    /// RSA OAEP with SHA-1.
+    /// </summary>
+    RsaOaepSha1
+}
+
+class FfiConverterTypePublicKeyAlgorithm: FfiConverterRustBuffer<PublicKeyAlgorithm> {
+    public static FfiConverterTypePublicKeyAlgorithm INSTANCE = new FfiConverterTypePublicKeyAlgorithm();
+
+    public override PublicKeyAlgorithm Read(BigEndianStream stream) {
+        var value = stream.ReadInt();
+        switch (value) {
+            case 1: return PublicKeyAlgorithm.RsaOaepSha1;
+            default: throw new InternalException(String.Format("invalid enum value '{0}' in FfiConverterTypePublicKeyAlgorithm.Read()", value));
+        }
+    }
+
+    public override int AllocationSize(PublicKeyAlgorithm value) {
+        return 4;
+    }
+
+    public override void Write(PublicKeyAlgorithm value, BigEndianStream stream) {
+        switch (value) {
+            case PublicKeyAlgorithm.RsaOaepSha1: stream.WriteInt(1); break;
+            default: throw new InternalException(String.Format("invalid enum value '{0}' in FfiConverterTypePublicKeyAlgorithm.Write()", value));
+        }
+    }
+}
+
+
+
+
+
+
+
+/// <summary>
+/// The single error returned across the server UniFFI boundary.
 ///
-/// Flat, so C# receives one exception type per variant carrying the display message. The inner
-/// errors are not UniFFI types.
+/// The server only needs to know that input was rejected; which parser failed, and why, stays on
+/// the Rust side.
 /// </summary>
 internal class ServerException: UniffiException {
     ServerException(string message): base(message) {}
@@ -2552,80 +2773,10 @@ internal class ServerException: UniffiException {
     // Flat enums carries a string error message, so no special implementation is necessary.
     
     /// <summary>
-    /// The input is not a valid EncString.
+    /// The input is not a valid instance of the requested type.
     /// </summary>
-    public class InvalidEncString: ServerException {
-        public InvalidEncString(string message): base(message) {}
-    }
-    
-    /// <summary>
-    /// The input is not a valid SymmetricKeyEnvelope.
-    /// </summary>
-    public class InvalidEnvelope: ServerException {
-        public InvalidEnvelope(string message): base(message) {}
-    }
-    
-    /// <summary>
-    /// The input is not a valid UnsignedSharedKey.
-    /// </summary>
-    public class InvalidUnsignedSharedKey: ServerException {
-        public InvalidUnsignedSharedKey(string message): base(message) {}
-    }
-    
-    /// <summary>
-    /// The input is not a valid LegacyCompatSymmetricKeyEnvelope.
-    /// </summary>
-    public class InvalidLegacyCompatEnvelope: ServerException {
-        public InvalidLegacyCompatEnvelope(string message): base(message) {}
-    }
-    
-    /// <summary>
-    /// The input is not a valid PasswordProtectedKeyEnvelope.
-    /// </summary>
-    public class InvalidPasswordProtectedEnvelope: ServerException {
-        public InvalidPasswordProtectedEnvelope(string message): base(message) {}
-    }
-    
-    /// <summary>
-    /// The input is not a valid DataEnvelope.
-    /// </summary>
-    public class InvalidDataEnvelope: ServerException {
-        public InvalidDataEnvelope(string message): base(message) {}
-    }
-    
-    /// <summary>
-    /// The input is not a valid SignedObject.
-    /// </summary>
-    public class InvalidSignedObject: ServerException {
-        public InvalidSignedObject(string message): base(message) {}
-    }
-    
-    /// <summary>
-    /// The input is not a valid SignedPublicKey.
-    /// </summary>
-    public class InvalidSignedPublicKey: ServerException {
-        public InvalidSignedPublicKey(string message): base(message) {}
-    }
-    
-    /// <summary>
-    /// The input is not a valid COSE VerifyingKey.
-    /// </summary>
-    public class InvalidVerifyingKey: ServerException {
-        public InvalidVerifyingKey(string message): base(message) {}
-    }
-    
-    /// <summary>
-    /// The input is not a valid base64 DER SPKI RSA PublicKey.
-    /// </summary>
-    public class InvalidPublicKey: ServerException {
-        public InvalidPublicKey(string message): base(message) {}
-    }
-    
-    /// <summary>
-    /// The input is not a valid SignedSecurityState.
-    /// </summary>
-    public class InvalidSignedSecurityState: ServerException {
-        public InvalidSignedSecurityState(string message): base(message) {}
+    public class InvalidData: ServerException {
+        public InvalidData(string message): base(message) {}
     }
     
 }
@@ -2636,17 +2787,7 @@ class FfiConverterTypeServerError : FfiConverterRustBuffer<ServerException>, Cal
     public override ServerException Read(BigEndianStream stream) {
         var value = stream.ReadInt();
         switch (value) {
-            case 1: return new ServerException.InvalidEncString(FfiConverterString.INSTANCE.Read(stream));
-            case 2: return new ServerException.InvalidEnvelope(FfiConverterString.INSTANCE.Read(stream));
-            case 3: return new ServerException.InvalidUnsignedSharedKey(FfiConverterString.INSTANCE.Read(stream));
-            case 4: return new ServerException.InvalidLegacyCompatEnvelope(FfiConverterString.INSTANCE.Read(stream));
-            case 5: return new ServerException.InvalidPasswordProtectedEnvelope(FfiConverterString.INSTANCE.Read(stream));
-            case 6: return new ServerException.InvalidDataEnvelope(FfiConverterString.INSTANCE.Read(stream));
-            case 7: return new ServerException.InvalidSignedObject(FfiConverterString.INSTANCE.Read(stream));
-            case 8: return new ServerException.InvalidSignedPublicKey(FfiConverterString.INSTANCE.Read(stream));
-            case 9: return new ServerException.InvalidVerifyingKey(FfiConverterString.INSTANCE.Read(stream));
-            case 10: return new ServerException.InvalidPublicKey(FfiConverterString.INSTANCE.Read(stream));
-            case 11: return new ServerException.InvalidSignedSecurityState(FfiConverterString.INSTANCE.Read(stream));
+            case 1: return new ServerException.InvalidData(FfiConverterString.INSTANCE.Read(stream));
             default:
                 throw new InternalException(String.Format("invalid error value '{0}' in FfiConverterTypeServerError.Read()", value));
         }
@@ -2658,44 +2799,116 @@ class FfiConverterTypeServerError : FfiConverterRustBuffer<ServerException>, Cal
 
     public override void Write(ServerException value, BigEndianStream stream) {
         switch (value) {
-            case ServerException.InvalidEncString:
+            case ServerException.InvalidData:
                 stream.WriteInt(1);
-                break;
-            case ServerException.InvalidEnvelope:
-                stream.WriteInt(2);
-                break;
-            case ServerException.InvalidUnsignedSharedKey:
-                stream.WriteInt(3);
-                break;
-            case ServerException.InvalidLegacyCompatEnvelope:
-                stream.WriteInt(4);
-                break;
-            case ServerException.InvalidPasswordProtectedEnvelope:
-                stream.WriteInt(5);
-                break;
-            case ServerException.InvalidDataEnvelope:
-                stream.WriteInt(6);
-                break;
-            case ServerException.InvalidSignedObject:
-                stream.WriteInt(7);
-                break;
-            case ServerException.InvalidSignedPublicKey:
-                stream.WriteInt(8);
-                break;
-            case ServerException.InvalidVerifyingKey:
-                stream.WriteInt(9);
-                break;
-            case ServerException.InvalidPublicKey:
-                stream.WriteInt(10);
-                break;
-            case ServerException.InvalidSignedSecurityState:
-                stream.WriteInt(11);
                 break;
             default:
                 throw new InternalException(String.Format("invalid error value '{0}' in FfiConverterTypeServerError.Write()", value));
         }
     }
 }
+
+
+
+
+
+/// <summary>
+/// The public-key algorithm an UnsignedSharedKey is encrypted with.
+/// </summary>
+internal enum UnsignedSharedKeyAlgorithm: int {
+    /// <summary>
+    /// RSA-2048 OAEP with SHA-256.
+    /// </summary>
+    Rsa2048OaepSha256,
+    /// <summary>
+    /// RSA-2048 OAEP with SHA-1.
+    /// </summary>
+    Rsa2048OaepSha1,
+    /// <summary>
+    /// RSA-2048 OAEP with SHA-256, plus HMAC-SHA256.
+    /// </summary>
+    Rsa2048OaepSha256HmacSha256,
+    /// <summary>
+    /// RSA-2048 OAEP with SHA-1, plus HMAC-SHA256.
+    /// </summary>
+    Rsa2048OaepSha1HmacSha256
+}
+
+class FfiConverterTypeUnsignedSharedKeyAlgorithm: FfiConverterRustBuffer<UnsignedSharedKeyAlgorithm> {
+    public static FfiConverterTypeUnsignedSharedKeyAlgorithm INSTANCE = new FfiConverterTypeUnsignedSharedKeyAlgorithm();
+
+    public override UnsignedSharedKeyAlgorithm Read(BigEndianStream stream) {
+        var value = stream.ReadInt();
+        switch (value) {
+            case 1: return UnsignedSharedKeyAlgorithm.Rsa2048OaepSha256;
+            case 2: return UnsignedSharedKeyAlgorithm.Rsa2048OaepSha1;
+            case 3: return UnsignedSharedKeyAlgorithm.Rsa2048OaepSha256HmacSha256;
+            case 4: return UnsignedSharedKeyAlgorithm.Rsa2048OaepSha1HmacSha256;
+            default: throw new InternalException(String.Format("invalid enum value '{0}' in FfiConverterTypeUnsignedSharedKeyAlgorithm.Read()", value));
+        }
+    }
+
+    public override int AllocationSize(UnsignedSharedKeyAlgorithm value) {
+        return 4;
+    }
+
+    public override void Write(UnsignedSharedKeyAlgorithm value, BigEndianStream stream) {
+        switch (value) {
+            case UnsignedSharedKeyAlgorithm.Rsa2048OaepSha256: stream.WriteInt(1); break;
+            case UnsignedSharedKeyAlgorithm.Rsa2048OaepSha1: stream.WriteInt(2); break;
+            case UnsignedSharedKeyAlgorithm.Rsa2048OaepSha256HmacSha256: stream.WriteInt(3); break;
+            case UnsignedSharedKeyAlgorithm.Rsa2048OaepSha1HmacSha256: stream.WriteInt(4); break;
+            default: throw new InternalException(String.Format("invalid enum value '{0}' in FfiConverterTypeUnsignedSharedKeyAlgorithm.Write()", value));
+        }
+    }
+}
+
+
+
+
+
+
+
+/// <summary>
+/// The signature algorithm of a VerifyingKey.
+/// </summary>
+internal enum VerifyingKeyAlgorithm: int {
+    /// <summary>
+    /// Ed25519.
+    /// </summary>
+    Ed25519,
+    /// <summary>
+    /// ML-DSA-44.
+    /// </summary>
+    MlDsa44
+}
+
+class FfiConverterTypeVerifyingKeyAlgorithm: FfiConverterRustBuffer<VerifyingKeyAlgorithm> {
+    public static FfiConverterTypeVerifyingKeyAlgorithm INSTANCE = new FfiConverterTypeVerifyingKeyAlgorithm();
+
+    public override VerifyingKeyAlgorithm Read(BigEndianStream stream) {
+        var value = stream.ReadInt();
+        switch (value) {
+            case 1: return VerifyingKeyAlgorithm.Ed25519;
+            case 2: return VerifyingKeyAlgorithm.MlDsa44;
+            default: throw new InternalException(String.Format("invalid enum value '{0}' in FfiConverterTypeVerifyingKeyAlgorithm.Read()", value));
+        }
+    }
+
+    public override int AllocationSize(VerifyingKeyAlgorithm value) {
+        return 4;
+    }
+
+    public override void Write(VerifyingKeyAlgorithm value, BigEndianStream stream) {
+        switch (value) {
+            case VerifyingKeyAlgorithm.Ed25519: stream.WriteInt(1); break;
+            case VerifyingKeyAlgorithm.MlDsa44: stream.WriteInt(2); break;
+            default: throw new InternalException(String.Format("invalid enum value '{0}' in FfiConverterTypeVerifyingKeyAlgorithm.Write()", value));
+        }
+    }
+}
+
+
 
 
 

@@ -5,11 +5,6 @@ namespace Bitwarden.Server.Sdk.Crypto.Tests;
 // Exercises ICryptoObjectInspector through the native library against sdk-internal test vectors.
 public class CryptoObjectInspectorTests
 {
-    // EncString type prefixes, as defined by the wire format (`<type>.<payload>`).
-    private const int AesCbcHmacType = 2;
-    private const int RsaOaepSha1Type = 4;
-    private const int CoseEncrypt0Type = 7;
-
     private const string Garbage = "garbage";
 
     // Valid base64, but not the expected structure.
@@ -32,7 +27,7 @@ public class CryptoObjectInspectorTests
     [Fact]
     public void InspectEncString_Cose_ReturnsKeyId()
     {
-        var expected = new EncStringInfo(CoseEncrypt0Type, EncStringFamily.Symmetric, Fixtures.KeyId);
+        var expected = new EncStringInfo(EncStringAlgorithm.XAes256Gcm, Fixtures.KeyId);
 
         Assert.Equal(expected, Inspector.InspectEncString(Fixtures.CoseEncString));
     }
@@ -40,17 +35,17 @@ public class CryptoObjectInspectorTests
     [Fact]
     public void InspectEncString_Legacy_ReturnsNoKeyId()
     {
-        var expected = new EncStringInfo(AesCbcHmacType, EncStringFamily.Symmetric, null);
+        var expected = new EncStringInfo(EncStringAlgorithm.Aes256CbcHmac, null);
 
         Assert.Equal(expected, Inspector.InspectEncString(Fixtures.LegacyEncString));
     }
 
+    // An UnsignedSharedKey is not an EncString.
     [Fact]
-    public void InspectEncString_Asymmetric_ReturnsFamily()
+    public void InspectEncString_UnsignedSharedKey_Throws()
     {
-        var expected = new EncStringInfo(RsaOaepSha1Type, EncStringFamily.Asymmetric, null);
-
-        Assert.Equal(expected, Inspector.InspectEncString(InspectorFixtures.UnsignedSharedKey));
+        Assert.Throws<InvalidEncryptedDataException>(
+            () => Inspector.InspectEncString(InspectorFixtures.UnsignedSharedKey));
     }
 
     [Fact]
@@ -62,9 +57,9 @@ public class CryptoObjectInspectorTests
     }
 
     [Fact]
-    public void InspectUnsignedSharedKey_ReturnsType()
+    public void InspectUnsignedSharedKey_ReturnsAlgorithm()
     {
-        var expected = new EncStringInfo(RsaOaepSha1Type, EncStringFamily.Asymmetric, null);
+        var expected = new UnsignedSharedKeyInfo(UnsignedSharedKeyAlgorithm.Rsa2048OaepSha1);
 
         Assert.Equal(expected, Inspector.InspectUnsignedSharedKey(InspectorFixtures.UnsignedSharedKey));
     }
@@ -170,23 +165,9 @@ public class CryptoObjectInspectorTests
     }
 
     [Fact]
-    public void InspectSignedPublicKey_ReturnsSigner()
+    public void InspectVerifyingKey_ReturnsAlgorithmAndKeyId()
     {
-        var expected = new CryptoObjectKeyIds(null, null, InspectorFixtures.UserSigningKeyId);
-
-        Assert.Equal(expected, Inspector.InspectSignedPublicKey(InspectorFixtures.SignedPublicKey));
-    }
-
-    [Fact]
-    public void InspectSignedPublicKey_Invalid_Throws()
-    {
-        Assert.Throws<InvalidEncryptedDataException>(() => Inspector.InspectSignedPublicKey(Garbage));
-    }
-
-    [Fact]
-    public void InspectVerifyingKey_ReturnsOwnId()
-    {
-        var expected = new CryptoObjectKeyIds(InspectorFixtures.VerifyingKeyId, null, null);
+        var expected = new VerifyingKeyInfo(VerifyingKeyAlgorithm.Ed25519, InspectorFixtures.VerifyingKeyId);
 
         Assert.Equal(expected, Inspector.InspectVerifyingKey(InspectorFixtures.VerifyingKey));
     }
@@ -198,9 +179,9 @@ public class CryptoObjectInspectorTests
     }
 
     [Fact]
-    public void InspectPublicKey_ReturnsNoKeyIds()
+    public void InspectPublicKey_ReturnsAlgorithmAndKeyId()
     {
-        var expected = new CryptoObjectKeyIds(null, null, null);
+        var expected = new PublicKeyInfo(PublicKeyAlgorithm.RsaOaepSha1, InspectorFixtures.PublicKeyId);
 
         Assert.Equal(expected, Inspector.InspectPublicKey(InspectorFixtures.PublicKey));
     }
@@ -209,20 +190,6 @@ public class CryptoObjectInspectorTests
     public void InspectPublicKey_Invalid_Throws()
     {
         Assert.Throws<InvalidEncryptedDataException>(() => Inspector.InspectPublicKey(NotCose));
-    }
-
-    [Fact]
-    public void InspectSecurityState_ReturnsSigner()
-    {
-        var expected = new CryptoObjectKeyIds(null, null, InspectorFixtures.UserSigningKeyId);
-
-        Assert.Equal(expected, Inspector.InspectSignedSecurityState(InspectorFixtures.SignedSecurityState));
-    }
-
-    [Fact]
-    public void InspectSecurityState_Invalid_Throws()
-    {
-        Assert.Throws<InvalidEncryptedDataException>(() => Inspector.InspectSignedSecurityState(Garbage));
     }
 
     [Fact]

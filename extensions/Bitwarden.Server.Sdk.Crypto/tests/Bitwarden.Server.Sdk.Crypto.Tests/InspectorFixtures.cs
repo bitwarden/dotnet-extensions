@@ -43,15 +43,9 @@ internal static class InspectorFixtures
         "pgEBAlA3gyi/5olMtriLXpgtPw1HAycEgQIgBiFYIF3VI7FR2+Lxk4zuICK31WvjXEtU0C/GUBK8rJG4mhqq";
     public const string VerifyingKeyId = "378328bfe6894cb6b88b5e982d3f0d47";
 
-    // bitwarden-core/src/key_management/crypto.rs: a V2 user's TEST_VECTOR_SIGNED_PUBLIC_KEY_V2 and
-    // TEST_VECTOR_SECURITY_STATE_V2, both signed by its TEST_VECTOR_VERIFYING_KEY_V2.
-    public const string SignedPublicKey =
-        "hFgepAEnAxg8BFAmkP0QgfdMVbIujX55W/yNOgABOH8BoFkBTqNpYWxnb3JpdGhtAG1jb250ZW50Rm9ybWF0AGlwdWJsaWNLZXlZASYwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDP/7WM8nUepxoJ0qtM+azxcly+eZ31qUjjZTZcX/gYw1MzkoXWAjqyeFH/bdktq1lEUwegrxkIxKkY2SMtp0CvPnaV1x5O8E6FBSJbKWRlDg181rfEhgm5tc6aR4PJ827IvFVm9xk6Sj091P5DHZDEOsWLZc2jYjtpUV3X38I4gSR7HiYnR4DcwcWkoJ3FhtxMCwYgPz6RVH0vzhLUmm1mgbzH6IH8Pf9DjLTZSxBikVO7S9s9jzhiZbTeeAl3FbNLxfj9Qkj+NoSfms7jGVTlBwvSXgjJs/ktGkT1cR5QcBMpU4bt41+l73MN8pXapCih9Awf1W+RY7imxpYOMFJ3AgMBAAFYQMq/hT4wod2w8xyoM7D86ctuLNX4ZRo+jRHf2sZfaO7QsvonG/ZYuNKF5fq8wpxMRjfoMvnY2TTShbgzLrW8BA4=";
-    public const string SignedSecurityState =
-        "hFgepAEnAxg8BFAmkP0QgfdMVbIujX55W/yNOgABOH8CoFgkomhlbnRpdHlJZFBHOOw2BI9OQoNq+Vl1xZZKZ3ZlcnNpb24CWEAlchbJR0vmRfShG8On7Q2gknjkw4Dd6MYBLiH4u+/CmfQdmjNZdf6kozgW/6NXyKVNu8dAsKsin+xxXkDyVZoG";
-    public const string UserSigningKeyId = "2690fd1081f74c55b22e8d7e795bfc8d";
-
-    // bitwarden-crypto/src/keys/public_key_encryption.rs: RSA_PUBLIC_KEY_B64.
+    // bitwarden-crypto/src/keys/public_key_encryption.rs: RSA_PUBLIC_KEY_B64, and its key id from
+    // test_public_key_algorithm_and_key_id.
     public const string PublicKey =
         "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArvcXfr5pCD6KhzXo7BWc5Hdcbgp9U6hk0+wDYQBJ2yP8mlbd3GiN9JMFAtliE6BaTYLuxI9Mdk7XmDoKy63XAuI8tUon5imL/792Wca3f3qrbZh9pOfPKWp7HkcByty1ZO8QPlEYUP24y4DzOfVdLkdZfs9X5qKHiTxc+VklzTm3PSap4eORTQ/lP1GB10y0qJk5+44GRcSQSr3ku6ui2re8AJ2GQhdnZz5oWaCb/kij5bQPBwBrIEBlgRdaeasVdR6wFJPJAQZxtqWo9MPKeVDOkaQ3Qrryh+49S4rln3592/WeHYM5hO47DJr86ELcqcyCmksYas7xTqHfVfHSXQIDAQAB";
+    public const string PublicKeyId = "04fbcfa50c5805171304cc5b4794c25d";
 }
