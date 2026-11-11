@@ -117,9 +117,8 @@ app.MapHealthChecks("/healthz");
 
 Tag a check with `HealthCheckTags.Monitoring` when it describes something every instance shares,
 which taking one instance out of rotation would not fix, such as a backlog of messages waiting to be
-sent or a dead-letter queue. Bitwarden.Server.Sdk.Service leaves such checks out of its readiness
-probe, and publishes their status as the `bitwarden.health.status` metric (0 healthy, 1 degraded,
-2 unhealthy) and a log line on each change instead, which is where an alert on them belongs.
+sent or a dead-letter queue. A host leaves such checks out of its readiness probe and reports their
+status some other way, such as a metric, which is where an alert on them belongs.
 
 ```csharp
 builder.Services
