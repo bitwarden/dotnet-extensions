@@ -1,9 +1,4 @@
-using System.Collections.Concurrent;
-using System.Diagnostics;
 using Azure.Messaging.ServiceBus;
-using DotNet.Testcontainers.Builders;
-using DotNet.Testcontainers.Containers;
-using DotNet.Testcontainers.Networks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -67,21 +62,21 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
     protected override Dictionary<string, string?> CreateBrokerDownConfig() =>
         new() { { "AzureServiceBusConnectionString", UnreachableConnectionString } };
 
-    // ASB connects lazily: ReceiveMessagesAsync fails with ServiceBusException when the
-    // endpoint is unreachable, which is mapped to BrokerDisconnectedException. No separate
-    // "stop" step is needed — the failure occurs on the first receive attempt.
+    // The subscribe-when-broker-goes-down test needs a real broker to start with (so host
+    // startup and the negotiation join succeed) that can then be dropped mid-stream. The ASB
+    // emulator container can't be gracefully stopped mid-test in this harness, so skip. A
+    // production-facing droppable-ASB fixture would enable this coverage.
     protected override Task<(Dictionary<string, string?>, Func<Task>)?>
         TrySetupDroppableBrokerAsync() =>
-        Task.FromResult<(Dictionary<string, string?>, Func<Task>)?>(
-            (CreateBrokerDownConfig()!, () => Task.CompletedTask));
+        Task.FromResult<(Dictionary<string, string?>, Func<Task>)?>(null);
 
     [Fact(Timeout = 60 * 1000)]
     public async Task OversizedMessageThrows()
     {
         // Azure Service Bus standard tier enforces a 256 KB per-message limit.
         // Publishing a larger payload should throw ServiceBusException.
-        var host = await BuildHostAsync(services => services.AddPublisher<OversizedPayload, OversizedVariant>(TopicName));
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<OversizedPayload, OversizedVariant>>(MessageBrokerKeys.Publisher<OversizedPayload>(TopicName));
+        var host = await BuildHostAsync(services => services.AddPublisher<OversizedFamily, OversizedVariant>(TopicName));
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<OversizedFamily, OversizedVariant>>(MessageBrokerKeys.Publisher<OversizedFamily>(TopicName));
         var oversizedPayload = new string('x', 300 * 1024); // ~300 KB > 256 KB limit
         await Assert.ThrowsAsync<ServiceBusException>(() =>
             publisher.Publish(new OversizedVariant(oversizedPayload)).SendAsync(TestContext.Current.CancellationToken));
@@ -97,15 +92,15 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
     {
         var host = await BuildHostAsync(services =>
         {
-            services.AddPublisher<MyItemPayload, MyItem>(TopicName);
-            services.AddSubscriber<MyItemPayload, MyItem>(TopicName, SubscriptionName);
+            services.AddPublisher<MyItemFamily, MyItem>(TopicName);
+            services.AddSubscriber<MyItemFamily, MyItem>(TopicName, SubscriptionName);
         });
-        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
-        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemFamily, MyItem>>(PublisherKey);
+        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemFamily, MyItem>>(SubscriptionKey);
 
         await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
 
-        Envelope<MyItemPayload, MyItem>? captured = null;
+        Envelope<MyItemFamily, MyItem>? captured = null;
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {
             captured = envelope;
@@ -121,30 +116,18 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
     }
 
     // ASB subscriptions are persistent and accumulate messages across tests. Drain all
-    // subscriptions before each test to prevent cross-test pollution.
-    public override async ValueTask InitializeAsync()
-    {
-        await using var client = new ServiceBusClient(_fixture.GetConnectionString());
-        await DrainAsync(client, TopicName, SubscriptionName);
-        await DrainAsync(client, TopicName, "pm");
-        await DrainAsync(client, TopicName, "sm");
-    }
-
-    private static async Task DrainAsync(ServiceBusClient client, string topic, string subscription)
-    {
-        await using var receiver = client.CreateReceiver(topic, subscription,
-            new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.ReceiveAndDelete });
-        IReadOnlyList<ServiceBusReceivedMessage> batch;
-        do
-        {
-            batch = await receiver.ReceiveMessagesAsync(maxMessages: 100, maxWaitTime: TimeSpan.FromSeconds(1));
-        } while (batch.Count > 0);
-    }
+    // subscriptions before each test to prevent cross-test pollution. Drains run in parallel
+    // because each subscription has an independent receiver and the empty-wait dominates.
+    public override async ValueTask InitializeAsync() =>
+        await Task.WhenAll(
+            _fixture.DrainSubscriptionAsync(TopicName, SubscriptionName),
+            _fixture.DrainSubscriptionAsync(TopicName, "pm"),
+            _fixture.DrainSubscriptionAsync(TopicName, "sm"));
 
     /// <summary>
     /// A misconfigured subscription — its Correlation filter selects <c>user.deleted</c>, but the
-    /// client is registered as a <see cref="UserCreatedPayload"/> subscriber. The broker filter
-    /// passes the mismatched message through; the subscriber's defensive x-bw-payload-family
+    /// client is registered as a <see cref="UserCreatedFamily"/> subscriber. The broker filter
+    /// passes the mismatched message through; the subscriber's defensive x-bw-family
     /// check must catch it, dead-letter the message, and never yield it to the consumer.
     /// </summary>
     [Fact(Timeout = 60 * 1000)]
@@ -155,13 +138,13 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
 
         var host = await BuildHostAsync(services =>
         {
-            services.AddPublisher<UserDeletedPayload, UserDeleted>(MisconfiguredTopic);
-            services.AddSubscriber<UserCreatedPayload, UserCreated>(MisconfiguredTopic, MisfilteredSubscription);
+            services.AddPublisher<UserDeletedFamily, UserDeleted>(MisconfiguredTopic);
+            services.AddSubscriber<UserCreatedFamily, UserCreated>(MisconfiguredTopic, MisfilteredSubscription);
         });
 
-        var deletedPublisher = host.Services.GetRequiredKeyedService<Publisher<UserDeletedPayload, UserDeleted>>(
-            MessageBrokerKeys.Publisher<UserDeletedPayload>(MisconfiguredTopic));
-        var misfiltered = host.Services.GetRequiredKeyedService<ISubscriber<UserCreatedPayload, UserCreated>>(
+        var deletedPublisher = host.Services.GetRequiredKeyedService<Publisher<UserDeletedFamily, UserDeleted>>(
+            MessageBrokerKeys.Publisher<UserDeletedFamily>(MisconfiguredTopic));
+        var misfiltered = host.Services.GetRequiredKeyedService<ISubscriber<UserCreatedFamily, UserCreated>>(
             $"{MisconfiguredTopic}/{MisfilteredSubscription}");
 
         await deletedPublisher.Publish(new UserDeleted(Guid.NewGuid(), "test")).SendAsync(TestContext.Current.CancellationToken);
@@ -189,240 +172,14 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
             new ServiceBusReceiverOptions { SubQueue = SubQueue.DeadLetter });
         var deadLettered = await dlqReceiver.ReceiveMessageAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         Assert.NotNull(deadLettered);
-        Assert.Equal(UserDeletedPayload.WireName, deadLettered.ApplicationProperties["x-bw-payload-family"]);
+        Assert.Equal(UserDeletedFamily.WireName, deadLettered.ApplicationProperties["x-bw-family"]);
     }
 }
 
-public sealed record OversizedVariant(string Data) : OversizedPayload.ISole;
+public sealed record OversizedVariant(string Data) : OversizedFamily.ISole;
 
-public class OversizedPayload : Payload<OversizedPayload, OversizedVariant, OversizedVariant>, IPayloadVariants<OversizedPayload>, IPayloadWireName<OversizedPayload>
+public class OversizedFamily : Family<OversizedFamily, OversizedVariant, OversizedVariant>, IFamilyVariants<OversizedFamily>, IFamilyWireName<OversizedFamily>
 {
     public static string WireName => "oversized";
     public static IReadOnlyList<(Type, string)> Variants => [(typeof(OversizedVariant), nameof(OversizedVariant))];
-}
-
-public class AzureServiceBusFixture : IAsyncLifetime
-{
-    private INetwork? _network;
-    private IContainer? _sqlContainer;
-    private IContainer? _emulatorContainer;
-    private string? _configFile;
-
-    private const string SqlPassword = "Password!123";
-    private const string SqlAlias = "sqledge";
-
-    public string GetConnectionString()
-    {
-        var port = _emulatorContainer!.GetMappedPublicPort(5672);
-        return $"Endpoint=sb://localhost:{port};SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;";
-    }
-
-    public async ValueTask InitializeAsync()
-    {
-        _network = new NetworkBuilder().Build();
-        await _network.CreateAsync(TestContext.Current.CancellationToken);
-
-        _sqlContainer = new ContainerBuilder()
-            .WithImage("mcr.microsoft.com/azure-sql-edge")
-            .WithEnvironment("ACCEPT_EULA", "Y")
-            .WithEnvironment("MSSQL_SA_PASSWORD", SqlPassword)
-            .WithNetwork(_network)
-            .WithNetworkAliases(SqlAlias)
-            .WithWaitStrategy(Wait.ForUnixContainer()
-                .UntilMessageIsLogged("SQL Server is now ready for client connections\\."))
-            .Build();
-
-        await _sqlContainer.StartAsync(TestContext.Current.CancellationToken);
-
-        // Topology must be declared via this JSON config because the Azure Service Bus emulator
-        // does not expose an HTTP management endpoint — the container only publishes port 5672
-        // (AMQP). ServiceBusAdministrationClient defaults to the standard HTTPS management URL
-        // derived from the endpoint host and does not honor UseDevelopmentEmulator=true for URL
-        // selection, so runtime admin-API provisioning (which would let the ASB tests mirror the
-        // Rabbit PreStartAsync pattern) connects to localhost:80 and fails. Revisit if a future
-        // emulator image exposes the admin HTTP endpoint, or if the SDK adds a dedicated
-        // emulator-aware admin client constructor — at that point we could drop this JSON and
-        // declare topology per-test from BrokerTopologyDeclaration records.
-        _configFile = Path.Combine(Path.GetTempPath(), $"sb-emulator-{Guid.NewGuid():N}.json");
-        await File.WriteAllTextAsync(_configFile, """
-            {
-              "UserConfig": {
-                "Namespaces": [
-                  {
-                    "Name": "sbemulatorns",
-                    "Properties": {
-                      "MaxAllowedConnections": 100
-                    },
-                    "Queues": [],
-                    "Topics": [
-                      {
-                        "Name": "behavior",
-                        "Properties": {
-                          "DefaultMessageTimeToLive": "PT1H",
-                          "RequiresDuplicateDetection": false
-                        },
-                        "Subscriptions": [
-                          {
-                            "Name": "behavior",
-                            "Properties": {
-                              "DeadLetteringOnMessageExpiration": false,
-                              "DefaultMessageTimeToLive": "PT1H",
-                              "ForwardDeadLetteredMessagesTo": "",
-                              "ForwardTo": "",
-                              "LockDuration": "PT30S",
-                              "MaxDeliveryCount": 10,
-                              "RequiresSession": false
-                            }
-                          },
-                          {
-                            "Name": "pm",
-                            "Properties": {
-                              "DeadLetteringOnMessageExpiration": false,
-                              "DefaultMessageTimeToLive": "PT1H",
-                              "ForwardDeadLetteredMessagesTo": "",
-                              "ForwardTo": "",
-                              "LockDuration": "PT30S",
-                              "MaxDeliveryCount": 10,
-                              "RequiresSession": false
-                            }
-                          },
-                          {
-                            "Name": "sm",
-                            "Properties": {
-                              "DeadLetteringOnMessageExpiration": false,
-                              "DefaultMessageTimeToLive": "PT1H",
-                              "ForwardDeadLetteredMessagesTo": "",
-                              "ForwardTo": "",
-                              "LockDuration": "PT30S",
-                              "MaxDeliveryCount": 10,
-                              "RequiresSession": false
-                            }
-                          }
-                        ]
-                      },
-                      {
-                        "Name": "misconfigured",
-                        "Properties": {
-                          "DefaultMessageTimeToLive": "PT1H",
-                          "RequiresDuplicateDetection": false
-                        },
-                        "Subscriptions": [
-                          {
-                            "Name": "misfiltered",
-                            "Properties": {
-                              "DeadLetteringOnMessageExpiration": false,
-                              "DefaultMessageTimeToLive": "PT1H",
-                              "ForwardDeadLetteredMessagesTo": "",
-                              "ForwardTo": "",
-                              "LockDuration": "PT30S",
-                              "MaxDeliveryCount": 10,
-                              "RequiresSession": false
-                            },
-                            "Rules": [
-                              {
-                                "Name": "FamilyFilter",
-                                "Properties": {
-                                  "FilterType": "Correlation",
-                                  "CorrelationFilter": {
-                                    "Properties": {
-                                      "x-bw-payload-family": "user.deleted"
-                                    }
-                                  }
-                                }
-                              }
-                            ]
-                          }
-                        ]
-                      },
-                      {
-                        "Name": "user-events",
-                        "Properties": {
-                          "DefaultMessageTimeToLive": "PT1H",
-                          "RequiresDuplicateDetection": false
-                        },
-                        "Subscriptions": [
-                          {
-                            "Name": "vault",
-                            "Properties": {
-                              "DeadLetteringOnMessageExpiration": false,
-                              "DefaultMessageTimeToLive": "PT1H",
-                              "ForwardDeadLetteredMessagesTo": "",
-                              "ForwardTo": "",
-                              "LockDuration": "PT30S",
-                              "MaxDeliveryCount": 10,
-                              "RequiresSession": false
-                            },
-                            "Rules": [
-                              {
-                                "Name": "FamilyFilter",
-                                "Properties": {
-                                  "FilterType": "Correlation",
-                                  "CorrelationFilter": {
-                                    "Properties": {
-                                      "x-bw-payload-family": "user.created"
-                                    }
-                                  }
-                                }
-                              }
-                            ]
-                          },
-                          {
-                            "Name": "organizations",
-                            "Properties": {
-                              "DeadLetteringOnMessageExpiration": false,
-                              "DefaultMessageTimeToLive": "PT1H",
-                              "ForwardDeadLetteredMessagesTo": "",
-                              "ForwardTo": "",
-                              "LockDuration": "PT30S",
-                              "MaxDeliveryCount": 10,
-                              "RequiresSession": false
-                            },
-                            "Rules": [
-                              {
-                                "Name": "FamilyFilter",
-                                "Properties": {
-                                  "FilterType": "Correlation",
-                                  "CorrelationFilter": {
-                                    "Properties": {
-                                      "x-bw-payload-family": "user.deleted"
-                                    }
-                                  }
-                                }
-                              }
-                            ]
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                ],
-                "Logging": {
-                  "Type": "File"
-                }
-              }
-            }
-            """);
-
-        _emulatorContainer = new ContainerBuilder()
-            .WithImage("mcr.microsoft.com/azure-messaging/servicebus-emulator:latest")
-            .WithEnvironment("ACCEPT_EULA", "Y")
-            .WithEnvironment("SQL_SERVER", SqlAlias)
-            .WithEnvironment("MSSQL_SA_PASSWORD", SqlPassword)
-            .WithNetwork(_network)
-            .WithBindMount(_configFile, "/ServiceBus_Emulator/ConfigFiles/Config.json")
-            .WithPortBinding(5672, true)
-            .WithWaitStrategy(Wait.ForUnixContainer()
-                .UntilMessageIsLogged("Emulator Service is Successfully Up!"))
-            .Build();
-
-        await _emulatorContainer.StartAsync(TestContext.Current.CancellationToken);
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_emulatorContainer != null) await _emulatorContainer.DisposeAsync();
-        if (_sqlContainer != null) await _sqlContainer.DisposeAsync();
-        if (_network != null) await _network.DisposeAsync();
-        if (_configFile != null) File.Delete(_configFile);
-    }
 }

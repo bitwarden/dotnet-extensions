@@ -1,21 +1,21 @@
 namespace Bitwarden.Server.Sdk.MessageBroker;
 
 /// <summary>
-/// Root of a payload family and the container for every variant-side interface. Concrete payload
-/// types derive from <see cref="Payload{TSelf, TFloor, TCeiling}"/>; variants and downcast assists
-/// implement nested interfaces accessed through the derived type name (<c>MyPayload.IFloor&lt;TUp&gt;</c>,
-/// <c>MyPayload.IPure&lt;TDown, TUp&gt;</c>, <c>MyPayload.IAssist&lt;TFrom, TTo, TSelf&gt;</c>).
+/// Root of a family and the container for every variant-side interface. Concrete payload
+/// types derive from <see cref="Family{TSelf, TFloor, TCeiling}"/>; variants and downcast assists
+/// implement nested interfaces accessed through the derived type name (<c>MyFamily.IFloor&lt;TUp&gt;</c>,
+/// <c>MyFamily.IPure&lt;TDown, TUp&gt;</c>, <c>MyFamily.IAssist&lt;TFrom, TTo, TSelf&gt;</c>).
 /// </summary>
 /// <remarks>
 /// <para>
-/// A payload is a versioned message: successive variants form a chain from floor (the oldest known
+/// A family is a versioned message: successive variants form a chain from floor (the oldest known
 /// shape) to ceiling (the newest). Publishers walk the chain downward so subscribers on older code
 /// still see a variant they can decode; subscribers walk it upward to reach the shape they know how
 /// to consume.
 /// </para>
 /// <para>
 /// Descent and ascent are coupled: any variant that is not the ceiling must declare both a downcast
-/// to its floor-side neighbour and an upcast to its ceiling-side neighbour, so no variant is
+/// to its floor-side neighbor and an upcast to its ceiling-side neighbor, so no variant is
 /// unreachable in either direction. The interface set enforces this at compile time as possible and validated
 /// at runtime service registration where not (complete, sparse, linear).
 /// </para>
@@ -34,9 +34,9 @@ namespace Bitwarden.Server.Sdk.MessageBroker;
 /// into the type system.
 /// </para>
 /// </remarks>
-public abstract class Payload<TSelf> where TSelf : Payload<TSelf>
+public abstract class Family<TSelf> where TSelf : Family<TSelf>
 {
-    /// <summary>Base marker for anything that is a variant of this payload.</summary>
+    /// <summary>Base marker for anything that is a variant of this family.</summary>
     public interface IVariant;
 
     // -----------------------------------------------------------------------
@@ -64,11 +64,11 @@ public abstract class Payload<TSelf> where TSelf : Payload<TSelf>
 
     /// <summary>
     /// Non-generic base for <see cref="IPureUp{TUp}"/>. Enables runtime walking — the
-    /// <see cref="Envelope{TPayload, TCeiling}"/> uses it to fold pure upcasts through unknown target types.
+    /// <see cref="Envelope{TFamily, TCeiling}"/> uses it to fold pure upcasts through unknown target types.
     /// </summary>
     public interface IPureUp : IVariant
     {
-        /// <summary>Produces the ceiling-side neighbour of this variant. Returned as the base marker so runtime code can chain without knowing the concrete type.</summary>
+        /// <summary>Produces the ceiling-side neighbor of this variant. Returned as the base marker so runtime code can chain without knowing the concrete type.</summary>
         IVariant Upcast();
     }
 
@@ -78,7 +78,7 @@ public abstract class Payload<TSelf> where TSelf : Payload<TSelf>
     /// </summary>
     public interface IPureUp<TUp> : IPureUp where TUp : IVariant
     {
-        /// <summary>Produces the ceiling-side neighbour of this variant.</summary>
+        /// <summary>Produces the ceiling-side neighbor of this variant.</summary>
         new TUp Upcast();
 
         IVariant IPureUp.Upcast() => Upcast();
@@ -101,7 +101,7 @@ public abstract class Payload<TSelf> where TSelf : Payload<TSelf>
         void IReachesFloor.DescendToFloor(ICollection<IVariant> sink) { }
     }
 
-    /// <summary>The bottom of the chain, with a pure upcast to its ceiling-side neighbour.</summary>
+    /// <summary>The bottom of the chain, with a pure upcast to its ceiling-side neighbor.</summary>
     public interface IFloor<TUp> : IFloor, IPureUp<TUp> where TUp : IVariant;
 
     /// <summary>
@@ -121,7 +121,7 @@ public abstract class Payload<TSelf> where TSelf : Payload<TSelf>
         where TDown : IReachesFloor
         where TUp : IVariant
     {
-        /// <summary>Produces the floor-side neighbour of this variant.</summary>
+        /// <summary>Produces the floor-side neighbor of this variant.</summary>
         TDown Downcast();
 
         void IReachesFloor.DescendToFloor(ICollection<IVariant> sink)
@@ -141,7 +141,7 @@ public abstract class Payload<TSelf> where TSelf : Payload<TSelf>
         where TBlocked : IVariant
         where TUp : IVariant
     {
-        /// <summary>Produces the floor-side neighbour of this variant.</summary>
+        /// <summary>Produces the floor-side neighbor of this variant.</summary>
         TDown Downcast();
 
         TBlocked IBlockedAt<TBlocked>.DescendToBlocked(ICollection<IVariant> sink)
@@ -163,7 +163,7 @@ public abstract class Payload<TSelf> where TSelf : Payload<TSelf>
         where TAssist : IAssist<TSelfV, TDown, TAssist>
         where TSelfV : IAssistedDowncast<TDown, TAssist, TSelfV>
     {
-        /// <summary>Produces the floor-side neighbour using caller-supplied <paramref name="assist"/>.</summary>
+        /// <summary>Produces the floor-side neighbors using caller-supplied <paramref name="assist"/>.</summary>
         TDown Downcast(TAssist assist);
 
         TSelfV IBlockedAt<TSelfV>.DescendToBlocked(ICollection<IVariant> sink) => (TSelfV)this;
@@ -187,7 +187,7 @@ public abstract class Payload<TSelf> where TSelf : Payload<TSelf>
     public interface IPureCeiling<TDown> : IReachesFloor, ICeiling
         where TDown : IReachesFloor
     {
-        /// <summary>Produces the floor-side neighbour of this variant.</summary>
+        /// <summary>Produces the floor-side neighbor of this variant.</summary>
         TDown Downcast();
 
         void IReachesFloor.DescendToFloor(ICollection<IVariant> sink)
@@ -203,7 +203,7 @@ public abstract class Payload<TSelf> where TSelf : Payload<TSelf>
         where TDown : IBlockedAt<TBlocked>
         where TBlocked : IVariant
     {
-        /// <summary>Produces the floor-side neighbour of this variant.</summary>
+        /// <summary>Produces the floor-side neighbor of this variant.</summary>
         TDown Downcast();
 
         TBlocked IBlockedAt<TBlocked>.DescendToBlocked(ICollection<IVariant> sink)
@@ -236,32 +236,32 @@ public abstract class Payload<TSelf> where TSelf : Payload<TSelf>
         where TTo : IVariant
         where TSelfA : IAssist<TFrom, TTo, TSelfA>
     {
-        /// <summary>Applies this assist to <paramref name="from"/> to produce its floor-side neighbour.</summary>
+        /// <summary>Applies this assist to <paramref name="from"/> to produce its floor-side neighbor.</summary>
         TTo Descend(TFrom from) => from.Downcast((TSelfA)this);
     }
 }
 
 /// <summary>
-/// A payload that names its ceiling but not its floor. Exists so <see cref="Publisher{TPayload, TCeiling}"/>
-/// can constrain on the payload identity and its declared ceiling without also having to spell the
-/// floor at every publisher registration. Concrete payload types derive from
-/// <see cref="Payload{TSelf, TFloor, TCeiling}"/>, which layers the floor on top of this.
+/// A family that names its ceiling but not its floor. Exists so <see cref="Publisher{TFamily, TCeiling}"/>
+/// can constrain on the family identity and its declared ceiling without also having to spell the
+/// floor at every publisher registration. Concrete family types derive from
+/// <see cref="Family{TSelf, TFloor, TCeiling}"/>, which layers the floor on top of this.
 /// </summary>
-public abstract class PayloadCeiling<TSelf, TCeiling> : Payload<TSelf>
-    where TSelf : PayloadCeiling<TSelf, TCeiling>
-    where TCeiling : Payload<TSelf>.ICeiling;
+public abstract class FamilyCeiling<TSelf, TCeiling> : Family<TSelf>
+    where TSelf : FamilyCeiling<TSelf, TCeiling>
+    where TCeiling : Family<TSelf>.ICeiling;
 
 /// <summary>
-/// A payload that names its floor and ceiling. Concrete payload types derive from this class,
-/// which forces them to also implement <see cref="IPayloadVariants{TSelf}"/> — the static list
+/// A family that names its floor and ceiling. Concrete family types derive from this class,
+/// which forces them to also implement <see cref="IFamilyVariants{TSelf}"/> — the static list
 /// of variant types the framework uses to route messages on deserialize without runtime
-/// reflection — and <see cref="IPayloadWireName{TSelf}"/> — the stable family identifier that
-/// subscriptions bind or filter against when one topic carries multiple payload families.
+/// reflection — and <see cref="IFamilyWireName{TSelf}"/> — the stable family identifier that
+/// subscriptions bind or filter against when one topic carries multiple families.
 /// </summary>
-public abstract class Payload<TSelf, TFloor, TCeiling> : PayloadCeiling<TSelf, TCeiling>
-    where TSelf : Payload<TSelf, TFloor, TCeiling>, IPayloadVariants<TSelf>, IPayloadWireName<TSelf>
-    where TFloor : Payload<TSelf>.IFloor
-    where TCeiling : Payload<TSelf>.ICeiling;
+public abstract class Family<TSelf, TFloor, TCeiling> : FamilyCeiling<TSelf, TCeiling>
+    where TSelf : Family<TSelf, TFloor, TCeiling>, IFamilyVariants<TSelf>, IFamilyWireName<TSelf>
+    where TFloor : Family<TSelf>.IFloor
+    where TCeiling : Family<TSelf>.ICeiling;
 
 /// <summary>
 /// The static index of every variant type belonging to <typeparamref name="TSelf"/> paired with
@@ -271,42 +271,42 @@ public abstract class Payload<TSelf, TFloor, TCeiling> : PayloadCeiling<TSelf, T
 /// </summary>
 /// <remarks>
 /// <para>
-/// Variant wire names identify shapes WITHIN a payload family. The family itself is identified
-/// by <see cref="IPayloadWireName{TSelf}.WireName"/>, which only needs to be unique within a
+/// Variant wire names identify shapes WITHIN a family. The family itself is identified
+/// by <see cref="IFamilyWireName{TSelf}.WireName"/>, which only needs to be unique within a
 /// topic — two variants named <c>"v1"</c> on different families coexist on the same topic.
 /// </para>
 /// <para>
 /// Because the chain shape is only known to the author, the framework cannot walk it at compile
-/// time. Listing the variant types once on the payload class trades a small amount of author
+/// time. Listing the variant types once on the family class trades a small amount of author
 /// ceremony for a fully AOT-compatible deserialize path.
 /// </para>
 /// </remarks>
-public interface IPayloadVariants<TSelf> where TSelf : IPayloadVariants<TSelf>
+public interface IFamilyVariants<TSelf> where TSelf : IFamilyVariants<TSelf>
 {
     /// <summary>
-    /// Every concrete variant type in this payload's chain paired with the stable wire name that
+    /// Every concrete variant type in this family's chain paired with the stable wire name that
     /// identifies it on the wire. Wire names must be unique within a chain.
     /// </summary>
     static abstract IReadOnlyList<(Type Type, string WireName)> Variants { get; }
 }
 
 /// <summary>
-/// The stable identifier the broker uses to tell this payload family apart from other families
+/// The stable identifier the broker uses to tell this family apart from other families
 /// carried on the same topic. Publishers stamp it on every outgoing message; subscriptions bind
 /// or filter against it so each subscription only receives one family's messages.
 /// </summary>
 /// <remarks>
 /// Family wire names must be unique within a topic but can repeat across topics. They are
 /// decoupled from CLR type names so a family can be renamed or moved without disturbing messages
-/// already on the wire. See <see cref="IPayloadVariants{TSelf}"/> for the per-variant wire names
+/// already on the wire. See <see cref="IFamilyVariants{TSelf}"/> for the per-variant wire names
 /// that live inside a family.
 /// </remarks>
-public interface IPayloadWireName<TSelf> where TSelf : IPayloadWireName<TSelf>
+public interface IFamilyWireName<TSelf> where TSelf : IFamilyWireName<TSelf>
 {
     /// <summary>
     /// The stable family identifier for this payload. Appears on the broker as a routing key
     /// (RabbitMQ) or application property (Azure Service Bus) and as the
-    /// <c>messaging.payload.family</c> observability tag.
+    /// <c>messaging.family</c> observability tag.
     /// </summary>
     static abstract string WireName { get; }
 }

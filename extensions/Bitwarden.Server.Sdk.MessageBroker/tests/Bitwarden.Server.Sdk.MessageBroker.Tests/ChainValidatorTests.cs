@@ -8,14 +8,14 @@ public class ChainValidatorTests
     public void ValidChain_DoesNotThrow()
     {
         var services = new ServiceCollection();
-        services.AddPublisher<ValidChainPayload, ValidChainCeiling>("test");
+        services.AddPublisher<ValidChainFamily, ValidChainCeiling>("test");
     }
 
     [Fact]
     public void DuplicateVariant_Reported()
     {
         var ex = Assert.Throws<AggregateException>(() =>
-            new ServiceCollection().AddPublisher<DuplicateVariantPayload, DuplicateVariantCeiling>("test"));
+            new ServiceCollection().AddPublisher<DuplicateVariantFamily, DuplicateVariantCeiling>("test"));
 
         AssertContainsMessage(ex, "more than once");
     }
@@ -24,7 +24,7 @@ public class ChainValidatorTests
     public void ReferenceNotInVariants_Reported()
     {
         var ex = Assert.Throws<AggregateException>(() =>
-            new ServiceCollection().AddPublisher<DanglingReferencePayload, DanglingReferenceCeiling>("test"));
+            new ServiceCollection().AddPublisher<DanglingReferenceFamily, DanglingReferenceCeiling>("test"));
 
         AssertContainsMessage(ex, "which is not listed");
     }
@@ -33,7 +33,7 @@ public class ChainValidatorTests
     public void MultipleFloors_Reported()
     {
         var ex = Assert.Throws<AggregateException>(() =>
-            new ServiceCollection().AddPublisher<MultipleFloorsPayload, MultipleFloorsCeiling>("test"));
+            new ServiceCollection().AddPublisher<MultipleFloorsFamily, MultipleFloorsCeiling>("test"));
 
         AssertContainsMessage(ex, "declares 2 floors");
     }
@@ -42,7 +42,7 @@ public class ChainValidatorTests
     public void MultipleCeilings_Reported()
     {
         var ex = Assert.Throws<AggregateException>(() =>
-            new ServiceCollection().AddPublisher<MultipleCeilingsPayload, MultipleCeilingsCeilingA>("test"));
+            new ServiceCollection().AddPublisher<MultipleCeilingsFamily, MultipleCeilingsCeilingA>("test"));
 
         AssertContainsMessage(ex, "declares 2 ceilings");
     }
@@ -51,7 +51,7 @@ public class ChainValidatorTests
     public void UnreachedVariant_Reported()
     {
         var ex = Assert.Throws<AggregateException>(() =>
-            new ServiceCollection().AddPublisher<UnreachedVariantPayload, UnreachedVariantCeiling>("test"));
+            new ServiceCollection().AddPublisher<UnreachedVariantFamily, UnreachedVariantCeiling>("test"));
 
         AssertContainsMessage(ex, "remain unreached");
     }
@@ -60,7 +60,7 @@ public class ChainValidatorTests
     public void BidirectionalInconsistency_Reported()
     {
         var ex = Assert.Throws<AggregateException>(() =>
-            new ServiceCollection().AddPublisher<InconsistentPayload, InconsistentCeiling>("test"));
+            new ServiceCollection().AddPublisher<InconsistentFamily, InconsistentCeiling>("test"));
 
         AssertContainsMessage(ex, "Chain inconsistency");
     }
@@ -69,7 +69,7 @@ public class ChainValidatorTests
     public void CycleInChain_Reported()
     {
         var ex = Assert.Throws<AggregateException>(() =>
-            new ServiceCollection().AddPublisher<CyclePayload, CycleCeiling>("test"));
+            new ServiceCollection().AddPublisher<CycleFamily, CycleCeiling>("test"));
 
         AssertContainsMessage(ex, "cycle");
     }
@@ -78,7 +78,7 @@ public class ChainValidatorTests
     public void DuplicateWireName_Reported()
     {
         var ex = Assert.Throws<AggregateException>(() =>
-            new ServiceCollection().AddPublisher<DuplicateWireNamePayload, DuplicateWireNameCeiling>("test"));
+            new ServiceCollection().AddPublisher<DuplicateWireNameFamily, DuplicateWireNameCeiling>("test"));
 
         AssertContainsMessage(ex, "wire name");
     }
@@ -87,7 +87,7 @@ public class ChainValidatorTests
     public void MultipleProblems_AllReported()
     {
         var ex = Assert.Throws<AggregateException>(() =>
-            new ServiceCollection().AddPublisher<MultipleProblemsPayload, MultipleProblemsCeiling>("test"));
+            new ServiceCollection().AddPublisher<MultipleProblemsFamily, MultipleProblemsCeiling>("test"));
 
         Assert.True(ex.InnerExceptions.Count >= 2,
             $"Expected AggregateException with multiple inner exceptions; got {ex.InnerExceptions.Count}. " +
@@ -101,20 +101,20 @@ public class ChainValidatorTests
 }
 
 // ===== Valid chain =====
-public sealed record ValidChainFloor : ValidChainPayload.IFloor<ValidChainMiddle>
+public sealed record ValidChainFloor : ValidChainFamily.IFloor<ValidChainMiddle>
 {
     public ValidChainMiddle Upcast() => new();
 }
-public sealed record ValidChainMiddle : ValidChainPayload.IPure<ValidChainFloor, ValidChainCeiling>
+public sealed record ValidChainMiddle : ValidChainFamily.IPure<ValidChainFloor, ValidChainCeiling>
 {
     public ValidChainFloor Downcast() => new();
     public ValidChainCeiling Upcast() => new();
 }
-public sealed record ValidChainCeiling : ValidChainPayload.IPureCeiling<ValidChainMiddle>
+public sealed record ValidChainCeiling : ValidChainFamily.IPureCeiling<ValidChainMiddle>
 {
     public ValidChainMiddle Downcast() => new();
 }
-public class ValidChainPayload : Payload<ValidChainPayload, ValidChainFloor, ValidChainCeiling>, IPayloadVariants<ValidChainPayload>, IPayloadWireName<ValidChainPayload>
+public class ValidChainFamily : Family<ValidChainFamily, ValidChainFloor, ValidChainCeiling>, IFamilyVariants<ValidChainFamily>, IFamilyWireName<ValidChainFamily>
 {
     public static string WireName => "valid-chain";
     public static IReadOnlyList<(Type, string)> Variants =>
@@ -122,15 +122,15 @@ public class ValidChainPayload : Payload<ValidChainPayload, ValidChainFloor, Val
 }
 
 // ===== Duplicate variant in list =====
-public sealed record DuplicateVariantFloor : DuplicateVariantPayload.IFloor<DuplicateVariantCeiling>
+public sealed record DuplicateVariantFloor : DuplicateVariantFamily.IFloor<DuplicateVariantCeiling>
 {
     public DuplicateVariantCeiling Upcast() => new();
 }
-public sealed record DuplicateVariantCeiling : DuplicateVariantPayload.IPureCeiling<DuplicateVariantFloor>
+public sealed record DuplicateVariantCeiling : DuplicateVariantFamily.IPureCeiling<DuplicateVariantFloor>
 {
     public DuplicateVariantFloor Downcast() => new();
 }
-public class DuplicateVariantPayload : Payload<DuplicateVariantPayload, DuplicateVariantFloor, DuplicateVariantCeiling>, IPayloadVariants<DuplicateVariantPayload>, IPayloadWireName<DuplicateVariantPayload>
+public class DuplicateVariantFamily : Family<DuplicateVariantFamily, DuplicateVariantFloor, DuplicateVariantCeiling>, IFamilyVariants<DuplicateVariantFamily>, IFamilyWireName<DuplicateVariantFamily>
 {
     public static string WireName => "duplicate-variant";
     // Same type listed twice.
@@ -139,17 +139,17 @@ public class DuplicateVariantPayload : Payload<DuplicateVariantPayload, Duplicat
 }
 
 // ===== TUp references a type not in Variants =====
-public sealed record DanglingReferenceOrphan : DanglingReferencePayload.IVariant;
-public sealed record DanglingReferenceFloor : DanglingReferencePayload.IFloor<DanglingReferenceOrphan>
+public sealed record DanglingReferenceOrphan : DanglingReferenceFamily.IVariant;
+public sealed record DanglingReferenceFloor : DanglingReferenceFamily.IFloor<DanglingReferenceOrphan>
 {
     // TUp is Orphan, but Orphan is not listed in Variants.
     public DanglingReferenceOrphan Upcast() => new();
 }
-public sealed record DanglingReferenceCeiling : DanglingReferencePayload.IPureCeiling<DanglingReferenceFloor>
+public sealed record DanglingReferenceCeiling : DanglingReferenceFamily.IPureCeiling<DanglingReferenceFloor>
 {
     public DanglingReferenceFloor Downcast() => new();
 }
-public class DanglingReferencePayload : Payload<DanglingReferencePayload, DanglingReferenceFloor, DanglingReferenceCeiling>, IPayloadVariants<DanglingReferencePayload>, IPayloadWireName<DanglingReferencePayload>
+public class DanglingReferenceFamily : Family<DanglingReferenceFamily, DanglingReferenceFloor, DanglingReferenceCeiling>, IFamilyVariants<DanglingReferenceFamily>, IFamilyWireName<DanglingReferenceFamily>
 {
     public static string WireName => "dangling-reference";
     public static IReadOnlyList<(Type, string)> Variants =>
@@ -157,19 +157,19 @@ public class DanglingReferencePayload : Payload<DanglingReferencePayload, Dangli
 }
 
 // ===== Multiple floors (extra IFloor variant) =====
-public sealed record MultipleFloorsFloorA : MultipleFloorsPayload.IFloor<MultipleFloorsCeiling>
+public sealed record MultipleFloorsFloorA : MultipleFloorsFamily.IFloor<MultipleFloorsCeiling>
 {
     public MultipleFloorsCeiling Upcast() => new();
 }
-public sealed record MultipleFloorsFloorB : MultipleFloorsPayload.IFloor<MultipleFloorsCeiling>
+public sealed record MultipleFloorsFloorB : MultipleFloorsFamily.IFloor<MultipleFloorsCeiling>
 {
     public MultipleFloorsCeiling Upcast() => new();
 }
-public sealed record MultipleFloorsCeiling : MultipleFloorsPayload.IPureCeiling<MultipleFloorsFloorA>
+public sealed record MultipleFloorsCeiling : MultipleFloorsFamily.IPureCeiling<MultipleFloorsFloorA>
 {
     public MultipleFloorsFloorA Downcast() => new();
 }
-public class MultipleFloorsPayload : Payload<MultipleFloorsPayload, MultipleFloorsFloorA, MultipleFloorsCeiling>, IPayloadVariants<MultipleFloorsPayload>, IPayloadWireName<MultipleFloorsPayload>
+public class MultipleFloorsFamily : Family<MultipleFloorsFamily, MultipleFloorsFloorA, MultipleFloorsCeiling>, IFamilyVariants<MultipleFloorsFamily>, IFamilyWireName<MultipleFloorsFamily>
 {
     public static string WireName => "multiple-floors";
     public static IReadOnlyList<(Type, string)> Variants =>
@@ -177,19 +177,19 @@ public class MultipleFloorsPayload : Payload<MultipleFloorsPayload, MultipleFloo
 }
 
 // ===== Multiple ceilings (extra IPureCeiling variant) =====
-public sealed record MultipleCeilingsFloor : MultipleCeilingsPayload.IFloor<MultipleCeilingsCeilingA>
+public sealed record MultipleCeilingsFloor : MultipleCeilingsFamily.IFloor<MultipleCeilingsCeilingA>
 {
     public MultipleCeilingsCeilingA Upcast() => new();
 }
-public sealed record MultipleCeilingsCeilingA : MultipleCeilingsPayload.IPureCeiling<MultipleCeilingsFloor>
+public sealed record MultipleCeilingsCeilingA : MultipleCeilingsFamily.IPureCeiling<MultipleCeilingsFloor>
 {
     public MultipleCeilingsFloor Downcast() => new();
 }
-public sealed record MultipleCeilingsCeilingB : MultipleCeilingsPayload.IPureCeiling<MultipleCeilingsFloor>
+public sealed record MultipleCeilingsCeilingB : MultipleCeilingsFamily.IPureCeiling<MultipleCeilingsFloor>
 {
     public MultipleCeilingsFloor Downcast() => new();
 }
-public class MultipleCeilingsPayload : Payload<MultipleCeilingsPayload, MultipleCeilingsFloor, MultipleCeilingsCeilingA>, IPayloadVariants<MultipleCeilingsPayload>, IPayloadWireName<MultipleCeilingsPayload>
+public class MultipleCeilingsFamily : Family<MultipleCeilingsFamily, MultipleCeilingsFloor, MultipleCeilingsCeilingA>, IFamilyVariants<MultipleCeilingsFamily>, IFamilyWireName<MultipleCeilingsFamily>
 {
     public static string WireName => "multiple-ceilings";
     public static IReadOnlyList<(Type, string)> Variants =>
@@ -197,26 +197,26 @@ public class MultipleCeilingsPayload : Payload<MultipleCeilingsPayload, Multiple
 }
 
 // ===== Unreached variant: fork off the main chain (has TDown+TUp but not on the walk path) =====
-public sealed record UnreachedVariantFloor : UnreachedVariantPayload.IFloor<UnreachedVariantMiddle>
+public sealed record UnreachedVariantFloor : UnreachedVariantFamily.IFloor<UnreachedVariantMiddle>
 {
     public UnreachedVariantMiddle Upcast() => new();
 }
-public sealed record UnreachedVariantMiddle : UnreachedVariantPayload.IPure<UnreachedVariantFloor, UnreachedVariantCeiling>
+public sealed record UnreachedVariantMiddle : UnreachedVariantFamily.IPure<UnreachedVariantFloor, UnreachedVariantCeiling>
 {
     public UnreachedVariantFloor Downcast() => new();
     public UnreachedVariantCeiling Upcast() => new();
 }
-public sealed record UnreachedVariantCeiling : UnreachedVariantPayload.IPureCeiling<UnreachedVariantMiddle>
+public sealed record UnreachedVariantCeiling : UnreachedVariantFamily.IPureCeiling<UnreachedVariantMiddle>
 {
     public UnreachedVariantMiddle Downcast() => new();
 }
 // This fork duplicates Middle's role but isn't reachable from Floor via TUp.
-public sealed record UnreachedVariantFork : UnreachedVariantPayload.IPure<UnreachedVariantFloor, UnreachedVariantCeiling>
+public sealed record UnreachedVariantFork : UnreachedVariantFamily.IPure<UnreachedVariantFloor, UnreachedVariantCeiling>
 {
     public UnreachedVariantFloor Downcast() => new();
     public UnreachedVariantCeiling Upcast() => new();
 }
-public class UnreachedVariantPayload : Payload<UnreachedVariantPayload, UnreachedVariantFloor, UnreachedVariantCeiling>, IPayloadVariants<UnreachedVariantPayload>, IPayloadWireName<UnreachedVariantPayload>
+public class UnreachedVariantFamily : Family<UnreachedVariantFamily, UnreachedVariantFloor, UnreachedVariantCeiling>, IFamilyVariants<UnreachedVariantFamily>, IFamilyWireName<UnreachedVariantFamily>
 {
     public static string WireName => "unreached-variant";
     public static IReadOnlyList<(Type, string)> Variants =>
@@ -224,21 +224,21 @@ public class UnreachedVariantPayload : Payload<UnreachedVariantPayload, Unreache
 }
 
 // ===== Bidirectional inconsistency: middle's TDown doesn't match floor's identity =====
-public sealed record InconsistentFloor : InconsistentPayload.IFloor<InconsistentMiddle>
+public sealed record InconsistentFloor : InconsistentFamily.IFloor<InconsistentMiddle>
 {
     public InconsistentMiddle Upcast() => new();
 }
 // TDown points to Ceiling (nonsense), not Floor. Chain is inconsistent bidirectionally.
-public sealed record InconsistentMiddle : InconsistentPayload.IPure<InconsistentCeiling, InconsistentCeiling>
+public sealed record InconsistentMiddle : InconsistentFamily.IPure<InconsistentCeiling, InconsistentCeiling>
 {
     public InconsistentCeiling Downcast() => new();
     public InconsistentCeiling Upcast() => new();
 }
-public sealed record InconsistentCeiling : InconsistentPayload.IPureCeiling<InconsistentMiddle>
+public sealed record InconsistentCeiling : InconsistentFamily.IPureCeiling<InconsistentMiddle>
 {
     public InconsistentMiddle Downcast() => new();
 }
-public class InconsistentPayload : Payload<InconsistentPayload, InconsistentFloor, InconsistentCeiling>, IPayloadVariants<InconsistentPayload>, IPayloadWireName<InconsistentPayload>
+public class InconsistentFamily : Family<InconsistentFamily, InconsistentFloor, InconsistentCeiling>, IFamilyVariants<InconsistentFamily>, IFamilyWireName<InconsistentFamily>
 {
     public static string WireName => "inconsistent";
     public static IReadOnlyList<(Type, string)> Variants =>
@@ -246,26 +246,26 @@ public class InconsistentPayload : Payload<InconsistentPayload, InconsistentFloo
 }
 
 // ===== Cycle: B.TUp points back at A, forming Floor -> A -> B -> A =====
-public sealed record CycleFloor : CyclePayload.IFloor<CycleA>
+public sealed record CycleFloor : CycleFamily.IFloor<CycleA>
 {
     public CycleA Upcast() => new();
 }
-public sealed record CycleA : CyclePayload.IPure<CycleFloor, CycleB>
+public sealed record CycleA : CycleFamily.IPure<CycleFloor, CycleB>
 {
     public CycleFloor Downcast() => new();
     public CycleB Upcast() => new();
 }
 // TUp points back at A instead of forward to Ceiling — walk from floor cycles A -> B -> A.
-public sealed record CycleB : CyclePayload.IPure<CycleA, CycleA>
+public sealed record CycleB : CycleFamily.IPure<CycleA, CycleA>
 {
     public CycleA Downcast() => new();
     public CycleA Upcast() => new();
 }
-public sealed record CycleCeiling : CyclePayload.IPureCeiling<CycleB>
+public sealed record CycleCeiling : CycleFamily.IPureCeiling<CycleB>
 {
     public CycleB Downcast() => new();
 }
-public class CyclePayload : Payload<CyclePayload, CycleFloor, CycleCeiling>, IPayloadVariants<CyclePayload>, IPayloadWireName<CyclePayload>
+public class CycleFamily : Family<CycleFamily, CycleFloor, CycleCeiling>, IFamilyVariants<CycleFamily>, IFamilyWireName<CycleFamily>
 {
     public static string WireName => "cycle";
     public static IReadOnlyList<(Type, string)> Variants =>
@@ -273,15 +273,15 @@ public class CyclePayload : Payload<CyclePayload, CycleFloor, CycleCeiling>, IPa
 }
 
 // ===== Two variants share a wire name =====
-public sealed record DuplicateWireNameFloor : DuplicateWireNamePayload.IFloor<DuplicateWireNameCeiling>
+public sealed record DuplicateWireNameFloor : DuplicateWireNameFamily.IFloor<DuplicateWireNameCeiling>
 {
     public DuplicateWireNameCeiling Upcast() => new();
 }
-public sealed record DuplicateWireNameCeiling : DuplicateWireNamePayload.IPureCeiling<DuplicateWireNameFloor>
+public sealed record DuplicateWireNameCeiling : DuplicateWireNameFamily.IPureCeiling<DuplicateWireNameFloor>
 {
     public DuplicateWireNameFloor Downcast() => new();
 }
-public class DuplicateWireNamePayload : Payload<DuplicateWireNamePayload, DuplicateWireNameFloor, DuplicateWireNameCeiling>, IPayloadVariants<DuplicateWireNamePayload>, IPayloadWireName<DuplicateWireNamePayload>
+public class DuplicateWireNameFamily : Family<DuplicateWireNameFamily, DuplicateWireNameFloor, DuplicateWireNameCeiling>, IFamilyVariants<DuplicateWireNameFamily>, IFamilyWireName<DuplicateWireNameFamily>
 {
     public static string WireName => "duplicate-wire-name";
     // Both variants use the same wire name "shared" — dispatch would be ambiguous.
@@ -290,21 +290,21 @@ public class DuplicateWireNamePayload : Payload<DuplicateWireNamePayload, Duplic
 }
 
 // ===== Multiple problems: extra floor AND orphan reference — expect multiple errors =====
-public sealed record MultipleProblemsFloorA : MultipleProblemsPayload.IFloor<MultipleProblemsCeiling>
+public sealed record MultipleProblemsFloorA : MultipleProblemsFamily.IFloor<MultipleProblemsCeiling>
 {
     public MultipleProblemsCeiling Upcast() => new();
 }
-public sealed record MultipleProblemsFloorB : MultipleProblemsPayload.IFloor<MultipleProblemsUnlisted>
+public sealed record MultipleProblemsFloorB : MultipleProblemsFamily.IFloor<MultipleProblemsUnlisted>
 {
     // Points at an unlisted variant.
     public MultipleProblemsUnlisted Upcast() => new();
 }
-public sealed record MultipleProblemsUnlisted : MultipleProblemsPayload.IVariant;
-public sealed record MultipleProblemsCeiling : MultipleProblemsPayload.IPureCeiling<MultipleProblemsFloorA>
+public sealed record MultipleProblemsUnlisted : MultipleProblemsFamily.IVariant;
+public sealed record MultipleProblemsCeiling : MultipleProblemsFamily.IPureCeiling<MultipleProblemsFloorA>
 {
     public MultipleProblemsFloorA Downcast() => new();
 }
-public class MultipleProblemsPayload : Payload<MultipleProblemsPayload, MultipleProblemsFloorA, MultipleProblemsCeiling>, IPayloadVariants<MultipleProblemsPayload>, IPayloadWireName<MultipleProblemsPayload>
+public class MultipleProblemsFamily : Family<MultipleProblemsFamily, MultipleProblemsFloorA, MultipleProblemsCeiling>, IFamilyVariants<MultipleProblemsFamily>, IFamilyWireName<MultipleProblemsFamily>
 {
     public static string WireName => "multiple-problems";
     public static IReadOnlyList<(Type, string)> Variants =>

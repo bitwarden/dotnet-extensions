@@ -14,7 +14,7 @@ internal static class MessageBrokerActivitySource
     {
         var activity = Source.StartActivity($"{topicName} publish", ActivityKind.Producer);
         activity?.SetTag(MessageBrokerMetrics.DestinationTag, topicName);
-        activity?.SetTag(MessageBrokerMetrics.PayloadFamilyTag, familyWireName);
+        activity?.SetTag(MessageBrokerMetrics.FamilyTag, familyWireName);
         return activity;
     }
 
@@ -25,7 +25,7 @@ internal static class MessageBrokerActivitySource
             ActivityContext.TryParse(traceId, null, isRemote: true, out parentContext);
         var activity = Source.StartActivity($"{topicName} receive", ActivityKind.Consumer, parentContext);
         activity?.SetTag(MessageBrokerMetrics.DestinationTag, topicName);
-        activity?.SetTag(MessageBrokerMetrics.PayloadFamilyTag, familyWireName);
+        activity?.SetTag(MessageBrokerMetrics.FamilyTag, familyWireName);
         return activity;
     }
 }

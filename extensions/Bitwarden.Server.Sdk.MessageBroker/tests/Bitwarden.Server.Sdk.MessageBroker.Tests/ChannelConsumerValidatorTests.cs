@@ -19,8 +19,8 @@ public class ChannelConsumerValidatorTests
         var host = new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddMessageConsumer<MyItemPayload, MyItem, NoOpConsumer>("orders", "orders");
-                services.AddSubscriber<MyItemPayload, MyItem>("payments", "payments");
+                services.AddMessageConsumer<MyItemFamily, MyItem, NoOpConsumer>("orders", "orders");
+                services.AddSubscriber<MyItemFamily, MyItem>("payments", "payments");
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
             .Build();
@@ -36,8 +36,8 @@ public class ChannelConsumerValidatorTests
         var host = new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddPublisher<MyItemPayload, MyItem>("test");
-                services.AddMessageConsumer<MyItemPayload, MyItem, NoOpConsumer>("test", "test");
+                services.AddPublisher<MyItemFamily, MyItem>("test");
+                services.AddMessageConsumer<MyItemFamily, MyItem, NoOpConsumer>("test", "test");
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
             .Build();
@@ -55,7 +55,7 @@ public class ChannelConsumerValidatorTests
         var host = new HostBuilder()
             .ConfigureServices(services =>
             {
-                services.AddSubscriber<MyItemPayload, MyItem>("test", "test");
+                services.AddSubscriber<MyItemFamily, MyItem>("test", "test");
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
             .Build();
@@ -75,7 +75,7 @@ public class ChannelConsumerValidatorTests
                 new Dictionary<string, string?> { { "RabbitUri", "amqp://guest:guest@localhost/" } }))
             .ConfigureServices(services =>
             {
-                services.AddSubscriber<MyItemPayload, MyItem>("test", "test");
+                services.AddSubscriber<MyItemFamily, MyItem>("test", "test");
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
             .Build();
@@ -95,9 +95,9 @@ public class ChannelConsumerValidatorTests
         }
     }
 
-    private sealed class NoOpConsumer : IMessageConsumer<MyItemPayload, MyItem>
+    private sealed class NoOpConsumer : IMessageConsumer<MyItemFamily, MyItem>
     {
-        public Task HandleAsync(Envelope<MyItemPayload, MyItem> envelope, CancellationToken cancellationToken)
+        public Task HandleAsync(Envelope<MyItemFamily, MyItem> envelope, CancellationToken cancellationToken)
             => Task.CompletedTask;
     }
 }

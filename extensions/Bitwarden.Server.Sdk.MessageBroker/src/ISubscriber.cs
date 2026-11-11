@@ -1,12 +1,12 @@
 namespace Bitwarden.Server.Sdk.MessageBroker;
 
-/// <summary>Receives payloads of family <typeparamref name="TPayload"/> on a named topic, resolved to <typeparamref name="TCeiling"/>.</summary>
-/// <typeparam name="TPayload">The payload family.</typeparam>
+/// <summary>Receives messages of family <typeparamref name="TFamily"/> on a named topic, resolved to <typeparamref name="TCeiling"/>.</summary>
+/// <typeparam name="TFamily">The family.</typeparam>
 /// <typeparam name="TCeiling">The variant the consumer knows how to handle.</typeparam>
-public interface ISubscriber<TPayload, TCeiling>
-    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
-    where TCeiling : Payload<TPayload>.ICeiling
+public interface ISubscriber<TFamily, TCeiling>
+    where TFamily : FamilyCeiling<TFamily, TCeiling>, IFamilyVariants<TFamily>
+    where TCeiling : Family<TFamily>.ICeiling
 {
     /// <summary>Returns an async stream of incoming envelopes.</summary>
-    IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync(CancellationToken cancellationToken);
+    IAsyncEnumerable<Envelope<TFamily, TCeiling>> SubscribeAsync(CancellationToken cancellationToken);
 }

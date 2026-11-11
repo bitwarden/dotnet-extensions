@@ -12,14 +12,14 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// Wire format is a JSON array of variants with an inline discriminator:
 /// <c>[{"$type":"&lt;FullName&gt;", ...variant fields}]</c>. SystemTextJson's polymorphism support does the
 /// tagging and dispatch — the derived-type table is enumerated from
-/// <see cref="IPayloadVariants{TSelf}.Variants"/> at first use. Unknown discriminators are skipped
+/// <see cref="IFamilyVariants{TSelf}.Variants"/> at first use. Unknown discriminators are skipped
 /// so a subscriber can survive a publisher with a different set of versions. Any other malformation surfaces as
 /// <see cref="JsonException"/>.
 /// </summary>
 internal sealed class SystemTextJsonMessageSerializer : IMessageSerializer
 {
     private readonly JsonSerializerOptions _userOptions;
-    private readonly ConcurrentDictionary<Type, JsonSerializerOptions> _optionsByPayload = new();
+    private readonly ConcurrentDictionary<Type, JsonSerializerOptions> _optionsByFamily = new();
 
     public SystemTextJsonMessageSerializer(IOptionsMonitor<MessageBrokerSerializerOptions> optionsMonitor, string name)
     {
@@ -33,12 +33,12 @@ internal sealed class SystemTextJsonMessageSerializer : IMessageSerializer
         }
     }
 
-    public void SerializeVariants<TPayload>(
-        IEnumerable<Payload<TPayload>.IVariant> variants,
+    public void SerializeVariants<TFamily>(
+        IEnumerable<Family<TFamily>.IVariant> variants,
         IBufferWriter<byte> destination)
-        where TPayload : Payload<TPayload>, IPayloadVariants<TPayload>
+        where TFamily : Family<TFamily>, IFamilyVariants<TFamily>
     {
-        var typeInfo = GetVariantTypeInfo<TPayload>();
+        var typeInfo = GetVariantTypeInfo<TFamily>();
         using var writer = new Utf8JsonWriter(destination);
         writer.WriteStartArray();
         foreach (var variant in variants)
@@ -46,19 +46,19 @@ internal sealed class SystemTextJsonMessageSerializer : IMessageSerializer
         writer.WriteEndArray();
     }
 
-    public IReadOnlyList<Payload<TPayload>.IVariant> DeserializeVariants<TPayload>(ReadOnlySpan<byte> source)
-        where TPayload : Payload<TPayload>, IPayloadVariants<TPayload>
+    public IReadOnlyList<Family<TFamily>.IVariant> DeserializeVariants<TFamily>(ReadOnlySpan<byte> source)
+        where TFamily : Family<TFamily>, IFamilyVariants<TFamily>
     {
-        var typeInfo = GetVariantTypeInfo<TPayload>();
+        var typeInfo = GetVariantTypeInfo<TFamily>();
 
         using var doc = JsonDocument.Parse(source.ToArray());
         if (doc.RootElement.ValueKind != JsonValueKind.Array)
             throw new JsonException("Expected a JSON array of variants.");
 
-        var result = new List<Payload<TPayload>.IVariant>();
+        var result = new List<Family<TFamily>.IVariant>();
         foreach (var element in doc.RootElement.EnumerateArray())
         {
-            // A null result means the wire's $type discriminator is not in TPayload.Variants —
+            // A null result means the wire's $type discriminator is not in TFamily.Variants —
             // a publisher sent a variant this subscriber has not been rebuilt against.
             var variant = element.Deserialize(typeInfo);
             if (variant is not null) result.Add(variant);
@@ -66,18 +66,18 @@ internal sealed class SystemTextJsonMessageSerializer : IMessageSerializer
         return result;
     }
 
-    private JsonTypeInfo<Payload<TPayload>.IVariant> GetVariantTypeInfo<TPayload>()
-        where TPayload : Payload<TPayload>, IPayloadVariants<TPayload>
+    private JsonTypeInfo<Family<TFamily>.IVariant> GetVariantTypeInfo<TFamily>()
+        where TFamily : Family<TFamily>, IFamilyVariants<TFamily>
     {
-        var options = _optionsByPayload.GetOrAdd(typeof(TPayload), _ => BuildOptions<TPayload>());
-        return (JsonTypeInfo<Payload<TPayload>.IVariant>)options.GetTypeInfo(typeof(Payload<TPayload>.IVariant));
+        var options = _optionsByFamily.GetOrAdd(typeof(TFamily), _ => BuildOptions<TFamily>());
+        return (JsonTypeInfo<Family<TFamily>.IVariant>)options.GetTypeInfo(typeof(Family<TFamily>.IVariant));
     }
 
-    private JsonSerializerOptions BuildOptions<TPayload>()
-        where TPayload : Payload<TPayload>, IPayloadVariants<TPayload>
+    private JsonSerializerOptions BuildOptions<TFamily>()
+        where TFamily : Family<TFamily>, IFamilyVariants<TFamily>
     {
         var clone = new JsonSerializerOptions(_userOptions);
-        var polymorphic = new PolymorphicVariantResolver(typeof(Payload<TPayload>.IVariant), TPayload.Variants);
+        var polymorphic = new PolymorphicVariantResolver(typeof(Family<TFamily>.IVariant), TFamily.Variants);
         clone.TypeInfoResolver = JsonTypeInfoResolver.Combine(polymorphic, clone.TypeInfoResolver);
         return clone;
     }
@@ -111,7 +111,7 @@ internal sealed class PolymorphicVariantResolver(
         if (type != _variantInterface) return null;
 
         // A resolver may be called with any options instance, but this one is bound to a specific
-        // per-TPayload clone the serializer built. Cache once and hand back the same JsonTypeInfo.
+        // per-TFamily clone the serializer built. Cache once and hand back the same JsonTypeInfo.
         lock (_lock)
         {
             if (_cached is not null) return _cached;

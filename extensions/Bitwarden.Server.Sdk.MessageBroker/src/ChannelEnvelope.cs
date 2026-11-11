@@ -4,20 +4,20 @@ using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-internal sealed class ChannelEnvelope<TPayload, TCeiling> : Envelope<TPayload, TCeiling>
-    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
-    where TCeiling : Payload<TPayload>.ICeiling
+internal sealed class ChannelEnvelope<TFamily, TCeiling> : Envelope<TFamily, TCeiling>
+    where TFamily : FamilyCeiling<TFamily, TCeiling>, IFamilyVariants<TFamily>
+    where TCeiling : Family<TFamily>.ICeiling
 {
-    private readonly ChannelWriter<Envelope<TPayload, TCeiling>> _writer;
-    private readonly Func<Envelope<TPayload, TCeiling>, CancellationToken, Task>? _escrowFallback;
+    private readonly ChannelWriter<Envelope<TFamily, TCeiling>> _writer;
+    private readonly Func<Envelope<TFamily, TCeiling>, CancellationToken, Task>? _escrowFallback;
     private readonly int _maxDeliveryCount;
     private readonly ILogger _logger;
     private readonly string _topicName;
 
     public ChannelEnvelope(
-        ChannelWriter<Envelope<TPayload, TCeiling>> writer,
-        Func<Envelope<TPayload, TCeiling>, CancellationToken, Task>? escrowFallback,
-        IEnumerable<Payload<TPayload>.IVariant> variants,
+        ChannelWriter<Envelope<TFamily, TCeiling>> writer,
+        Func<Envelope<TFamily, TCeiling>, CancellationToken, Task>? escrowFallback,
+        IEnumerable<Family<TFamily>.IVariant> variants,
         string messageId,
         string? traceId,
         int deliveryCount,
@@ -81,6 +81,6 @@ internal sealed class ChannelEnvelope<TPayload, TCeiling> : Envelope<TPayload, T
         return Task.CompletedTask;
     }
 
-    private ChannelEnvelope<TPayload, TCeiling> CreateRedelivery() =>
+    private ChannelEnvelope<TFamily, TCeiling> CreateRedelivery() =>
         new(_writer, _escrowFallback, Variants, MessageId, TraceId, DeliveryCount + 1, _maxDeliveryCount, _logger, _topicName);
 }

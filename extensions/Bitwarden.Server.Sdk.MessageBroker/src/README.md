@@ -3,7 +3,7 @@
 Transport-agnostic publish/subscribe messaging for Bitwarden services. Three backends share one API:
 Azure Service Bus, RabbitMQ, and an in-memory `System.Threading.Channels` fallback.
 
-A topic is a service's outbound event stream, so one topic can carry many payload families (for
+A topic is a service's outbound event stream, so one topic can carry many families (for
 example, a user service might publish `user.created` and `user.deleted` through one
 `user-events` topic). Each message is tagged with its family wire name so subscriptions bind or
 filter down to the event types they care about.
@@ -12,25 +12,25 @@ filter down to the event types they care about.
 
 ### Core abstractions
 
-- `Publisher<TPayload, TCeiling>` — publishes payloads of a named topic via the fluent
+- `Publisher<TFamily, TCeiling>` — publishes payloads of a named topic via the fluent
   `Publish(ceiling).With(assist?).SendAsync(ct)` chain
-- `ISubscriber<TPayload, TCeiling>` — receives messages from a named topic as
-  `IAsyncEnumerable<Envelope<TPayload, TCeiling>>`
-- `Envelope<TPayload, TCeiling>` — wraps a received payload with broker metadata (`MessageId`,
+- `ISubscriber<TFamily, TCeiling>` — receives messages from a named topic as
+  `IAsyncEnumerable<Envelope<TFamily, TCeiling>>`
+- `Envelope<TFamily, TCeiling>` — wraps a received payload with broker metadata (`MessageId`,
   `TraceId`, `DeliveryCount`) and settlement methods (`CompleteAsync`, `RequeueAsync`,
   `DeadLetterAsync`)
 
 Both are registered as keyed singletons. A publisher key is `{topic}#{familyWireName}` — the
 composite identity lets several families register publishers on the same topic side-by-side.
-Build it with `MessageBrokerKeys.Publisher<TPayload>(topic)` for programmatic resolution; spell it
+Build it with `MessageBrokerKeys.Publisher<TFamily>(topic)` for programmatic resolution; spell it
 literally at `[FromKeyedServices]` injection sites since attribute arguments must be compile-time
 constants. A subscriber key stays `{topic}/{subscription}` — each subscription identifies a single
 family at the broker, so the pair uniquely names the receiver.
 
 ### Backend selection
 
-`MessageBrokerServiceCollectionExtensions` (`AddPublisher<TPayload, TCeiling>` /
-`AddSubscriber<TPayload, TCeiling>`) registers the appropriate backend at DI resolution time based
+`MessageBrokerServiceCollectionExtensions` (`AddPublisher<TFamily, TCeiling>` /
+`AddSubscriber<TFamily, TCeiling>`) registers the appropriate backend at DI resolution time based
 on `MessagingOptions`:
 
 1. `AzureServiceBusConnectionString` set → Azure Service Bus
@@ -71,7 +71,7 @@ expected shape is driven by two design choices:
   queues only expose a boolean `redelivered` flag, which is not enough to drive delivery-limit
   behavior.
 - **Topic exchanges** per topic, with one durable queue per subscription bound to the exchange
-  with the payload family wire name as its routing key. Each subscription receives only its
+  with the family wire name as its routing key. Each subscription receives only its
   family's messages; several subscriptions on the same exchange with different routing keys split
   the outbound stream by family. Multiple instances sharing a subscription name act as competing
   consumers against that subscription's queue.
@@ -116,22 +116,22 @@ in RabbitMQ, `ApplicationProperties["traceparent"]` in Azure Service Bus, `Trace
 consume spans share a trace.
 
 Every publish counter, consume counter, queue-depth gauge, and activity tag carries
-`messaging.payload.family` alongside `messaging.destination.name`, so metrics and traces split by
+`messaging.family` alongside `messaging.destination.name`, so metrics and traces split by
 family on a topic that carries several.
 
-## Payload versioning
+## Family versioning
 
-A payload is a family of data structure variants forming a chain from floor (oldest known shape)
+A family is a family of data structure variants forming a chain from floor (oldest known shape)
 to ceiling (newest). Publishers send the complete ceiling-to-floor sequence in a single message;
 each subscriber picks the highest variant it can decode and, if that variant is below its declared
 ceiling, walks pure upcasts back up to reach the highest variant. Old subscribers keep working
 against new publishers as long as the old variant is still on the wire. New subscribers keep
 working against old publishers as long as the older ceiling can upcast to the newer one.
 
-Concrete payloads derive from `Payload<TSelf, TFloor, TCeiling>` and implement
-`IPayloadVariants<TSelf>` and `IPayloadWireName<TSelf>`. `IPayloadVariants<TSelf>.Variants`
+Concrete families derive from `Family<TSelf, TFloor, TCeiling>` and implement
+`IFamilyVariants<TSelf>` and `IFamilyWireName<TSelf>`. `IFamilyVariants<TSelf>.Variants`
 pairs each variant type with a stable wire name that identifies the shape within the family;
-`IPayloadWireName<TSelf>.WireName` names the family itself and rides on every outgoing message
+`IFamilyWireName<TSelf>.WireName` names the family itself and rides on every outgoing message
 as the broker's routing key (RabbitMQ) or application property (Azure Service Bus). Both
 dimensions are decoupled from CLR type names so authors can rename or move the C# types
 without breaking messages already on the wire. The wire body is a JSON array of variants with a
@@ -145,7 +145,7 @@ floor-side neighbor can be produced from the current variant alone, and **assist
 data is injected at publish time through a fluent chain: `publisher.Publish(ceiling).With(assist1).With(assist2).SendAsync()`. The compiler refuses `SendAsync` until every assisted downcast between the current
 position and the floor has been crossed, so a publisher cannot omit data an older subscriber needs.
 
-`ChainValidator<TPayload, TCeiling>` runs once per payload family at DI registration and throws
+`ChainValidator<TFamily, TCeiling>` runs once per family at DI registration and throws
 an aggregate exception if the declared variants are not complete, sparse, and linear: duplicate
 types or wire names, missing floor or ceiling, forks, cycles, or Next/Previous references that
 disagree with the variant list.
@@ -154,29 +154,166 @@ disagree with the variant list.
 
 | File                                 | Purpose                                                                                                     |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `Payload.cs`                         | Variant-side interfaces (`IFloor`, `ICeiling`, `IPure`, `IAssisted`, `IAssist`, …) and payload base classes |
+| `Family.cs`                         | Variant-side interfaces (`IFloor`, `ICeiling`, `IPure`, `IAssisted`, `IAssist`, …) and family base classes |
 | `ChainWalk.cs`                       | Reflects `TDown`/`TUp` off a variant type to walk the declared chain                                        |
 | `ChainValidator.cs`                  | DI-time chain-shape validation                                                                              |
-| `Publisher.cs`                       | `Publisher<TPayload, TCeiling>` base + `PublishBuilder` fluent chain                                        |
+| `Publisher.cs`                       | `Publisher<TFamily, TCeiling>` base + `PublishBuilder` fluent chain                                        |
 | `Envelope.cs`                        | Selects the received variant, upcasts it to the consumer's ceiling                                          |
 | `SystemTextJsonMessageSerializer.cs` | Polymorphic array wire format with `$type` discriminator                                                    |
 
 ## Observing the variant constellation
 
 Each consume emits a `messaging.client.consumed.messages` counter tick tagged with
-`messaging.destination.name`, `messaging.payload.family`, and `messaging.variant.name`. The variant
+`messaging.destination.name`, `messaging.family`, and `messaging.variant.name`. The variant
 tag is the wire name of the highest received variant at or below the subscriber's ceiling — the
 variant the subscriber actually deserialized from, before any upcast to reach `TCeiling`.
 Aggregated across every service in the deployment, these tags describe the current constellation
 of variants actually being acted upon per family, so an operator can see when a variant has
 fallen out of use and is safe to remove from the chain.
 
+## Cross-process cache dependency
+
+The Azure Service Bus and Rabbit backends require a shared `IFusionCache` that the negotiation
+listener uses to hold the fleet-state snapshot. The library resolves it with an internal keyed
+lookup that `services.AddBitwardenCaching()`'s `AnyKey` registration transparently satisfies —
+callers just make that one call. `PublisherCacheValidator` runs at host start via
+`ValidateOnStart` and fails with a clear message if a distributed backend is configured and this
+call is missing. The cache is only read and written by the active `NegotiationListener` on the
+SAC-locked instance for each topic; booting publishers and subscribers reach it only indirectly
+via the admission handshake — see [Version negotiation](#version-negotiation) below.
+
+The in-memory channel backend is single-process, needs no cross-process negotiation, and requires
+no distributed cache.
+
+## Version negotiation
+
+Cross-process backends run a deploy-time admission handshake before any process starts publishing
+or consuming. The invariant: at any moment, every live publisher and every live subscriber for a
+given `(data-topic, family)` share at least one wire-name in their variant chains. If a booting
+instance would break that invariant, it exits non-zero and the deployment fails.
+
+Admission is scoped per `(data-topic, family)` — a `user.created` publisher is never checked
+against `user.deleted` subscribers on the same topic. A publisher or subscriber of two families
+on one topic sends two admission requests at startup, each admitted independently.
+
+Admission fires at host startup and re-fires every `HeartbeatInterval` to refresh the fleet
+cache entry.
+
+### Publish-after-admission and subscribe-after-admission guarantee
+
+The guarantee lives in the `IHostedLifecycleService` phase order that `IHost.StartAsync`
+implements: every service's `StartingAsync` completes before any service's `StartAsync` runs.
+`NegotiationListenerCoordinator`, `PublisherJoinRequester`, and `SubscriberJoinRequester` all
+implement `IHostedLifecycleService` and do their admission handshake in `StartingAsync`. Any
+`BackgroundService` — `AddMessageConsumer`'s `ConsumerBackgroundService`, Kestrel, or a
+user-registered `AddHostedService<T>` — starts running its `ExecuteAsync` in the later
+`StartAsync` phase, so the caller's `services.Add…` order does not affect the ordering.
+
+Within the `StartingAsync` phase itself, services still run in registration order; the coordinator
+listener needs to be up before the join requester on the same host sends its request. This is
+handled inside `AddPublisher`, which registers `NegotiationListenerCoordinator` ahead of
+`PublisherJoinRequester`.
+
+A failed admission
+(`NegotiationRejectedException`/`NegotiationTimeoutException`/`BrokerUnavailableException`) fails
+the host in `StartingAsync`, so application code that would `Publish` or iterate a subscriber
+never runs.
+
+Two opt-outs:
+
+- **`proceedOnAdmissionTimeout: true`** on `AddSubscriber` softens the acknowledgement-timeout path — the
+  subscriber starts and iterates without confirmed publisher compatibility. Explicit no-go and
+  broker-outage failures still hard-fail startup.
+- **Direct construction outside an `IHost`** (unit tests, custom hosting) skips the requester
+  entirely. Use the in-memory channel backend for those scenarios; it does not run negotiation.
+
+### Subscriber-first boot
+
+A tolerant subscriber (`proceedOnAdmissionTimeout: true`) that starts before any publisher
+queues its `Capability` on the control topic (session id = data-topic on Azure Service Bus,
+request queue on RabbitMQ) and continues past its own `AdmissionTimeout`. When a publisher
+eventually boots, its coordinator starts the listener before its own `PublisherJoin` requester
+runs; the listener drains the queued Capability, upserts the subscriber into the fleet cache,
+then processes the publisher's Join against it. The pre-existing subscriber is the baseline
+the incoming publisher must comply with — if wire-names don't overlap, the publisher fails
+startup.
+
+### Coordination
+
+Both backends use broker-native mutual exclusion. Only one instance of a given publisher-service
+holds the "active consumer" role for a given data-topic at a time; that instance processes every
+admission decision for the topic, writes the cache, and replies to the requester. Single-active-consumer
+is per topic (not per family) — the active holder dispatches by family internally, so the
+`(topic, family)` cache buckets stay independent. Failover on shutdown or crash is transparent —
+the broker hands the role to the next candidate.
+
+- **Azure Service Bus** — session-enabled subscription with session id equal to the data-topic
+  name. The broker's session lock is per `(subscription × session)`, giving one active consumer
+  per `(publisher-service × data-topic)`.
+- **RabbitMQ** — queue declared with `x-single-active-consumer=true`. Scope is per-queue (per
+  publisher-service), so one instance of the service handles admissions for every topic that
+  service publishes.
+
+### Topology per backend
+
+One namespace-wide control topic `ctrl` (or the configured `NegotiationOptions.ControlTopicName`)
+carries every negotiation message. Data-topic routing rides on per-message metadata — an ASB
+message property, a Rabbit routing key.
+
+- **Azure Service Bus** — one session-enabled subscription per publisher-service named
+  `request-{ServiceName}` receives inbound `Capability` / `PublisherJoin` / leave messages
+  filtered by data-topic; one session-enabled `reply-{ServiceName}` subscription receives
+  admission acknowledgements routed by instance identifier. Both subscriptions must exist before the process
+  starts. `AzureServiceBusRuleReconciler` maintains the SQL filter rules on
+  `request-{ServiceName}` at startup so the rule set matches the topics this service publishes.
+- **RabbitMQ** — the library declares a `{ControlTopicName}` direct exchange and a per-service
+  `request-{ServiceName}` classic queue (with `x-single-active-consumer=true`) on first use.
+  Replies use the connection-scoped `amq.rabbitmq.reply-to` pseudo-queue, so no reply
+  subscription is needed.
+
+### Wire messages
+
+Every admission and leave message carries a `FamilyWireName` alongside its `DataTopic`, so each
+`(topic, family)` is admitted and tracked independently.
+
+| Message           | Direction              | Reply-expected | Purpose                                                                                                  |
+| ----------------- | ---------------------- | -------------- | -------------------------------------------------------------------------------------------------------- |
+| `Capability`      | subscriber → publisher | Yes            | "For `(topic, family)`, here are the wire-names I can decode — admit me?"                                |
+| `PublisherJoin`   | new publisher → active | Yes            | "For `(topic, family)`, here are the wire-names I can produce — admit me?"                               |
+| `NegotiationAck`  | active → requester     | —              | Go / no-go, with a per-family offender list on no-go.                                                    |
+| `PublisherLeave`  | publisher → active     | No             | Clean-shutdown withdrawal for one `(topic, family)`; the active listener removes the cache entry immediately. |
+| `SubscriberLeave` | subscriber → active    | No             | Same, for a subscriber.                                                                                  |
+
+The two leave messages are fire-and-forget — the sender returns as soon as the outbound publish
+completes, does not await an acknowledgement, and disposes the transport. Crash-path removal falls back to
+TTL expiration.
+
+### Key source files
+
+| File                                                                       | Purpose                                                                                                      |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `NegotiationOptions.cs`                                                    | Configuration surface — `ServiceName`, `ProcessDisplayName`, heartbeat/TTL/timeout tuning.                   |
+| `Capability.cs` / `PublisherJoin.cs`                                       | Admission-request wire types.                                                                                |
+| `PublisherLeave.cs` / `SubscriberLeave.cs`                                 | Clean-shutdown-withdrawal wire types.                                                                        |
+| `NegotiationAck.cs`                                                        | Admission reply carrying go/no-go and offender list.                                                         |
+| `INegotiationTransport.cs`                                                 | Per-backend send + receive contract.                                                                         |
+| `AzureServiceBusNegotiationTransport.cs` / `RabbitNegotiationTransport.cs` | Backend implementations.                                                                                     |
+| `NegotiationListener.cs`                                                   | Runs on the single-active-consumer instance; performs admission checks and cache updates.                    |
+| `NegotiationListenerCoordinator.cs`                                        | Hosted service that owns listener lifecycle and reconciles ASB filter rules at startup.                      |
+| `PublisherJoinRequester.cs` / `SubscriberJoinRequester.cs`                 | `BackgroundService`s that send join/capability at startup, run heartbeat loops, and fire leaves at shutdown. |
+| `FusionCacheNegotiationState.cs`                                           | Fleet-state cache backing, per-instance keys under `negotiation/{topic}/{family}/{role}/{instanceId}`.       |
+| `NegotiationMetrics.cs`                                                    | Admissions counter and families-served gauge (see [Observability](#observability)).                          |
+
 ## TODO
 
-- Subscriber/publisher negotiation to ensure variant overlap.
-- Publisher shared-cache requirement for ensuring variant overlap with existing subscribers.
-- Required payload-specific health check definition to surface eventual-consistency health.
+- Required family-specific health check definition to surface eventual-consistency health.
 - Assisted upcasts performed subscriber-side
+- Managed-identity auth for Azure Service Bus. `AzureServiceBusPublisher`, `AzureServiceBusSubscriber`,
+  `AzureServiceBusNegotiationTransport`, and `NegotiationListenerCoordinator` all call
+  `new ServiceBusClient(connectionString)` / `new ServiceBusAdministrationClient(connectionString)`,
+  which in `Azure.Messaging.ServiceBus` 7.x only accepts SAS-based strings. Enabling MI requires
+  a `TokenCredential`-based construction path (fully-qualified namespace + credential) and would
+  restore the finer-grained per-subscription authorization RBAC allows.
 
 ## Running tests
 

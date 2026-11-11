@@ -3,27 +3,27 @@ using System.Threading.Channels;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-internal sealed class ChannelSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>
-    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
-    where TCeiling : Payload<TPayload>.ICeiling
+internal sealed class ChannelSubscriber<TFamily, TCeiling> : ISubscriber<TFamily, TCeiling>
+    where TFamily : FamilyCeiling<TFamily, TCeiling>, IFamilyVariants<TFamily>, IFamilyWireName<TFamily>
+    where TCeiling : Family<TFamily>.ICeiling
 {
-    private readonly ChannelReader<Envelope<TPayload, TCeiling>> _reader;
+    private readonly ChannelReader<Envelope<TFamily, TCeiling>> _reader;
     private readonly string _topicName;
     private readonly MessageBrokerMetrics _metrics;
 
-    public ChannelSubscriber(ChannelReader<Envelope<TPayload, TCeiling>> reader, string topicName, MessageBrokerMetrics metrics)
+    public ChannelSubscriber(ChannelReader<Envelope<TFamily, TCeiling>> reader, string topicName, MessageBrokerMetrics metrics)
     {
         _reader = reader;
         _topicName = topicName;
         _metrics = metrics;
     }
 
-    public async IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync(
+    public async IAsyncEnumerable<Envelope<TFamily, TCeiling>> SubscribeAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await foreach (var item in _reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
         {
-            _metrics.RecordConsume(_topicName, TPayload.WireName, item.ConsumedVariantWireName);
+            _metrics.RecordConsume(_topicName, TFamily.WireName, item.ConsumedVariantWireName);
             yield return item;
         }
     }

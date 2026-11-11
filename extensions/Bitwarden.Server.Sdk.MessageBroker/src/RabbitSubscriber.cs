@@ -7,9 +7,9 @@ using RabbitMQ.Client.Events;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>
-    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
-    where TCeiling : Payload<TPayload>.ICeiling
+internal sealed class RabbitSubscriber<TFamily, TCeiling> : ISubscriber<TFamily, TCeiling>
+    where TFamily : FamilyCeiling<TFamily, TCeiling>, IFamilyVariants<TFamily>, IFamilyWireName<TFamily>
+    where TCeiling : Family<TFamily>.ICeiling
 {
     private readonly string _exchangeName;
     private readonly string _queueName;
@@ -26,7 +26,7 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
         _metrics = metrics;
     }
 
-    public async IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<Envelope<TFamily, TCeiling>> SubscribeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var conn = await _connection.GetConnectionAsync(cancellationToken);
         await using var rabbitChannel = await conn.CreateChannelAsync(cancellationToken: cancellationToken);
@@ -38,22 +38,22 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
         {
             // Defense in depth: when operator binding routes correctly, only matching messages
             // arrive. A misconfigured binding (wrong routing key, or no header filter) could
-            // deliver another family's message here, and decoding it against TPayload would
+            // deliver another family's message here, and decoding it against TFamily would
             // silently discard every variant and dead-letter on the length check below with
             // no indication the real problem was routing. Fail fast with the actual reason.
-            if (ea.BasicProperties.Headers?.TryGetValue(BrokerProperties.PayloadFamily, out var familyBytes) == true
+            if (ea.BasicProperties.Headers?.TryGetValue(BrokerProperties.Family, out var familyBytes) == true
                 && familyBytes is byte[] familyBytesArr
                 && Encoding.UTF8.GetString(familyBytesArr) is var familyName
-                && familyName != TPayload.WireName)
+                && familyName != TFamily.WireName)
             {
                 await rabbitChannel.BasicNackAsync(ea.DeliveryTag, multiple: false, requeue: false);
                 return;
             }
 
-            IReadOnlyList<Payload<TPayload>.IVariant> variants;
+            IReadOnlyList<Family<TFamily>.IVariant> variants;
             try
             {
-                variants = _serializer.DeserializeVariants<TPayload>(ea.Body.Span);
+                variants = _serializer.DeserializeVariants<TFamily>(ea.Body.Span);
             }
             catch (Exception)
             {
@@ -79,7 +79,7 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
             var deliveryCount = ea.BasicProperties.Headers?.TryGetValue("x-delivery-count", out var dc) == true && dc is long count
                 ? (int)count + 1
                 : ea.Redelivered ? 2 : 1;
-            var activity = MessageBrokerActivitySource.StartConsumerActivity(_exchangeName, TPayload.WireName, traceId);
+            var activity = MessageBrokerActivitySource.StartConsumerActivity(_exchangeName, TFamily.WireName, traceId);
 
             RabbitEnvelope envelope;
             try
@@ -117,7 +117,7 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
 
         await foreach (var envelope in innerChannel.Reader.ReadAllAsync(cancellationToken))
         {
-            _metrics.RecordConsume(_exchangeName, TPayload.WireName, envelope.ConsumedVariantWireName);
+            _metrics.RecordConsume(_exchangeName, TFamily.WireName, envelope.ConsumedVariantWireName);
             yield return envelope;
         }
 
@@ -125,13 +125,13 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
             throw new BrokerDisconnectedException(_exchangeName, brokerDisconnect);
     }
 
-    private sealed class RabbitEnvelope : Envelope<TPayload, TCeiling>
+    private sealed class RabbitEnvelope : Envelope<TFamily, TCeiling>
     {
         private readonly ulong _deliveryTag;
         private readonly IChannel _channel;
 
         public RabbitEnvelope(
-            IReadOnlyList<Payload<TPayload>.IVariant> variants,
+            IReadOnlyList<Family<TFamily>.IVariant> variants,
             ulong deliveryTag,
             IChannel channel,
             string messageId,
