@@ -528,6 +528,7 @@ call.
 | `ScriptPrefix` | `string` | *(none)* | Set for you from `BitSqlServerScriptPrefix`; override only when registering the runtime types by hand |
 | `NoTransaction` | `bool` | `false` | Run without a wrapping transaction, and extend the per-script timeout from 5 minutes to 60 |
 | `PreviousScriptPrefix` | `string?` | `null` | Set for you from `BitPreviousSqlServerScriptPrefix` — see [Rewriting recorded names](#rewriting-recorded-names) |
+| `LockTimeout` | `TimeSpan?` | per-script timeout + 5 minutes (10, or 65 with `NoTransaction`) | How long to wait for another host's migration, or creation, of this database before failing with an error naming the lock. Raise it for schemas whose migrations run longer |
 
 ### `MigrationPhase`
 

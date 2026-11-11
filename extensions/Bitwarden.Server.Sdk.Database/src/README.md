@@ -42,7 +42,7 @@ plumbing. See `PACKAGE.md` for the consumer guide.
   back the key a keyed service was registered under, so anything enumerating migrators (the hosted
   service, logging) reads it from here.
 - `SqlServerMigrationOptions` — named per schema: `Phase`, `ScriptPrefix`, `DryRun`,
-  `NoTransaction`, `PreviousScriptPrefix`. SQL Server only, so they are configuration rather than
+  `NoTransaction`, `PreviousScriptPrefix`, `LockTimeout`. SQL Server only, so they are configuration rather than
   call arguments. `DryRun` reports through `ILogger` and keeps the migrator internal — nothing has
   to reach past `IDatabaseMigrator` to ask what is pending.
 - `MigrationPhase` — `Initial` (journaled, scripts directly under the folder) or `Transition`
