@@ -203,9 +203,11 @@ internal static class StandardEndpointConvention
     {
         var defaults = services.GetService<AuthorizationDefaults>() ?? new AuthorizationDefaults();
 
+        // A handler mapped with no verbs answers every verb, so it reads only when every verb it
+        // is mapped for is a GET, and an empty or absent list is a write.
         var reads = standard?.IsRead
-            ?? (endpoint.Metadata.OfType<IHttpMethodMetadata>().LastOrDefault()?.HttpMethods ?? [])
-                .All(verb => string.Equals(verb, HttpMethods.Get, StringComparison.OrdinalIgnoreCase));
+            ?? (endpoint.Metadata.OfType<IHttpMethodMetadata>().LastOrDefault()?.HttpMethods is { Count: > 0 } verbs
+                && verbs.All(verb => string.Equals(verb, HttpMethods.Get, StringComparison.OrdinalIgnoreCase)));
 
         OperationAuthorization.Apply(endpoint.Metadata, OperationAuthorization.Settle(
             method.GetCustomAttribute<AuthorizationAttribute>(inherit: true),
