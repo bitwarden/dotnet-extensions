@@ -12,9 +12,8 @@ public static class HealthCheckTags
     /// </summary>
     /// <remarks>
     /// Removing every instance from the load balancer over a shared backlog would turn a delay in
-    /// the background into an outage in the foreground. Bitwarden.Server.Sdk.Service publishes these
-    /// checks' status as the <c>bitwarden.health.status</c> metric and logs each change instead,
-    /// which is where an alert on them belongs.
+    /// the background into an outage in the foreground. A host reports these checks' status some other
+    /// way, such as a metric, which is where an alert on them belongs.
     /// </remarks>
     public const string Monitoring = "monitoring";
 }
