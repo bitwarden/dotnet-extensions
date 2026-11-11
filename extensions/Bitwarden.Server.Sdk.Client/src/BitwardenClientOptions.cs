@@ -80,8 +80,9 @@ public sealed class BitwardenClientOptions
 
     /// <summary>
     /// How many times a call is tried again when the callee wasn't there: a failed connection, or a <c>502</c>, <c>503</c>
-    /// or <c>504</c> from in front of it. Only a <c>GET</c> or <c>HEAD</c>, or a write carrying an idempotency key
-    /// (which every write does). 0 to 2; within <see cref="Timeout"/>.
+    /// or <c>504</c> from in front of it. Only a <c>GET</c> or <c>HEAD</c>, or a write carrying an idempotency key (one to
+    /// an operation the callee's contract marks to accept it); any other write only when its connection never opened.
+    /// 0 to 2; within <see cref="Timeout"/>.
     /// </summary>
     public int Retries { get; set; } = 2;
 
