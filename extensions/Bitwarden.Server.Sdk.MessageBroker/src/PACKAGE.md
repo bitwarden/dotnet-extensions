@@ -1,5 +1,8 @@
 # Bitwarden.Server.Sdk.MessageBroker
 
+**Audience:** Application developers integrating publish/subscribe messaging into a Bitwarden
+service.
+
 ## About
 
 This package provides a transport-agnostic publish/subscribe API for sending and receiving messages
@@ -10,7 +13,7 @@ single message, and each subscriber picks the highest variant it can decode.
 
 ## Getting started
 
-the minimal end-to-end is a single-variant payload, a publisher, and a consumer:
+The minimal end-to-end is a single-variant payload, a publisher, and a consumer:
 
 ```csharp
 // 1. Define a payload family. ISole is a payload with only one variant.
@@ -79,112 +82,10 @@ configured at a time; setting both raises a validation error at startup.
 
 The library does not provision broker topology. For the RabbitMQ and Azure Service Bus backends,
 the exchanges, queues, topics, subscriptions, and related filters / policies must be declared on
-the broker before the application starts — typically as part of the broker container's bootstrap
-or via infrastructure-as-code (Terraform, Pulumi, broker-specific CLIs).
-
-A topic carries messages from many payload families. Publishers stamp every outgoing message with
-their family wire name (`IPayloadWireName<TPayload>.WireName`) so subscriptions can bind or filter
-down to the family they consume. Declare on the broker:
-
-### Azure Service Bus
-
-For each unique `topic` across all publishers and subscribers:
-
-- A topic named `{topic}`.
-
-For each `AddSubscriber<TPayload, TCeiling>(topic, subscription)`:
-
-- A subscription named `{subscription}` on that topic with a Correlation filter on
-  `x-bw-payload-family = '{WireName}'` so only `TPayload`'s family reaches this subscription.
-  Set `MaxDeliveryCount` on the subscription to cap redelivery attempts; the subscription's
-  built-in dead-letter queue handles exhausted or explicitly dead-lettered messages automatically.
-
-If the Correlation filter is missing or wrong, the subscriber still falls back safely —
-`AzureServiceBusSubscriber` reads the `x-bw-payload-family` application property on every message
-and dead-letters anything that does not match `TPayload.WireName` before attempting
-deserialization. The filter is still the right production configuration because it moves routing
-off the subscriber and into the broker.
-
-The library creates and owns its own `ServiceBusClient` from the configured connection string
-and does not consume any `ServiceBusClient` the app registers separately. An app that also uses
-`ServiceBusClient` against the same namespace will have two AMQP connections to the broker.
-
-### RabbitMQ
-
-For each unique `topic` across all publishers and subscribers:
-
-- A durable **topic** exchange named `{topic}`.
-
-For each `AddSubscriber<TPayload, TCeiling>(topic, subscription)`:
-
-- A durable quorum queue named `{topic}.{subscription}`, bound to the topic exchange with
-  routing key `{WireName}` (the `IPayloadWireName<TPayload>.WireName` of the family the
-  subscriber consumes). A topic exchange with an exact-match routing key behaves like a direct
-  exchange for this message; `topic` was chosen over `direct` so wildcard binds remain available
-  if a future subscription ever needs to consume several families through one queue.
-- A server-side policy applying `delivery-limit` to the queue, capping the number of
-  redelivery attempts before a message is dead-lettered.
-- A server-side policy applying `dead-letter-exchange`, `dead-letter-strategy: at-least-once`,
-  and `overflow: reject-publish` to the queue, plus the target dead-letter exchange and a
-  quorum queue bound to it. Without `dead-letter-exchange`, messages that call
-  `Envelope<TPayload, TCeiling>.DeadLetterAsync` or exceed `delivery-limit` are silently
-  dropped by RabbitMQ. Without `at-least-once` (quorum queues default to `at-most-once`),
-  the broker acknowledges the source queue before confirming the dead-letter publish, so a
-  failover or unavailable dead-letter exchange can still drop the message; `at-least-once`
-  requires `overflow: reject-publish` on the same queue.
-
-If the queue's routing-key binding is wrong, `RabbitSubscriber` falls back to the same defensive
-check — it reads the `x-bw-payload-family` header and dead-letters mismatches. The routing-key
-binding is still the right production configuration because it moves the filter into the broker.
-
-Policies must be used rather than queue arguments because quorum queue arguments cannot be
-changed on an existing queue. See the RabbitMQ documentation on
-[quorum queue poison-message handling](https://www.rabbitmq.com/docs/quorum-queues#poison-message-handling)
-and [policies](https://www.rabbitmq.com/docs/policies) for the full command reference, and
-`management.load_definitions` for declarative bootstrap via a `definitions.json` file loaded
-at broker startup.
-
-#### Example
-
-Using `rabbitmqadmin` and `rabbitmqctl` for a user service that registers:
-
-```csharp
-services.AddPublisher<UserCreatedPayload, UserCreated>("user-events");
-services.AddPublisher<UserDeletedPayload, UserDeleted>("user-events");
-services.AddSubscriber<UserCreatedPayload, UserCreated>("user-events", "vault");
-services.AddSubscriber<UserDeletedPayload, UserDeleted>("user-events", "organizations");
-```
-
-where `UserCreatedPayload.WireName` is `"user.created"` and `UserDeletedPayload.WireName` is
-`"user.deleted"`:
-
-```bash
-# One topic exchange carries both families.
-rabbitmqadmin exchanges declare --name "user-events" --type "topic" --durable true
-
-# One queue per subscription, each bound with its family's wire name as routing key.
-rabbitmqadmin queues declare --name "user-events.vault" --type "quorum" --durable true
-rabbitmqadmin bindings declare --source "user-events" \
-  --destination-type "queue" --destination "user-events.vault" --routing-key "user.created"
-
-rabbitmqadmin queues declare --name "user-events.organizations" --type "quorum" --durable true
-rabbitmqadmin bindings declare --source "user-events" \
-  --destination-type "queue" --destination "user-events.organizations" --routing-key "user.deleted"
-
-# Dead-letter exchange and queue. The names must not match the policy pattern
-# below, which would otherwise re-apply the dead-letter policy to the dead-letter
-# queue and cycle its messages back through itself.
-rabbitmqadmin exchanges declare --name "dead-letter.user-events" --type "fanout" --durable true
-rabbitmqadmin queues declare --name "dead-letter.user-events" --type "quorum" --durable true
-rabbitmqadmin bindings declare --source "dead-letter.user-events" \
-  --destination-type "queue" --destination "dead-letter.user-events"
-
-# Policy applying delivery-limit, dead-letter-exchange, dead-letter-strategy, and
-# overflow to the user-events.* subscription queues.
-rabbitmqctl set_policy user-events-subscriptions "^user-events\." \
-  '{"delivery-limit":10,"dead-letter-exchange":"dead-letter.user-events","dead-letter-strategy":"at-least-once","overflow":"reject-publish"}' \
-  --apply-to quorum_queues
-```
+the broker before the application starts. See
+[BROKER-TOPOLOGY.md](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/BROKER-TOPOLOGY.md)
+for the required shapes, defensive behavior when topology is misconfigured, and a worked
+`rabbitmqadmin` example.
 
 ## Defining a payload
 
@@ -237,104 +138,11 @@ adds a new ceiling keeps sending the old floor alongside, so a subscriber built 
 ceiling still finds a variant it can decode. The chain of variants — floor to ceiling — is the
 contract between publishing and consuming services.
 
-The service that publishes a topic owns its payload type and its `Variants` list, which should be
-made available as a library so subscribing services can reference it to establish the contract.
-
-### Adding a variant (non-breaking)
-
-Say `OrganizationDeleted` carries only the organization id today and needs to grow a deletion
-reason.
-
-Before:
-
-```csharp
-public sealed class OrganizationDeletedPayload
-    : Payload<OrganizationDeletedPayload, OrganizationDeletedPayload.V1, OrganizationDeletedPayload.V1>,
-      IPayloadVariants<OrganizationDeletedPayload>,
-      IPayloadWireName<OrganizationDeletedPayload>
-{
-    public static string WireName => "organization.deleted";
-    public static IReadOnlyList<(Type Type, string WireName)> Variants =>
-    [
-        (typeof(V1), "v1"),
-    ];
-
-    public sealed record V1(Guid OrganizationId)
-        : ISole;
-}
-```
-
-After:
-
-```csharp
-public sealed class OrganizationDeletedPayload
-    : Payload<OrganizationDeletedPayload, OrganizationDeletedPayload.V1, OrganizationDeletedPayload.V2>,
-      IPayloadVariants<OrganizationDeletedPayload>,
-      IPayloadWireName<OrganizationDeletedPayload>
-{
-    public static string WireName => "organization.deleted";
-    public static IReadOnlyList<(Type Type, string WireName)> Variants =>
-    [
-        (typeof(V1), "v1"),
-        (typeof(V2), "v2"),
-    ];
-
-    public sealed record V1(Guid OrganizationId)
-        : IFloor<V2>
-    {
-        public V2 Upcast() => new(OrganizationId, Reason: "unknown");
-    }
-
-    public sealed record V2(Guid OrganizationId, string Reason)
-        : IPureCeiling<V1>
-    {
-        public V1 Downcast() => new(OrganizationId);
-    }
-}
-```
-
-The upcast on V1 fills the new field with a safe default so a V1 message from an older publisher
-still produces a well-formed V2 for a V2-ceiling consumer. The downcast on V2 is pure because V1's
-fields are a strict subset of V2's.
-
-Update the publisher registration to the new ceiling —
-`AddPublisher<OrganizationDeletedPayload, OrganizationDeletedPayload.V2>("org-deleted")` — and
-ship. Existing subscribers keep working at V1 and move to V2 whenever they're ready.
-
-### Retiring a variant (breaking)
-
-Breaking changes do not apply to the in-memory channel broker, since both publisher and subscriber ends use identical payload type libraries.
-
-Removing V1 breaks at consume time. A subscriber still built against a payload type that
-references V1 — one running an older copy of the shared type library — can no longer decode
-post-retirement messages, and the transport dead-letters the message before either `IMessageConsumer<...>` or `ISubscriber<...>` receive it.
-
-A future release will add symmetric startup pre-flight checks for both subscribers and publishers to
-ensure variant overlap at startup.
-
-Before removing V1, use the `messaging.variant.name` tag on `messaging.client.consumed.messages`,
-filtered by `messaging.payload.family = "organization.deleted"`, to confirm no subscriber is still
-reading it. V1 falling to zero across the deployment is the signal it's safe to drop. Dead-letter
-queue growth is how you find out if you shipped the removal too early.
-
-Once V1 is cold, the V1+V2 state from above collapses to:
-
-```csharp
-public sealed class OrganizationDeletedPayload
-    : Payload<OrganizationDeletedPayload, OrganizationDeletedPayload.V2, OrganizationDeletedPayload.V2>,
-      IPayloadVariants<OrganizationDeletedPayload>,
-      IPayloadWireName<OrganizationDeletedPayload>
-{
-    public static string WireName => "organization.deleted";
-    public static IReadOnlyList<(Type Type, string WireName)> Variants =>
-    [
-        (typeof(V2), "v2"),
-    ];
-
-    public sealed record V2(Guid OrganizationId, string Reason)
-        : Payload<OrganizationDeletedPayload>.ISole;
-}
-```
+See
+[EVOLVING-PAYLOADS.md](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/EVOLVING-PAYLOADS.md)
+for the variant interface catalog, worked examples of adding a variant with a pure downcast and
+with an assisted downcast (the `.With(assist)` chain), and the retirement playbook using
+`messaging.variant.name` to confirm a variant is safe to remove.
 
 ## Publishing
 
@@ -380,10 +188,9 @@ public class UserService(
 If a downcast between the ceiling and the floor needs caller-supplied data (an "assisted"
 downcast), chain a `.With(assist)` call for each such crossing before `SendAsync`. The compiler
 refuses `SendAsync` until every assisted downcast has been crossed, so a publisher cannot omit data
-an older subscriber needs. See the [package README][readme-payload-versioning] for the full interface
-catalog and assisted-downcast walkthrough.
-
-[readme-payload-versioning]: https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/README.md#payload-versioning
+an older subscriber needs. See
+[EVOLVING-PAYLOADS.md](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/EVOLVING-PAYLOADS.md#adding-a-variant-whose-downcast-needs-new-data-assisted)
+for the full walkthrough.
 
 ## Consuming
 
