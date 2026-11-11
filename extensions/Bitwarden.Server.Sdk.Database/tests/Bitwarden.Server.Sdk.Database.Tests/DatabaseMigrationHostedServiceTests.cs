@@ -258,8 +258,13 @@ public class DatabaseMigrationHostedServiceTests
 
         var hostedService = BuildHostedService(services, timeProvider: new FakeTimeProvider());
 
-        await Assert.ThrowsAsync<SqliteException>(() => hostedService.StartAsync(CancellationToken.None));
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => hostedService.StartAsync(CancellationToken.None));
         Assert.Equal(1, migrator.Migrations);
+
+        // Identified by type and code, without the database's own text.
+        Assert.Contains("SqliteException", error.Message);
+        Assert.DoesNotContain("Orders.Name", error.ToString());
     }
 
     [Fact]

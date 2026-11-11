@@ -125,7 +125,7 @@ public sealed class DatabaseMigrationHostedServiceIntegrationTests : IClassFixtu
 
         var (error, _) = await StartHostAsync(connectionString);
 
-        Assert.IsType<SqlException>(error);
+        Assert.NotNull(error);
 
         // Retrying cannot fix a failing script: the run is one transaction, so every attempt fails
         // the same way and only delays the error.
@@ -141,14 +141,15 @@ public sealed class DatabaseMigrationHostedServiceIntegrationTests : IClassFixtu
 
         var (error, logs) = await StartHostAsync(connectionString);
 
-        // The error itself still says what went wrong, for whoever started the host.
-        Assert.Contains(RowValue, Assert.IsType<SqlException>(error).Message);
+        // What stops the host still identifies the failure, by the database's error number.
+        var failure = Assert.IsType<InvalidOperationException>(error);
+        Assert.Contains("SQL Server error 2627", failure.Message);
+        Assert.DoesNotContain(RowValue, failure.ToString());
 
-        // The host logs the exception that stopped it; that's the host's choice. This package's
-        // own logs, DbUp's included, must not repeat the database's message.
+        // No log repeats the database's message: not this package's, DbUp's, or the host's own
+        // record of the exception that stopped it.
         Assert.DoesNotContain(
             logs.GetSnapshot(),
-            record => record.Category?.StartsWith("Bitwarden.Server.Sdk.Database", StringComparison.Ordinal) == true
-                && (record.Message.Contains(RowValue) || (record.Exception?.ToString().Contains(RowValue) ?? false)));
+            record => record.Message.Contains(RowValue) || (record.Exception?.ToString().Contains(RowValue) ?? false));
     }
 }

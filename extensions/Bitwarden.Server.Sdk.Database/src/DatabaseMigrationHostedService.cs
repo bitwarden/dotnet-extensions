@@ -70,9 +70,11 @@ internal sealed class DatabaseMigrationHostedService : IHostedService
             }
             catch (DbException e)
             {
-                _logger.LogError(
-                    "Database {Name} failed to migrate: {Error}.", migrator.Name, DatabaseErrors.Describe(e));
-                throw;
+                // Not rethrown: the host logs the exception that stops it, and the database's message
+                // can carry row values. No inner exception either, for the same reason.
+                var description = DatabaseErrors.Describe(e);
+                _logger.LogError("Database {Name} failed to migrate: {Error}.", migrator.Name, description);
+                throw new InvalidOperationException($"Database {migrator.Name} failed to migrate: {description}.");
             }
         }
     }
