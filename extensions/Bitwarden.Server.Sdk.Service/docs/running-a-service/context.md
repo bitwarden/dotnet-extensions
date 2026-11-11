@@ -5,7 +5,7 @@ came from. Your handlers read that from `IContext`, and the package fills it in 
 from the context another service sends. `IContext` and the context headers are in
 [Bitwarden.Server.Sdk.Context](../../../Bitwarden.Server.Sdk.Context/src/README.md); filling
 in and checking them is
-[Bitwarden.Server.Sdk.Authorization](../../../Bitwarden.Server.Sdk.Authorization/README.md)'s work,
+[Bitwarden.Server.Sdk.Authorization](../../../Bitwarden.Server.Sdk.Authorization/src/README.md)'s work,
 which `Service` registers for you.
 
 ## Read whom a request concerns
@@ -74,7 +74,7 @@ context another service sends, and believes it only as Identity signed it.
 | `IContext.OrganizationId`      | The context token's organization                                                       | The token's signed `organization` claim                            |
 | `IContext.ProviderId`          | The context token's provider                                                           | A provider session's `provider` claim                              |
 | Address, device and credential | `Bitwarden-Context`, as the token signed it                                            | The connection's address, the `device` claim, the client's headers |
-| A context header        | Believed from an internal service with a valid context token; ignored from anyone else | Refused with `400`, whoever sends it                               |
+| A context header               | Believed from an internal service with a valid context token; ignored from anyone else | Refused with `400`, whoever sends it                               |
 | A token without a GUID `sub`   | Accepted                                                                               | Refused with `401`, except a credential an operation accepts       |
 | `ICallerRole`                  | Always `None`                                                                          | From the session, for the organization it names                    |
 
@@ -118,11 +118,11 @@ your handler runs. Each refusal names the header at fault in the error's `source
 
 | The call                                                                      | Status | Header named           |
 | ----------------------------------------------------------------------------- | ------ | ---------------------- |
-| Context but no context token                                           | `401`  | `Bitwarden-Delegation` |
+| Context but no context token                                                  | `401`  | `Bitwarden-Delegation` |
 | A context token that is forged, expired or for another service                | `401`  | `Bitwarden-Delegation` |
 | A context token issued to another caller                                      | `401`  | `Bitwarden-Delegation` |
 | A plain header that disagrees with the context token                          | `400`  | That header            |
-| A context header sent more than once                                   | `400`  | That header            |
+| A context header sent more than once                                          | `400`  | That header            |
 | A malformed `Bitwarden-Context` object in the token                           | `400`  | `Bitwarden-Context`    |
 | An asserted context naming a person, at an operation not admitting the caller | `403`  | `Bitwarden-Delegation` |
 
