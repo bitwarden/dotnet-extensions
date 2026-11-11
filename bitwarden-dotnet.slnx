@@ -100,6 +100,9 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Sagas/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Sagas/src/Bitwarden.Server.Sdk.Sagas.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Sagas/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Sagas/tests/Bitwarden.Server.Sdk.Sagas.Tests/Bitwarden.Server.Sdk.Sagas.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.WebEssentials/">
     <Project Path="extensions/Bitwarden.Server.Sdk.WebEssentials/src/Bitwarden.Server.Sdk.WebEssentials.csproj" />
   </Folder>
