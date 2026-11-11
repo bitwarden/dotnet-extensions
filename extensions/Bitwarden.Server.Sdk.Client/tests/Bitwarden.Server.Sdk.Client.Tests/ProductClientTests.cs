@@ -197,6 +197,54 @@ public sealed class ProductClientTests
         provider.GetRequiredService<IStartupValidator>().Validate();
     }
 
+    // A product service's client package may register more than one client for it, each adding its own handler to the
+    // same named client: a call through either is still one request, carrying the call's token.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("my-client")]
+    public async Task TwoClientsForOneService_EachCallIsOneRequest(string? name)
+    {
+        var service = new FakeService((_, _) => (200, """{"name":"one"}"""));
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
+            .AddInMemoryCollection([new($"Services:{Name}:BaseAddress", "http://conventional.invalid")])
+            .Build());
+        if (name is not null)
+        {
+            services.AddHttpClient(name, http => http.BaseAddress = new Uri("http://product.invalid/"));
+        }
+
+        services.AddProductClient<TestClient, TestClient>(Name, name).ConfigurePrimaryHttpMessageHandler(() => service);
+        services.AddProductClient<OtherClient, OtherClient>(Name, name).ConfigurePrimaryHttpMessageHandler(() => service);
+        using var provider = services.BuildServiceProvider();
+
+        var first = await provider.GetRequiredService<TestClient>().ReadAsync("person-token", Token);
+        var second = await provider.GetRequiredService<OtherClient>().DeleteAsync("other-token", Token);
+
+        Assert.Equal(200, first.Status);
+        Assert.Equal(200, second.Status);
+        Assert.Equal(["Bearer person-token", "Bearer other-token"], service.Sent.Select(sent => sent.Authorization));
+    }
+
+    // A handler above that sends the same request again (a retry) is still a second request inside the call, with two
+    // product clients' handlers stacked as with one.
+    [Fact]
+    public async Task TwoClientsForOneService_ARequestSentAgainFromAbove_Throws()
+    {
+        var service = new FakeService((_, _) => (200, """{"name":"one"}"""));
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        services.AddHttpClient("my-client", http => http.BaseAddress = new Uri("http://product.invalid/"))
+            .AddHttpMessageHandler(() => new SendingTwice())
+            .ConfigurePrimaryHttpMessageHandler(() => service);
+        services.AddProductClient<TestClient, TestClient>(Name, "my-client");
+        services.AddProductClient<OtherClient, OtherClient>(Name, "my-client");
+        using var provider = services.BuildServiceProvider();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => provider.GetRequiredService<TestClient>().ReadAsync("person-token", Token));
+    }
+
     private static TestClient Client(FakeService service) => Provider(service).GetRequiredService<TestClient>();
 
     private static ServiceProvider Provider(FakeService service)
@@ -253,6 +301,31 @@ public sealed class ProductClientTests
 
             return Newtonsoft.Json.JsonConvert.DeserializeObject<Thing>(text)
                 ?? throw new InvalidOperationException("Response was null.");
+        }
+    }
+
+    /// <summary>
+    /// A second client for the same product service.
+    /// </summary>
+    public sealed class OtherClient(HttpClient http) : ProductClient(http)
+    {
+        public Task<ProductAnswer> DeleteAsync(string bearer, CancellationToken cancellationToken) =>
+            CallAsync(bearer, async () =>
+            {
+                using var response = await Http.DeleteAsync("things/1", cancellationToken);
+                response.EnsureSuccessStatusCode();
+            });
+    }
+
+    /// <summary>
+    /// Sends each request twice, as a retry would, and returns the second answer.
+    /// </summary>
+    private sealed class SendingTwice : DelegatingHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            (await base.SendAsync(request, cancellationToken)).Dispose();
+            return await base.SendAsync(request, cancellationToken);
         }
     }
 
