@@ -2,8 +2,7 @@
 
 What a Bitwarden service's API looks like to its callers: resource documents, standard operations
 and their checks, the error document, querying, bulk operations and their OpenAPI description. See
-[PACKAGE.md](PACKAGE.md) for using it, and the
-[developer guide](../../Bitwarden.Server.Sdk.Service/docs/README.md) for writing a service with it.
+[PACKAGE.md](PACKAGE.md) for using it.
 
 ## What belongs here
 
