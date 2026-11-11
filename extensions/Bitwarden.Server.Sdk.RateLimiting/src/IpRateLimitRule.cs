@@ -24,7 +24,8 @@ public sealed class IpRateLimitRule
     public int Limit { get; set; }
 
     /// <summary>
-    /// For a token endpoint: only requests whose form names one of these <c>grant_type</c>s count.
+    /// For a token endpoint: a request whose form names exactly one <c>grant_type</c> counts only
+    /// when it is one of these. A request naming none, or naming one more than once, still counts.
     /// Empty, and every matching request counts. Lets a rule count sign-ins without counting a
     /// token endpoint's other grants, such as a session exchanged for a product's token.
     /// </summary>
