@@ -1,25 +1,14 @@
 # Bitwarden.Server.Sdk.Resources
 
+**Audience:** engineers writing the API of a Bitwarden service: its resources and the operations on
+them.
+
 ## About
 
 The API conventions Bitwarden's .NET services share. You declare a resource as a C# record and map
-handlers as ASP.NET Core minimal APIs with one standard attribute each, and the package gives you:
-
-- **Resource documents.** `Resource`, `ResourceDocument<T>` and the list documents wrap and unwrap
-  the envelope (`data`, `attributes`, `meta`), so a handler takes and returns plain records.
-- **Standard endpoints.** `[StandardCreate]`, `[StandardReadOne]` and the rest, applied by
-  `WithStandards()`, bind and validate the request before the handler runs, set the status and
-  `Location`, name the operation and settle its authorization.
-- **The standard error document,** written for every refusal and every exception.
-- **Querying:** filters, sorting, offset and cursor paging, sparse fieldsets, searches and bulk
-  operations, each an ordinary handler parameter.
-- **The OpenAPI description** of all of these.
-- **Startup checks.** A handler mapped against its attribute or an operation identifier used twice
-  stops the service at startup, every problem listed at once.
-
-Bitwarden services are zero knowledge: they store and synchronize Vault Data only as Protected
-Data, encrypted on the client. `[Encrypted]` checks an encrypted value's length and, if asked, its
-shape. Nothing in the package decrypts or logs one.
+handlers as ASP.NET Core minimal APIs with one standard attribute each, and the package gives you
+the documents, binding and validation, the error document, querying, bulk operations and the
+OpenAPI description of all of these.
 
 The package references Bitwarden.Server.Sdk.Authorization, Bitwarden.Server.Sdk.Context,
 Bitwarden.Server.Sdk.Data.Abstractions, Bitwarden.Server.Sdk.Errors, Bitwarden.Server.Sdk.Environment
@@ -35,9 +24,32 @@ A service installs Bitwarden.Server.Sdk.Service instead, which brings this packa
 setup call but `WithStandards()`. A host without Service follows
 [Set up a host without Service](#set-up-a-host-without-service).
 
+## Configuration
+
+The package reads no settings of its own. `[SelfHostedOnly]` and `[NotSelfHostedOnly]` follow
+`IBitwardenEnvironment.SelfHosted`, which comes from `globalSettings:selfHosted`.
+
+## Key concepts
+
+- **A resource and its document.** `Resource`, `ResourceDocument<T>` and the list documents wrap and
+  unwrap the envelope (`data`, `attributes`, `meta`), so a handler takes and returns plain records.
+  See [Payload shape](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/payloads-and-responses/payload-shape.md).
+- **Standard operations.** `[StandardCreate]`, `[StandardReadOne]` and the rest, applied by
+  `WithStandards()`, bind and validate the request before the handler runs, set the status and
+  `Location`, name the operation and settle its authorization. See
+  [Verbs](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/operations/verbs.md).
+- **Startup checks.** A handler mapped against its attribute or an operation identifier used twice
+  stops the service at startup, every problem listed at once. See
+  [Keep the Map line and the attribute in step](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/operations/verbs.md#keep-the-map-line-and-the-attribute-in-step).
+- **The standard error document** is written for every refusal and every exception. See
+  [Errors](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/payloads-and-responses/errors.md).
+- **Zero knowledge.** Bitwarden services store and synchronize Vault Data only as Protected Data,
+  encrypted on the client. `[Encrypted]` checks an encrypted value's length and, if asked, its
+  shape. Nothing in the package decrypts or logs one.
+
 ## Getting started
 
-A resource and the endpoints that create and read it:
+A resource and the endpoints that create and read it, in `WidgetsEndpoints.cs`:
 
 ```csharp
 using System.ComponentModel.DataAnnotations;
@@ -89,19 +101,9 @@ A name over 100 characters is refused `422` before the handler runs, a create an
 service calls `WidgetsEndpoints.Map` from its `MapEndpoints`, as in Service's
 [Getting started](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/src/PACKAGE.md#getting-started).
 
-## Configuration
-
-The package reads no settings of its own. `[SelfHostedOnly]` and `[NotSelfHostedOnly]` follow
-`IBitwardenEnvironment.SelfHosted`, which comes from `globalSettings:selfHosted`.
-
-## Startup checks
-
-Besides the problems the developer guide lists, a handler that takes a bare `Query` parameter, on
-any endpoint, stops the service at startup: its filter would reach the handler unchecked. Take a
-`Search<T>` on a `[StandardSearch]` operation, or the bulk request on its `[StandardBulk...]`
-operation.
-
 ## Set up a host without Service
+
+In `Program.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Resources;
@@ -136,6 +138,16 @@ app.Run();
 - The project file settings that let handlers compile ahead of time and their XML comments reach
   the document are in
   [OpenAPI](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service/docs/contracts/openapi.md#turn-on-the-document).
+
+## Gotchas and constraints
+
+- **A handler that takes a bare `Query` parameter**, on any endpoint, stops the service at startup:
+  its filter would reach the handler unchecked. Take a `Search<T>` on a `[StandardSearch]`
+  operation, or the bulk request on its `[StandardBulk...]` operation.
+- **The package doesn't enforce every API standard.** It accepts some requests the standards refuse,
+  and its startup checks miss some mistakes.
+  [Known limitations](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Resources/src/README.md#known-limitations)
+  lists each, and the developer guide gives the workaround where there is one.
 
 ## Developer guide
 

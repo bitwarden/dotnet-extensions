@@ -1,5 +1,7 @@
 # Bitwarden.Server.Sdk.Http
 
+**Audience:** engineers changing this package.
+
 SSRF protection and internal TLS trust for a Bitwarden service's outbound HTTP calls. See [PACKAGE.md](PACKAGE.md) for
 how to use it.
 
