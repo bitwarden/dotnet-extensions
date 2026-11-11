@@ -118,7 +118,7 @@ public static class WidgetTransfersEndpoints
 ```
 
 The call-chain check and `[AcceptsReentry]` are in
-[Bitwarden.Server.Sdk.Authorization](../../../Bitwarden.Server.Sdk.Authorization/src/README.md), which
+[Bitwarden.Server.Sdk.Authorization](../../../Bitwarden.Server.Sdk.Authorization/src/PACKAGE.md), which
 `Service` registers for you.
 
 - The chain is believed only from another service's authenticated call. From anybody else, a
