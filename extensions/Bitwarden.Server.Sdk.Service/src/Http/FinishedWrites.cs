@@ -19,8 +19,9 @@ namespace Bitwarden.Server.Sdk.Service;
 /// <para>
 /// A safe request keeps the client's cancellation. It changes nothing, so stopping it loses
 /// nothing the client asked for, and its work is spared. <see cref="IHttpRequestLifetimeFeature.Abort"/>
-/// still aborts the connection: only the client's leaving is ignored. Stopping the host still
-/// lets the request finish, within the host's shutdown timeout.
+/// still aborts the connection: only the client's leaving is ignored. A token the pipeline assigns
+/// to <see cref="HttpContext.RequestAborted"/> afterwards, such as a request timeout's, still
+/// applies. Stopping the host still lets the request finish, within the host's shutdown timeout.
 /// </para>
 /// </remarks>
 /// <param name="next">The rest of the pipeline.</param>

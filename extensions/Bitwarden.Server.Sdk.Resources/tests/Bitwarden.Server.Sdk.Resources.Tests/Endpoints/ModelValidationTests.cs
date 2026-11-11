@@ -235,6 +235,62 @@ public sealed class ModelValidationTests
         return chain;
     }
 
+    // A type's own attributes run on the model itself, as a controller runs them on its parameter.
+    // Each message names the object the attribute was handed to validate against, which is what a
+    // controller hands it: the model at the root, the list or dictionary for an item, and the
+    // object holding a member.
+    [Fact]
+    public void Validate_RootFailingItsClassAttribute_RefusedUnderItsKey()
+    {
+        var error = Assert.Single(Validate(new Checked { Number = "1" }));
+
+        Assert.Equal(string.Empty, error.Key);
+        Assert.Equal("Checked not checked, in Checked.", error.Message);
+    }
+
+    [Fact]
+    public void Validate_RootPassingItsClassAttribute_Passes()
+    {
+        Assert.Empty(Validate(new Checked { Number = "1", Ok = true }));
+    }
+
+    // Only once its members pass, as with its IValidatableObject.
+    [Fact]
+    public void Validate_RootWithAFailingMember_ClassAttributeNotRun()
+    {
+        var error = Assert.Single(Validate(new Checked()));
+
+        Assert.Equal("Number", error.Key);
+    }
+
+    [Fact]
+    public void Validate_ListItemFailingItsClassAttribute_RefusedUnderItsIndex()
+    {
+        var error = Assert.Single(Validate(new CheckedList { Items = [new Checked { Number = "1", Ok = true }, new Checked { Number = "1" }] }));
+
+        Assert.Equal("Items[1]", error.Key);
+        Assert.Equal("Checked not checked, in List`1.", error.Message);
+    }
+
+    [Fact]
+    public void Validate_DictionaryValueFailingItsClassAttribute_RefusedUnderItsKey()
+    {
+        var error = Assert.Single(Validate(new CheckedMap { Entries = { ["home"] = new Checked { Number = "1" } } }));
+
+        Assert.Equal("Entries[home]", error.Key);
+        Assert.Equal("Checked not checked, in Dictionary`2.", error.Message);
+    }
+
+    // A member's value is checked by its member, once.
+    [Fact]
+    public void Validate_MemberFailingItsTypesClassAttribute_RefusedOnce()
+    {
+        var error = Assert.Single(Validate(new CheckedHolder { Item = new Checked { Number = "1" } }));
+
+        Assert.Equal("Item", error.Key);
+        Assert.Equal("Item not checked, in CheckedHolder.", error.Message);
+    }
+
     private static List<ModelError> Validate(object model)
     {
         var errors = new List<ModelError>();
@@ -356,4 +412,38 @@ public sealed class ModelValidationTests
     private sealed class Lists : List<Lists>;
 
     private sealed class Maps : Dictionary<string, List<Maps>>;
+
+    [MustBeChecked]
+    private sealed class Checked
+    {
+        [Required]
+        public string? Number { get; set; }
+
+        public bool Ok { get; set; }
+    }
+
+    [AttributeUsage(AttributeTargets.Class)]
+    private sealed class MustBeCheckedAttribute : ValidationAttribute
+    {
+        protected override ValidationResult? IsValid(object? value, ValidationContext validationContext) =>
+            value is Checked { Ok: true }
+                ? ValidationResult.Success
+                : new ValidationResult(
+                    $"{validationContext.DisplayName} not checked, in {validationContext.ObjectInstance.GetType().Name}.");
+    }
+
+    private sealed class CheckedList
+    {
+        public List<Checked> Items { get; init; } = [];
+    }
+
+    private sealed class CheckedMap
+    {
+        public Dictionary<string, Checked> Entries { get; } = [];
+    }
+
+    private sealed class CheckedHolder
+    {
+        public Checked? Item { get; set; }
+    }
 }

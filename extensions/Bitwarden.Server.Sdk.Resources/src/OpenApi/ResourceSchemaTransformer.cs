@@ -4,13 +4,13 @@ using Microsoft.OpenApi;
 namespace Bitwarden.Server.Sdk.Resources.OpenApi;
 
 /// <summary>
-/// Reshapes a resource's schema so the OpenAPI document describes the wire, not the record.
+/// Marks a resource's schema so <see cref="ResourceEnvelopeDocumentTransformer"/> can envelope it
+/// once every schema transformer has run.
 /// </summary>
 /// <remarks>
-/// A resource is declared flat and serialised with its attributes enveloped, so the schema the
-/// generator infers from the type has the wrong shape. This moves every member except <c>id</c> and
-/// <c>type</c> under an <c>attributes</c> object, carrying each one's <c>required</c> status with
-/// it. Descriptions and data annotations travel with the property schemas, so nothing is lost.
+/// The marker carries the resource's type name, which is derivable from the CLR type here but not
+/// at the document stage. Members stay flat until then so later schema transformers (XML docs among
+/// them) still find them where the record declares them.
 /// </remarks>
 internal sealed class ResourceSchemaTransformer : IOpenApiSchemaTransformer
 {
