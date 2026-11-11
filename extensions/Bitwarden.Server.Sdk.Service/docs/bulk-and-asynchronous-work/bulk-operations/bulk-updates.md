@@ -1,5 +1,7 @@
 # Bulk updates
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 A bulk update applies one change, `update`, to every targeted resource. A field left out of
 `update` is left alone, and an explicit `null` clears it. Declare it with
 `[StandardBulkUpdate(collection)]` and take a `BulkUpdate<T>`; reading, validating and applying

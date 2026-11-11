@@ -1,5 +1,7 @@
 # Breaking changes and versioning
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 When a change would break existing callers, publish it as a new version beside the old one: a `v2`
 route group with its own resource type, mapped next to `v1`. The package doesn't detect breaking
 changes; committing the OpenAPI document makes each one visible in review.

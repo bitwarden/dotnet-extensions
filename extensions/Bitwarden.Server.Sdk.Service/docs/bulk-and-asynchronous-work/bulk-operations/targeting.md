@@ -1,5 +1,7 @@
 # Targeting
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 A bulk request names its resources in exactly one way: `data` (each item carries its own
 content), `ids`, or a `filter` expression. You choose which forms an operation accepts with
 `Targeting` on its attribute, and read them from `request.Ids` and `request.Filter`.

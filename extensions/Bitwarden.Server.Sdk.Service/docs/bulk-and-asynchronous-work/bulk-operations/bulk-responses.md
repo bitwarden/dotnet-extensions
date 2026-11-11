@@ -1,5 +1,7 @@
 # Bulk responses
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 A bulk handler returns what the caller learns: how many resources succeeded and, for best-effort,
 which failed and why. The package gives you `BulkResult`, `BulkCreatedDocument<T>`, `BulkFailure`
 and `BulkRefusedException` to build these.

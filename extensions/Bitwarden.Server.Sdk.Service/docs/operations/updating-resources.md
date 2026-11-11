@@ -1,5 +1,7 @@
 # Updating resources
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 To replace a resource, write a handler with `[StandardUpdate]` that takes the `{id}` and a
 `ResourceDocument<T>`, and returns `UpdateResponse(...)`. The same attribute serves a `PUT` that
 creates the resource when it doesn't exist.

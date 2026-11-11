@@ -1,5 +1,7 @@
 # Observability and health
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 Every service exports traces, metrics and logs over OTLP, tags them with whom a request concerns,
 and answers the health probes an orchestrator asks. Name your own sources `Bitwarden.*` and register
 health checks the usual way; the package does the rest.

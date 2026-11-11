@@ -1,5 +1,7 @@
 # Authentication and authorization
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 Every operation a service maps is authenticated and authorized unless it says otherwise. You
 declare what operations demand with `AuthorizationDefaults` on the service and `[Authorization]` on
 a handler or its class. These types, and the checks behind them, are in

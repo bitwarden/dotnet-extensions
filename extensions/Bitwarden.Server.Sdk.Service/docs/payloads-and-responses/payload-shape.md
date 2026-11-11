@@ -1,5 +1,7 @@
 # Payload shape
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 You write a resource as a flat record that derives from `Resource`, and your handlers take and
 return documents such as `ResourceDocument<T>`. The package wraps and unwraps the envelope (`data`,
 `attributes`, `meta`, `errors`) for you, in both directions.

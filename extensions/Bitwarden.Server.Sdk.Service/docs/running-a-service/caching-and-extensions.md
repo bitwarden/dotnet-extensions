@@ -1,5 +1,7 @@
 # Caching and extensions
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 Two small pieces of the platform: `GetOrResolveOnceAsync`, a short in-process memo for another
 service's answer, and `IServiceExtension`, the way a package extends every service that references
 it.

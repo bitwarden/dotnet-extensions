@@ -1,5 +1,7 @@
 # All-or-nothing and best-effort
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 When some targeted resources fail, an all-or-nothing operation changes nothing and reports every
 failure, and a best-effort operation lets each resource succeed or fail on its own. You choose
 which modes an operation offers with `Supports` on its attribute, and read the caller's choice

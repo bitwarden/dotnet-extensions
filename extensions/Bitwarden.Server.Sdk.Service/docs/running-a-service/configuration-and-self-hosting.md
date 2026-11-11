@@ -1,5 +1,7 @@
 # Configuration and self-hosting
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 A service reads its settings from the standard ASP.NET Core sources. Every setting the package reads
 is optional: a service with none of them runs in the cloud configuration. Use feature flags with
 `[RequireFeature]` and `IFeatureService`, and keep operations to one kind of install with

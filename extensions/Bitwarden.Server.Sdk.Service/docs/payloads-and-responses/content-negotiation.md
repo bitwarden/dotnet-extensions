@@ -1,5 +1,7 @@
 # Content negotiation
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 The package checks a request's `Content-Type` for you and refuses a body it can't read with `415`.
 It answers everything as `application/json; charset=utf-8` and ignores `Accept`. This page shows
 how to take a body that isn't JSON, and how to refuse an `Accept` you can't answer.

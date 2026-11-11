@@ -1,5 +1,7 @@
 # API paths
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 You choose each path with `MapGroup` and the `Map` calls; the standard attributes give each
 operation a default route under it. Identify what a request is about in the path, and read who is
 asking, and on behalf of which organization, from `IContext` and `Person`.

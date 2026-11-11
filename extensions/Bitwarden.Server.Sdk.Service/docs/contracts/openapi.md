@@ -1,5 +1,7 @@
 # OpenAPI
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 `Service` builds your service's OpenAPI document from your handlers, their XML documentation and
 your resource types, and this package describes the resources and standard operations in it. You write `<summary>` and `<remarks>` on handlers, `[ApiTag]` on endpoints
 classes, and attributes such as `[ReadOnly]` on resources; the package does the rest.

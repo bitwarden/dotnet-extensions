@@ -1,5 +1,7 @@
 # Bulk operations
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 A bulk operation lets a caller create, update, replace, delete or act on many resources in one
 request. You declare each one with a bulk attribute and take its request type in the handler; the
 package checks the request's targeting and atomicity before your handler runs.

@@ -1,5 +1,7 @@
 # Context
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 A request is about someone: an organization, a person, a provider, and the client and address it
 came from. Your handlers read that from `IContext`, and the package fills it in from the session or
 from the context another service sends. `IContext` and the context headers are in

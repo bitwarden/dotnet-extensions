@@ -1,5 +1,7 @@
 # Sparse fieldsets
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 A caller can ask for only some of a resource's attributes. You opt an operation in with a
 `Fields<T>` parameter, read as `fields[{type}]`, and pass it to the response, which leaves the other
 attributes out. `id` and `type` are always returned.

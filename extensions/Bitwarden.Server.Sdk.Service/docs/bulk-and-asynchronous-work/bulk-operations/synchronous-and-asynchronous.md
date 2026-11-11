@@ -1,5 +1,7 @@
 # Synchronous and asynchronous
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 Every bulk operation the package provides is synchronous: it answers when the work is done, with
 what your handler returns. The package has no asynchronous execution: no `202 Accepted`, no job,
 and no handling of `Prefer: respond-async`.

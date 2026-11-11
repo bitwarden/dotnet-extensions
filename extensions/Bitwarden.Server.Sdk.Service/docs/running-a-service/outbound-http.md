@@ -1,5 +1,7 @@
 # Outbound HTTP
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 A service makes two kinds of outbound call: to an address someone outside Bitwarden chose, such as
 an organization's webhook or identity provider, and to the deployment's other services. Guard the
 first with `AddSsrfProtection()` so it can't reach the private network, and run the second over a

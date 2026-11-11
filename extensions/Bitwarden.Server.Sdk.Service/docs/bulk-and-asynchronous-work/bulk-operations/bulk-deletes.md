@@ -1,5 +1,7 @@
 # Bulk deletes
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 A bulk delete deletes each targeted resource, named by `ids` or described by a `filter`. Declare it
 with `[StandardBulkDelete(collection)]` and take a `BulkDelete<T>`; the delete itself, and any
 `permanent` flag, are your handler's.

@@ -1,5 +1,7 @@
 # Standard fields
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 Every resource inherits members from `Resource` for its identifier, its version, and who created,
 changed or deleted it and when. Two attributes say how a caller may use a member you declare:
 `[ReadOnly]` and `[Verbatim]`.

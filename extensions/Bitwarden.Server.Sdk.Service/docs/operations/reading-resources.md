@@ -1,5 +1,7 @@
 # Reading resources
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 To read a collection, write a handler with `[StandardReadMany]` that returns
 `ReadManyResponse(...)`. To read one resource, write a handler with `[StandardReadOne]` that returns
 `ReadOneResponse(...)`. Paging, filters, sort and sparse fieldsets are handler parameters.

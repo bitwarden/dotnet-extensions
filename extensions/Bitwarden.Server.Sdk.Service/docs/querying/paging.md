@@ -1,5 +1,7 @@
 # Paging
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 Return a collection a page at a time, by page number or by cursor. You take `PageNumber`,
 `PageSize` or `PageAfter` parameters; the package checks them, takes the page from your query,
 counts only when it must, and writes the paging `meta` and links.

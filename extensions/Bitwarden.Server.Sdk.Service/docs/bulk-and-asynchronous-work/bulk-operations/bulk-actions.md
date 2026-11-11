@@ -1,5 +1,7 @@
 # Bulk actions
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 A bulk action invokes a single-resource action (`{collection}/{id}/actions/{action}`) on every
 targeted resource, at `{collection}:bulk-{action}`. Declare it with
 `[StandardBulkAction(collection, action)]` and take a `BulkAction<T>`, or a `BulkAction<T, TInput>`

@@ -1,5 +1,7 @@
 # Standard responses
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 Your handler returns a document built by a `StandardResponses` helper, and the operation's attribute
 (`[StandardCreate]`, `[StandardReadOne]` and so on) sets the success status. For a failure you throw
 an exception, and the package answers with the right status and an error document. It answers many

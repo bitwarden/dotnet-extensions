@@ -1,5 +1,7 @@
 # Verbs
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 Each kind of operation has an attribute that fixes its HTTP verb, its route below the group and its
 success status. You put one attribute on each handler and map the handler with the matching `Map...`
 call.

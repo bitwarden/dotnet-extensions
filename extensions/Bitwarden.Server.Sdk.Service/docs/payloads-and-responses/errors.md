@@ -1,5 +1,7 @@
 # Errors
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 A handler reports a failure by throwing, and the package writes the error document: its own
 failures and your exceptions alike. You never build one in a handler. The exceptions and the document types, `ErrorResponse` and `Error`, are in
 `Bitwarden.Server.Sdk.Errors`.

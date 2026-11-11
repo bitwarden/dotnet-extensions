@@ -1,5 +1,7 @@
 # Unrecognized fields, query parameters, and headers
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 The package ignores request members, query parameters and headers your handler doesn't declare, and
 refuses a result-shaping parameter it declares but can't honour. To also refuse a shaping parameter
 the operation doesn't declare at all, add an `IStandardEndpointFilterProvider`.

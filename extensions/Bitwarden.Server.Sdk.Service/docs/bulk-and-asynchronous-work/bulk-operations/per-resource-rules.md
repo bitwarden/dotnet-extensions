@@ -1,5 +1,7 @@
 # Per-resource rules
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 A bulk operation does to each resource what the single-resource API would: the same
 authorization, validation, business rules and side effects. The package checks the request as a
 whole; applying these rules to each resource is your handler's job, and `BulkFailure.At` reports

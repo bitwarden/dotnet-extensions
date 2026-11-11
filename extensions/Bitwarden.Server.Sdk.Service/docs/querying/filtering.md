@@ -1,5 +1,7 @@
 # Filtering
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 A read-many operation lets a caller narrow the collection with `filter[{name}]` query parameters.
 You declare each filter as a `Filter<T>` handler parameter; the package binds and checks the value,
 and you apply it to your query.

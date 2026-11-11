@@ -1,5 +1,7 @@
 # Naming conventions
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 Every name a caller sees comes from a name in your C#: members, records, enumeration members,
 methods and handler parameters. Name them well and the wire follows. `[ResourceType]` overrides a
 resource's `type` when the record's name isn't the one you want.

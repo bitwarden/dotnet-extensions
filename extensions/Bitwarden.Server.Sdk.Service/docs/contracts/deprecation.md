@@ -1,5 +1,7 @@
 # Deprecation
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 The package doesn't mark operations deprecated: it doesn't read `[Obsolete]`, adds no
 `Deprecation`, `Sunset` or `Link` headers, and writes no `deprecated` flag in the OpenAPI document.
 To deprecate an operation, add one attribute, one middleware and one document transformer, as this

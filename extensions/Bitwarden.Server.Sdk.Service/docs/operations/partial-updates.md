@@ -1,5 +1,7 @@
 # Partial updates
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 The package has no attribute for `PATCH`. To change one member, give the change its own action with
 `[StandardAction]`; to change several, replace the resource with `PUT`. If you must offer `PATCH`,
 map it yourself and take the body as a `JsonObject`.

@@ -1,5 +1,7 @@
 # Network and request limits
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 A service needs to know the address a request really came from, limit how often one address may call
 it, and decide which web pages may read its answers. The package does all three from settings, and
 refuses to start over a setting it can't honour safely. Trusted proxies are

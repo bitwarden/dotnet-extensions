@@ -1,5 +1,7 @@
 # Creating resources
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 To create a resource, declare it as a `Resource` record and write a handler that takes a
 `ResourceDocument<T>`, carries `[StandardCreate]` and returns `CreateResponse(...)`.
 

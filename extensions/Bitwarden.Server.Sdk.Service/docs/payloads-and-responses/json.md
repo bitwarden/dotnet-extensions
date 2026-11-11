@@ -1,5 +1,7 @@
 # JSON
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 `Service` configures the serializer every endpoint uses, and this package adds the converters for its
 documents. You declare members with ordinary .NET types (`DateTimeOffset`, an `enum`, `string`,
 `JsonElement`) and they are written and read in one consistent way. This page shows what it does with each, and what it leaves to you.

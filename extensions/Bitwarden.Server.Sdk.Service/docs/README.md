@@ -1,5 +1,7 @@
 # Bitwarden.Server.Sdk.Service developer guide
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 How to run a Bitwarden service with `Bitwarden.Server.Sdk.Service`, and write its API with
 `Bitwarden.Server.Sdk.Resources`, one topic per page: defining the service, securing it, configuring
 it and watching it run, then its resources and the operations on them. New to the package? Start

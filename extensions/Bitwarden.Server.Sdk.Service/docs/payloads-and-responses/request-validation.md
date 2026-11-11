@@ -1,5 +1,7 @@
 # Request validation
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 The package binds and validates every request before your handler runs. It reads the rules from your
 parameter types, their nullability and their DataAnnotations attributes, and refuses a request that
 fails with `422` (or `400` for a resource document that isn't JSON). Your handler checks only what

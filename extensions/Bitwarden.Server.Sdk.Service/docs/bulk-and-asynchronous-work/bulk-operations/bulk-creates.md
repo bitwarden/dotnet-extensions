@@ -1,5 +1,7 @@
 # Bulk creates
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 A bulk create creates each resource in `data` and answers with the created resources, so the
 caller learns the identifiers it didn't choose. Declare it with `[StandardBulkCreate(collection)]`,
 take a `BulkCreate<T>`, and return a `BulkCreatedDocument<T>`.

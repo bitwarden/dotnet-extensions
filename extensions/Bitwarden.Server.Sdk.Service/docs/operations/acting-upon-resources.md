@@ -1,5 +1,7 @@
 # Acting upon resources
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 An operation that isn't a create, read, update or delete, such as a status change or sending an
 email, is an action. Write a handler with `[StandardAction]`, give it a plain request type for any
 arguments, and return `ActionResponse(...)` or nothing.

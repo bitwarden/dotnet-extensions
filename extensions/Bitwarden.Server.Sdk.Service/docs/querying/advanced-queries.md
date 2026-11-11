@@ -1,5 +1,7 @@
 # Advanced queries
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 When `filter[...]` parameters can't say enough ("or", or an expression too long for a URL), offer a
 search: a `POST` to `{collection}:search` whose body holds a filter expression in JSON Logic. You
 mark the fields an expression may name with `[Filterable]`, add a `[StandardSearch]` operation that

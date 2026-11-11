@@ -1,5 +1,7 @@
 # Optimistic concurrency
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 Every `Resource` has a `Version`. To stop one caller overwriting another's change, return the
 version in every response, compare the one the caller sends back with `Concurrency.Require`, and
 have your store write only if the version is unchanged.

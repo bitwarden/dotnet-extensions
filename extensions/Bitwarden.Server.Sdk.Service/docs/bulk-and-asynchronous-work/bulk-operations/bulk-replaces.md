@@ -1,5 +1,7 @@
 # Bulk replaces
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 A bulk replace replaces each resource in `data`, as a single `PUT` would: each item carries its
 `id`, and a field left out is cleared. Declare it with `[StandardBulkReplace(collection)]` and
 take a `BulkReplace<T>`; checking the `id`s and versions and applying the replace is your

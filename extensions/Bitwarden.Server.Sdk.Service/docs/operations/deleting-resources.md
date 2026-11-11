@@ -1,5 +1,7 @@
 # Deleting resources
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 To delete a resource, write a handler with `[StandardDelete]` that takes the `{id}` and returns
 nothing. Every `Resource` also has `DeletedAt` and `DeletedBy` for a soft delete, which you build
 with ordinary query parameters.

@@ -1,5 +1,7 @@
 # Sorting
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 A caller chooses the order of a collection with a `sort` parameter: a comma-delimited list of
 fields, each descending when it starts with `-`. You mark sortable fields with `[Sortable]` on the
 resource and take a `Sort? sort` parameter; `SortedBy` applies the order to a query.

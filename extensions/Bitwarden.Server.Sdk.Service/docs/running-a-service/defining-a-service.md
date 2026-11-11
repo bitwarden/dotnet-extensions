@@ -1,5 +1,7 @@
 # Defining a service
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 A Bitwarden service is a class deriving from `Service`. The base class owns startup, in a fixed
 order, and your service fills in only the hooks it needs. Startup registers the packages `Service` is
 made of, such as Bitwarden.Server.Sdk.Authorization and Bitwarden.Server.Sdk.Resources, so the

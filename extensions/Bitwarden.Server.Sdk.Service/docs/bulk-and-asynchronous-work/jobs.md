@@ -1,5 +1,7 @@
 # Jobs
 
+**Audience:** engineers writing a Bitwarden service, and its API, with the server SDK.
+
 A job is a resource representing work an API accepted to finish later, answered with
 `202 Accepted`. The package provides no asynchronous operations and no job resource: every
 operation answers when its work is done.
