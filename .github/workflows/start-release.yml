@@ -23,6 +23,7 @@ on:
           - Bitwarden.Server.Sdk.Infrastructure.Testing
           - Bitwarden.Server.Sdk.MessageBroker
           - Bitwarden.Server.Sdk.RestrictedDependencies
+          - Bitwarden.Server.Sdk.Service.Abstractions
           - Bitwarden.Server.Sdk.WebEssentials
 
 permissions: {}
