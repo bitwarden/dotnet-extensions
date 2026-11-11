@@ -1,15 +1,13 @@
 # Bitwarden.Server.Sdk.Http
 
+**Audience:** engineers writing a Bitwarden service, worker or client library that makes outbound HTTP calls.
+
 ## About
 
-Outbound HTTP for Bitwarden services. Some calls go to an address someone outside Bitwarden chose, such as an
-organization's webhook or identity provider, and must never reach the deployment's private network: this package adds
-SSRF protection to any `HttpClient` the HTTP client factory makes. The rest go to the deployment's own services over
-TLS, often with certificates from an internal authority the system doesn't know: `InternalTls` trusts that authority
-for those calls.
-
-It depends on Bitwarden.Server.Sdk.Environment and Microsoft.Extensions.Http, and not on ASP.NET Core, so a worker or a
-client library uses it as readily as a web service.
+Outbound HTTP for Bitwarden services: SSRF protection for any `HttpClient` the HTTP client factory makes, and
+`InternalTls` to trust the deployment's own certificate authority for calls between services. It depends on
+Bitwarden.Server.Sdk.Environment and Microsoft.Extensions.Http, and not on ASP.NET Core, so a worker or a client
+library uses it as readily as a web service.
 
 ## Installing
 
@@ -30,13 +28,24 @@ host binds it, and that host applies them:
 | `Tls:ServerKey`              | None    | Its private key, base64 of its PKCS #8 encoding. A secret.                                                |
 | `Tls:HealthPort`             | None    | The one port a host may listen on in plain HTTP with `Tls:RequireHttps`, for its probes alone.            |
 
-Name an intermediate authority's root in `Tls:CertificateAuthorities`, not the intermediate alone.
+## Key concepts
+
+- **Two kinds of destination.** Some calls go to an address someone outside Bitwarden chose, such as an
+  organization's webhook or identity provider, and must never reach the deployment's private network: guard those
+  clients. The rest go to the deployment's own services over TLS, often with certificates from an internal authority
+  the system doesn't know: `InternalTls` trusts that authority for those calls.
+- **The guard checks before connecting.** It resolves each request's host and throws `SsrfProtectionException` when
+  the name can't be resolved or any address it resolves to is private, loopback, link-local or otherwise reserved, such
+  as `Request to '169.254.169.254' was blocked because it resolves to an internal IP address.` Otherwise it connects to
+  the address it checked, so the name can't resolve elsewhere in between, and keeps the host for TLS.
+- **Channels between services.** TLS between services is a Secure Channel. With a token on each call that the callee
+  checks, it is a Trusted Channel.
 
 ## Usage
 
 ### Guard a client whose destination someone else chose
 
-Add the guard to the client's registration, and handle the refusal where you send:
+Add the guard to the client's registration, and handle the refusal where you send. `WebhookClients.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Http;
@@ -75,11 +84,6 @@ public class WebhookSender(IHttpClientFactory clients)
 }
 ```
 
-The guard resolves each request's host before connecting. It throws `SsrfProtectionException` when the name can't be
-resolved or any address it resolves to is private, loopback, link-local or otherwise reserved, such as
-`Request to '169.254.169.254' was blocked because it resolves to an internal IP address.` Otherwise it connects to the
-address it checked, so the name can't resolve elsewhere in between, and keeps the host for TLS.
-
 Redirects:
 
 - The guard turns automatic redirects off on the client's primary handler, whoever configures it, follows up to 10
@@ -88,21 +92,6 @@ Redirects:
 - It returns, rather than follows, a redirect from `https://` to `http://`, which would leave TLS, and a redirect to a
   scheme other than `http` or `https`.
 - A response that a handler below it redirected is refused, not returned.
-- Following redirects, the guard buffers the request body in memory once, so a `307` or `308` can send it again. Use
-  `followRedirects: false` for a client that streams large bodies.
-
-Watch for:
-
-- **The guard is opt-in per client.** A client you don't guard can reach anything. Don't guard a client whose
-  destination is the deployment's own: the guard would refuse it. It has no allowlist.
-- **Guarding twice.** A client guarded by both `ConfigureHttpClientDefaults` and its own registration gets one guard,
-  with the first registration's `followRedirects`. Every client's defaults apply first.
-- **A proxy sees the checked address, not the host.** Each request is addressed to the IP address the guard checked,
-  with the host in the `Host` header, so a proxy's request line carries the address and a proxy bypass rule naming the
-  host no longer matches. Once the response arrives, the request's and the response's `RequestUri` name the host
-  again.
-- **What leaves.** Data a service sends to a webhook leaves the Bitwarden Secure Environment. Send identifiers, never
-  Vault Data, which the service holds only as Protected Data anyway.
 
 ### Guard a client in the cloud only
 
@@ -110,6 +99,7 @@ An organization's identity provider is an address someone outside Bitwarden chos
 often runs on the same private network, where the operator chose it. `AddCloudSsrfProtection()` guards the client only
 when `IBitwardenEnvironment.SelfHosted` is false, read as each client's handlers are built. It needs
 `IBitwardenEnvironment`, which `AddBitwardenEnvironment()` registers; a service host usually registers it already.
+`IdentityProviderClients.cs`:
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
@@ -128,13 +118,10 @@ public static class IdentityProviderClients
 }
 ```
 
-A self-hosted install's client is unguarded. Use `AddSsrfProtection()` for any destination a self-hosted install's
-users, rather than its operator, choose.
-
 ### Refuse an internal address when it is saved
 
 `IPAddress.IsInternal()` is the check the guard makes. Check an address as it is saved as well as when it is called,
-so the person saving it hears why:
+so the person saving it hears why. `WebhookAddresses.cs`:
 
 ```csharp
 using System.Net;
@@ -168,14 +155,12 @@ public static class WebhookAddresses
 
 `Dns.GetHostAddressesAsync` throws, rather than returning nothing, for a name that can't be resolved
 (`SocketException`) or is longer than 255 characters (`ArgumentOutOfRangeException`); the sample refuses both, as the
-guard does. `IdnHost` is the name's ASCII form, which DNS needs. A name can resolve differently later, so this doesn't
-replace the guard on the client.
+guard does. `IdnHost` is the name's ASCII form, which DNS needs.
 
 ### Trust an internal certificate authority
 
-TLS between services is a Secure Channel. With a token on each call that the callee checks, it is a Trusted Channel.
 Name the root of the authority that issued your services' certificates, the same files on every service, and check
-each server's certificate with `InternalTls.Trusts`:
+each server's certificate with `InternalTls.Trusts`. `InternalCalls.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Http;
@@ -209,6 +194,26 @@ public static class InternalCalls
   certificate's, or the certificate isn't valid now.
 - A service host may apply the authorities to every client the HTTP client factory makes and serve its certificate
   itself. Do this yourself only in a host that doesn't.
+
+## Gotchas and constraints
+
+- **The guard is opt-in per client.** A client you don't guard can reach anything. Don't guard a client whose
+  destination is the deployment's own: the guard would refuse it. It has no allowlist.
+- **A self-hosted install's client is unguarded** with `AddCloudSsrfProtection()`. Use `AddSsrfProtection()` for any
+  destination a self-hosted install's users, rather than its operator, choose.
+- **Guarding twice.** A client guarded by both `ConfigureHttpClientDefaults` and its own registration gets one guard,
+  with the first registration's `followRedirects`. Every client's defaults apply first.
+- **Following redirects buffers the body.** The guard buffers the request body in memory once, so a `307` or `308` can
+  send it again. Use `followRedirects: false` for a client that streams large bodies.
+- **A proxy sees the checked address, not the host.** Each request is addressed to the IP address the guard checked,
+  with the host in the `Host` header, so a proxy's request line carries the address and a proxy bypass rule naming the
+  host no longer matches. Once the response arrives, the request's and the response's `RequestUri` name the host
+  again.
+- **A check when saving doesn't replace the guard.** A name can resolve differently later, so keep the guard on the
+  client.
+- **What leaves.** Data a service sends to a webhook leaves the Bitwarden Secure Environment. Send identifiers, never
+  Vault Data, which the service holds only as Protected Data anyway.
+- **Name an intermediate authority's root** in `Tls:CertificateAuthorities`, not the intermediate alone.
 
 ## Types
 
