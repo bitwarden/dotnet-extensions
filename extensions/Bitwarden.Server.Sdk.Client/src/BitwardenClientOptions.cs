@@ -74,7 +74,7 @@ public sealed class BitwardenClientOptions
     public bool RequireHttps { get; set; }
 
     /// <summary>
-    /// How long to wait for a call before giving up.
+    /// How long to wait for a call before giving up. <c>Services:{Name}:Timeout</c> where set.
     /// </summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
@@ -84,6 +84,9 @@ public sealed class BitwardenClientOptions
     /// an operation the callee's contract marks to accept it); any other write only when its connection never opened.
     /// 0 to 2; within <see cref="Timeout"/>.
     /// </summary>
+    /// <remarks>
+    /// <c>Services:{Name}:Retries</c> where set.
+    /// </remarks>
     public int Retries { get; set; } = 2;
 
     /// <summary>
@@ -98,6 +101,7 @@ public sealed class BitwardenClientOptions
 
     /// <summary>
     /// The wait before the first retry; the next is twice it, each with jitter (0.5 to 1.5 times).
+    /// <c>Services:{Name}:RetryDelay</c> where set.
     /// </summary>
     public TimeSpan RetryDelay { get; set; } = TimeSpan.FromMilliseconds(200);
 
