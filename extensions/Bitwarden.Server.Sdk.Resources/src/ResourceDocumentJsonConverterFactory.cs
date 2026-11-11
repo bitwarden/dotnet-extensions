@@ -15,7 +15,7 @@ namespace Bitwarden.Server.Sdk.Resources;
 /// and emits an opaque schema. Converting the document instead leaves every resource introspectable
 /// (its schema keeps its properties, data annotations and XML documentation) and costs only the
 /// documents' own schemas, which are two members each and are rebuilt by
-/// <c>OpenApi.ResourceDocumentSchemaTransformer</c>.
+/// <see cref="OpenApi.ResourceDocumentSchemaTransformer"/>.
 /// </para>
 /// <para>
 /// So a resource is declared flat in C#, serialised enveloped on the wire, and described enveloped
