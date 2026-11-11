@@ -78,6 +78,7 @@ internal static class ApiDocumentation
         options.AddSchemaTransformer<RequiredByNullabilitySchemaTransformer>();
         options.AddSchemaTransformer<Features.FeatureFlagsSchemaTransformer>();
         options.DescribeResources();
+        options.AddOperationTransformer<IdempotencyKeyOperationTransformer>();
 
         // Last, so it orders everything the transformers above added.
         options.AddDocumentTransformer<AlphabeticalDocumentTransformer>();
