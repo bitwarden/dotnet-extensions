@@ -51,6 +51,13 @@ jobs:
 
             return refParts[3];
 
+      # Only Bitwarden.Server.Sdk.Crypto ships native libraries: every RID in sdk-internal.env.
+      - name: Fetch Rust SDK native libraries
+        if: ${{ steps.parse-package.outputs.result == 'Bitwarden.Server.Sdk.Crypto' }}
+        run: extensions/Bitwarden.Server.Sdk.Crypto/scripts/fetch-native.sh --from-pinned
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Pack
         run: dotnet build --configuration Release --property:"IsPreRelease=$IS_PRERELEASE"
         working-directory: "./extensions/${{ steps.parse-package.outputs.result }}/src"

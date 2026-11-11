@@ -36,6 +36,13 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Common/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Common/tests/Bitwarden.Server.Sdk.Common.Tests/Bitwarden.Server.Sdk.Common.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Crypto/" />
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Crypto/src/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Crypto/src/Bitwarden.Server.Sdk.Crypto.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Crypto/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Crypto/tests/Bitwarden.Server.Sdk.Crypto.Tests/Bitwarden.Server.Sdk.Crypto.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Environment/" />
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Environment/src/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Environment/src/Bitwarden.Server.Sdk.Environment.csproj" />
