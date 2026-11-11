@@ -1,5 +1,7 @@
 # Bitwarden.Server.Sdk.Service
 
+**Audience:** engineers changing this package.
+
 The `Service` base class and the fixed startup order every Bitwarden .NET service runs. See
 [PACKAGE.md](PACKAGE.md) for using it.
 
@@ -86,7 +88,7 @@ the same files without it, covering the runtime request delegate factory. A chan
 - **Golden files pin what a caller sees.** `MinimalApiParity.golden.txt` records the status, headers
   and body of every request in `MinimalApiParityTests`, and `MinimalApiParity.openapi.golden.json`
   the OpenAPI document. For a deliberate change, rerun with `RECORD_PARITY=1` and review the diff.
-- **Security behaviour is pinned:** context refusal and belief (`ProductServiceAttributeTests`,
+- **Security behavior is pinned:** context refusal and belief (`ProductServiceAttributeTests`,
   `CallerDelegationTests`, `DomainServiceSessionTests`), an asserted context naming a person refused
   unless the operation accepts it (`AcceptsAssertedContextAttributeTests`), audiences (`ServiceAudienceTests`), CORS
   never admitting every origin or credentials (`BrowserOriginsTests`), and defaults `Build()`
@@ -106,6 +108,6 @@ the same files without it, covering the runtime request delegate factory. A chan
   restate or link the API standards, and it shows no example requests or responses.
 - **Samples must compile.** A sample shows code as a service writes it. Before changing one, build
   it against the package in a scratch web project with `EnableRequestDelegateGenerator` on.
-- **A behaviour change** that a page describes updates that page in the same pull request.
+- **A behavior change** that a page describes updates that page in the same pull request.
 - **`PACKAGE.md`** is the readme shown on nuget.org. It stays short, says nothing the guide says, and
   links to the guide with absolute URLs, because nuget.org doesn't resolve relative links.
