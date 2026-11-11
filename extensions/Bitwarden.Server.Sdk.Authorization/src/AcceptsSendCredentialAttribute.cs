@@ -17,7 +17,7 @@ namespace Bitwarden.Server.Sdk.Authorization;
 /// <see cref="AuthorizationAttribute"/> must name a scope (the Send scope) and forbid both a user and
 /// an organization, so a person's session (which lacks the scope) and an organization's are refused
 /// there. The service refuses to start otherwise. Which Send the caller may reach is the claim's,
-/// read with <c>SendCredential.SendId</c>; the service that holds the Send refuses any other.
+/// read with <see cref="SendCredential.SendId"/>; the service that holds the Send refuses any other.
 /// </para>
 /// <para>
 /// Recognised only in a product service; below it every caller is a service.
