@@ -2,12 +2,13 @@
 
 ## About
 
-How an entry in a Bitwarden service's own cache is stored in Redis and keyed, shared by the service that fills it and
-the clients that read it: `OwnedCacheEntry` (the key layout, the hash fields and the settings) and `OwnedAnswerKey`
-(answers keyed by text such as an email address, stored under a digest and never the text).
+A service can let its callers read some of its answers straight from a shared Redis instead of calling it. The service
+that owns the data fills the entries under its own prefix, and its callers read them. Both sides must agree on every
+key, field and setting without one referencing the other, so those live here: `OwnedCacheEntry` (the key layout, the
+hash fields and the settings) and `OwnedAnswerKey` (answers keyed by text such as an email address, stored under a
+digest and never the text).
 
-Its one dependency is Microsoft.Extensions.Configuration.Abstractions. A service host fills entries and a client reads
-them, each building keys with these types.
+Nothing here connects to Redis. Its one dependency is Microsoft.Extensions.Configuration.Abstractions.
 
 ## Installing
 
@@ -23,14 +24,53 @@ dotnet add package Bitwarden.Server.Sdk.Resources.Caching.Abstractions
 | `Caching:Owned:Redis:Configuration`                | This package (`OwnedAnswerKey.ReadSecret`), a service host and a client | None    | The service cache's Redis connection. Unset, there is no service cache: owners fill nothing and clients always ask the owner. |
 | `Caching:Owned:Resources:{service}:{name}:Enabled` | A service host and a client                                             | `true`  | `false` stops the owner filling that resource, index or answer, and its clients reading it, so they ask the owner.            |
 
-Outside the `Development` environment, a host with a service cache must set `Caching:Owned:AnswerSecret`, or it fails
-to start. Every service and client sharing the cache must hold the same secret. See
-[The answer secret](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Resources.Caching.Abstractions/src/README.md#the-answer-secret)
-for why, and what changing it does.
+The keys are public constants: `OwnedAnswerKey.SecretKey`, `OwnedCacheEntry.ConnectionKey` and
+`OwnedCacheEntry.ResourcesSection`.
 
-## Getting started
+### The answer secret
 
-Key an answer by text the same way on both sides:
+An answer keyed by text is stored under a digest of that text, never the text itself. With no secret the digest is
+plain SHA-256, which anyone can compute: someone who can read the cache and guess an address can confirm it is there.
+With the secret the digest is an HMAC that only holders of the secret can compute. Treat it like any other secret.
+
+- **Required outside `Development`.** `OwnedAnswerKey.ReadSecret(configuration, environmentName)` throws when the
+  secret is unset, `Caching:Owned:Redis:Configuration` is set and the environment is not `Development`. A host calls it
+  as it starts, so it fails to start. In `Development` a developer's machine needs no secret. Generate one with `openssl rand -base64 32`.
+- **A malformed secret is refused.** One that is not base64 or is shorter than 32 bytes makes `ReadSecret` throw,
+  without echoing the value, and the host fails to start.
+- **Every service and client sharing the cache must hold the same secret.** One holding a different secret, or none,
+  computes subjects that no owner fills. It never reads a wrong answer: it always misses and asks the owner, so a
+  mismatch costs speed, not correctness.
+- **Clients learn of the secret from their own configuration, not from the contract.** An owner publishes
+  `"digest": "sha-256"` (`OwnedAnswerKey.Digest`) whether or not a secret keys it, because the contract is the same in
+  every deployment and the secret is not.
+- **Changing the secret moves every answer keyed by text.** The cache misses until owners fill the new subjects, and
+  entries under the old ones expire on their own.
+
+Answers keyed by an identifier are stored under the identifier itself and are not affected.
+
+## Usage
+
+### Key a cached resource by its identifier
+
+```csharp
+using Bitwarden.Server.Sdk.Resources.Caching;
+
+public static class WidgetCacheKeys
+{
+    public static string For(Guid widget) =>
+        OwnedCacheEntry.Key(OwnedCacheEntry.Template("widget-service", "widget"), widget);
+}
+```
+
+`WidgetCacheKeys.For(id)` is `widget-service:widget:{id}`. Only the owning service writes under
+`OwnedCacheEntry.Prefix("widget-service")`. A service or resource type may not contain `:`, `{` or `}`, and the
+resource types `answer`, `index`, `gen` and `idempotency` are reserved for the service's other keys; `Template` throws
+`ArgumentException` for either.
+
+### Key an answer by text
+
+Owner and clients key the answer the same way, from the same normalized text:
 
 ```csharp
 using Bitwarden.Server.Sdk.Resources.Caching;
@@ -48,17 +88,13 @@ public sealed class AccountByEmailKey(IConfiguration configuration, string envir
 }
 ```
 
-See the
-[README](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Resources.Caching.Abstractions/src/README.md)
-for a complete program.
+The key is `identity-service:answer:account-by-email:` followed by the subject, a GUID. The address appears nowhere in
+it. An answer's name may not be empty or contain `:`, `{`, `}` or a line feed, and text that isn't valid UTF-16 (a lone
+surrogate) is refused. Each throws an `ArgumentException` that doesn't quote the text.
 
-## Documentation
+### Read an entry
 
-### An entry
-
-One Redis hash per resource, under `{service}:{resource type}:{identifier}` (`OwnedCacheEntry.Template` and `Key`),
-and per answer, under `{service}:answer:{name}:{subject}` (`OwnedAnswerKey.Template`). Only the owning service writes
-under its own prefix.
+Each resource or answer is one Redis hash:
 
 | Field  | Holds                                                                      |
 | ------ | -------------------------------------------------------------------------- |
@@ -68,10 +104,16 @@ under its own prefix.
 | `none` | Nothing is recorded under the key                                          |
 | `gone` | A tombstone: the row changed or was deleted at version `v`                 |
 
-A reader checks the owner beside the data rather than trusting the payload. A tombstone is a miss to a reader and
-refuses a fill of any older version, so a slow read can't put back a value a later change replaced.
+- **Check the owner beside the data.** A reader checks `o` itself and never trusts the payload for whose row it is.
+- **A tombstone is a miss.** It also refuses a fill of any older version, so a slow read can't put back a value a later
+  change replaced.
+- **What an entry holds is the owner's choice.** This package names the fields, not what goes in `d`. An owner fills an
+  entry only with attributes every reader of the cache may see: it is Data at Rest in Redis, readable by anyone with
+  read access to the owner's prefix.
+- **A digest is not encryption.** Even keyed, it only keeps the text out of the cache. Anyone holding the secret and
+  read access can still confirm a guess.
 
-### Types
+## Types
 
 | Type              | Purpose                                                                      |
 | ----------------- | ---------------------------------------------------------------------------- |
