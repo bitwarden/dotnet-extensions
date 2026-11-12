@@ -94,6 +94,10 @@ public static class ContextHeaderExample
 }
 ```
 
+Besides where the request came from and its credential, the object carries what feature flags are evaluated for: the
+party (`FlagKind`, `USER` by default and then left out, and `FlagKey`), its organizations, and the client's version
+(`ClientVersion`, with `ClientVersionIsPrerelease` written only as `true`).
+
 ### Notice a call back into this service
 
 `CallChain` carries the services a request passed through, oldest first, in `Bitwarden-Call-Chain`. A service whose
@@ -116,8 +120,9 @@ public static class LoopBack
 ## Gotchas and constraints
 
 - **Audit and targeting fields don't authorize.** `Credential`, `RecordedUserId` and `RecordedProviderId` are for
-  audit records, and `UserOrganizationIds` is for feature flag targeting only. None of them may drive authorization, a
-  row filter or a cache. `DeviceIdentifier` is never proof of anything either.
+  audit records, and `FlagSubjectKind`, `FlagSubjectKey`, `UserOrganizationIds`, `ClientVersion` and
+  `ClientVersionIsPrerelease` are for feature flag targeting only. None of them may drive authorization, a row filter
+  or a cache. `DeviceIdentifier` is never proof of anything either.
 - **Don't begin a `ContextScope` while handling a request.** There, the context comes from the request, and a scope
   would let code name an organization the caller never did.
 - **`ContextHeader.Write` throws `ArgumentException`** for a value `TryParse` would refuse, such as more than 300
@@ -139,6 +144,7 @@ public static class LoopBack
 | `BitwardenHeaders`                                  | The headers that carry context between services                        |
 | `ContextHeader`, `ContextValue`                     | Writes and strictly reads the `Bitwarden-Context` object               |
 | `CallerCredential`, `CallerCredentialJsonConverter` | The kind of credential that started a chain of calls, written ALL_CAPS |
+| `FlagSubjectKind`                                   | The kind of party feature flags are evaluated for, written ALL_CAPS    |
 | `ContextToken`, `ContextAssertion`                  | The signed form of a call's context, and what one call asserts         |
 | `ICallerProof`                                      | The token a call's signed context is exchanged from                    |
 | `CallChain`                                         | The services a request passed through, to notice a call back           |
