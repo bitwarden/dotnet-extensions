@@ -41,8 +41,16 @@ public sealed class ReadingRoutesTests
     [InlineData("http://organization/api/v1/memberships", false)]
     [InlineData("http://things/api/v1/things/presented/actions/check/", true)]
     [InlineData("http://things/api/v1/things/presented/actions/check/?x=1", true)]
-    // validateOnly=true anywhere in the query asks only to be checked.
-    [InlineData("http://organization/api/v1/memberships?validateOnly=false&validateOnly=true", true)]
+    // Every validateOnly must be true: a callee that binds the first value would write on the first of these.
+    [InlineData("http://organization/api/v1/memberships?validateOnly=false&validateOnly=true", false)]
+    [InlineData("http://organization/api/v1/memberships?validateOnly=true&validateOnly=false", false)]
+    [InlineData("http://organization/api/v1/memberships?validateOnly=true&validateOnly=", false)]
+    [InlineData("http://organization/api/v1/memberships?validateOnly&validateOnly=true", false)]
+    [InlineData("http://organization/api/v1/memberships?validateOnly=true&validateOnly=true", true)]
+    // A fragment is not part of the address sent, whether the address is absolute or relative.
+    [InlineData("http://billing/api/v1/invoice-previews#top", true)]
+    [InlineData("api/v1/invoice-previews#top", true)]
+    [InlineData("api/v1/memberships#?validateOnly=true", false)]
     public void AnAddress_ReadsByItsPathOrValidateOnly(string address, bool reads) =>
         Assert.Equal(reads, ReadingRoutes.Reads(new Uri(address, UriKind.RelativeOrAbsolute)));
 }
