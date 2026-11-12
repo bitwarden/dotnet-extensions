@@ -14,7 +14,9 @@ on:
           - Bitwarden.Server.Sdk.Authentication
           - Bitwarden.Server.Sdk.Caching
           - Bitwarden.Server.Sdk.Common
+          - Bitwarden.Server.Sdk.Database
           - Bitwarden.Server.Sdk.Environment
+          - Bitwarden.Server.Sdk.Errors
           - Bitwarden.Server.Sdk.Features
           - Bitwarden.Server.Sdk.HealthChecks
           - Bitwarden.Server.Sdk.Infrastructure
@@ -22,6 +24,7 @@ on:
           - Bitwarden.Server.Sdk.MessageBroker
           - Bitwarden.Server.Sdk.RestrictedDependencies
           - Bitwarden.Server.Sdk.Sagas
+          - Bitwarden.Server.Sdk.Service.Abstractions
           - Bitwarden.Server.Sdk.WebEssentials
 
 permissions: {}

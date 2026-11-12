@@ -43,6 +43,12 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Environment/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Environment/tests/Bitwarden.Server.Sdk.Environment.Tests/Bitwarden.Server.Sdk.Environment.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Errors/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Errors/src/Bitwarden.Server.Sdk.Errors.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Errors/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Errors/tests/Bitwarden.Server.Sdk.Errors.Tests/Bitwarden.Server.Sdk.Errors.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Features/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Features/src/Bitwarden.Server.Sdk.Features.csproj" />
   </Folder>
@@ -103,11 +109,27 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Sagas/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Sagas/tests/Bitwarden.Server.Sdk.Sagas.Tests/Bitwarden.Server.Sdk.Sagas.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Service.Abstractions/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Service.Abstractions/src/Bitwarden.Server.Sdk.Service.Abstractions.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Service.Abstractions/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Service.Abstractions/tests/Bitwarden.Server.Sdk.Service.Abstractions.Tests/Bitwarden.Server.Sdk.Service.Abstractions.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.WebEssentials/">
     <Project Path="extensions/Bitwarden.Server.Sdk.WebEssentials/src/Bitwarden.Server.Sdk.WebEssentials.csproj" />
   </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.WebEssentials/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.WebEssentials/tests/Bitwarden.Server.Sdk.WebEssentials.Tests/Bitwarden.Server.Sdk.WebEssentials.Tests.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Database/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Database/src/Bitwarden.Server.Sdk.Database.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Database/analyzers/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Database/analyzers/Bitwarden.Server.Sdk.Database.Analyzers/Bitwarden.Server.Sdk.Database.Analyzers.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Database/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Database/tests/Bitwarden.Server.Sdk.Database.Tests/Bitwarden.Server.Sdk.Database.Tests.csproj" />
+    <Project Path="extensions/Bitwarden.Server.Sdk.Database/tests/Bitwarden.Server.Sdk.Database.Analyzers.Tests/Bitwarden.Server.Sdk.Database.Analyzers.Tests.csproj" />
   </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk/">
     <Project Path="extensions/Bitwarden.Server.Sdk/src/Bitwarden.Server.Sdk.csproj" />
