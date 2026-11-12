@@ -180,8 +180,12 @@ build](#building-a-sql-server-migrator-image) registers no context, so it has on
 `AddOrderDatabase()`.
 
 For a schema that declares MySQL, the generated registration asks the server its version through
-`ServerVersion.AutoDetect` each time it builds a context's options. Passing a version you know, or
-one you cache per connection string, saves that round trip, and describes MariaDB as MariaDB:
+`ServerVersion.AutoDetect` the first time it builds a context's options for that server, and keeps
+the answer for the life of the process. The server is identified by its address (host, port and
+protocol), so other databases and accounts on it share the answer. A detection that fails, because
+the server isn't reachable yet, is not kept, and the next options build asks again. A server
+upgraded while the process runs keeps its old version until the process restarts. Passing a version
+you know skips detection altogether, and describes MariaDB as MariaDB:
 
 ```csharp
 case DatabaseProvider.MySql:
