@@ -7,7 +7,7 @@ namespace Bitwarden.Server.Sdk.Resources;
 /// <para>
 /// A derived resource declares its fields as ordinary properties, flat, with no nested attributes
 /// object. The <c>attributes</c> envelope the API standards require is applied on the wire by
-/// <c>ResourceDocumentJsonConverterFactory</c>, so the JSON is compliant while the model a developer
+/// <see cref="ResourceDocumentJsonConverterFactory"/>, so the JSON is compliant while the model a developer
 /// writes and reads stays flat. The OpenAPI document describes the wire shape, not this one.
 /// </para>
 /// <para>
