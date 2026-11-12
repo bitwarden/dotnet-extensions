@@ -41,6 +41,10 @@ public static partial class ContextHeader
     private const string RecordedUserMember = "recordedUser";
     private const string RecordedProviderMember = "recordedProvider";
     private const string OrganizationsMember = "organizations";
+    private const string FlagKindMember = "flagKind";
+    private const string FlagKeyMember = "flagKey";
+    private const string ClientVersionMember = "clientVersion";
+    private const string ClientVersionIsPrereleaseMember = "clientVersionIsPrerelease";
 
     /// <summary>
     /// Writes a value.
@@ -81,6 +85,14 @@ public static partial class ContextHeader
                 }
 
                 writer.WriteEndArray();
+            }
+
+            WriteIfPresent(writer, FlagKindMember, value.FlagKind == FlagSubjectKind.User ? null : Name(value.FlagKind));
+            WriteIfPresent(writer, FlagKeyMember, value.FlagKey?.ToString());
+            WriteIfPresent(writer, ClientVersionMember, value.ClientVersion);
+            if (value.ClientVersionIsPrerelease)
+            {
+                writer.WriteBoolean(ClientVersionIsPrereleaseMember, true);
             }
 
             writer.WriteEndObject();
@@ -150,6 +162,35 @@ public static partial class ContextHeader
         CallerCredential.Machine => "MACHINE",
         CallerCredential.System => "SYSTEM",
         _ => throw new ArgumentOutOfRangeException(nameof(credential)),
+    };
+
+    /// <summary>
+    /// The wire name of a flag subject's kind.
+    /// </summary>
+    /// <param name="kind">The kind.</param>
+    public static string Name(FlagSubjectKind kind) => kind switch
+    {
+        FlagSubjectKind.User => "USER",
+        FlagSubjectKind.Organization => "ORGANIZATION",
+        FlagSubjectKind.ServiceAccount => "SERVICE_ACCOUNT",
+        FlagSubjectKind.AccessConnector => "ACCESS_CONNECTOR",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    };
+
+    /// <summary>
+    /// Whether a value is a client version as <see cref="System.Version.ToString()"/> writes one: two to four whole
+    /// numbers of up to nine digits, joined by dots.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    public static bool IsClientVersion(string? value) => value is not null && ClientVersionPattern().IsMatch(value);
+
+    internal static FlagSubjectKind? FlagKind(string name) => name switch
+    {
+        "USER" => FlagSubjectKind.User,
+        "ORGANIZATION" => FlagSubjectKind.Organization,
+        "SERVICE_ACCOUNT" => FlagSubjectKind.ServiceAccount,
+        "ACCESS_CONNECTOR" => FlagSubjectKind.AccessConnector,
+        _ => null,
     };
 
     internal static CallerCredential? Credential(string name) => name switch
@@ -223,6 +264,9 @@ public static partial class ContextHeader
             case CredentialMember:
             case RecordedUserMember:
             case RecordedProviderMember:
+            case FlagKindMember:
+            case FlagKeyMember:
+            case ClientVersionMember:
                 if (reader.TokenType != JsonTokenType.String)
                 {
                     return $"'{name}' is not a string.";
@@ -233,6 +277,16 @@ public static partial class ContextHeader
 
             case OrganizationsMember:
                 return ReadOrganizations(ref reader, members);
+
+            // Carried only when true, so true is the only value it takes.
+            case ClientVersionIsPrereleaseMember:
+                if (reader.TokenType != JsonTokenType.True)
+                {
+                    return $"'{ClientVersionIsPrereleaseMember}' is not true.";
+                }
+
+                members.ClientVersionIsPrerelease = true;
+                return null;
 
             default:
                 return $"'{Shown(name)}' is not a member of version {Version}.";
@@ -300,6 +354,22 @@ public static partial class ContextHeader
             return $"'{RecordedProviderMember}' is not an identifier.";
         }
 
+        var flagKind = FlagSubjectKind.User;
+        if (members.Strings.GetValueOrDefault(FlagKindMember) is { } flagKindName)
+        {
+            if (FlagKind(flagKindName) is not { } named)
+            {
+                return $"'{FlagKindMember}' is not USER, ORGANIZATION, SERVICE_ACCOUNT or ACCESS_CONNECTOR.";
+            }
+
+            flagKind = named;
+        }
+
+        if (!TryOptionalIdentifier(members.Strings.GetValueOrDefault(FlagKeyMember), out var flagKey))
+        {
+            return $"'{FlagKeyMember}' is not an identifier.";
+        }
+
         var clientIp = members.Strings.GetValueOrDefault(ClientIpMember);
         var candidate = new ContextValue
         {
@@ -310,6 +380,10 @@ public static partial class ContextHeader
             RecordedUser = recordedUser,
             RecordedProvider = recordedProvider,
             Organizations = members.Organizations,
+            FlagKind = flagKind,
+            FlagKey = flagKey,
+            ClientVersion = members.Strings.GetValueOrDefault(ClientVersionMember),
+            ClientVersionIsPrerelease = members.ClientVersionIsPrerelease,
         };
 
         var problem = Check(candidate);
@@ -366,6 +440,26 @@ public static partial class ContextHeader
             {
                 return $"'{OrganizationsMember}' names an empty or repeated organization.";
             }
+        }
+
+        if (!Enum.IsDefined(value.FlagKind))
+        {
+            return $"'{FlagKindMember}' is not a kind of flag subject.";
+        }
+
+        if (value.FlagKey == Guid.Empty)
+        {
+            return $"'{FlagKeyMember}' does not name anyone.";
+        }
+
+        if (value.ClientVersion is not null && !IsClientVersion(value.ClientVersion))
+        {
+            return $"'{ClientVersionMember}' is not a version.";
+        }
+
+        if (value.ClientVersionIsPrerelease && value.ClientVersion is null)
+        {
+            return $"'{ClientVersionIsPrereleaseMember}' is carried only alongside '{ClientVersionMember}'.";
         }
 
         return null;
@@ -438,6 +532,9 @@ public static partial class ContextHeader
     [GeneratedRegex(@"^[A-Za-z0-9_]+\z")]
     private static partial Regex MemberNamePattern();
 
+    [GeneratedRegex(@"^[0-9]{1,9}(\.[0-9]{1,9}){1,3}\z")]
+    private static partial Regex ClientVersionPattern();
+
     private sealed class Members
     {
         public int? Version { get; set; }
@@ -445,5 +542,7 @@ public static partial class ContextHeader
         public Dictionary<string, string?> Strings { get; } = new(StringComparer.Ordinal);
 
         public List<Guid>? Organizations { get; set; }
+
+        public bool ClientVersionIsPrerelease { get; set; }
     }
 }
