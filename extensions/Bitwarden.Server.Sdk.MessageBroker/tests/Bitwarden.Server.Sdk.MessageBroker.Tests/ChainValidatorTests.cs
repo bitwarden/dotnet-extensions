@@ -12,6 +12,13 @@ public class ChainValidatorTests
     }
 
     [Fact]
+    public void ValidAssistedChain_DoesNotThrow()
+    {
+        var services = new ServiceCollection();
+        services.AddPublisher<AssistedChainPayload, AssistedV3>("test");
+    }
+
+    [Fact]
     public void DuplicateVariant_Reported()
     {
         var ex = Assert.Throws<AggregateException>(() =>
@@ -94,9 +101,54 @@ public class ChainValidatorTests
             $"Message: {ex.Message}");
     }
 
+    [Fact]
+    public async Task AssistedPublish_SendsCeilingThenFloor()
+    {
+        // Drives the fluent chain end-to-end so a regression that drops a variant from the published
+        // sequence is caught here rather than only in a transport-backed test. OrderPlacedPayload
+        // mirrors the worked example in EVOLVING-PAYLOADS.md.
+        var publisher = new CapturingPublisher<OrderPlacedPayload, OrderPlacedPayload.V2>();
+        var orderId = Guid.NewGuid();
+        var addressId = Guid.NewGuid();
+
+        await publisher
+            .Publish(new OrderPlacedPayload.V2(orderId, CustomerId: null))
+            .With(new OrderPlacedPayload.ShippingAddressAssist(addressId))
+            .SendAsync(TestContext.Current.CancellationToken);
+
+        Assert.NotNull(publisher.Sent);
+        Assert.Collection(publisher.Sent,
+            v =>
+            {
+                var ceiling = Assert.IsType<OrderPlacedPayload.V2>(v);
+                Assert.Equal(orderId, ceiling.OrderId);
+                Assert.Null(ceiling.CustomerId);
+            },
+            v =>
+            {
+                var floor = Assert.IsType<OrderPlacedPayload.V1>(v);
+                Assert.Equal(orderId, floor.OrderId);
+                Assert.Equal(addressId, floor.ShippingAddressId);
+            });
+    }
+
     private static void AssertContainsMessage(AggregateException ex, string fragment)
     {
         Assert.Contains(ex.InnerExceptions, e => e.Message.Contains(fragment));
+    }
+
+    private sealed class CapturingPublisher<TPayload, TCeiling> : Publisher<TPayload, TCeiling>
+        where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
+        where TCeiling : Payload<TPayload>.ICeiling
+    {
+        public IReadOnlyList<Payload<TPayload>.IVariant>? Sent { get; private set; }
+
+        protected internal override Task SendAsync(
+            IReadOnlyList<Payload<TPayload>.IVariant> variants, CancellationToken cancellationToken)
+        {
+            Sent = variants;
+            return Task.CompletedTask;
+        }
     }
 }
 
@@ -289,6 +341,28 @@ public class DuplicateWireNamePayload : Payload<DuplicateWireNamePayload, Duplic
         [(typeof(DuplicateWireNameFloor), "shared"), (typeof(DuplicateWireNameCeiling), "shared")];
 }
 
+// ===== Valid assisted chain: Floor -> Assisted middle -> IPureAboveAssistCeiling =====
+public sealed record AssistedA(Guid Extra) : AssistedChainPayload.IAssist<AssistedV2, AssistedV1, AssistedA>;
+public sealed record AssistedV1(int Id) : AssistedChainPayload.IFloor<AssistedV2>
+{
+    public AssistedV2 Upcast() => new(Id, "default");
+}
+public sealed record AssistedV2(int Id, string Note) : AssistedChainPayload.IAssisted<AssistedV1, AssistedA, AssistedV3, AssistedV2>
+{
+    public AssistedV1 Downcast(AssistedA assist) => new(Id);
+    public AssistedV3 Upcast() => new(Id, Note, 1);
+}
+public sealed record AssistedV3(int Id, string Note, int Count) : AssistedChainPayload.IPureAboveAssistCeiling<AssistedV2, AssistedV2>
+{
+    public AssistedV2 Downcast() => new(Id, Note);
+}
+public sealed class AssistedChainPayload : Payload<AssistedChainPayload, AssistedV1, AssistedV3>, IPayloadVariants<AssistedChainPayload>, IPayloadWireName<AssistedChainPayload>
+{
+    public static string WireName => "assisted-chain";
+    public static IReadOnlyList<(Type, string)> Variants =>
+        [(typeof(AssistedV1), "v1"), (typeof(AssistedV2), "v2"), (typeof(AssistedV3), "v3")];
+}
+
 // ===== Multiple problems: extra floor AND orphan reference — expect multiple errors =====
 public sealed record MultipleProblemsFloorA : MultipleProblemsPayload.IFloor<MultipleProblemsCeiling>
 {
@@ -309,4 +383,31 @@ public class MultipleProblemsPayload : Payload<MultipleProblemsPayload, Multiple
     public static string WireName => "multiple-problems";
     public static IReadOnlyList<(Type, string)> Variants =>
         [(typeof(MultipleProblemsFloorA), nameof(MultipleProblemsFloorA)), (typeof(MultipleProblemsFloorB), nameof(MultipleProblemsFloorB)), (typeof(MultipleProblemsCeiling), nameof(MultipleProblemsCeiling))];
+}
+
+// ===== OrderPlaced: assisted ceiling. Mirrors the worked example in EVOLVING-PAYLOADS.md. =====
+public sealed class OrderPlacedPayload
+    : Payload<OrderPlacedPayload, OrderPlacedPayload.V1, OrderPlacedPayload.V2>,
+      IPayloadVariants<OrderPlacedPayload>,
+      IPayloadWireName<OrderPlacedPayload>
+{
+    public static string WireName => "order.placed";
+    public static IReadOnlyList<(Type Type, string WireName)> Variants =>
+        [(typeof(V1), "v1"), (typeof(V2), "v2")];
+
+    public sealed record ShippingAddressAssist(Guid ShippingAddressId)
+        : Payload<OrderPlacedPayload>.IAssist<V2, V1, ShippingAddressAssist>;
+
+    public sealed record V1(Guid OrderId, Guid ShippingAddressId)
+        : IFloor<V2>
+    {
+        public V2 Upcast() => new(OrderId, CustomerId: null);
+    }
+
+    public sealed record V2(Guid OrderId, Guid? CustomerId)
+        : IAssistedCeiling<V1, ShippingAddressAssist, V2>
+    {
+        public V1 Downcast(ShippingAddressAssist assist) =>
+            new(OrderId, assist.ShippingAddressId);
+    }
 }
