@@ -28,9 +28,9 @@ dotnet add package Bitwarden.Server.Sdk.Sagas
   package's guard logs and counts every span, and refuses an undeclared one when `SpansServices:RefuseUndeclared` is
   on.
 - **How writes are counted.** The operation flows on the execution context: whatever it awaits is counted with it, and
-  nothing outside it is. A write to another service is counted once per idempotency key, so a retry that sends the
-  same key is one write. A write sent without a key is counted every time, so an operation that retries one itself
-  makes two writes. Every save is counted.
+  nothing outside it is. A write to another service is counted once per idempotency key per service, so a retry that
+  sends the same key is one write. A write sent without a key, or with a blank one, is counted every time, so an
+  operation that retries one itself makes two writes. Every save is counted.
 
 ## Usage
 
@@ -103,8 +103,8 @@ The request the client sends is unchanged.
 
 `ReadingRoutes.Reads` tells a client which write-method requests only read, by address: an action named `check`,
 `find`, `validate`, `look-up`, `resolve`, `get`, `filter` or `holds`, alone or followed by more words
-(`.../actions/find-by-identifier`), a collection of previews (`/api/v1/invoice-previews`), or `validateOnly=true` in the
-query.
+(`.../actions/find-by-identifier`), a collection of previews (`/api/v1/invoice-previews`), or a query in which every
+`validateOnly` is `true`.
 
 ### Count an operation's writes in your own host
 
@@ -145,6 +145,18 @@ This prints that `invite-member` spans services, undeclared, then its two steps:
   same operation.
 - **Call `ServiceWriteScope.ThrowIfRefused` when the operation returns.** It throws the refusal again if the operation
   caught it and went on, so it can't finish as if its refused write had been made.
+- **A refused write is not a step.** `ServiceWriteScope.Steps` lists only the writes made; the guard was told about the
+  refused one, and `Spans` stays true.
+- **`Begin` inside an operation starts a separate count.** The inner operation counts its own writes and the outer one
+  doesn't see them, so writes split across the two may each fall short of spanning services, and neither is noticed.
+- **Pass a name, not a path, as the operation.** `operation` reaches the guard as given and a guard logs it, so pass the
+  route template or the handler's or job's name, never the request's path.
+- **Only the operation's own flow is counted.** Work it left running is counted only until the operation ends, and
+  work started under `ExecutionContext.SuppressFlow` is never counted.
+- **A declaration is a claim nothing checks.** The package carries `[SpansServices]` to the guard; it can't tell
+  whether the code implements the shape it names.
+- **`ReadingRoutes.Reads(string)` trusts the last segment,** so pass it the route template rather than the request's
+  path, whose last segment may be a value the caller chose.
 
 ## Types
 
