@@ -4,7 +4,9 @@ using Azure.Messaging.ServiceBus;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-internal sealed class AzureServiceBusSubscriber<T> : ISubscriber<T>
+internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>
+    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
+    where TCeiling : Payload<TPayload>.ICeiling
 {
     private readonly string _topicName;
     private readonly string _subscriptionName;
@@ -21,7 +23,7 @@ internal sealed class AzureServiceBusSubscriber<T> : ISubscriber<T>
         _metrics = metrics;
     }
 
-    public async IAsyncEnumerable<Envelope<T>> SubscribeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await using var receiver = _client
             .CreateReceiver(_topicName, _subscriptionName, new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.PeekLock });
@@ -52,10 +54,23 @@ internal sealed class AzureServiceBusSubscriber<T> : ISubscriber<T>
 
             foreach (var sbMessage in received)
             {
-                T? message;
+                // Defense in depth: when the operator-declared Correlation filter routes correctly,
+                // only matching messages arrive. A missing or wrong filter could deliver another
+                // family's message here; decoding it against TPayload would silently discard every
+                // variant and dead-letter on the length check below with no indication the real
+                // problem was the subscription filter. Fail fast with the actual reason.
+                if (sbMessage.ApplicationProperties.TryGetValue(BrokerProperties.PayloadFamily, out var familyObj)
+                    && familyObj is string familyName
+                    && familyName != TPayload.WireName)
+                {
+                    await receiver.DeadLetterMessageAsync(sbMessage, cancellationToken: cancellationToken);
+                    continue;
+                }
+
+                IReadOnlyList<Payload<TPayload>.IVariant> variants;
                 try
                 {
-                    message = _serializer.Deserialize<T>(sbMessage.Body.ToArray());
+                    variants = _serializer.DeserializeVariants<TPayload>(sbMessage.Body.ToArray());
                 }
                 catch (Exception)
                 {
@@ -63,35 +78,53 @@ internal sealed class AzureServiceBusSubscriber<T> : ISubscriber<T>
                     continue;
                 }
 
-                if (message is not null)
+                if (variants.Count == 0)
                 {
-                    _metrics.RecordConsume(_topicName);
-                    var traceId = sbMessage.ApplicationProperties.TryGetValue("traceparent", out var tp) ? tp as string : null;
-                    var activity = MessageBrokerActivitySource.StartConsumerActivity(_topicName, traceId);
-                    yield return new AzureServiceBusEnvelope(message, receiver, sbMessage, activity);
-                }
-                else
-                {
+                    // No variant on the wire was known to this subscriber.
                     await receiver.DeadLetterMessageAsync(sbMessage, cancellationToken: cancellationToken);
+                    continue;
                 }
+
+                var traceId = sbMessage.ApplicationProperties.TryGetValue(BrokerProperties.TraceParent, out var tp) ? tp as string : null;
+                var activity = MessageBrokerActivitySource.StartConsumerActivity(_topicName, TPayload.WireName, traceId);
+
+                AzureServiceBusEnvelope envelope;
+                try
+                {
+                    envelope = new AzureServiceBusEnvelope(variants, receiver, sbMessage, activity);
+                }
+                catch (InvalidOperationException)
+                {
+                    // Received variants cannot be resolved to TCeiling — dead-letter.
+                    activity?.Dispose();
+                    await receiver.DeadLetterMessageAsync(sbMessage, cancellationToken: cancellationToken);
+                    continue;
+                }
+
+                _metrics.RecordConsume(_topicName, TPayload.WireName, envelope.ConsumedVariantWireName);
+                yield return envelope;
             }
         }
     }
 
-    private sealed class AzureServiceBusEnvelope : Envelope<T>
+    private sealed class AzureServiceBusEnvelope : Envelope<TPayload, TCeiling>
     {
         private readonly ServiceBusReceiver _receiver;
         private readonly ServiceBusReceivedMessage _sbMessage;
 
-        public AzureServiceBusEnvelope(T message, ServiceBusReceiver receiver, ServiceBusReceivedMessage sbMessage, Activity? activity)
-            : base(message, activity)
+        public AzureServiceBusEnvelope(
+            IReadOnlyList<Payload<TPayload>.IVariant> variants,
+            ServiceBusReceiver receiver,
+            ServiceBusReceivedMessage sbMessage,
+            Activity? activity)
+            : base(variants, activity)
         {
             _receiver = receiver;
             _sbMessage = sbMessage;
         }
 
         public override string MessageId => _sbMessage.MessageId;
-        public override string? TraceId => _sbMessage.ApplicationProperties.TryGetValue("traceparent", out var tp) ? tp as string : null;
+        public override string? TraceId => _sbMessage.ApplicationProperties.TryGetValue(BrokerProperties.TraceParent, out var tp) ? tp as string : null;
         public override int DeliveryCount => _sbMessage.DeliveryCount;
 
         protected override Task CompleteAsyncCore(CancellationToken cancellationToken) =>

@@ -9,9 +9,19 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>Extension methods for registering message broker services.</summary>
 public static class MessageBrokerServiceCollectionExtensions
 {
-    /// <summary>Registers a keyed <see cref="IPublisher{T}"/> for the given topic name.</summary>
-    public static IServiceCollection AddPublisher<T>(this IServiceCollection services, string name)
+    /// <summary>
+    /// Registers a keyed <see cref="Publisher{TPayload, TCeiling}"/> for the given topic name.
+    /// The service key is the composite <c>"{topic}#{WireName}"</c> — use
+    /// <see cref="MessageBrokerKeys.Publisher{TPayload}(string)"/> to construct it, or spell it
+    /// literally at a <see cref="FromKeyedServicesAttribute"/> injection site.
+    /// </summary>
+    public static IServiceCollection AddPublisher<TPayload, TCeiling>(this IServiceCollection services, string name)
+        where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
+        where TCeiling : Payload<TPayload>.ICeiling
     {
+        // DI time enforcement of valid payload variant chain.
+        ChainValidator<TPayload, TCeiling>.ThrowIfInvalid();
+        ClaimTopicFamily<TPayload>(services, name);
         services.AddOptions();
         services.TryAddSingleton<MessageBrokerMetrics>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MessagingOptions>, MessagingOptionsValidator>());
@@ -19,39 +29,42 @@ public static class MessageBrokerServiceCollectionExtensions
         AddRabbitInfrastructure(services);
         AddAzureServiceBusInfrastructure(services);
 
-        services.TryAddKeyedSingleton<IMessageSerializer>(name, (sp, key) =>
+        var publisherKey = MessageBrokerKeys.Publisher<TPayload>(name);
+        // MessageBrokerSerializerOptions is user-facing and stays scoped by topic name — one JSON
+        // pipeline per topic, shared across every family that publishes on it.
+        services.TryAddKeyedSingleton<IMessageSerializer>(publisherKey, (sp, _) =>
             new SystemTextJsonMessageSerializer(
-                sp.GetRequiredService<IOptionsMonitor<MessageBrokerSerializerOptions>>(), (string)key!));
-        services.TryAddKeyedSingleton<ChannelTopic<T>>(name, (sp, key) =>
-            new ChannelTopic<T>(
-                sp.GetRequiredService<IOptionsMonitor<MessageTopicOptions<T>>>().Get((string)key!).SubscriptionNames,
-                sp.GetServices<ChannelEscrowRegistration<T>>(),
+                sp.GetRequiredService<IOptionsMonitor<MessageBrokerSerializerOptions>>(), name));
+        services.TryAddKeyedSingleton<ChannelTopic<TPayload, TCeiling>>(publisherKey, (sp, _) =>
+            new ChannelTopic<TPayload, TCeiling>(
+                sp.GetRequiredService<IOptionsMonitor<MessageTopicOptions<TPayload>>>().Get(name).SubscriptionNames,
+                sp.GetServices<ChannelEscrowRegistration<TPayload, TCeiling>>(),
                 sp.GetRequiredService<MessageBrokerMetrics>(),
-                (string)key!));
-        services.TryAddKeyedSingleton<IPublisher<T>>(name, (sp, key) =>
+                name));
+        services.TryAddKeyedSingleton<Publisher<TPayload, TCeiling>>(publisherKey, (sp, _) =>
         {
             var options = sp.GetRequiredService<IOptions<MessagingOptions>>().Value;
-            var serializer = sp.GetRequiredKeyedService<IMessageSerializer>(key);
+            var serializer = sp.GetRequiredKeyedService<IMessageSerializer>(publisherKey);
             var metrics = sp.GetRequiredService<MessageBrokerMetrics>();
             if (!string.IsNullOrEmpty(options.AzureServiceBusConnectionString))
             {
-                return new AzureServiceBusPublisher<T>(sp.GetRequiredService<AzureServiceBusConnection>().Client, name, serializer, metrics);
+                return new AzureServiceBusPublisher<TPayload, TCeiling>(sp.GetRequiredService<AzureServiceBusConnection>().Client, name, serializer, metrics);
             }
             if (!string.IsNullOrEmpty(options.RabbitUri))
             {
-                return new RabbitPublisher<T>(sp.GetRequiredService<RabbitConnection>(), name, serializer, metrics);
+                return new RabbitPublisher<TPayload, TCeiling>(sp.GetRequiredService<RabbitConnection>(), name, serializer, metrics);
             }
-            return new ChannelPublisher<T>(sp.GetRequiredKeyedService<ChannelTopic<T>>(key), name, metrics,
-                options.MaxDeliveryCount, sp.GetRequiredService<ILogger<ChannelPublisher<T>>>());
+            return new ChannelPublisher<TPayload, TCeiling>(sp.GetRequiredKeyedService<ChannelTopic<TPayload, TCeiling>>(publisherKey), name, metrics,
+                options.MaxDeliveryCount, sp.GetRequiredService<ILogger<ChannelPublisher<TPayload, TCeiling>>>());
         });
 
-        services.AddSingleton(new BrokerTopologyDeclaration(name));
+        services.AddSingleton(new BrokerTopologyDeclaration(name, TPayload.WireName));
 
         return services;
     }
 
     /// <summary>
-    /// Registers a keyed <see cref="ISubscriber{T}"/> for the given topic name.
+    /// Registers a keyed <see cref="ISubscriber{TPayload, TCeiling}"/> for the given topic name.
     /// </summary>
     /// <remarks>
     /// Each unique <paramref name="subscriptionName"/> receives every message independently,
@@ -59,9 +72,16 @@ public static class MessageBrokerServiceCollectionExtensions
     /// (pub/sub fan-out with per-group competing consumers). The resolved service key is
     /// <c>name/subscriptionName</c>.
     /// </remarks>
-    public static IServiceCollection AddSubscriber<T>(this IServiceCollection services, string name, string subscriptionName)
+    public static IServiceCollection AddSubscriber<TPayload, TCeiling>(this IServiceCollection services, string name, string subscriptionName)
+        where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
+        where TCeiling : Payload<TPayload>.ICeiling
     {
+        // DI time enforcement of valid payload variant chain.
+        ChainValidator<TPayload, TCeiling>.ThrowIfInvalid();
+        ClaimTopicFamily<TPayload>(services, name);
+        ClaimTopicSubscription<TPayload>(services, name, subscriptionName);
         var subscriptionKey = $"{name}/{subscriptionName}";
+        var publisherKey = MessageBrokerKeys.Publisher<TPayload>(name);
 
         services.AddOptions();
         services.TryAddSingleton<MessageBrokerMetrics>();
@@ -70,56 +90,57 @@ public static class MessageBrokerServiceCollectionExtensions
         AddRabbitInfrastructure(services);
         AddAzureServiceBusInfrastructure(services);
 
-        services.TryAddKeyedSingleton<IMessageSerializer>(name, (sp, key) =>
+        // Keyed on the composite publisher key so a publisher and subscriber of the same
+        // (topic, family) share one serializer, while a second family on the same topic gets
+        // its own. User-facing MessageBrokerSerializerOptions stays scoped by topic name.
+        services.TryAddKeyedSingleton<IMessageSerializer>(publisherKey, (sp, _) =>
             new SystemTextJsonMessageSerializer(
-                sp.GetRequiredService<IOptionsMonitor<MessageBrokerSerializerOptions>>(), (string)key!));
-        services.Configure<MessageTopicOptions<T>>(name, opts => opts.SubscriptionNames.Add(subscriptionName));
-        services.TryAddKeyedSingleton<ChannelTopic<T>>(name, (sp, key) =>
-            new ChannelTopic<T>(
-                sp.GetRequiredService<IOptionsMonitor<MessageTopicOptions<T>>>().Get((string)key!).SubscriptionNames,
-                sp.GetServices<ChannelEscrowRegistration<T>>(),
+                sp.GetRequiredService<IOptionsMonitor<MessageBrokerSerializerOptions>>(), name));
+        services.Configure<MessageTopicOptions<TPayload>>(name, opts => opts.SubscriptionNames.Add(subscriptionName));
+        services.TryAddKeyedSingleton<ChannelTopic<TPayload, TCeiling>>(publisherKey, (sp, _) =>
+            new ChannelTopic<TPayload, TCeiling>(
+                sp.GetRequiredService<IOptionsMonitor<MessageTopicOptions<TPayload>>>().Get(name).SubscriptionNames,
+                sp.GetServices<ChannelEscrowRegistration<TPayload, TCeiling>>(),
                 sp.GetRequiredService<MessageBrokerMetrics>(),
-                (string)key!));
-        // Register ChannelTopic<T> as IHostedService exactly once per (T, name) so it stops last
-        // in the LIFO shutdown sequence — after all consumers. ChannelTopic.StopAsync drains any
-        // remaining channel messages to escrow before sealing the writers. We use a private marker
+                name));
+        // Register ChannelTopic as IHostedService exactly once per (TPayload, name) so it stops
+        // last in the LIFO shutdown sequence — after all consumers. ChannelTopic.StopAsync drains
+        // remaining channel messages to escrow before sealing writers. We use a private marker
         // type to detect duplicates independently of the keyed-singleton registration (which
         // AddPublisher may have already created for the same topic).
-        var marker = new ChannelTopicLifetimeMarker(typeof(T), name);
+        var marker = new ChannelTopicLifetimeMarker(typeof(TPayload), name);
         if (!services.Any(d => d.ServiceType == typeof(ChannelTopicLifetimeMarker)
                                && marker.Equals(d.ImplementationInstance)))
         {
             services.AddSingleton(marker);
-            services.AddSingleton<IHostedService>(sp => sp.GetRequiredKeyedService<ChannelTopic<T>>(name));
+            services.AddSingleton<IHostedService>(sp => sp.GetRequiredKeyedService<ChannelTopic<TPayload, TCeiling>>(publisherKey));
         }
 
-        services.TryAddKeyedSingleton<ISubscriber<T>>(subscriptionKey, (sp, _) =>
+        services.TryAddKeyedSingleton<ISubscriber<TPayload, TCeiling>>(subscriptionKey, (sp, _) =>
         {
             var options = sp.GetRequiredService<IOptions<MessagingOptions>>().Value;
-            var serializer = sp.GetRequiredKeyedService<IMessageSerializer>(name);
+            var serializer = sp.GetRequiredKeyedService<IMessageSerializer>(publisherKey);
             var metrics = sp.GetRequiredService<MessageBrokerMetrics>();
             if (!string.IsNullOrEmpty(options.AzureServiceBusConnectionString))
             {
-                return new AzureServiceBusSubscriber<T>(sp.GetRequiredService<AzureServiceBusConnection>().Client, name, subscriptionName, serializer, metrics);
+                return new AzureServiceBusSubscriber<TPayload, TCeiling>(sp.GetRequiredService<AzureServiceBusConnection>().Client, name, subscriptionName, serializer, metrics);
             }
             if (!string.IsNullOrEmpty(options.RabbitUri))
             {
-                return new RabbitSubscriber<T>(sp.GetRequiredService<RabbitConnection>(), name, subscriptionName, serializer, metrics);
+                return new RabbitSubscriber<TPayload, TCeiling>(sp.GetRequiredService<RabbitConnection>(), name, subscriptionName, serializer, metrics);
             }
-            return new ChannelSubscriber<T>(sp.GetRequiredKeyedService<ChannelTopic<T>>(name).GetOrAddSubscription(subscriptionName).Reader, name, metrics);
+            return new ChannelSubscriber<TPayload, TCeiling>(sp.GetRequiredKeyedService<ChannelTopic<TPayload, TCeiling>>(publisherKey).GetOrAddSubscription(subscriptionName).Reader, name, metrics);
         });
 
-        // Track the subscriber so the startup validator (registered by AddMessageConsumer) can detect
-        // channel subscribers without a corresponding consumer.
-        services.AddSingleton(new ChannelSubscriberDescriptor(typeof(T), subscriptionKey));
+        services.AddSingleton(new ChannelSubscriberDescriptor(typeof(TPayload), subscriptionKey));
 
-        services.AddSingleton(new BrokerTopologyDeclaration(name, subscriptionName));
+        services.AddSingleton(new BrokerTopologyDeclaration(name, TPayload.WireName, subscriptionName));
 
         return services;
     }
 
     /// <summary>
-    /// Registers a keyed <see cref="ISubscriber{T}"/> and a <typeparamref name="TConsumer"/>
+    /// Registers a keyed <see cref="ISubscriber{TPayload, TCeiling}"/> and a <typeparamref name="TConsumer"/>
     /// hosted service that consumes messages from the given topic in the same process.
     /// </summary>
     /// <remarks>
@@ -136,36 +157,40 @@ public static class MessageBrokerServiceCollectionExtensions
     /// (<c>using var scope = host.Services.CreateScope();</c>); apps that genuinely need a
     /// singleton consumer can pre-register <typeparamref name="TConsumer"/> themselves before
     /// calling this method. All constructor parameters are resolved from the service provider;
-    /// do not take <see cref="ISubscriber{T}"/> as a constructor parameter —
-    /// <see cref="ConsumerBackgroundService{T,TConsumer}"/> owns the subscription and invokes
-    /// <see cref="IMessageConsumer{T}.HandleAsync"/> for each delivered message.
+    /// do not take <see cref="ISubscriber{TPayload, TCeiling}"/> as a constructor parameter —
+    /// <see cref="ConsumerBackgroundService{TPayload, TCeiling, TConsumer}"/> owns the subscription
+    /// and invokes <see cref="IMessageConsumer{TPayload, TCeiling}.HandleAsync"/> for each delivered
+    /// message.
     /// </para>
     /// </remarks>
-    public static IServiceCollection AddMessageConsumer<T, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TConsumer>(
+    public static IServiceCollection AddMessageConsumer<TPayload, TCeiling, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TConsumer>(
         this IServiceCollection services,
         string name,
         string subscriptionName)
-        where TConsumer : class, IMessageConsumer<T>
+        where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
+        where TCeiling : Payload<TPayload>.ICeiling
+        where TConsumer : class, IMessageConsumer<TPayload, TCeiling>
     {
         var subscriptionKey = $"{name}/{subscriptionName}";
+        var publisherKey = MessageBrokerKeys.Publisher<TPayload>(name);
 
-        services.AddSubscriber<T>(name, subscriptionName);
+        services.AddSubscriber<TPayload, TCeiling>(name, subscriptionName);
 
         // Register ChannelEscrowRegistration so ChannelTopic resolves it via
         // IEnumerable<ChannelEscrowRegistration<T>> and wires up startup recovery and shutdown
         // drain callbacks. Keyed by subscriptionKey for deduplication; also registered unkeyed
         // so DI collects all instances when resolving the enumerable.
-        var escrowIsNew = !services.Any(d => d.ServiceType == typeof(ChannelEscrowRegistration<T>) && (string?)d.ServiceKey == subscriptionKey);
-        services.TryAddKeyedSingleton<ChannelEscrowRegistration<T>>(subscriptionKey, (sp, _) =>
-            new ChannelEscrowRegistration<T>(
+        var escrowIsNew = !services.Any(d => d.ServiceType == typeof(ChannelEscrowRegistration<TPayload, TCeiling>) && (string?)d.ServiceKey == subscriptionKey);
+        services.TryAddKeyedSingleton<ChannelEscrowRegistration<TPayload, TCeiling>>(subscriptionKey, (sp, _) =>
+            new ChannelEscrowRegistration<TPayload, TCeiling>(
                 name, subscriptionName, subscriptionKey,
-                sp.GetRequiredKeyedService<IMessageSerializer>(name),
+                sp.GetRequiredKeyedService<IMessageSerializer>(publisherKey),
                 sp.GetRequiredService<IOptions<MessagingOptions>>(),
                 sp.GetService<IMessageEscrowStore>(),
-                sp.GetRequiredService<ILogger<ChannelEscrowRegistration<T>>>()));
+                sp.GetRequiredService<ILogger<ChannelEscrowRegistration<TPayload, TCeiling>>>()));
         if (escrowIsNew)
-            services.AddSingleton<ChannelEscrowRegistration<T>>(sp =>
-                sp.GetRequiredKeyedService<ChannelEscrowRegistration<T>>(subscriptionKey));
+            services.AddSingleton<ChannelEscrowRegistration<TPayload, TCeiling>>(sp =>
+                sp.GetRequiredKeyedService<ChannelEscrowRegistration<TPayload, TCeiling>>(subscriptionKey));
 
         // TConsumer is scoped so each message is handled in its own DI scope, letting the handler
         // inject scoped dependencies (e.g. a DbContext) the same way a controller action would.
@@ -178,17 +203,17 @@ public static class MessageBrokerServiceCollectionExtensions
         // (TConsumer, subscriptionKey) pair is idempotent, while the same consumer class on a
         // different subscription gets its own keyed instance and its own IHostedService forward.
         var consumerIsNew = !services.Any(d =>
-            d.ServiceType == typeof(ConsumerBackgroundService<T, TConsumer>) &&
+            d.ServiceType == typeof(ConsumerBackgroundService<TPayload, TCeiling, TConsumer>) &&
             (string?)d.ServiceKey == subscriptionKey);
-        services.TryAddKeyedSingleton<ConsumerBackgroundService<T, TConsumer>>(subscriptionKey, (sp, _) =>
-            new ConsumerBackgroundService<T, TConsumer>(
+        services.TryAddKeyedSingleton<ConsumerBackgroundService<TPayload, TCeiling, TConsumer>>(subscriptionKey, (sp, _) =>
+            new ConsumerBackgroundService<TPayload, TCeiling, TConsumer>(
                 sp.GetRequiredService<IServiceScopeFactory>(),
-                sp.GetRequiredKeyedService<ISubscriber<T>>(subscriptionKey)));
+                sp.GetRequiredKeyedService<ISubscriber<TPayload, TCeiling>>(subscriptionKey)));
         if (consumerIsNew)
             services.AddSingleton<IHostedService>(sp =>
-                sp.GetRequiredKeyedService<ConsumerBackgroundService<T, TConsumer>>(subscriptionKey));
+                sp.GetRequiredKeyedService<ConsumerBackgroundService<TPayload, TCeiling, TConsumer>>(subscriptionKey));
 
-        services.AddSingleton(new ChannelConsumerDescriptor(typeof(T), subscriptionKey));
+        services.AddSingleton(new ChannelConsumerDescriptor(typeof(TPayload), subscriptionKey));
         // The validator is registered here (not in AddSubscriber) so it only activates when the app
         // has opted into the MessageConsumer framework. Raw AddSubscriber usage (tests, out-of-process
         // consumers on ASB/Rabbit) is not subject to this enforcement.
@@ -198,6 +223,53 @@ public static class MessageBrokerServiceCollectionExtensions
 
     // Sentinel registered in DI to prevent duplicate IHostedService entries for the same ChannelTopic.
     private sealed record ChannelTopicLifetimeMarker(Type MessageType, string TopicName);
+
+    // Sentinel binding a (topic, family wire name) pair to the CLR payload type that owns it.
+    // A topic can carry multiple families, but each family's wire name must identify exactly one
+    // payload shape — two publishers stamping the same routing key on different payloads would
+    // silently misroute at the subscriber.
+    private sealed record TopicFamilyClaim(string TopicName, string FamilyWireName, Type PayloadType);
+
+    // Sentinel binding a (topic, subscription) pair to the CLR payload type that reads it. Each
+    // subscription is operationally single-family (the broker binding or filter narrows it to
+    // one wire name), so registering a second TPayload against the same subscription would
+    // deliver one broker queue into two incompatible decoders.
+    private sealed record TopicSubscriptionClaim(string TopicName, string SubscriptionName, Type PayloadType);
+
+    private static void ClaimTopicFamily<TPayload>(IServiceCollection services, string name)
+        where TPayload : IPayloadWireName<TPayload>
+    {
+        var wireName = TPayload.WireName;
+        foreach (var descriptor in services)
+        {
+            if (descriptor.ServiceType != typeof(TopicFamilyClaim)) continue;
+            if (descriptor.ImplementationInstance is not TopicFamilyClaim claim) continue;
+            if (claim.TopicName != name || claim.FamilyWireName != wireName) continue;
+            if (claim.PayloadType == typeof(TPayload)) return;
+            throw new InvalidOperationException(
+                $"Topic '{name}' already has family wire name '{wireName}' claimed by payload " +
+                $"'{claim.PayloadType.Name}'. Cannot also claim it for '{typeof(TPayload).Name}'. " +
+                "Each family wire name must identify exactly one payload shape within a topic.");
+        }
+        services.AddSingleton(new TopicFamilyClaim(name, wireName, typeof(TPayload)));
+    }
+
+    private static void ClaimTopicSubscription<TPayload>(IServiceCollection services, string name, string subscriptionName)
+    {
+        foreach (var descriptor in services)
+        {
+            if (descriptor.ServiceType != typeof(TopicSubscriptionClaim)) continue;
+            if (descriptor.ImplementationInstance is not TopicSubscriptionClaim claim) continue;
+            if (claim.TopicName != name || claim.SubscriptionName != subscriptionName) continue;
+            if (claim.PayloadType == typeof(TPayload)) return;
+            throw new InvalidOperationException(
+                $"Subscription '{subscriptionName}' on topic '{name}' is already registered for " +
+                $"payload '{claim.PayloadType.Name}'. Cannot also register it for " +
+                $"'{typeof(TPayload).Name}'. Each subscription receives exactly one payload family " +
+                "— the broker binding picks which family reaches it.");
+        }
+        services.AddSingleton(new TopicSubscriptionClaim(name, subscriptionName, typeof(TPayload)));
+    }
 
     private static void AddRabbitInfrastructure(IServiceCollection services)
     {
