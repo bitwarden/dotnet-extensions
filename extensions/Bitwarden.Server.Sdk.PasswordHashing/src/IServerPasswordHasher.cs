@@ -24,9 +24,8 @@ namespace Bitwarden.Server.Sdk.PasswordHashing;
 ///
 /// (2) keeps clientHash out of the database. clientHash is the credential: whoever sends it logs in
 /// or opens the Send, no password needed. Stored as-is, anyone who reads the database (a leak, a
-/// backup, an insider) could replay it. Stored after (2), the value is useless to send, because
-/// <see cref="Verify"/> hashes whatever arrives, and recovering clientHash means paying for (1) and
-/// (2) on every password guess, per salt.
+/// backup, an insider) could replay it. After (2), the stored value cannot be replayed, and each
+/// password guess costs both (1) and (2).
 /// </remarks>
 public interface IServerPasswordHasher
 {
