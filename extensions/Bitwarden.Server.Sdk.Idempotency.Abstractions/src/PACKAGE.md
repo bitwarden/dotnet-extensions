@@ -77,6 +77,11 @@ A host that runs message handlers or jobs begins an operation around each run, k
 or an occurrence run again repeats its key; two handlers of one envelope, or the next occurrence, don't share it. A
 blank name throws `ArgumentException`, and a long one is shortened to its hash.
 
+The key is only as unique as what it is made from. Take the envelope's identifier from the message broker, minted
+where the message was published, and the due time from the scheduler, never from a message's payload or a request's
+headers. A message published again under an identifier already used, or a run given a due time already run, repeats
+the operation's keys and derived identifiers, and its writes are answered from the first's.
+
 A handler or job whose writes must be done again when it runs again, because each depends on what the callee has
 gained since, says so. In `UsageReportJob.cs`:
 
@@ -106,8 +111,9 @@ public static class WelcomeMail
 }
 ```
 
-The purpose is hashed with the operation's key and never kept. Asked for twice in one run, the same purpose gives two
-identifiers, in order.
+The purpose says what the identifier is for, such as a template's name. Never a person's data: no email address, no
+name. Anyone who knows the operation's key can compute the identifier for a purpose they guess. Asked for twice in one
+run, the same purpose gives two identifiers, in order.
 
 ### Honor the header in a service
 

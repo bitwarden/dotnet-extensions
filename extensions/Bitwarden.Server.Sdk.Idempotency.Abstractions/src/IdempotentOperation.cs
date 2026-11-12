@@ -96,6 +96,12 @@ public static class IdempotentOperation
     /// <param name="envelope">The envelope's identifier.</param>
     /// <returns>The key; a long name is shortened to its hash.</returns>
     /// <exception cref="ArgumentException"><paramref name="handler"/> is null, empty or white space.</exception>
+    /// <remarks>
+    /// The key is only as unique as the envelope's identifier. Take it from the message broker's envelope, minted where
+    /// the message was published, never from the message's payload or a request's headers. A message published again
+    /// under an identifier already used repeats the operation's keys and derived identifiers, so its writes are
+    /// answered from the first message's.
+    /// </remarks>
     public static string ForMessage(string handler, Guid envelope)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(handler);
@@ -111,6 +117,11 @@ public static class IdempotentOperation
     /// <param name="dueAt">When the occurrence was due.</param>
     /// <returns>The key; a long name is shortened to its hash.</returns>
     /// <exception cref="ArgumentException"><paramref name="job"/> is null, empty or white space.</exception>
+    /// <remarks>
+    /// Take the due time from the scheduler that owns the job's occurrences, never from a payload or a request's
+    /// headers. Two runs given the same job and due time repeat each other's keys and derived identifiers, so the
+    /// second's writes are answered from the first's.
+    /// </remarks>
     public static string ForJob(string job, DateTimeOffset dueAt)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(job);
@@ -154,14 +165,15 @@ public static class IdempotentOperation
     }
 
     /// <summary>
-    /// An identifier for something the operation creates or sends, derived from the operation, or null outside one:
-    /// the same on every run of the operation, so a run again names the same thing.
+    /// An identifier, derived deterministically from the operation, for something the operation creates or sends, or
+    /// null outside one: the same on every run of the operation, so a run again names the same thing.
     /// </summary>
-    /// <param name="purpose">Tells this identifier from the operation's others, such as a template and its recipients.</param>
+    /// <param name="purpose">Tells this identifier from the operation's others, such as a template's name.</param>
     /// <returns>A version 8 UUID (RFC 9562), or null when no operation has begun.</returns>
     /// <remarks>
-    /// The purpose is hashed with the operation's key and never kept, so it may name what the identifier is for. The
-    /// same purpose asked for twice in one run gets two identifiers, in order.
+    /// The purpose names what the identifier is for. Never a person's data: no email address, no name. The identifier
+    /// is a hash that anyone who knows the operation's key can compute for a purpose they guess. The same purpose asked
+    /// for twice in one run gets two identifiers, in order.
     /// </remarks>
     public static Guid? DeriveId(string purpose)
     {

@@ -43,5 +43,6 @@ A change must keep:
 - **Keys stable.** A key derived today must be derived the same way by every instance and every later version, or a
   run after an upgrade does its writes twice. The tests' golden vectors for derived keys and identifiers were computed
   outside .NET; a change that breaks one changes the wire format.
-- **No person's data in a key.** Keys and identifiers are hashes of what the operation names, and an operation's key
-  never holds an email address or a name.
+- **No person's data in a key.** Keys and identifiers are hashes of what the operation names, and neither an
+  operation's key nor a purpose holds an email address or a name: anyone who knows the operation's key can confirm a
+  guess at the rest.

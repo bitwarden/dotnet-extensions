@@ -251,6 +251,13 @@ public sealed class IdempotentOperationTests
         Assert.NotEqual(IdempotentOperation.ForJob("purge", dueAt), IdempotentOperation.ForJob("purge", dueAt.AddDays(1)));
     }
 
+    [Fact]
+    public void KeyForWrite_ANullMethodOrAddress_IsRefused()
+    {
+        Assert.Throws<ArgumentNullException>(() => IdempotentOperation.KeyForWrite(null!, Address, []));
+        Assert.Throws<ArgumentNullException>(() => IdempotentOperation.KeyForWrite("POST", null!, []));
+    }
+
     // A field that holds a newline can't pass for two fields: each is its own element of the tuple. Each write is the
     // first of its operation, so only the fields tell the keys apart.
     [Fact]
