@@ -13,10 +13,16 @@ namespace Bitwarden.Server.Sdk.Context;
 /// need what that request holds, a lock or a transaction, and is invisible from either side alone.
 /// </para>
 /// <para>
-/// Service names only (<see cref="IServiceIdentity.Name"/>), never an identifier of a person, an organization or any
-/// data, and no more than <see cref="MaximumServices"/> of them: it is written to logs, spans and metric tags. A value
-/// with anything but a service name in it is not a chain, and is read as none. A longer list of service names keeps
-/// its most recent ones.
+/// Names shaped like a service's (<see cref="IServiceIdentity.Name"/>, see <see cref="IsServiceName"/>), and no more
+/// than <see cref="MaximumServices"/> of them. A value with anything else in it is not a chain, and is read as none. A
+/// longer list of names keeps its most recent ones.
+/// </para>
+/// <para>
+/// The shape refuses a GUID, written as 32 hexadecimal digits or in its hyphenated form, alone or inside a name. It
+/// does not refuse identifiers in general: a person's name, a username or an instance name of the same shape passes.
+/// A chain arriving from another service is that service's word. This package checks its shape only: checking each
+/// name against the services it knows, before writing a chain to a span, a metric tag or a log, is the host's
+/// responsibility.
 /// </para>
 /// <para>
 /// The current request's chain flows on the execution context (<see cref="Current"/>), as <see cref="ContextScope"/>
@@ -37,14 +43,18 @@ public static class CallChain
 
     private const char Separator = ',';
 
-    private static readonly AsyncLocal<Entered?> Ambient = new();
+    private static readonly AmbientStack<IReadOnlyList<string>?> Ambient = new();
 
     /// <summary>
     /// The services the current request passed through before reaching this one, oldest first, or null when it came
-    /// from no service (a person, an edge, a job, a message). A chain already left, by disposing one entered before
-    /// it, is none.
+    /// from no service (a person, an edge, a job, a message).
     /// </summary>
-    public static IReadOnlyList<string>? Current => Ambient.Value is { Ended: false } entered ? entered.Chain : null;
+    /// <remarks>
+    /// Work started inside the request and not awaited keeps the chain it started with after the chain is left.
+    /// Leaving chains out of order never brings back one already left: once both an outer chain and one entered inside
+    /// it are left, neither is current.
+    /// </remarks>
+    public static IReadOnlyList<string>? Current => Ambient.Current;
 
     /// <summary>
     /// Makes <paramref name="chain"/> the current request's until the returned value is disposed.
@@ -54,13 +64,8 @@ public static class CallChain
     /// its most recent <see cref="MaximumServices"/>.
     /// </param>
     /// <returns>Restores whatever was current before, when disposed.</returns>
-    public static IDisposable Enter(IReadOnlyList<string>? chain)
-    {
-        var entered = new Entered(IsChain(chain) ? [.. Recent(chain, MaximumServices)] : null, Ambient.Value);
-        Ambient.Value = entered;
-
-        return entered;
-    }
+    public static IDisposable Enter(IReadOnlyList<string>? chain) =>
+        Ambient.Push(IsChain(chain) ? [.. Recent(chain, MaximumServices)] : null);
 
     /// <summary>
     /// The chain an outgoing call carries: <paramref name="chain"/> with <paramref name="service"/> added last, its
@@ -105,7 +110,7 @@ public static class CallChain
     /// <param name="value">The header's value.</param>
     /// <param name="chain">The services named, oldest first; null when the value is not a chain.</param>
     /// <returns>Whether the value is a chain.</returns>
-    public static bool TryParse(string? value, out IReadOnlyList<string>? chain)
+    public static bool TryParse(string? value, [NotNullWhen(true)] out IReadOnlyList<string>? chain)
     {
         chain = null;
 
@@ -128,10 +133,13 @@ public static class CallChain
     /// <summary>
     /// Whether <paramref name="name"/> is shaped like a service's registered name: a lower-case letter, then lower-case
     /// letters, digits and single hyphens, no longer than <see cref="MaximumNameLength"/>, such as
-    /// <c>organization-service</c>, and holding no identifier (a GUID written with or without its hyphens, which that
-    /// shape would otherwise admit, alone or within a longer name). Nothing else can pass, so nothing else can reach a
-    /// log or a metric tag.
+    /// <c>organization-service</c>, and holding no GUID (written as 32 hexadecimal digits or in its hyphenated form,
+    /// which that shape would otherwise admit, alone or within a longer name).
     /// </summary>
+    /// <remarks>
+    /// A shape, not a registry: it doesn't refuse identifiers other than a GUID, so a name that passes is not known to be
+    /// a service's.
+    /// </remarks>
     /// <param name="name">The candidate.</param>
     public static bool IsServiceName(string? name)
     {
@@ -194,23 +202,5 @@ public static class CallChain
         }
 
         return false;
-    }
-
-    private sealed class Entered(IReadOnlyList<string>? chain, Entered? outer) : IDisposable
-    {
-        public IReadOnlyList<string>? Chain { get; } = chain;
-
-        public bool Ended { get; private set; }
-
-        public void Dispose()
-        {
-            if (Ended)
-            {
-                return;
-            }
-
-            Ended = true;
-            Ambient.Value = outer;
-        }
     }
 }

@@ -17,9 +17,10 @@ Only what both a service and the services that call it need.
 
 ## How it works
 
-`ContextScope` and `CallChain` each keep their current value in an `AsyncLocal`, as a stack of disposable entries.
-Disposing an entry restores the one it was begun inside, unless that one was already disposed, in which case there is
-none.
+`ContextScope` and `CallChain` keep their current value in one internal `AmbientStack`: an `AsyncLocal` holding a
+stack of disposable entries. Disposing an entry restores the one it was begun inside, skipping any already disposed,
+and does so only on the flow where that entry is current. Work forked inside an entry and not awaited shares the
+entry, so it keeps the value it started with after its parent disposes it.
 
 A change must keep:
 
@@ -29,8 +30,10 @@ A change must keep:
   any writer sends it: the package ships to every service together, or the member comes with a new version that every
   reader accepts first.
 - **Strict reading.** A malformed value is refused whole, never partly believed, and a refusal never echoes the value.
-- **Nothing but service names in a chain.** `CallChain.IsServiceName` admits no GUID, with or without hyphens, so
-  nothing identifying a person, an organization or any data reaches a log or metric tag through it.
+- **Nothing but service-name shapes in a chain.** `CallChain.IsServiceName` admits a lower-case name and refuses a
+  GUID written as 32 hexadecimal digits or in hyphenated form, alone or inside a name. It does not refuse identifiers
+  in general. Checking each name against the services it knows, before writing a chain to a span, a metric tag or a
+  log, is the host's responsibility; nothing in this package does it.
 
 ## Testing
 
