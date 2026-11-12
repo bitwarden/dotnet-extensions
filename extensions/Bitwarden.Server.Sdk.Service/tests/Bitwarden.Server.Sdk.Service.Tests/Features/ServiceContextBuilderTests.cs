@@ -70,14 +70,17 @@ public sealed class ServiceContextBuilderTests
         Assert.True(Kind(context, Device).GetValue("organizations").IsNull);
     }
 
-    // Only a person has organizations.
+    // Nobody in particular has organizations too when the flag subject lists them: blue's SCIM principal and an
+    // organization's API key, anonymous with their organization.
     [Fact]
-    public void Build_OrganizationsWithoutAPerson_NotSet()
+    public void Build_OrganizationsWithoutAPerson_SetOnTheAnonymousUser()
     {
-        var user = Kind(Builder(new DefaultHttpContext(), organizations: [Guid.NewGuid()]).Build(), ContextKind.Default);
+        var organization = Guid.NewGuid();
+
+        var user = Kind(Builder(new DefaultHttpContext(), organizations: [organization]).Build(), ContextKind.Default);
 
         Assert.True(user.Anonymous);
-        Assert.True(user.GetValue("organizations").IsNull);
+        Assert.Equal([organization.ToString()], user.GetValue("organizations").List.Select(value => value.AsString));
     }
 
     // Below the product layer: a domain service's real context, from what a product service carried for the
@@ -89,7 +92,7 @@ public sealed class ServiceContextBuilderTests
         var http = Authenticated(new Claim("client_id", "internal.password-manager-service"));
         http.Request.Headers[BitwardenHeaders.User] = Person.ToString();
         http.Request.Headers[BitwardenHeaders.Context] =
-            $$"""{"v":1,"credential":"USER","organizations":["{{organization}}"]}""";
+            $$"""{"v":1,"credential":"USER","organizations":["{{organization}}"],"flagKey":"{{Person}}"}""";
         SignedHeaders.Keep(http);
         var accessor = new HttpContextAccessor { HttpContext = http };
 
@@ -172,6 +175,100 @@ public sealed class ServiceContextBuilderTests
         Assert.True(user.GetValue("device-type").IsNull);
     }
 
+    // Blue reads Device-Type with Enum.TryParse, which takes a device type's name as well as its number.
+    [Theory]
+    [InlineData("Android", 0, 4)]
+    [InlineData("ChromeBrowser", 9, 1)]
+    [InlineData("LinuxCLI", 25, 5)]
+    [InlineData("DuckDuckGoExtension", 27, 2)]
+    public void Build_DeviceTypeName_ItsNumberAndClientType(string name, int deviceType, int clientType)
+    {
+        var http = new DefaultHttpContext();
+        http.Request.Headers["Device-Type"] = name;
+
+        var user = Kind(Builder(http).Build(), ContextKind.Default);
+
+        Assert.Equal(deviceType, user.GetValue("device-type").AsInt);
+        Assert.Equal(clientType, user.GetValue("client-type").AsInt);
+    }
+
+    [Fact]
+    public void Build_DeviceTypeNeitherNumberNorName_NoDeviceType()
+    {
+        var http = new DefaultHttpContext();
+        http.Request.Headers["Device-Type"] = "android";
+
+        Assert.True(Kind(Builder(http).Build(), ContextKind.Default).GetValue("device-type").IsNull);
+    }
+
+    // Is-Prerelease is a prerelease only as 1, and a version without it is not one.
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("0", false)]
+    [InlineData("true", false)]
+    [InlineData("1", true)]
+    public void Build_IsPrerelease_OnlyAsOne(string? header, bool prerelease)
+    {
+        var http = new DefaultHttpContext();
+        http.Request.Headers["Bitwarden-Client-Version"] = "2026.10.0";
+        if (header is not null)
+        {
+            http.Request.Headers["Is-Prerelease"] = header;
+        }
+
+        var user = Kind(Builder(http).Build(), ContextKind.Default);
+
+        Assert.Equal(prerelease, user.GetValue("client-version-is-prerelease").AsBool);
+    }
+
+    // The version is written as Version.ToString() writes it, as blue's is.
+    [Fact]
+    public void Build_ClientVersion_AsVersionWritesIt()
+    {
+        var http = new DefaultHttpContext();
+        http.Request.Headers["Bitwarden-Client-Version"] = "2026.010.0";
+
+        Assert.Equal("2026.10.0", Kind(Builder(http).Build(), ContextKind.Default).GetValue("client-version").AsString);
+    }
+
+    // Below the product layer, the version, prerelease and device type the product service carried, over whatever
+    // the call's own headers say.
+    [Fact]
+    public void Build_CarriedClientAttributes_WinOverTheRequestsHeaders()
+    {
+        var http = new DefaultHttpContext();
+        http.Request.Headers["Bitwarden-Client-Version"] = "1.0.0";
+        http.Request.Headers["Device-Type"] = "9";
+
+        var user = Kind(
+            Builder(http, user: Person, carried: new StatedContext { ClientVersion = "2026.10.1", ClientVersionIsPrerelease = true, DeviceType = "0" }).Build(),
+            ContextKind.Default);
+
+        Assert.Equal("2026.10.1", user.GetValue("client-version").AsString);
+        Assert.True(user.GetValue("client-version-is-prerelease").AsBool);
+        Assert.Equal(0, user.GetValue("device-type").AsInt);
+    }
+
+    // A client's own request to a service that isn't a product service, such as a sign-in, has no context to carry
+    // where it came from: its own headers say, and it is anonymous.
+    [Fact]
+    public void Build_DomainServiceCalledByAClient_TheClientsHeadersAnonymously()
+    {
+        var http = Authenticated(new Claim("sub", Person.ToString()));
+        http.Request.Headers["Device-Identifier"] = "device-1";
+        http.Request.Headers["Device-Type"] = "9";
+        http.Request.Headers["Bitwarden-Client-Version"] = "2026.9.1";
+        var accessor = new HttpContextAccessor { HttpContext = http };
+
+        var context = new ServiceContextBuilder(accessor, new CurrentContext(accessor)).Build();
+
+        var user = Kind(context, ContextKind.Default);
+        Assert.True(user.Anonymous);
+        Assert.Equal("2026.9.1", user.GetValue("client-version").AsString);
+        Assert.Equal(9, user.GetValue("device-type").AsInt);
+        Assert.Equal("device-1", Kind(context, Device).Key);
+    }
+
     [Fact]
     public void Build_TokenDeviceAndHeaderDevice_TokenWins()
     {
@@ -219,8 +316,17 @@ public sealed class ServiceContextBuilderTests
         HttpContext? http,
         Guid? user = null,
         string? carriedDevice = null,
-        IReadOnlyList<Guid>? organizations = null) =>
-        new(new HttpContextAccessor { HttpContext = http }, new FixedContext(user, carriedDevice, organizations));
+        IReadOnlyList<Guid>? organizations = null,
+        StatedContext? carried = null) =>
+        new(
+            new HttpContextAccessor { HttpContext = http },
+            (carried ?? new StatedContext()) with
+            {
+                UserId = user,
+                FlagSubjectKey = user,
+                DeviceIdentifier = carriedDevice,
+                UserOrganizationIds = organizations,
+            });
 
     private static DefaultHttpContext Authenticated(params Claim[] claims) =>
         new() { User = new ClaimsPrincipal(new ClaimsIdentity(claims, authenticationType: "Bearer")) };
@@ -229,14 +335,5 @@ public sealed class ServiceContextBuilderTests
     {
         Assert.True(context.TryGetContextByKind(kind, out var single), $"No {kind} context.");
         return single;
-    }
-
-    private sealed class FixedContext(Guid? user, string? device, IReadOnlyList<Guid>? organizations) : IContext
-    {
-        public Guid? OrganizationId => null;
-        public Guid? UserId => user;
-        public Guid? ProviderId => null;
-        public string? DeviceIdentifier => device;
-        public IReadOnlyList<Guid>? UserOrganizationIds => organizations;
     }
 }

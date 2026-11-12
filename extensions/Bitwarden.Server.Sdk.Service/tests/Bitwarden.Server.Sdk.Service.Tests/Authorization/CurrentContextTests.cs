@@ -342,22 +342,25 @@ public sealed class CurrentContextTests
         Assert.Equal([first, second], context.UserOrganizationIds);
     }
 
-    // A product service never takes them from a header, and only a person has them.
+    // A product service never takes them from a header. An organization's own client, which lists none, has its
+    // organization, as blue's orgApi reading gives it.
     [Fact]
-    public void UserOrganizationIds_ProductService_NotAHeaderNorWithoutAPerson()
+    public void UserOrganizationIds_ProductService_NotAHeader_AndAnOrganizationClientsOwn()
     {
         var header = $$"""{"v":1,"organizations":["{{Guid.NewGuid()}}"]}""";
+        var organization = Guid.NewGuid();
 
+        // Each read before the next request: the accessor holds one request at a time.
         var person = DuringProduct(
             request => request.Headers[BitwardenHeaders.Context] = header,
-            new Claim("sub", Guid.NewGuid().ToString()));
+            new Claim("sub", Guid.NewGuid().ToString())).UserOrganizationIds;
         var apiKey = DuringProduct(
-            _ => { },
-            new Claim("organization", Guid.NewGuid().ToString()),
-            new Claim("organizations", Guid.NewGuid().ToString()));
+            request => request.Headers[BitwardenHeaders.Context] = header,
+            new Claim("client_id", $"organization.{organization}"),
+            new Claim("organization", organization.ToString())).UserOrganizationIds;
 
-        Assert.Null(person.UserOrganizationIds);
-        Assert.Null(apiKey.UserOrganizationIds);
+        Assert.Null(person);
+        Assert.Equal([organization], apiKey);
     }
 
     [Fact]
