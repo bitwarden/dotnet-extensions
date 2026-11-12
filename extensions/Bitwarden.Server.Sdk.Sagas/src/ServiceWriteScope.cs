@@ -9,7 +9,7 @@ public sealed class ServiceWriteScope : IDisposable
 {
     private readonly Lock _lock = new();
     private readonly List<string> _steps = [];
-    private readonly HashSet<string> _keys = new(StringComparer.Ordinal);
+    private readonly HashSet<(string Service, string Key)> _keys = [];
     private readonly SpanDeclarationAttribute? _declared;
     private readonly IServiceWritesGuard? _guard;
     private readonly ServiceWriteScope? _outer;
@@ -31,7 +31,8 @@ public sealed class ServiceWriteScope : IDisposable
     public string Operation { get; }
 
     /// <summary>
-    /// Where each write went so far, in order: a service's name, or <see cref="ServiceWrites.OwnDatabase"/>.
+    /// Where each write went so far, in order: a service's name, or <see cref="ServiceWrites.OwnDatabase"/>. A write the
+    /// guard refused was never made and is not among them.
     /// </summary>
     public IReadOnlyList<string> Steps
     {
@@ -95,7 +96,8 @@ public sealed class ServiceWriteScope : IDisposable
             // Refused once, refused for good: every later write of the operation is refused the same way.
             _refusal?.Throw();
 
-            if (key is not null && !_keys.Add(key))
+            // A key names one write to one service; a blank key is no key, so each such write is counted.
+            if (!string.IsNullOrWhiteSpace(key) && !_keys.Add((target, key)))
             {
                 return;
             }
@@ -118,6 +120,8 @@ public sealed class ServiceWriteScope : IDisposable
             }
             catch (Exception refusal)
             {
+                // The refused write was never made, so it leaves the steps; the span it would have made stays noticed.
+                _steps.RemoveAt(_steps.Count - 1);
                 _refusal = ExceptionDispatchInfo.Capture(refusal);
                 throw;
             }

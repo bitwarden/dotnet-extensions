@@ -13,9 +13,9 @@ namespace Bitwarden.Server.Sdk.Sagas;
 /// on the execution context, so whatever the operation awaits is counted with it and nothing outside it is.
 /// </para>
 /// <para>
-/// A write to another service is counted once per idempotency key, so a call retried, or an attempt of a retry loop
-/// sending the same key, is one write. Every save is counted. A message published after the commit is not a
-/// synchronous write, so a save that holds only such messages needn't be reported.
+/// A write to another service is counted once per idempotency key per service, so a call retried, or an attempt of a
+/// retry loop sending the same key, is one write. A blank key is no key. Every save is counted. A message published
+/// after the commit is not a synchronous write, so a save that holds only such messages needn't be reported.
 /// </para>
 /// </remarks>
 public static class ServiceWrites
@@ -35,7 +35,10 @@ public static class ServiceWrites
     /// <summary>
     /// Begins counting an operation's writes until the result is disposed.
     /// </summary>
-    /// <param name="operation">Names the operation in logs and metrics: an endpoint, or a handler's or job's name.</param>
+    /// <param name="operation">
+    /// Names the operation in logs and metrics: an endpoint's route template, or a handler's or job's name. It reaches the
+    /// guard as given, so never pass the request's path.
+    /// </param>
     /// <param name="declared">
     /// The operation's declaration, if it has one: its shape (<see cref="SpansServicesAttribute"/>), or an admitted
     /// defect (<see cref="SpansServicesUnhandledAttribute"/>).
@@ -56,7 +59,9 @@ public static class ServiceWrites
     /// The current operation is about to send a write to another service.
     /// </summary>
     /// <param name="service">The callee's name.</param>
-    /// <param name="idempotencyKey">The write's key, so a repeat of it is not counted again; null when it has none.</param>
+    /// <param name="idempotencyKey">
+    /// The write's key, so a repeat of it to the same service is not counted again; null or blank when it has none.
+    /// </param>
     /// <exception cref="Exception">Whatever the guard throws to refuse the write.</exception>
     public static void Outgoing(string service, string? idempotencyKey)
     {
