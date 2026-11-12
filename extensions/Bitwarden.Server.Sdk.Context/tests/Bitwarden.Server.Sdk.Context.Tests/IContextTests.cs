@@ -14,6 +14,7 @@ public sealed class IContextTests
         Assert.Null(context.RecordedUserId);
         Assert.Null(context.RecordedProviderId);
         Assert.Null(context.UserOrganizationIds);
+        Assert.False(context.IsEvent);
     }
 
     private sealed class OwnersOnly : IContext

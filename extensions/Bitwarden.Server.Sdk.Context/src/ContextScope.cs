@@ -16,26 +16,40 @@ namespace Bitwarden.Server.Sdk.Context;
 /// </remarks>
 public static class ContextScope
 {
-    private static readonly AsyncLocal<Scope?> Ambient = new();
+    private static readonly AmbientStack<IContext> Ambient = new();
 
     /// <summary>
-    /// The context established by the innermost scope, if any. A scope already ended, by disposing a scope it was
-    /// begun inside, establishes nothing.
+    /// The context established by the innermost scope, if any.
     /// </summary>
-    public static IContext? Current => Ambient.Value is { Ended: false } scope ? scope.Context : null;
+    /// <remarks>
+    /// Work started inside a scope and not awaited, such as a task run in the background, keeps the context it started
+    /// with after the scope is disposed. Disposing scopes out of order never brings back one already disposed: once both
+    /// an outer scope and a scope begun inside it are disposed, neither is current.
+    /// </remarks>
+    public static IContext? Current => Ambient.Current;
 
     /// <summary>
-    /// Whether the innermost scope was begun for an event being handled (<see cref="BeginForEvent"/>): its person, if
-    /// any, is the event's actor, there for the record only. A scope begun inside it with <see cref="Begin"/> is not.
+    /// Whether the innermost scope's context is an event's (<see cref="IContext.IsEvent"/>), as
+    /// <see cref="BeginForEvent"/> establishes it: its person, if any, is the event's actor, there for the record only. A
+    /// scope begun inside it with <see cref="Begin"/> and a context that is not an event's is not.
     /// </summary>
-    public static bool IsEvent => Ambient.Value is { Ended: false, ForEvent: true };
+    /// <remarks>
+    /// It follows <see cref="Current"/>: work started inside an event's scope and not awaited still handles that event
+    /// after the scope is disposed.
+    /// </remarks>
+    public static bool IsEvent => Current?.IsEvent == true;
 
     /// <summary>
     /// Establishes a context until the returned value is disposed.
     /// </summary>
     /// <param name="context">What the unit of work concerns.</param>
     /// <returns>Restores whatever was established before, when disposed.</returns>
-    public static IDisposable Begin(IContext context) => Push(context, forEvent: false);
+    public static IDisposable Begin(IContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        return Ambient.Push(context);
+    }
 
     /// <summary>
     /// Establishes what an event says as the context of handling it, until the returned value is disposed.
@@ -45,8 +59,9 @@ public static class ContextScope
     /// A consumer acts with its own authority, and the event's actor is for the record only. The person the
     /// event names is whoever's request published it: the consumer reads them for what it records, but a call it makes
     /// to another service must not carry them as the person acting, where the callee would take them as this service's
-    /// word (an asserted person, which most operations refuse). A client can check <see cref="IsEvent"/> and hold
-    /// such a call to that.
+    /// word (an asserted person, which most operations refuse). The context this establishes reports
+    /// <see cref="IContext.IsEvent"/>, so anything handed it, and a client checking <see cref="IsEvent"/>, can tell the
+    /// event's actor from a person acting and hold such a call to that.
     /// </para>
     /// <para>
     /// For a host that hands events to a service's handlers, which begins one around each event.
@@ -54,35 +69,11 @@ public static class ContextScope
     /// </remarks>
     /// <param name="context">What the event says.</param>
     /// <returns>Restores whatever was established before, when disposed.</returns>
-    public static IDisposable BeginForEvent(IContext context) => Push(context, forEvent: true);
-
-    private static IDisposable Push(IContext context, bool forEvent)
+    public static IDisposable BeginForEvent(IContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var scope = new Scope(context, forEvent, Ambient.Value);
-        Ambient.Value = scope;
-
-        return scope;
+        return Ambient.Push(context.IsEvent ? context : new EventContext(context));
     }
 
-    private sealed class Scope(IContext context, bool forEvent, Scope? outer) : IDisposable
-    {
-        public IContext Context { get; } = context;
-
-        public bool ForEvent { get; } = forEvent;
-
-        public bool Ended { get; private set; }
-
-        public void Dispose()
-        {
-            if (Ended)
-            {
-                return;
-            }
-
-            Ended = true;
-            Ambient.Value = outer;
-        }
-    }
 }
