@@ -28,8 +28,8 @@ dotnet test --project tests/Bitwarden.Server.Sdk.Crypto.Tests
 
 ## Bumping the Rust SDK
 
-1. Run the `build-uniffi-server.yml` workflow in sdk-internal and set `SDK_INTERNAL_RUN_ID` in
-   `sdk-internal.env` to its run id.
+1. Set `SDK_INTERNAL_COMMIT` in `sdk-internal.env` to an sdk-internal commit whose
+   `build-uniffi-server.yml` run succeeded.
 2. `scripts/fetch-native.sh --from-pinned`, then `scripts/generate-bindings.sh`.
 3. Commit `sdk-internal.env` and `src/Generated/`. CI fails if the bindings drift from the pinned
    binaries (`generate-bindings.sh --check`).

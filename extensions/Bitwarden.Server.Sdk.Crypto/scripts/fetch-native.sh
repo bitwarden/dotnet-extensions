@@ -7,7 +7,9 @@
 #   fetch-native.sh --from-source <sdk-internal dir>   Build for the host RID with cargo (dev loop).
 #   fetch-native.sh --from-run <run-id> [rid...]       Download CI artifacts, verify sha256.
 #                                                      Defaults to every RID in sdk-internal.env.
-#   fetch-native.sh --from-pinned [rid...]             --from-run with SDK_INTERNAL_RUN_ID (CI).
+#   fetch-native.sh --from-commit <sha> [rid...]       --from-run with that commit's latest
+#                                                      successful build.
+#   fetch-native.sh --from-pinned [rid...]             --from-commit with SDK_INTERNAL_COMMIT (CI).
 set -euo pipefail
 
 PACKAGE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -97,9 +99,32 @@ from_run() {
     done
 }
 
+# Latest successful SDK_INTERNAL_WORKFLOW run of an sdk-internal commit.
+run_for_commit() {
+    local run_id
+    run_id="$(gh run list --repo "$SDK_INTERNAL_REPO" --workflow "$SDK_INTERNAL_WORKFLOW" \
+        --commit "$1" --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+
+    if [ -z "$run_id" ]; then
+        echo "No successful $SDK_INTERNAL_WORKFLOW run for commit $1" >&2
+        exit 1
+    fi
+
+    echo "$run_id"
+}
+
+from_commit() {
+    local run_id
+    run_id="$(run_for_commit "$1")"
+    shift
+
+    from_run "$run_id" "$@"
+}
+
 case "${1:-}" in
     --from-source) from_source "${2:?sdk-internal dir required}" ;;
     --from-run) shift; from_run "${1:?run id required}" "${@:2}" ;;
-    --from-pinned) shift; from_run "${SDK_INTERNAL_RUN_ID:?SDK_INTERNAL_RUN_ID unset in sdk-internal.env}" "$@" ;;
-    *) sed -n '2,11p' "$0" >&2; exit 1 ;;
+    --from-commit) shift; from_commit "${1:?commit required}" "${@:2}" ;;
+    --from-pinned) shift; from_commit "${SDK_INTERNAL_COMMIT:?SDK_INTERNAL_COMMIT unset in sdk-internal.env}" "$@" ;;
+    *) sed -n '2,13p' "$0" >&2; exit 1 ;;
 esac
