@@ -7,7 +7,7 @@ namespace Bitwarden.Server.Sdk.Authorization;
 /// <remarks>
 /// <para>
 /// A product service accepts only a person's session by default: its acting user is the token's
-/// <c>sub</c>, and a token naming no person is refused <c>401</c> (<c>PersonSessionTokens</c>).
+/// <c>sub</c>, and a token naming no person is refused <c>401</c> (<see cref="PersonSessionTokens"/>).
 /// An organization's API key is the exception the Public API serves: a customer's script or
 /// directory sync acting as the organization, with nobody behind it. Identity issues it a token
 /// carrying <c>organization</c> and no <c>sub</c> (<c>client_credentials</c> for
