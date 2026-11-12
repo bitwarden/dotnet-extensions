@@ -150,7 +150,7 @@
       "bitwarden.server.sdk.idempotency.abstractions": {
         "type": "Project",
         "dependencies": {
-          "BouncyCastle.Cryptography": "[2.7.0, )"
+          "BouncyCastle.Cryptography": "[2.7.0, 2.7.0]"
         }
       }
     }

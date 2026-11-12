@@ -8,8 +8,10 @@ to use it.
 ## What belongs here
 
 Only what both the side that sends a write and the side that receives it need. Nothing here touches `HttpContext` or
-`HttpClient`, and nothing here sends or honors the header. Its one dependency is BouncyCastle.Cryptography, for
-TupleHash; it must take on no other.
+`HttpClient`, and nothing here sends or honors the header. Its one dependency is BouncyCastle.Cryptography, pinned
+exactly to 2.7.0; it must take on no other. The package uses only BouncyCastle's `TupleHash` class
+(`Org.BouncyCastle.Crypto.Digests.TupleHash`). Using any other part of the library, or another version, needs a new
+dependency review by AppSec first.
 
 ## How it works
 
