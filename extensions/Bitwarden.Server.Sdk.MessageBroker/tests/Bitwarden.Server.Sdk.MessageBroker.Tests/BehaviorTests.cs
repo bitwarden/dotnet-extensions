@@ -439,6 +439,32 @@ public abstract class BehaviorTests : IAsyncLifetime
         await subscribeTask.WaitAsync(TestContext.Current.CancellationToken);
     }
 
+    [Fact(Timeout = 60 * 1000)]
+    public async Task SubscriberCompletesWhenHostDisposedWhileConnecting()
+    {
+        // Dispose the host while the subscriber may still be opening its connection to the
+        // broker. However early the host goes away, the stream must end without an exception.
+        foreach (var delay in new[] { 0, 1, 5, 10, 20 })
+        {
+            for (var attempt = 0; attempt < 4; attempt++)
+            {
+                var host = await CreateInstanceAsync();
+                var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+
+                var subscribeTask = Task.Run(async () =>
+                {
+                    await foreach (var _ in subscriber.SubscribeAsync(CancellationToken.None)) { }
+                }, TestContext.Current.CancellationToken);
+
+                await Task.Delay(delay, TestContext.Current.CancellationToken);
+                await host.StopAsync(TestContext.Current.CancellationToken);
+                host.Dispose();
+
+                await subscribeTask.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+            }
+        }
+    }
+
     /// <summary>
     /// Returns config that points to a broker that is unreachable from the start, or null if
     /// this backend cannot be configured to fail on publish (e.g., in-memory channel which
