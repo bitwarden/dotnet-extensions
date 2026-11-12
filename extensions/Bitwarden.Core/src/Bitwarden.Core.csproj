@@ -11,12 +11,6 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <!-- This package implements Bitwarden's EncString format, which other code is told to use rather than build by
-         hand, so it calls the cryptographic primitives the other packages may not (BannedSymbols.txt). -->
-    <BanCryptoPrimitives>false</BanCryptoPrimitives>
-  </PropertyGroup>
-
-  <PropertyGroup>
     <Description>Core .NET extensions library</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>

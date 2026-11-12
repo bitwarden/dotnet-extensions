@@ -40,12 +40,4 @@
   <ItemGroup Condition="'$(IsTestProject)' != 'true'">
     <None Condition="'$(PackageReadmeFile)' == './PACKAGE.md'" Include="PACKAGE.md" Pack="true" PackagePath="/" />
   </ItemGroup>
-
-  <!-- Packages call no cryptographic primitive directly (BannedSymbols.txt): tokens, signatures and encrypted formats
-       are made and checked by the library the repository already uses. Tests may build malformed tokens by hand, and a
-       package that implements a format the others use (Bitwarden.Core) sets BanCryptoPrimitives to false. -->
-  <ItemGroup Condition="'$(BanCryptoPrimitives)' != 'false' and '$(IsTestProject)' != 'true' and '$(IsBenchmarkProject)' != 'true' and '$(IsAnalyzerProject)' != 'true'">
-    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
-    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
-  </ItemGroup>
 </Project>

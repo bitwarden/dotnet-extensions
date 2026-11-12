@@ -463,7 +463,7 @@
         "type": "Project",
         "dependencies": {
           "Bitwarden.Server.Sdk.Environment": "[0.1.0, )",
-          "Bitwarden.Server.Sdk.Infrastructure": "[0.2.0, )",
+          "Bitwarden.Server.Sdk.Infrastructure": "[0.1.0, )",
           "Microsoft.AspNetCore.Mvc.Testing": "[10.0.14, )"
         }
       },
@@ -471,7 +471,7 @@
         "type": "Project",
         "dependencies": {
           "Bitwarden.Server.Sdk.Environment": "[0.1.0, 0.1.0]",
-          "Bitwarden.Server.Sdk.Infrastructure": "[0.2.0, )"
+          "Bitwarden.Server.Sdk.Infrastructure": "[0.1.0, )"
         }
       }
     }
