@@ -35,4 +35,16 @@ public sealed record StatedContext : IContext
 
     /// <inheritdoc />
     public IReadOnlyList<Guid>? UserOrganizationIds { get; init; }
+
+    /// <inheritdoc />
+    public FlagSubjectKind FlagSubjectKind { get; init; }
+
+    /// <inheritdoc />
+    public Guid? FlagSubjectKey { get; init; }
+
+    /// <inheritdoc />
+    public string? ClientVersion { get; init; }
+
+    /// <inheritdoc />
+    public bool ClientVersionIsPrerelease { get; init; }
 }
