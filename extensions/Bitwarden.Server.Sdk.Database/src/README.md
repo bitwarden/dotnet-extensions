@@ -12,8 +12,8 @@ plumbing. See `PACKAGE.md` for the consumer guide.
   schema name derived from `TContext` by stripping `DatabaseContext` (e.g. `VaultDatabaseContext` →
   `Vault`). `SqlServerMigrations` chooses DbUp (the default) or EF Core for SQL Server.
   `DesignTimeServices` names an `IDatabaseDesignTimeServices`, whose static `ConfigureServices`
-  registers the context's constructor dependencies for the design-time factories on the
-  `DesignTimeContext` it's given.
+  registers the context's constructor dependencies for the design-time factories and the
+  migration executable on the `DesignTimeContext` it's given.
 
 ### Configuration
 
@@ -242,7 +242,9 @@ Implemented:
 - Subcontexts forward the context constructor with the most parameters among the non-private ones
   taking exactly one `DbContextOptions` or `DbContextOptions<TContext>` (`BW0022` when there is
   none), defaults included. When it takes more than its options, the factories construct the
-  subcontext with `ActivatorUtilities` from the services `DesignTimeServices` registers; `BW0025`
+  subcontext with `ActivatorUtilities` from the services `DesignTimeServices` registers, and the
+  migration executable adds the same registrations to the services it resolves the context from;
+  `BW0025`
   rejects a constructor with an undefaulted extra parameter and no `DesignTimeServices`, and
   `BW0023` a type that can't be used. A sealed context is `BW0021`, but only when some engine is
   migrated by EF Core, since only then are subcontexts emitted.

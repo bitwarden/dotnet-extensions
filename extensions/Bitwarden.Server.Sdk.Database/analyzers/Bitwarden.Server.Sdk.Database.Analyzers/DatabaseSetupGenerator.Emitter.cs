@@ -133,6 +133,11 @@ public sealed partial class DatabaseSetupGenerator
     private static bool NeedsDesignTimeServices(AttributeInfo attr)
         => attr.Constructor is { } ctor && ctor.Parameters.Array.Length > 1;
 
+    // Whether the design-time activator is emitted: for a context that takes more than its options,
+    // when any engine is migrated by EF Core (EmitEfCoreInfrastructure).
+    private static bool HasDesignTimeActivator(AttributeInfo attr, ImmutableArray<ProviderSpec> providers)
+        => NeedsDesignTimeServices(attr) && providers.Any(p => IsEfCore(attr, p));
+
     // What a factory's options builder is typed for: the context itself when its constructor asks for
     // DbContextOptions<TContext>, otherwise the subcontext.
     private static string OptionsFor(string providerName, AttributeInfo attr)
@@ -169,8 +174,15 @@ public sealed partial class DatabaseSetupGenerator
             public static TContext Create<TContext>(DbContextOptions options)
                 where TContext : DbContext
             {
-                var services = new ServiceCollection();{{configure}}
+                var services = new ServiceCollection();
+                Register(services);
                 return ActivatorUtilities.CreateInstance<TContext>(services.BuildServiceProvider(), options);
+            }
+
+            // The schema's design-time services, for the factories above and for the migration
+            // executable, which resolves the context from its own services to migrate it.
+            public static void Register(IServiceCollection services)
+            {{{configure}}
             }{{configureMethod}}
         }
         """;
@@ -513,10 +525,16 @@ public sealed partial class DatabaseSetupGenerator
               + "        };"
             : $"        var root = new RootCommand(\"{description}\");";
 
+        // A context that takes more than its options resolves the rest from the schema's design-time
+        // services here too: the executable builds it only to migrate, as EF tooling builds it.
+        var registerDatabase = HasDesignTimeActivator(attr, providers)
+            ? $"services => {{ services.Add{attr.SchemaName}(); {attr.SchemaName}DesignTimeActivator.Register(services); }}"
+            : $"services => services.Add{attr.SchemaName}()";
+
         var migrateCalls = string.Join("\n", providers.Select(p =>
             $"            await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.{p.Name}, " +
             $"parseResult.GetValue({LowerFirst(p.Name)}), {Literal(attr.MigratorKey)}, " +
-            $"services => services.Add{attr.SchemaName}());"));
+            $"{registerDatabase});"));
 
         var efProviders = string.Join("\n", providers
             .Where(p => IsEfCore(attr, p))
