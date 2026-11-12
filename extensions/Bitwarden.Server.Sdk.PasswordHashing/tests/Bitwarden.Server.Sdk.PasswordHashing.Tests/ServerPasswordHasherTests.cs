@@ -9,7 +9,8 @@ namespace Bitwarden.Server.Sdk.PasswordHashing.Tests;
 
 public sealed class ServerPasswordHasherTests
 {
-    private const string ClientHash = "r5CFRR+n9NQI8a525FY+0BPR0HGOjVJX0cR1KEMnIOo=";
+    private const string ClientValue = "r5CFRR+n9NQI8a525FY+0BPR0HGOjVJX0cR1KEMnIOo=";
+    private static readonly ClientCreatedHash Client = new(ClientValue);
 
     // V3 layout: marker, PRF, iterations, salt length, salt, subkey. Integers are big-endian.
     //   [0x01][prf:4][iter:4][saltLen:4][salt:16][subkey:32]
@@ -20,7 +21,7 @@ public sealed class ServerPasswordHasherTests
     private const int SubkeyLength = 32;
     private const int HeaderLength = 13;
 
-    // Hashes of ClientHash produced by the Bitwarden server's own registrations
+    // Hashes of ClientValue produced by the Bitwarden server's own registrations
     // (AddCustomIdentityServices for IPasswordHasher<User>, AddSendPasswordServices for Sends).
     private const string ServerMasterPasswordHash =
         "AQAAAAIAAYagAAAAEHkSHtEb9vUEGyeqeEWfvai8k2rNVxb46H1J4bwc/a1fLkV4B4luKD3tyQjlNp7uTw==";
@@ -36,15 +37,15 @@ public sealed class ServerPasswordHasherTests
     [Fact]
     public void CreateStoredHash_ThenVerify_Succeeds()
     {
-        var stored = _hasher.CreateStoredHash(ClientHash);
+        var stored = _hasher.CreateStoredHash(Client);
 
-        Assert.Equal(PasswordHashVerification.Success, _hasher.VerifyStoredHash(stored, ClientHash));
+        Assert.Equal(PasswordHashVerification.Success, _hasher.VerifyStoredHash(stored, Client));
     }
 
     [Fact]
     public void CreateStoredHash_IsV3Pbkdf2Sha512With100kIterations()
     {
-        var stored = Convert.FromBase64String(_hasher.CreateStoredHash(ClientHash));
+        var stored = Convert.FromBase64String(_hasher.CreateStoredHash(Client).Value);
 
         Assert.Equal(HeaderLength + SaltLength + SubkeyLength, stored.Length);
         Assert.Equal(V3Marker, stored[0]);
@@ -55,14 +56,14 @@ public sealed class ServerPasswordHasherTests
         // Recompute the subkey without ASP.NET Identity to pin the algorithm.
         var salt = stored.AsSpan(HeaderLength, SaltLength).ToArray();
         var subkey = Rfc2898DeriveBytes.Pbkdf2(
-            Encoding.UTF8.GetBytes(ClientHash), salt, ServerIterations, HashAlgorithmName.SHA512, SubkeyLength);
+            Encoding.UTF8.GetBytes(ClientValue), salt, ServerIterations, HashAlgorithmName.SHA512, SubkeyLength);
         Assert.Equal(subkey, stored.AsSpan(HeaderLength + SaltLength).ToArray());
     }
 
     [Fact]
     public void CreateStoredHash_SameClientHash_UsesFreshSalt()
     {
-        Assert.NotEqual(_hasher.CreateStoredHash(ClientHash), _hasher.CreateStoredHash(ClientHash));
+        Assert.NotEqual(_hasher.CreateStoredHash(Client), _hasher.CreateStoredHash(Client));
     }
 
     [Theory]
@@ -71,7 +72,13 @@ public sealed class ServerPasswordHasherTests
     [InlineData(" ")]
     public void CreateStoredHash_MissingClientHash_Throws(string? clientHash)
     {
-        Assert.ThrowsAny<ArgumentException>(() => _hasher.CreateStoredHash(clientHash!));
+        Assert.ThrowsAny<ArgumentException>(() => _hasher.CreateStoredHash(new(clientHash!)));
+    }
+
+    [Fact]
+    public void CreateStoredHash_DefaultClientHash_Throws()
+    {
+        Assert.ThrowsAny<ArgumentException>(() => _hasher.CreateStoredHash(default));
     }
 
     [Theory]
@@ -79,7 +86,7 @@ public sealed class ServerPasswordHasherTests
     [InlineData(ServerSendPasswordHash)]
     public void VerifyStoredHash_HashStoredByServer_Succeeds(string stored)
     {
-        Assert.Equal(PasswordHashVerification.Success, _hasher.VerifyStoredHash(stored, ClientHash));
+        Assert.Equal(PasswordHashVerification.Success, _hasher.VerifyStoredHash(new(stored), Client));
     }
 
     [Fact]
@@ -87,7 +94,7 @@ public sealed class ServerPasswordHasherTests
     {
         var server = new PasswordHasher<object>(Options.Create(new PasswordHasherOptions { IterationCount = ServerIterations }));
 
-        var result = server.VerifyHashedPassword(new object(), _hasher.CreateStoredHash(ClientHash), ClientHash);
+        var result = server.VerifyHashedPassword(new object(), _hasher.CreateStoredHash(Client).Value, ClientValue);
 
         Assert.Equal(PasswordVerificationResult.Success, result);
     }
@@ -95,7 +102,7 @@ public sealed class ServerPasswordHasherTests
     [Fact]
     public void VerifyStoredHash_LegacyServerHash_AsksForRehash()
     {
-        Assert.Equal(PasswordHashVerification.SuccessRehashNeeded, _hasher.VerifyStoredHash(ServerLegacyHash, ClientHash));
+        Assert.Equal(PasswordHashVerification.SuccessRehashNeeded, _hasher.VerifyStoredHash(new(ServerLegacyHash), Client));
     }
 
     [Fact]
@@ -105,29 +112,35 @@ public sealed class ServerPasswordHasherTests
         {
             CompatibilityMode = PasswordHasherCompatibilityMode.IdentityV2,
         }));
-        var stored = v2.HashPassword(new object(), ClientHash);
+        var stored = v2.HashPassword(new object(), ClientValue);
 
-        Assert.Equal(PasswordHashVerification.SuccessRehashNeeded, _hasher.VerifyStoredHash(stored, ClientHash));
+        Assert.Equal(PasswordHashVerification.SuccessRehashNeeded, _hasher.VerifyStoredHash(new(stored), Client));
     }
 
     [Fact]
     public void VerifyStoredHash_WrongClientHash_Fails()
     {
-        var stored = _hasher.CreateStoredHash(ClientHash);
+        var stored = _hasher.CreateStoredHash(Client);
 
-        Assert.Equal(PasswordHashVerification.Failed, _hasher.VerifyStoredHash(stored, "wrong"));
+        Assert.Equal(PasswordHashVerification.Failed, _hasher.VerifyStoredHash(stored, new("wrong")));
     }
 
     [Theory]
-    [InlineData(null, ClientHash)]
-    [InlineData("", ClientHash)]
-    [InlineData(" ", ClientHash)]
+    [InlineData(null, ClientValue)]
+    [InlineData("", ClientValue)]
+    [InlineData(" ", ClientValue)]
     [InlineData("AQ==", null)]
     [InlineData("AQ==", "")]
     [InlineData("AQ==", " ")]
     public void VerifyStoredHash_MissingValue_Fails(string? storedHash, string? clientHash)
     {
-        Assert.Equal(PasswordHashVerification.Failed, _hasher.VerifyStoredHash(storedHash, clientHash));
+        Assert.Equal(PasswordHashVerification.Failed, _hasher.VerifyStoredHash(new(storedHash!), new(clientHash!)));
+    }
+
+    [Fact]
+    public void VerifyStoredHash_DefaultWrappers_Fails()
+    {
+        Assert.Equal(PasswordHashVerification.Failed, _hasher.VerifyStoredHash(default, default));
     }
 
     [Theory]
@@ -135,7 +148,7 @@ public sealed class ServerPasswordHasherTests
     [InlineData("AQ==")]
     public void VerifyStoredHash_MalformedStoredHash_Fails(string storedHash)
     {
-        Assert.Equal(PasswordHashVerification.Failed, _hasher.VerifyStoredHash(storedHash, ClientHash));
+        Assert.Equal(PasswordHashVerification.Failed, _hasher.VerifyStoredHash(new(storedHash), Client));
     }
 
     [Fact]
@@ -145,7 +158,7 @@ public sealed class ServerPasswordHasherTests
         services.Configure<PasswordHasherOptions>(options => options.IterationCount = 1);
         var hasher = CreateHasher(services);
 
-        var stored = Convert.FromBase64String(hasher.CreateStoredHash(ClientHash));
+        var stored = Convert.FromBase64String(hasher.CreateStoredHash(Client).Value);
 
         Assert.Equal(ServerIterations, BinaryPrimitives.ReadInt32BigEndian(stored.AsSpan(5)));
     }

@@ -34,8 +34,8 @@ public interface IServerPasswordHasher
     /// </summary>
     /// <param name="clientHash">The password hash sent by the client.</param>
     /// <returns>The hash to store.</returns>
-    /// <exception cref="ArgumentException"><paramref name="clientHash"/> is null, empty or white space.</exception>
-    string CreateStoredHash(string clientHash);
+    /// <exception cref="ArgumentException">The value of <paramref name="clientHash"/> is null, empty or white space.</exception>
+    ServerStorableHash CreateStoredHash(ClientCreatedHash clientHash);
 
     /// <summary>
     /// Checks <paramref name="clientHash"/> against <paramref name="storedHash"/>.
@@ -46,5 +46,5 @@ public interface IServerPasswordHasher
     /// <see cref="PasswordHashVerification.Failed"/> when either value is null, empty or white space,
     /// <paramref name="storedHash"/> is malformed, or the values do not match.
     /// </returns>
-    PasswordHashVerification VerifyStoredHash(string? storedHash, string? clientHash);
+    PasswordHashVerification VerifyStoredHash(ServerStorableHash storedHash, ClientCreatedHash clientHash);
 }

@@ -18,19 +18,22 @@ dotnet add package Bitwarden.Server.Sdk.PasswordHashing
 services.AddServerPasswordHasher();
 ```
 
-Store the hash of what the client sent:
+Wrap what the client sent in `ClientCreatedHash` and store the `ServerStorableHash` it returns. The
+wrappers keep the two from being swapped, and their `ToString` hides the value:
 
 ```csharp
-user.MasterPassword = hasher.CreateStoredHash(request.MasterPasswordHash);
+var clientHash = new ClientCreatedHash(request.MasterPasswordHash);
+user.MasterPassword = hasher.CreateStoredHash(clientHash).Value;
 ```
 
 Check it, and replace a hash stored with older parameters:
 
 ```csharp
-var result = hasher.VerifyStoredHash(user.MasterPassword, request.MasterPasswordHash);
+var clientHash = new ClientCreatedHash(request.MasterPasswordHash);
+var result = hasher.VerifyStoredHash(new ServerStorableHash(user.MasterPassword), clientHash);
 if (result == PasswordHashVerification.SuccessRehashNeeded)
 {
-    user.MasterPassword = hasher.CreateStoredHash(request.MasterPasswordHash);
+    user.MasterPassword = hasher.CreateStoredHash(clientHash).Value;
 }
 
 return result != PasswordHashVerification.Failed;

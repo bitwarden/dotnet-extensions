@@ -20,16 +20,17 @@ internal sealed class ServerPasswordHasher : IServerPasswordHasher
         IterationCount = Iterations,
     }));
 
-    public string CreateStoredHash(string clientHash)
+    public ServerStorableHash CreateStoredHash(ClientCreatedHash clientHash)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(clientHash);
+        ArgumentException.ThrowIfNullOrWhiteSpace(clientHash.Value, nameof(clientHash));
 
-        return _hasher.HashPassword(_user, clientHash);
+        return new ServerStorableHash(_hasher.HashPassword(_user, clientHash.Value));
     }
 
-    public PasswordHashVerification VerifyStoredHash(string? storedHash, string? clientHash)
+    public PasswordHashVerification VerifyStoredHash(ServerStorableHash storedHash, ClientCreatedHash clientHash)
     {
-        if (string.IsNullOrWhiteSpace(storedHash) || string.IsNullOrWhiteSpace(clientHash))
+        // Covers default(...) wrappers, whose Value is null.
+        if (string.IsNullOrWhiteSpace(storedHash.Value) || string.IsNullOrWhiteSpace(clientHash.Value))
         {
             return PasswordHashVerification.Failed;
         }
@@ -38,7 +39,7 @@ internal sealed class ServerPasswordHasher : IServerPasswordHasher
         PasswordVerificationResult result;
         try
         {
-            result = _hasher.VerifyHashedPassword(_user, storedHash, clientHash);
+            result = _hasher.VerifyHashedPassword(_user, storedHash.Value, clientHash.Value);
         }
         catch (FormatException)
         {
