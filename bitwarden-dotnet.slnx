@@ -79,6 +79,12 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.HealthChecks/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.HealthChecks/tests/Bitwarden.Server.Sdk.HealthChecks.Tests/Bitwarden.Server.Sdk.HealthChecks.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Idempotency.Abstractions/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Idempotency.Abstractions/src/Bitwarden.Server.Sdk.Idempotency.Abstractions.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Idempotency.Abstractions/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Idempotency.Abstractions/tests/Bitwarden.Server.Sdk.Idempotency.Abstractions.Tests/Bitwarden.Server.Sdk.Idempotency.Abstractions.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Infrastructure/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Infrastructure/src/Bitwarden.Server.Sdk.Infrastructure.csproj" />
   </Folder>
