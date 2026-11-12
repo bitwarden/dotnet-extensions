@@ -93,11 +93,51 @@ public interface IContext
     Guid? RecordedProviderId => null;
 
     /// <summary>
-    /// Every organization the acting person is a confirmed member of, if known.
+    /// The organizations of the party feature flags are evaluated for (<see cref="FlagSubjectKind"/>), if
+    /// known: every organization a person is a confirmed member of, or the one organization a credential
+    /// that isn't a person's acts for, where the flag subject lists one.
     /// </summary>
     /// <remarks>
     /// For feature flag targeting only. It grants nothing: no authorization, row filter, cache or
     /// audit record may read it.
     /// </remarks>
     IReadOnlyList<Guid>? UserOrganizationIds => null;
+
+    /// <summary>
+    /// The kind of party feature flags are evaluated for: who made the originating request, as the
+    /// token it presented says.
+    /// </summary>
+    /// <remarks>
+    /// For feature flag targeting only. It grants nothing: no authorization, row filter, cache or
+    /// audit record may read it.
+    /// </remarks>
+    FlagSubjectKind FlagSubjectKind => FlagSubjectKind.User;
+
+    /// <summary>
+    /// The party feature flags are evaluated for, by identifier: the person, organization, machine
+    /// account or access connector of <see cref="FlagSubjectKind"/>. Null for nobody in particular.
+    /// </summary>
+    /// <remarks>
+    /// For feature flag targeting only. It grants nothing: no authorization, row filter, cache or
+    /// audit record may read it.
+    /// </remarks>
+    Guid? FlagSubjectKey => null;
+
+    /// <summary>
+    /// The version of the client the originating request was made from, if known, as
+    /// <see cref="Version.ToString()"/> writes it.
+    /// </summary>
+    /// <remarks>
+    /// For feature flag targeting only.
+    /// </remarks>
+    string? ClientVersion => null;
+
+    /// <summary>
+    /// Whether the client the originating request was made from said it is a prerelease. Only ever
+    /// true alongside a <see cref="ClientVersion"/>.
+    /// </summary>
+    /// <remarks>
+    /// For feature flag targeting only.
+    /// </remarks>
+    bool ClientVersionIsPrerelease => false;
 }

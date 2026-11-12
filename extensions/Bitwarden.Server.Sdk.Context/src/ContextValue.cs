@@ -54,16 +54,42 @@ public sealed record ContextValue
     public Guid? RecordedProvider { get; init; }
 
     /// <summary>
-    /// The organizations the acting person is a confirmed member of, for feature flag targeting only.
-    /// Never an authority, a row filter or an audit fact. At most
+    /// The organizations of the party feature flags are evaluated for: those a person is a confirmed
+    /// member of, or the one a credential that isn't a person's acts for. For feature flag targeting
+    /// only. Never an authority, a row filter or an audit fact. At most
     /// <see cref="ContextHeader.MaximumOrganizations"/>.
     /// </summary>
     public IReadOnlyList<Guid>? Organizations { get; init; }
+
+    /// <summary>
+    /// The kind of party feature flags are evaluated for. For feature flag targeting only. Not written
+    /// when it is <see cref="FlagSubjectKind.User"/>, the default.
+    /// </summary>
+    public FlagSubjectKind FlagKind { get; init; }
+
+    /// <summary>
+    /// The party feature flags are evaluated for, by identifier; none for nobody in particular. For
+    /// feature flag targeting only.
+    /// </summary>
+    public Guid? FlagKey { get; init; }
+
+    /// <summary>
+    /// The version of the client the originating request was made from: two to four whole numbers
+    /// joined by dots, as <see cref="Version.ToString()"/> writes one. For feature flag targeting only.
+    /// </summary>
+    public string? ClientVersion { get; init; }
+
+    /// <summary>
+    /// Whether that client said it is a prerelease. Carried only when true, and only alongside
+    /// <see cref="ClientVersion"/>. For feature flag targeting only.
+    /// </summary>
+    public bool ClientVersionIsPrerelease { get; init; }
 
     /// <summary>
     /// Whether there is nothing to carry.
     /// </summary>
     public bool IsEmpty =>
         ClientIp is null && DeviceType is null && DeviceIdentifier is null && Credential is null && RecordedUser is null
-        && RecordedProvider is null && Organizations is not { Count: > 0 };
+        && RecordedProvider is null && Organizations is not { Count: > 0 } && FlagKind == FlagSubjectKind.User
+        && FlagKey is null && ClientVersion is null && !ClientVersionIsPrerelease;
 }
