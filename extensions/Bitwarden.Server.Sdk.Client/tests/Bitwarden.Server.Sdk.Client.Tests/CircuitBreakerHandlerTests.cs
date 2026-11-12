@@ -120,17 +120,19 @@ public sealed class CircuitBreakerHandlerTests
         {
             options.Retries = 0;
             options.BreakAfter = 2;
-            options.Timeout = TimeSpan.FromMilliseconds(200);
+            options.Timeout = TimeSpan.FromSeconds(1);
         });
         var probe = services.GetRequiredService<Probe>();
 
+        // The caller gives up as each attempt arrives, so its leaving can't race the deadline.
         for (var call = 0; call < 3; call++)
         {
             using var givingUp = CancellationTokenSource.CreateLinkedTokenSource(Token);
-            givingUp.CancelAfter(TimeSpan.FromMilliseconds(50));
+            callee.Arrived = givingUp.Cancel;
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => probe.SendAsync(HttpMethod.Get, givingUp.Token));
         }
 
+        callee.Arrived = null;
         Assert.Equal(3, callee.Attempts.Count);
 
         await Assert.ThrowsAsync<ServiceUnavailableException>(() => probe.SendAsync(HttpMethod.Get, Token));
