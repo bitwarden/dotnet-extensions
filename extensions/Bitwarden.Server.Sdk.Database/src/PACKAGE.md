@@ -145,6 +145,47 @@ builder.Services.AddOrderDatabase();
 
 Valid `Provider` values: `Sqlite`, `SqlServer`, `PostgreSql`, `MySql`.
 
+#### Opening the context with your own provider options
+
+`AddOrderDatabase()` opens the context with each engine's provider at the configured connection
+string and nothing more. To set provider options of your own, such as an interceptor, a command
+timeout, or a MySQL server version you already know, pass the provider configuration to the
+overload that takes one. It replaces the generated configuration for every engine, so handle each
+engine the schema declares. In the host's `Program.cs`:
+
+```csharp
+builder.Services.AddOrderDatabase((options, db) =>
+{
+    switch (options.Provider)
+    {
+        case DatabaseProvider.SqlServer:
+            db.UseSqlServer(options.ConnectionString, sql => sql.CommandTimeout(60));
+            break;
+        case DatabaseProvider.PostgreSql:
+            db.UseNpgsql(options.ConnectionString);
+            break;
+        case DatabaseProvider.MySql:
+            db.UseMySql(options.ConnectionString, new MariaDbServerVersion(new Version(11, 4)))
+                .AddInterceptors(new ReadCommittedInterceptor());
+            break;
+        default:
+            throw new InvalidOperationException($"Provider {options.Provider} is not supported.");
+    }
+});
+```
+
+The schema's migrations come with the registration either way: the generated migrations assembly is
+installed after your configuration runs, so each engine still gets only its own migrations, and one
+your configuration installs is replaced. Which migrations those are follows the EF Core provider you
+use, not `DatabaseOptions.Provider`, so configure the provider that `Provider` names. A provider the
+schema doesn't declare has no migrations, and asking for them throws. The [SQL Server migrator
+build](#building-a-sql-server-migrator-image) registers no context, so it has only
+`AddOrderDatabase()`.
+
+The generated registration asks a MySQL server its version through `ServerVersion.AutoDetect` each
+time it builds a context's options. Passing a known version, as above, or one you cache per
+connection string, saves that round trip.
+
 ### 4. Migrating on startup
 
 Registering a schema says nothing about who applies it. In the one service that owns a schema, ask
