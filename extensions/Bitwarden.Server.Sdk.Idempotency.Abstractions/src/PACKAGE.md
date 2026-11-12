@@ -129,8 +129,8 @@ honors the header for a service built on the SDK.
 - **An operation key is 1 to 200 visible ASCII characters** (`IdempotentOperation.MaximumKeyLength`); `Begin` throws
   `ArgumentException` otherwise.
 - **Begin the operation in the method that makes the writes, or one that awaits it.** An operation begun inside an
-  awaited method isn't seen by its caller. Once ended, an operation is never current again, even when operations are
-  ended out of order.
+  awaited method isn't seen by its caller. Once ended, an operation is never current again, and ending one out of order
+  leaves alone an operation begun since.
 - **A write whose body differs from the first run's** (it carries a time, or reads something the first run changed)
   gets a key of its own and is done as a new write. It is never refused for differing.
 

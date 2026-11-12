@@ -146,6 +146,35 @@ public sealed class IdempotentOperationTests
         Assert.Equal("next-op", IdempotentOperation.Current);
     }
 
+    // An operation ended out of order leaves alone one begun since: ending the one it was begun inside skips past it.
+    [Fact]
+    public void Begin_EndedOutOfOrder_KeepsAnOperationBegunSince()
+    {
+        var a = IdempotentOperation.Begin("a");
+        var b = IdempotentOperation.Begin("b");
+        a.Dispose();
+        using var c = IdempotentOperation.Begin("c");
+
+        b.Dispose();
+
+        Assert.Equal("c", IdempotentOperation.Current);
+    }
+
+    // Ending inner operations out of order brings back the nearest outer one that is still running.
+    [Fact]
+    public void Begin_InnerOperationsEndedOutOfOrder_RestoreTheOuterOne()
+    {
+        using var outer = IdempotentOperation.Begin("outer-op");
+        var first = IdempotentOperation.Begin("first-op");
+        var second = IdempotentOperation.Begin("second-op");
+
+        first.Dispose();
+        Assert.Equal("second-op", IdempotentOperation.Current);
+
+        second.Dispose();
+        Assert.Equal("outer-op", IdempotentOperation.Current);
+    }
+
     [Fact]
     public void Begin_AKeyOfTheMaximumLength_Begins()
     {

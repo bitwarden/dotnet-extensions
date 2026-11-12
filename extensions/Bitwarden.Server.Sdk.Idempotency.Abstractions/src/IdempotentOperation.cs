@@ -59,8 +59,8 @@ public static class IdempotentOperation
     /// </summary>
     /// <param name="key">Stable for the logical operation, and unique to it.</param>
     /// <returns>
-    /// Ends the operation, restoring any operation it was begun inside. An ended operation is never current again, even
-    /// when operations are ended out of order.
+    /// Ends the operation, restoring the nearest operation it was begun inside that is still running. An ended operation
+    /// is never current again, and one ended out of order leaves alone an operation begun since.
     /// </returns>
     /// <exception cref="ArgumentException"><paramref name="key"/> is blank, too long, or not visible ASCII.</exception>
     /// <remarks>
@@ -86,7 +86,7 @@ public static class IdempotentOperation
     /// </summary>
     public static string? Current => Active?.Key;
 
-    private static Scope? Active => Ambient.Value is { Ended: false } scope ? scope : null;
+    private static Scope? Active => Scope.LiveFrom(Ambient.Value);
 
     /// <summary>
     /// The operation key a message handler's work runs under: the handler's name and the envelope's identifier, so a
@@ -221,10 +221,25 @@ public static class IdempotentOperation
 
         public bool Ended { get; private set; }
 
+        private Scope? Outer { get; } = outer;
+
         /// <summary>
         /// How many times the operation has asked for <paramref name="target"/> before.
         /// </summary>
         public int Next((string, string, string, string) target) => _counts.AddOrUpdate(target, 0, (_, count) => count + 1);
+
+        /// <summary>
+        /// The nearest scope from <paramref name="scope"/> outwards that has not ended, or null.
+        /// </summary>
+        public static Scope? LiveFrom(Scope? scope)
+        {
+            while (scope is { Ended: true })
+            {
+                scope = scope.Outer;
+            }
+
+            return scope;
+        }
 
         public void Dispose()
         {
@@ -234,7 +249,13 @@ public static class IdempotentOperation
             }
 
             Ended = true;
-            Ambient.Value = outer;
+
+            // Only the current scope hands back to its outer one: a scope ended out of order leaves alone a scope begun
+            // since, which skips past it when it ends in turn.
+            if (ReferenceEquals(Ambient.Value, this))
+            {
+                Ambient.Value = LiveFrom(Outer);
+            }
         }
     }
 }

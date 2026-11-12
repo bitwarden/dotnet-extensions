@@ -14,8 +14,8 @@ TupleHash; it must take on no other.
 ## How it works
 
 The current operation is an `AsyncLocal` scope, which is why an operation begun inside an awaited method isn't seen by
-its caller. Ending a scope restores the one it was begun inside and marks it ended, so a scope ended out of order is
-never current again.
+its caller. Ending a scope marks it ended and, when it is the current scope, restores the nearest one it was begun inside
+that hasn't ended. A scope ended out of order is never current again, and leaves alone a scope begun since it.
 
 Each scope counts the times it has been asked for each target (a write's method, address and body, or an identifier's
 purpose), so identical writes in one run get distinct keys in the same order on every run. Keys and identifiers are
