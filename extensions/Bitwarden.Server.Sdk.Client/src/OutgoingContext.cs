@@ -84,8 +84,11 @@ internal static class OutgoingContext
     /// would show the peer that called it, which is the one thing these must never be replaced
     /// with. A system call's credential is <see cref="CallerCredential.System"/>, and only such a
     /// call carries a recorded person; the provider a staff member acts through is carried on every
-    /// call their request makes, the system's own included. The acting person's organizations, for
-    /// feature flags, are carried only on a call made as that person: never on a system call, nor on
+    /// call their request makes, the system's own included. The party feature flags are evaluated
+    /// for, and the client's version, are carried on every call, the system's own included: like the
+    /// device, they say where the originating request came from, and every flag the request leads to
+    /// is evaluated for the same party, as it would be in one server. The flag subject's
+    /// organizations are carried only on a call that keeps the actor: never on a system call, nor on
     /// one an <see cref="OutgoingCall"/> statement makes about somebody else. A value of a shape the
     /// callee would refuse is left out rather than sent, so a bad value recorded upstream costs a
     /// member, never the call.
@@ -107,14 +110,14 @@ internal static class OutgoingContext
         {
             Credential = context?.Credential,
             RecordedUser = context?.Credential == CallerCredential.System ? context.RecordedUserId : null,
-            Organizations = context?.UserId is { } person && (stated?.User ?? person) == person
-                ? MemberOrganizations(context.UserOrganizationIds)
+            Organizations = stated?.User is not { } named || named == context?.UserId
+                ? MemberOrganizations(context?.UserOrganizationIds)
                 : null,
         };
     }
 
     /// <summary>
-    /// A person's organizations worth carrying: each once, none empty, and no more than the callee
+    /// A flag subject's organizations worth carrying: each once, none empty, and no more than the callee
     /// accepts. A longer list is left out whole rather than cut to an arbitrary part.
     /// </summary>
     private static Guid[]? MemberOrganizations(IReadOnlyList<Guid>? organizations)
@@ -134,6 +137,13 @@ internal static class OutgoingContext
         DeviceType = Kept(context?.DeviceType, ContextHeader.IsDeviceType),
         DeviceIdentifier = Kept(context?.DeviceIdentifier, ContextHeader.IsDeviceIdentifier),
         RecordedProvider = context?.RecordedProviderId is { } provider && provider != Guid.Empty ? provider : null,
+        FlagKind = context is not null && Enum.IsDefined(context.FlagSubjectKind) ? context.FlagSubjectKind : FlagSubjectKind.User,
+        FlagKey = context is not null && Enum.IsDefined(context.FlagSubjectKind) && context.FlagSubjectKey is { } key && key != Guid.Empty
+            ? key
+            : null,
+        ClientVersion = Kept(context?.ClientVersion, ContextHeader.IsClientVersion),
+        ClientVersionIsPrerelease = context?.ClientVersionIsPrerelease == true
+            && ContextHeader.IsClientVersion(context.ClientVersion),
     };
 
     /// <summary>

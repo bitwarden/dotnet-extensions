@@ -25,7 +25,9 @@ A change must keep:
 
 - **The wire stable.** Header names, the `Bitwarden-Context` members and version, the token's type, claims and modes,
   and the `CallerCredential` names are read by services deployed apart from each other. `ContextHeader` reads only
-  `ContextHeader.Version`, so a new member needs a new version that every reader accepts first.
+  `ContextHeader.Version` and refuses a member it doesn't know, so a new member reaches every service's reader before
+  any writer sends it: the package ships to every service together, or the member comes with a new version that every
+  reader accepts first.
 - **Strict reading.** A malformed value is refused whole, never partly believed, and a refusal never echoes the value.
 - **Nothing but service names in a chain.** `CallChain.IsServiceName` admits no GUID, with or without hyphens, so
   nothing identifying a person, an organization or any data reaches a log or metric tag through it.
