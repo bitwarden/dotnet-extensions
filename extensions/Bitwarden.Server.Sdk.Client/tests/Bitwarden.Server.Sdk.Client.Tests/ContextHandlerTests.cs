@@ -61,6 +61,20 @@ public sealed class ContextHandlerTests
         Assert.Equal("device-1", carried.DeviceIdentifier);
     }
 
+    // An address the callee would refuse, such as the unspecified one, costs that member, never the call.
+    [Theory]
+    [InlineData("0.0.0.0")]
+    [InlineData("::")]
+    [InlineData("fe80::1%2")]
+    public async Task Send_WithAnAddressTheCalleeWouldRefuse_LeavesItOut(string address)
+    {
+        var sent = await Send(new StatedContext { ClientIpAddress = address, DeviceIdentifier = "device-1" });
+
+        var carried = Carried(sent);
+        Assert.Null(carried.ClientIp);
+        Assert.Equal("device-1", carried.DeviceIdentifier);
+    }
+
     // The four headers are this handler's: whatever a call site put there itself goes.
     [Fact]
     public async Task Send_WithHeadersTheCallSiteSet_ReplacesThemWithTheContexts()
