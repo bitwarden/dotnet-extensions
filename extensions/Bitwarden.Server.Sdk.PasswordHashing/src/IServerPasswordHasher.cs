@@ -15,7 +15,7 @@ namespace Bitwarden.Server.Sdk.PasswordHashing;
 ///     |
 ///  clientHash  -------- sent -------->  clientHash
 ///                                          |
-///                                       [slow hash]  (2)
+///                                       [slow hashing function]  (2)
 ///                                          |
 ///                                       stored
 /// </code>
