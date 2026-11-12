@@ -24,6 +24,9 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Authentication/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Authentication/tests/Bitwarden.Server.Sdk.Authentication.Tests/Bitwarden.Server.Sdk.Authentication.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Authorization/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Authorization/src/Bitwarden.Server.Sdk.Authorization.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Caching/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Caching/src/Bitwarden.Server.Sdk.Caching.csproj" />
   </Folder>
