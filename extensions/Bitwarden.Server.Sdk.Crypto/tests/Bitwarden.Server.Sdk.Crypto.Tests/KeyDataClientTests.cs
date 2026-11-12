@@ -89,6 +89,18 @@ public class KeyDataClientTests
         Assert.NotNull(ex.InnerException);
     }
 
+    // Both are COSE Sign1; the signing namespace tells them apart.
+    [Fact]
+    public void ValidateKey_SecurityStateAsSignedKey_ThrowsInvalidData()
+    {
+        var securityState = JsonNode.Parse(KeyDataFixtures.SecurityState)!["signedSecurityState"]!.GetValue<string>();
+        var data = With(KeyDataFixtures.PrivateKey, "signedKey", securityState);
+
+        var ex = Assert.Throws<InvalidKeyDataException>(() => Client.ValidateKey(data));
+
+        Assert.Equal(KeyDataError.InvalidData, ex.Error);
+    }
+
     [Fact]
     public void ValidateKey_UnknownMember_ThrowsInvalidData()
     {
