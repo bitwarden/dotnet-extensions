@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- Writes the error document with the host's own JSON options, by reflection, so a service's
+         serializer settings apply to it as to every other response. That cannot be proven trim- or
+         AOT-safe, so this package is declared not AOT-compatible rather than suppressed. -->
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <PreReleaseVersionLabel>alpha</PreReleaseVersionLabel>
+    <PreReleaseVersionIteration>1</PreReleaseVersionIteration>
+    <VersionSuffix Condition="'$(VersionSuffix)' == '' AND '$(IsPreRelease)' == 'true'">$(PreReleaseVersionLabel).$(PreReleaseVersionIteration)</VersionSuffix>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Description>Per-address request limits for Bitwarden services, counted in the process or in a shared Redis.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="StackExchange.Redis" Version="2.13.17" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Context\src\Bitwarden.Server.Sdk.Context.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Errors\src\Bitwarden.Server.Sdk.Errors.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.RateLimiting.Tests" />
+  </ItemGroup>
+
+</Project>
