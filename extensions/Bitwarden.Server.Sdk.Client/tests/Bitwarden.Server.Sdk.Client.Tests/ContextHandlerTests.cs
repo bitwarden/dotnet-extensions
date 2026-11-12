@@ -110,7 +110,76 @@ public sealed class ContextHandlerTests
         Assert.Equal([first, second], Carried(sent).Organizations);
     }
 
-    // They are the acting person's: never on a call naming nobody, nor about somebody else, nor as the system.
+    // The party flags are evaluated for, and the client's version, say where the request came from: carried on every
+    // call, the system's own and one about an organization included.
+    [Fact]
+    public async Task Send_TheFlagSubjectAndVersion_OnEveryCall()
+    {
+        var person = Guid.NewGuid();
+        var context = new StatedContext
+        {
+            UserId = person,
+            Credential = CallerCredential.User,
+            FlagSubjectKey = person,
+            ClientVersion = "2026.10.1",
+            ClientVersionIsPrerelease = true,
+        };
+
+        var asThePerson = await Send(context);
+        HttpRequestMessage aboutAnOrganization, asSystem;
+        using (OutgoingCall.AboutOrganization(Guid.NewGuid()))
+        {
+            aboutAnOrganization = await Send(context);
+        }
+
+        using (OutgoingCall.AsSystemAbout(person))
+        {
+            asSystem = await Send(context);
+        }
+
+        foreach (var sent in (HttpRequestMessage[])[asThePerson, aboutAnOrganization, asSystem])
+        {
+            var carried = Carried(sent);
+            Assert.Equal(FlagSubjectKind.User, carried.FlagKind);
+            Assert.Equal(person, carried.FlagKey);
+            Assert.Equal("2026.10.1", carried.ClientVersion);
+            Assert.True(carried.ClientVersionIsPrerelease);
+        }
+    }
+
+    // A party that is no person: an access connector, its organization carried with it.
+    [Fact]
+    public async Task Send_AnAccessConnector_CarriesItAndItsOrganization()
+    {
+        var connector = Guid.NewGuid();
+        var organization = Guid.NewGuid();
+
+        var carried = Carried(await Send(new StatedContext
+        {
+            OrganizationId = organization,
+            Credential = CallerCredential.Organization,
+            FlagSubjectKind = FlagSubjectKind.AccessConnector,
+            FlagSubjectKey = connector,
+            UserOrganizationIds = [organization],
+        }));
+
+        Assert.Equal(FlagSubjectKind.AccessConnector, carried.FlagKind);
+        Assert.Equal(connector, carried.FlagKey);
+        Assert.Equal([organization], carried.Organizations);
+    }
+
+    // A value the callee would refuse is left out rather than sent.
+    [Fact]
+    public async Task Send_AVersionOfAnotherShape_LeftOutWithItsPrerelease()
+    {
+        var carried = Carried(await Send(new StatedContext { ClientVersion = "2026.10.0-beta", ClientVersionIsPrerelease = true }));
+
+        Assert.Null(carried.ClientVersion);
+        Assert.False(carried.ClientVersionIsPrerelease);
+    }
+
+    // They are the flag subject's, carried on a call that keeps the actor: never about somebody else, nor as the
+    // system. A flag subject that is no person, such as an organization's own client, has them too.
     [Fact]
     public async Task Send_NotAsThePerson_CarriesNoOrganizations()
     {
@@ -136,7 +205,7 @@ public sealed class ContextHandlerTests
             aboutThemselves = await Send(context);
         }
 
-        Assert.Null(Carried(nobody).Organizations);
+        Assert.Equal(organizations, Carried(nobody).Organizations);
         Assert.Null(Carried(aboutSomebodyElse).Organizations);
         Assert.Null(Carried(asSystem).Organizations);
         Assert.Equal(organizations, Carried(aboutThemselves).Organizations);
