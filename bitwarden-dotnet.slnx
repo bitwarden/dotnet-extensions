@@ -117,6 +117,9 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Resources.Caching.Abstractions/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Resources.Caching.Abstractions/tests/Bitwarden.Server.Sdk.Resources.Caching.Abstractions.Tests/Bitwarden.Server.Sdk.Resources.Caching.Abstractions.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Resources/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Resources/src/Bitwarden.Server.Sdk.Resources.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.RestrictedDependencies/">
     <Project Path="extensions/Bitwarden.Server.Sdk.RestrictedDependencies/src/Bitwarden.Server.Sdk.RestrictedDependencies.csproj" />
   </Folder>
