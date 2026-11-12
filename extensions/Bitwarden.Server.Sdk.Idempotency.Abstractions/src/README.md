@@ -8,7 +8,8 @@ to use it.
 ## What belongs here
 
 Only what both the side that sends a write and the side that receives it need. Nothing here touches `HttpContext` or
-`HttpClient`, and nothing here sends or honors the header. The package has no dependencies, and must keep none.
+`HttpClient`, and nothing here sends or honors the header. Its one dependency is BouncyCastle.Cryptography, for
+TupleHash; it must take on no other.
 
 ## How it works
 
@@ -16,10 +17,18 @@ The current operation is an `AsyncLocal` scope, which is why an operation begun 
 its caller. Ending a scope restores the one it was begun inside and marks it ended, so a scope ended out of order is
 never current again.
 
-Each scope counts the times it has been asked for each target, so identical writes in one run get distinct keys in the
-same order on every run. A write's key is the lower-case hex SHA-256 of the operation key, the target
-(`write`, method, address and the body's SHA-256) and that count, joined by newlines. `DeriveId` hashes the same way
-with an `id` target and sets the version 8 and variant bits of RFC 9562.
+Each scope counts the times it has been asked for each target (a write's method, address and body, or an identifier's
+purpose), so identical writes in one run get distinct keys in the same order on every run. Keys and identifiers are
+TupleHash256 (NIST SP 800-185) with 256 bits of output, each field one element of the tuple, so no field can pass for
+two:
+
+| Derived       | Customization string           | Elements, in order                                | Result                                       |
+| ------------- | ------------------------------ | ------------------------------------------------- | -------------------------------------------- |
+| `KeyForWrite` | `Bitwarden idempotency key`    | operation key, method, address, body bytes, count | Lower-case hex of the 32 bytes               |
+| `DeriveId`    | `Bitwarden derived identifier` | operation key, purpose, count                     | First 16 bytes, with RFC 9562 version 8 bits |
+
+Text elements are UTF-8, and the count is in invariant decimal digits. The identifier's version and variant bits are
+set in the big-endian byte order RFC 9562 writes.
 
 ## Testing
 

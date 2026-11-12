@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using Org.BouncyCastle.Crypto.Digests;
 
 namespace Bitwarden.Server.Sdk.Idempotency;
 
@@ -39,6 +41,12 @@ namespace Bitwarden.Server.Sdk.Idempotency;
 public static class IdempotentOperation
 {
     private static readonly AsyncLocal<Scope?> Ambient = new();
+
+    // TupleHash (NIST SP 800-185) customization strings, one per use, so a write key and a derived identifier never
+    // share a preimage.
+    private static readonly byte[] WriteKeyCustomization = Encoding.UTF8.GetBytes("Bitwarden idempotency key");
+
+    private static readonly byte[] DerivedIdCustomization = Encoding.UTF8.GetBytes("Bitwarden derived identifier");
 
     /// <summary>
     /// The longest operation key accepted.
@@ -116,17 +124,33 @@ public static class IdempotentOperation
     /// <param name="method">The request's method.</param>
     /// <param name="address">The request's address.</param>
     /// <param name="body">The request's body; empty when it has none.</param>
-    /// <returns>A lower-case hex SHA-256, or null when no operation has begun.</returns>
+    /// <returns>A lower-case hex 256-bit TupleHash, or null when no operation has begun.</returns>
+    /// <remarks>
+    /// The key is TupleHash256 (NIST SP 800-185) with the customization string <c>Bitwarden idempotency key</c> over
+    /// the tuple of the operation's key, the method, the address and the body, each UTF-8 but the body, and the
+    /// ordinal, in decimal: how many identical writes the operation has made before.
+    /// </remarks>
     public static string? KeyForWrite(string method, string address, ReadOnlySpan<byte> body)
     {
+        ArgumentNullException.ThrowIfNull(method);
+        ArgumentNullException.ThrowIfNull(address);
+
         if (Active is not { } scope)
         {
             return null;
         }
 
-        var target = $"write\n{method}\n{address}\n{Convert.ToHexStringLower(SHA256.HashData(body))}";
+        // Counted by the body's digest rather than the body, so the scope never holds a body.
+        var ordinal = scope.Next(("write", method, address, Convert.ToHexStringLower(SHA256.HashData(body))));
 
-        return Hash(scope.Key, target, scope.Next(target));
+        var digest = NewDigest(WriteKeyCustomization);
+        AddElement(digest, scope.Key);
+        AddElement(digest, method);
+        AddElement(digest, address);
+        digest.BlockUpdate(body);
+        AddElement(digest, ordinal);
+
+        return Convert.ToHexStringLower(Finish(digest));
     }
 
     /// <summary>
@@ -148,8 +172,11 @@ public static class IdempotentOperation
             return null;
         }
 
-        var target = $"id\n{purpose}";
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes($"{scope.Key}\n{target}\n{scope.Next(target)}")).AsSpan(0, 16).ToArray();
+        var digest = NewDigest(DerivedIdCustomization);
+        AddElement(digest, scope.Key);
+        AddElement(digest, purpose);
+        AddElement(digest, scope.Next(("id", purpose, string.Empty, string.Empty)));
+        var bytes = Finish(digest).AsSpan(0, 16).ToArray();
 
         // RFC 9562 version 8 (custom) and the RFC variant, in the big-endian byte order the RFC writes.
         bytes[6] = (byte)((bytes[6] & 0x0F) | 0x80);
@@ -169,12 +196,26 @@ public static class IdempotentOperation
         return $"{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(name)))}:{occurrence}";
     }
 
-    private static string Hash(string key, string target, int ordinal) =>
-        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"{key}\n{target}\n{ordinal}")));
+    // TupleHash256 for 256 bits of preimage resistance, the strength SHA-256 gives; the 256-bit output bounds
+    // collision resistance at 128 bits either way. Each BlockUpdate is one element of the tuple.
+    private static TupleHash NewDigest(byte[] customization) => new(256, customization, 256);
+
+    private static void AddElement(TupleHash digest, string element) => digest.BlockUpdate(Encoding.UTF8.GetBytes(element));
+
+    private static void AddElement(TupleHash digest, int ordinal) =>
+        AddElement(digest, ordinal.ToString(CultureInfo.InvariantCulture));
+
+    private static byte[] Finish(TupleHash digest)
+    {
+        var output = new byte[digest.GetDigestSize()];
+        digest.DoFinal(output, 0);
+
+        return output;
+    }
 
     private sealed class Scope(string key, Scope? outer) : IDisposable
     {
-        private readonly ConcurrentDictionary<string, int> _counts = new(StringComparer.Ordinal);
+        private readonly ConcurrentDictionary<(string, string, string, string), int> _counts = new();
 
         public string Key { get; } = key;
 
@@ -183,7 +224,7 @@ public static class IdempotentOperation
         /// <summary>
         /// How many times the operation has asked for <paramref name="target"/> before.
         /// </summary>
-        public int Next(string target) => _counts.AddOrUpdate(target, 0, (_, count) => count + 1);
+        public int Next((string, string, string, string) target) => _counts.AddOrUpdate(target, 0, (_, count) => count + 1);
 
         public void Dispose()
         {

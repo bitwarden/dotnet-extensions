@@ -15,4 +15,8 @@
     <Description>Idempotency keys, and the operations whose writes repeat the same keys, shared by Bitwarden services and their callers.</Description>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
+  </ItemGroup>
+
 </Project>

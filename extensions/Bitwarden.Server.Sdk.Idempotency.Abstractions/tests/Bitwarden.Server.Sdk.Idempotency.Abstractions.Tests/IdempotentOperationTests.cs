@@ -1,3 +1,5 @@
+using Org.BouncyCastle.Crypto.Digests;
+
 namespace Bitwarden.Server.Sdk.Idempotency.Abstractions.Tests;
 
 public sealed class IdempotentOperationTests
@@ -220,32 +222,111 @@ public sealed class IdempotentOperationTests
         Assert.NotEqual(IdempotentOperation.ForJob("purge", dueAt), IdempotentOperation.ForJob("purge", dueAt.AddDays(1)));
     }
 
-    // Golden vectors computed outside .NET (Python's hashlib and uuid), so a client in another language can match the
-    // keys, and so a change that derives a different key for the same write fails here: a key is a wire format, and a
-    // run after an upgrade that derives other keys does its writes twice.
+    // A field that holds a newline can't pass for two fields: each is its own element of the tuple. Each write is the
+    // first of its operation, so only the fields tell the keys apart.
+    [Fact]
+    public void KeyForWrite_AMethodAndAddressAreNeverAmbiguous()
+    {
+        string? Run(string method, string address)
+        {
+            using var operation = IdempotentOperation.Begin("operation-1");
+            return IdempotentOperation.KeyForWrite(method, address, []);
+        }
+
+        Assert.NotEqual(Run("POST", "https://callee/a\nhttps://callee/b"), Run("POST\nhttps://callee/a", "https://callee/b"));
+    }
+
+    // Identical writes are counted by their fields, never by a joined string, so a write whose fields join to the same
+    // text as an earlier write's is still the first of its kind.
+    [Fact]
+    public void KeyForWrite_CountsIdenticalWritesByTheirFields()
+    {
+        string? Run(bool first)
+        {
+            using var operation = IdempotentOperation.Begin("operation-1");
+            if (first)
+            {
+                IdempotentOperation.KeyForWrite("POST", "https://callee/a\nhttps://callee/b", []);
+            }
+
+            return IdempotentOperation.KeyForWrite("POST\nhttps://callee/a", "https://callee/b", []);
+        }
+
+        Assert.Equal(Run(first: false), Run(first: true));
+    }
+
+    // Golden vectors computed outside .NET, so a client in another language can match the keys, and so a change that
+    // derives a different key for the same write fails here: a key is a wire format, and a run after an upgrade that
+    // derives other keys does its writes twice. Computed with pycryptodome 4.3.0:
+    //
+    //   from Crypto.Hash import TupleHash256
+    //   import uuid
+    //
+    //   def write_key(op, method, address, body, ordinal):
+    //       h = TupleHash256.new(digest_bytes=32, custom=b"Bitwarden idempotency key")
+    //       for e in (op.encode(), method.encode(), address.encode(), body, str(ordinal).encode()):
+    //           h.update(e)
+    //       return h.hexdigest()
+    //
+    //   def derive_id(op, purpose, ordinal):
+    //       h = TupleHash256.new(digest_bytes=32, custom=b"Bitwarden derived identifier")
+    //       for e in (op.encode(), purpose.encode(), str(ordinal).encode()):
+    //           h.update(e)
+    //       b = bytearray(h.digest()[:16])
+    //       b[6] = (b[6] & 0x0F) | 0x80
+    //       b[8] = (b[8] & 0x3F) | 0x80
+    //       return uuid.UUID(bytes=bytes(b))
+    //
+    //   write_key("operation-1", "POST", "https://callee/api/v1/things", b'{"a":1}', 0)
     [Fact]
     public void KeyForWrite_MatchesTheGoldenVectors()
     {
         using var operation = IdempotentOperation.Begin("operation-1");
 
         Assert.Equal(
-            "b9c0297a16c05917f933e9c467632c5ab9174f4335bd4bf16fda9776181b5b3e",
+            "06b9a7165ec09e196c56a1a140ad8397438e82bdcfb1f3dfa8c3d97e7fca6e60",
             IdempotentOperation.KeyForWrite("POST", Address, "{\"a\":1}"u8));
         Assert.Equal(
-            "0faaa2bea2237fba0422bce90e2d3694d5de2b9ad3442a448a76d65d0e5e9acc",
+            "416dfe7157a7716c317e2754684c9ba179e9a5eedc59e78e383ca4240aeff03f",
             IdempotentOperation.KeyForWrite("POST", Address, "{\"a\":1}"u8));
         Assert.Equal(
-            "e8676ed8fc9b8d2cce9d9da6d1cbd066e9031e7701887908df9463e76a34cbf3",
+            "c19a2f7b98f10097ff4fa70ba0d09c3f00a19cb69a5b85fc15c627ad81cda8c2",
             IdempotentOperation.KeyForWrite("DELETE", Address, []));
     }
 
+    // Computed with derive_id above.
     [Fact]
     public void DeriveId_MatchesTheGoldenVectors()
     {
         using var operation = IdempotentOperation.Begin("operation-1");
 
-        Assert.Equal(Guid.Parse("1b6ab81d-515e-8cdc-b188-66740a4b2127"), IdempotentOperation.DeriveId("mail"));
-        Assert.Equal(Guid.Parse("c808cbf8-f938-8493-a3e9-c4417785220e"), IdempotentOperation.DeriveId("mail"));
+        Assert.Equal(Guid.Parse("bbc9c510-7bb9-8bb0-af4f-179e05157b9b"), IdempotentOperation.DeriveId("mail"));
+        Assert.Equal(Guid.Parse("2d441064-7039-8d5d-8ef1-4128aef4d8ad"), IdempotentOperation.DeriveId("mail"));
+    }
+
+    // The keys rely on each BlockUpdate being one element of the tuple. These are the TupleHash samples from NIST's
+    // SP 800-185 example values: #1 to #3 for TupleHash128 and #4 to #6 for TupleHash256. The output length is part of
+    // TupleHash's input, so each asks for the length its sample gives.
+    [Theory]
+    [InlineData(128, "", 2, "c5d8786c1afb9b82111ab34b65b2c0048fa64e6d48e263264ce1707d3ffc8ed1")]
+    [InlineData(128, "My Tuple App", 2, "75cdb20ff4db1154e841d758e24160c54bae86eb8c13e7f5f40eb35588e96dfb")]
+    [InlineData(128, "My Tuple App", 3, "e60f202c89a2631eda8d4c588ca5fd07f39e5151998deccf973adb3804bb6e84")]
+    [InlineData(256, "", 2, "cfb7058caca5e668f81a12a20a2195ce97a925f1dba3e7449a56f82201ec607311ac2696b1ab5ea2352df1423bde7bd4bb78c9aed1a853c78672f9eb23bbe194")]
+    [InlineData(256, "My Tuple App", 2, "147c2191d5ed7efd98dbd96d7ab5a11692576f5fe2a5065f3e33de6bba9f3aa1c4e9a068a289c61c95aab30aee1e410b0b607de3620e24a4e3bf9852a1d4367e")]
+    [InlineData(256, "My Tuple App", 3, "45000be63f9b6bfd89f54717670f69a9bc763591a4f05c50d68891a744bcc6e7d6d5b5e82c018da999ed35b0bb49c9678e526abd8e85c13ed254021db9e790ce")]
+    public void TupleHash_TreatsEachBlockUpdateAsOneElement(int strength, string customization, int elements, string expected)
+    {
+        byte[][] tuple = [Convert.FromHexString("000102"), Convert.FromHexString("101112131415"), Convert.FromHexString("202122232425262728")];
+        var digest = new TupleHash(strength, System.Text.Encoding.UTF8.GetBytes(customization), strength * 2);
+        foreach (var element in tuple.Take(elements))
+        {
+            digest.BlockUpdate(element);
+        }
+
+        var output = new byte[digest.GetDigestSize()];
+        digest.DoFinal(output, 0);
+
+        Assert.Equal(expected, Convert.ToHexStringLower(output));
     }
 
     [Fact]

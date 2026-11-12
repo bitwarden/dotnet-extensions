@@ -7,8 +7,8 @@ idempotency key.
 
 A write that fails in transit may or may not have been done. This package names the `Idempotency-Key` header a client
 sends with a write, says which keys are valid, and lets a piece of work (a retry loop, a message handler, a job) name
-itself once, so that when it runs again from the start its writes carry the same keys as the first time. It has no
-dependencies.
+itself once, so that when it runs again from the start its writes carry the same keys as the first time. It depends
+only on BouncyCastle.Cryptography, for the TupleHash that derives keys.
 
 ## Installing
 
