@@ -679,3 +679,24 @@ public class OrderDatabaseContext(DbContextOptions<OrderDatabaseContext> options
 ```
 
 **Fix:** Set `DesignTimeServices` to a type implementing `IDatabaseDesignTimeServices` that registers the constructor's dependencies.
+
+## BW0026
+
+**Title:** DatabaseSetup declares MariaDB
+**Severity:** Error
+**Category:** Bitwarden.Database
+**Package:** `Bitwarden.Server.Sdk.Database`
+**Code fix available:** No
+
+### Summary
+
+Reported when `DatabaseProvider.MariaDb` is among the providers declared on `[DatabaseSetup]`. MariaDB runs through the same EF Core provider as MySQL, with MySQL's migrations, so a schema that declares `DatabaseProvider.MySql` serves MariaDB too. `MariaDb` is a value a host configures in `DatabaseOptions.Provider`, not a separate set of migrations.
+
+### Example
+
+```csharp
+// BW0026
+[assembly: DatabaseSetup<OrderDatabaseContext>([DatabaseProvider.PostgreSql, DatabaseProvider.MariaDb])]
+```
+
+**Fix:** Declare `DatabaseProvider.MySql` in place of `DatabaseProvider.MariaDb`.

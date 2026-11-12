@@ -24,6 +24,7 @@
     <PackageReference Include="Testcontainers.MsSql" Version="[4.16.0]" />
     <PackageReference Include="Testcontainers.PostgreSql" Version="[4.16.0]" />
     <PackageReference Include="Testcontainers.MySql" Version="[4.16.0]" />
+    <PackageReference Include="Testcontainers.MariaDb" Version="[4.16.0]" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[9.0.4]" />
     <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="[9.0.0]" />
     <!-- Pomelo 9.0.0 allows 2.4.0, which GHSA-473q-m89c-ghf8 affects; 2.6.1 is the first patched release. -->

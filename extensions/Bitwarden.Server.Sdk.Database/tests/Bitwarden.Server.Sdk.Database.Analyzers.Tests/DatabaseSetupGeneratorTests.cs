@@ -224,6 +224,7 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                             builder.UseNpgsql(opts.ConnectionString);
                             break;
                         case DatabaseProvider.MySql:
+                        case DatabaseProvider.MariaDb:
                             builder.UseMySql(opts.ConnectionString, ServerVersion.AutoDetect(opts.ConnectionString));
                             break;
                         default:
@@ -295,12 +296,17 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                     {
                         Description = "MySQL connection string",
                     };
+                    var mariaDb = new Option<string?>("--mariadb")
+                    {
+                        Description = "MariaDB connection string",
+                    };
                     var root = new RootCommand("MyDatabase migrations")
                     {
                         sqlite,
                         sqlServer,
                         postgreSql,
                         mySql,
+                        mariaDb,
                     };
                     root.SetAction(async (parseResult, cancellationToken) =>
                     {
@@ -308,6 +314,7 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                         await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.SqlServer, parseResult.GetValue(sqlServer), "My", services => services.AddMyDatabase());
                         await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.PostgreSql, parseResult.GetValue(postgreSql), "My", services => services.AddMyDatabase());
                         await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.MySql, parseResult.GetValue(mySql), "My", services => services.AddMyDatabase());
+                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.MariaDb, parseResult.GetValue(mariaDb), "My", services => services.AddMyDatabase());
                     });
 
             #if DEBUG
@@ -554,6 +561,7 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                             builder.UseNpgsql(opts.ConnectionString);
                             break;
                         case DatabaseProvider.MySql:
+                        case DatabaseProvider.MariaDb:
                             builder.UseMySql(opts.ConnectionString, ServerVersion.AutoDetect(opts.ConnectionString));
                             break;
                         default:
@@ -625,12 +633,17 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                     {
                         Description = "MySQL connection string",
                     };
+                    var mariaDb = new Option<string?>("--mariadb")
+                    {
+                        Description = "MariaDB connection string",
+                    };
                     var root = new RootCommand("FooDatabase migrations")
                     {
                         sqlite,
                         sqlServer,
                         postgreSql,
                         mySql,
+                        mariaDb,
                     };
                     root.SetAction(async (parseResult, cancellationToken) =>
                     {
@@ -638,6 +651,7 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                         await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.SqlServer, parseResult.GetValue(sqlServer), "Custom", services => services.AddFooDatabase());
                         await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.PostgreSql, parseResult.GetValue(postgreSql), "Custom", services => services.AddFooDatabase());
                         await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.MySql, parseResult.GetValue(mySql), "Custom", services => services.AddFooDatabase());
+                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.MariaDb, parseResult.GetValue(mariaDb), "Custom", services => services.AddFooDatabase());
                     });
 
             #if DEBUG
@@ -1205,6 +1219,7 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                             builder.UseNpgsql(opts.ConnectionString);
                             break;
                         case DatabaseProvider.MySql:
+                        case DatabaseProvider.MariaDb:
                             builder.UseMySql(opts.ConnectionString, ServerVersion.AutoDetect(opts.ConnectionString));
                             break;
                         default:
@@ -1276,12 +1291,17 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                     {
                         Description = "MySQL connection string",
                     };
+                    var mariaDb = new Option<string?>("--mariadb")
+                    {
+                        Description = "MariaDB connection string",
+                    };
                     var root = new RootCommand("MyDatabase migrations")
                     {
                         sqlite,
                         sqlServer,
                         postgreSql,
                         mySql,
+                        mariaDb,
                     };
                     root.SetAction(async (parseResult, cancellationToken) =>
                     {
@@ -1289,6 +1309,7 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                         await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.SqlServer, parseResult.GetValue(sqlServer), "My", services => services.AddMyDatabase());
                         await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.PostgreSql, parseResult.GetValue(postgreSql), "My", services => services.AddMyDatabase());
                         await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.MySql, parseResult.GetValue(mySql), "My", services => services.AddMyDatabase());
+                        await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.MariaDb, parseResult.GetValue(mariaDb), "My", services => services.AddMyDatabase());
                     });
 
             #if DEBUG

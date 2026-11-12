@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Testcontainers.MariaDb;
 using Testcontainers.MySql;
 using Testcontainers.PostgreSql;
 
@@ -69,6 +70,24 @@ public class EfProviderIntegrationTests
                 opts.ConnectionString,
                 ServerVersion.AutoDetect(opts.ConnectionString)),
             DatabaseProvider.MySql,
+            selectWidget: "SELECT Name FROM Widgets WHERE Id = 1");
+
+        Assert.Equal("from-mysql-helper-script", widget);
+    }
+
+    [Fact(Explicit = true)]
+    public async Task MariaDb_AppliesMySqlsMigrationsAndItsHelperScript()
+    {
+        // MariaDB runs through MySQL's provider, so it gets MySQL's migrations and helper script.
+        await using var container = new MariaDbBuilder().WithImage("mariadb:11.4").Build();
+        await container.StartAsync(TestContext.Current.CancellationToken);
+
+        var widget = await MigrateAndReadWidgetAsync(
+            container.GetConnectionString(),
+            static (opts, builder) => builder.UseMySql(
+                opts.ConnectionString,
+                ServerVersion.AutoDetect(opts.ConnectionString)),
+            DatabaseProvider.MariaDb,
             selectWidget: "SELECT Name FROM Widgets WHERE Id = 1");
 
         Assert.Equal("from-mysql-helper-script", widget);

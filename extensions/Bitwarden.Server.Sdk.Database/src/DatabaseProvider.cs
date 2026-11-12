@@ -22,7 +22,13 @@ public enum DatabaseProvider
     PostgreSql,
 
     /// <summary>
-    /// MySQL / MariaDB — managed via EF Core migrations using the Pomelo provider or Microting's fork of it.
+    /// MySQL, managed via EF Core migrations using the Pomelo provider or Microting's fork of it.
     /// </summary>
     MySql,
+
+    /// <summary>
+    /// MariaDB, through the same EF Core provider as <see cref="MySql"/>, running MySQL's migrations. A
+    /// schema declares <see cref="MySql"/>, which serves MariaDB too; this value is what a host configures.
+    /// </summary>
+    MariaDb,
 }

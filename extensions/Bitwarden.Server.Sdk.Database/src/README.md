@@ -19,7 +19,8 @@ plumbing. See `PACKAGE.md` for the consumer guide.
 
 - `DatabaseOptions` — named options for a schema: `Provider` + `ConnectionString`. Resolved by the
   migrator key.
-- `DatabaseProvider` — enum: `Sqlite`, `SqlServer`, `PostgreSql`, `MySql`.
+- `DatabaseProvider`, an enum: `Sqlite`, `SqlServer`, `PostgreSql`, `MySql`, `MariaDb`. Members are
+  appended, never reordered, since configuration and compiled consumers hold their numeric values.
 - `AutoMigrateOptions` — named per schema, keyed by `IDatabaseMigrator.Name`; `AutoMigrate` is off
   unless a host opts in with `AutoMigrateWhenSelfHosted(key)`, since sharing a schema is normal and
   only its owner should apply it.
@@ -234,6 +235,18 @@ Implemented:
   The generated calls are identical, and the dispatcher matches whichever assembly name was
   referenced. Both at once is `BW0019`, an error, since the two define the same types and the
   generated code couldn't bind to either.
+- MariaDB is an engine a host configures, not one a schema declares. It runs through MySQL's
+  provider, and the dispatcher selects migrations by the active provider's assembly name, so a
+  context configured for MariaDB gets MySQL's migrations, and helper scripts resolve to
+  `MySql/HelperScripts`, with nothing MariaDB-specific in either. The generator emits
+  `DatabaseProvider.MariaDb` wherever it emits `DatabaseProvider.MySql` for configuration: a second
+  case label on the same `UseMySql` call in `ConfigureProvider`, where `ServerVersion.AutoDetect`
+  describes a MariaDB server as MariaDB, and a `--mariadb` option beside `--mysql`. `add-migration`
+  and the design-time factories are untouched: there is one set of migrations to scaffold. A
+  separately declarable MariaDB would need its own subcontext and migrations folder, and a way for
+  the dispatcher to tell two engines apart behind one provider name, for a set of migrations
+  identical to MySQL's. Declaring it is `BW0026`, an error, rather than a silent alias, so the
+  attribute keeps listing exactly the sets of migrations a schema has.
 - With `SqlServerMigrations = SqlServerMigrations.EfCore`, SQL Server is treated like the other
   engines throughout the generated file: a subcontext and factory, entries in the dispatcher and in
   `add-migration`, and `AddDatabase(..., SqlServerMigrations.EfCore)`, which makes `CreateMigrator`

@@ -55,6 +55,11 @@ the same for both; reference whichever one you use. Referencing both is a build 
 since they define the same types. This package targets EF Core 9, so use a 9.x version of
 whichever provider you pick.
 
+MariaDB needs no declaration of its own: it runs through the same provider as MySQL, with MySQL's
+migrations, so a schema that declares `DatabaseProvider.MySql` serves MariaDB too. Declaring
+`DatabaseProvider.MariaDb` is a build error (`BW0026`); it's a value a host
+[configures](#3-register-in-your-host-application).
+
 Scripts aren't embedded for you yet. Until `Bitwarden.Server.Sdk` can do it, [project
 setup](#project-setup) declares the `EmbeddedResource` items for `.sql` under `Migrations/SqlServer/`
 and under any `HelperScripts/` folder, with the `LogicalName` the migrator expects. Without them the
@@ -143,7 +148,19 @@ builder.Services.AddOrderDatabase();
 }
 ```
 
-Valid `Provider` values: `Sqlite`, `SqlServer`, `PostgreSql`, `MySql`.
+Valid `Provider` values: `Sqlite`, `SqlServer`, `PostgreSql`, `MySql`, `MariaDb`.
+
+`MariaDb` is for a schema that declares `DatabaseProvider.MySql`, on a MariaDB server. It opens the
+context with the MySQL provider and applies MySQL's migrations:
+
+```json
+{
+  "OrderDatabase": {
+    "Provider": "MariaDb",
+    "ConnectionString": "Server=localhost;Database=orders"
+  }
+}
+```
 
 #### Opening the context with your own provider options
 
@@ -181,10 +198,14 @@ build](#building-a-sql-server-migrator-image) registers no context, so it has on
 
 For a schema that declares MySQL, the generated registration asks the server its version through
 `ServerVersion.AutoDetect` each time it builds a context's options. Passing a version you know, or
-one you cache per connection string, saves that round trip, and describes MariaDB as MariaDB:
+one you cache per connection string, saves that round trip. `DatabaseOptions.Provider` tells MySQL
+and MariaDB apart, so each can be described as itself:
 
 ```csharp
 case DatabaseProvider.MySql:
+    db.UseMySql(options.ConnectionString, new MySqlServerVersion(new Version(8, 4)));
+    break;
+case DatabaseProvider.MariaDb:
     db.UseMySql(options.ConnectionString, new MariaDbServerVersion(new Version(11, 4)));
     break;
 ```
@@ -216,6 +237,7 @@ dotnet run -- add-migration <MigrationName>
 
 This calls `dotnet ef migrations add` for each EF provider (SQLite, PostgreSQL, MySQL) and places
 the generated files under `Migrations/Sqlite/`, `Migrations/PostgreSql/`, and `Migrations/MySql/`.
+MariaDB runs the ones under `Migrations/MySql/`, so it has no folder of its own.
 SQL Server is not among them — it is migrated by DbUp from hand-authored scripts, so no subcontext
 or design-time factory is generated for it and `dotnet ef` has nothing to target. EF migration calls
 against a SQL Server-configured context throw rather than silently applying nothing:
@@ -524,6 +546,7 @@ The generated CLI accepts connections directly, which is useful in CI/CD pipelin
 dotnet run -- \
   --postgresql "Host=…;Database=orders" \
   --mysql "Server=…;Database=orders" \
+  --mariadb "Server=…;Database=orders" \
   --sqlite "Data Source=orders.db"
 
 # SQL Server (DbUp) — the connection string is positional
@@ -531,7 +554,8 @@ dotnet run -- "Server=…;Database=orders"
 ```
 
 The option names are the providers declared on `[DatabaseSetup]`, lowercased: `--sqlite`, `--sqlserver`,
-`--postgresql`, `--mysql`. A provider you leave out is skipped. The SQL Server migrator is a separate
+`--postgresql`, `--mysql`. A schema that declares MySQL also takes `--mariadb`, which applies MySQL's
+migrations to a MariaDB server. A provider you leave out is skipped. The SQL Server migrator is a separate
 build of the same project (see [Building a SQL Server migrator image](#building-a-sql-server-migrator-image)) and takes its
 connection string as a positional argument rather than an option.
 
@@ -558,7 +582,7 @@ Resolved by named options key matching the `MigratorKey`. Configure with:
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `Provider` | `DatabaseProvider` | `Sqlite`, `SqlServer`, `PostgreSql`, or `MySql` |
+| `Provider` | `DatabaseProvider` | `Sqlite`, `SqlServer`, `PostgreSql`, `MySql`, or `MariaDb` |
 | `ConnectionString` | `string` | Provider-specific connection string |
 
 ### `SqlServerMigrationOptions`

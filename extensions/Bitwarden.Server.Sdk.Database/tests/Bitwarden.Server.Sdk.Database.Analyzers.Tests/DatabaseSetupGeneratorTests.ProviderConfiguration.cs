@@ -120,7 +120,8 @@ public partial class DatabaseSetupGeneratorTests
     {
         // Reading the migration list touches the dispatcher but not the database, so no server is
         // needed. MySQL and MariaDB are described by an explicit server version, as a caller that
-        // caches or fixes it would, so nothing asks a server for one.
+        // caches or fixes it would, so nothing asks a server for one. MariaDB, configured as itself,
+        // gets MySQL's migration and no other.
         var assembly = EmitAndLoad(RunGenerator(await BuildCompilationAsync(SchemaWithAMigrationPerEngine)));
 
         var (databaseProvider, connectionString, configure) = engine switch
@@ -131,7 +132,7 @@ public partial class DatabaseSetupGeneratorTests
                 (o, b) => b.UseNpgsql(o.ConnectionString)),
             "MySql" => (DatabaseProvider.MySql, "Server=localhost;Database=nope",
                 (o, b) => b.UseMySql(o.ConnectionString, new MySqlServerVersion(new Version(8, 4)))),
-            "MariaDb" => (DatabaseProvider.MySql, "Server=localhost;Database=nope",
+            "MariaDb" => (DatabaseProvider.MariaDb, "Server=localhost;Database=nope",
                 (o, b) => b.UseMySql(o.ConnectionString, new MariaDbServerVersion(new Version(11, 4)))),
             _ => throw new ArgumentOutOfRangeException(nameof(engine), engine, null),
         };

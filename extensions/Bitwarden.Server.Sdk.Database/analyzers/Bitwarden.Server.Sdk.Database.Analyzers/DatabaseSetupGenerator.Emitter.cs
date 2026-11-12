@@ -358,8 +358,9 @@ public sealed partial class DatabaseSetupGenerator
             assignments += "\n            o.PreviousScriptPrefix = PreviousScriptPrefix;";
         }
 
+        // One case per engine the provider serves, so MariaDB shares MySQL's.
         var cases = string.Join("\n", providers.Select(p =>
-            $"            case DatabaseProvider.{p.Name}:\n" +
+            string.Concat(ServedEngines(p.Name).Select(e => $"            case DatabaseProvider.{e}:\n")) +
             $"                builder.{ProviderUseCall(p.Name)};\n" +
             "                break;"));
 
@@ -538,20 +539,23 @@ public sealed partial class DatabaseSetupGenerator
         ImmutableArray<ProviderSpec> providers,
         string? projectDir)
     {
-        var options = string.Join("\n", providers.Select(p =>
-            $"        var {LowerFirst(p.Name)} = new Option<string?>(\"--{p.Name.ToLowerInvariant()}\")\n" +
+        // One option per engine served, so a MySQL schema takes --mariadb as well as --mysql.
+        var engines = providers.SelectMany(p => ServedEngines(p.Name)).ToImmutableArray();
+
+        var options = string.Join("\n", engines.Select(e =>
+            $"        var {LowerFirst(e)} = new Option<string?>(\"--{e.ToLowerInvariant()}\")\n" +
             "        {\n" +
-            $"            Description = \"{ProviderDescription(p.Name)}\",\n" +
+            $"            Description = \"{ProviderDescription(e)}\",\n" +
             "        };"));
 
         // Required by RootCommand in System.CommandLine 2.0. SchemaName often already ends in
         // "Database", so no second "database" here.
         var description = $"{attr.SchemaName} migrations";
 
-        var rootCommand = providers.Length > 0
+        var rootCommand = engines.Length > 0
             ? $"        var root = new RootCommand(\"{description}\")\n"
               + "        {\n"
-              + string.Join("\n", providers.Select(p => $"            {LowerFirst(p.Name)},")) + "\n"
+              + string.Join("\n", engines.Select(e => $"            {LowerFirst(e)},")) + "\n"
               + "        };"
             : $"        var root = new RootCommand(\"{description}\");";
 
@@ -561,9 +565,9 @@ public sealed partial class DatabaseSetupGenerator
             ? $"services => {{ services.Add{attr.SchemaName}(); {attr.SchemaName}DesignTimeActivator.Register(services); }}"
             : $"services => services.Add{attr.SchemaName}()";
 
-        var migrateCalls = string.Join("\n", providers.Select(p =>
-            $"            await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.{p.Name}, " +
-            $"parseResult.GetValue({LowerFirst(p.Name)}), {Literal(attr.MigratorKey)}, " +
+        var migrateCalls = string.Join("\n", engines.Select(e =>
+            $"            await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.{e}, " +
+            $"parseResult.GetValue({LowerFirst(e)}), {Literal(attr.MigratorKey)}, " +
             $"{registerDatabase});"));
 
         var efProviders = string.Join("\n", providers

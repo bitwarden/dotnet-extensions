@@ -86,6 +86,15 @@
           "MySqlConnector": "2.4.0"
         }
       },
+      "Testcontainers.MariaDb": {
+        "type": "Direct",
+        "requested": "[4.16.0, 4.16.0]",
+        "resolved": "4.16.0",
+        "contentHash": "aYyAWBF+nHgkP8nEqpdduG9N97DYRUcq4p5YIneoJ8zTaW3l58wK1CWePzcVTydeKGGU0Wsw/ubsLScjUlN+/g==",
+        "dependencies": {
+          "Testcontainers": "4.16.0"
+        }
+      },
       "Testcontainers.MsSql": {
         "type": "Direct",
         "requested": "[4.16.0, 4.16.0]",

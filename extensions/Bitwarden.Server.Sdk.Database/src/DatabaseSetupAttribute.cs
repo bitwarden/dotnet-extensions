@@ -41,7 +41,9 @@ public sealed class DatabaseSetupAttribute<TContext> : Attribute
     /// <summary>
     /// The database engines this schema supports. Code is generated for exactly these, and each
     /// one's provider package must be referenced. A provider package referenced for any other
-    /// reason, such as tests or a transitive dependency, is ignored.
+    /// reason, such as tests or a transitive dependency, is ignored. <see cref="DatabaseProvider.MySql"/>
+    /// serves MariaDB too, with the same migrations, so a schema never declares
+    /// <see cref="DatabaseProvider.MariaDb"/>.
     /// </summary>
     public DatabaseProvider[] Providers { get; }
 

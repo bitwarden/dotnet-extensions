@@ -141,6 +141,21 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
         isEnabledByDefault: true,
         helpLinkUri: string.Format(HelpUrlFormat, "BW0025"));
 
+    /// <summary>
+    /// Reported when the attribute declares MariaDB. MariaDB runs MySQL's migrations through the same
+    /// EF Core provider, so a schema declares MySQL, which serves both; a separate declaration would
+    /// suggest a separate set of migrations that doesn't exist.
+    /// </summary>
+    private static readonly DiagnosticDescriptor MariaDbDeclared = new(
+        id: "BW0026",
+        title: "DatabaseSetup declares MariaDB",
+        messageFormat: "DatabaseProvider.MariaDb runs MySQL's migrations, so a schema doesn't declare it. "
+            + "Declare DatabaseProvider.MySql, which serves MariaDB too.",
+        category: "Bitwarden.Database",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        helpLinkUri: string.Format(HelpUrlFormat, "BW0026"));
+
     private static bool PrefixesOverlap(string previous, string current)
         => previous.Length != current.Length
             && (previous.StartsWith(current, StringComparison.Ordinal)
@@ -564,9 +579,15 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
         var selected = providers.Array.Where(p => declared.Contains(p.Name)).ToImmutableArray();
         var failed = false;
 
+        if (declared.Contains("MariaDb"))
+        {
+            spc.ReportDiagnostic(Diagnostic.Create(MariaDbDeclared, Location.None));
+            failed = true;
+        }
+
         foreach (var name in declared)
         {
-            if (selected.Any(p => p.Name == name))
+            if (name == "MariaDb" || selected.Any(p => p.Name == name))
                 continue;
 
             spc.ReportDiagnostic(Diagnostic.Create(
@@ -664,8 +685,17 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
         "SqlServer" => "SQL Server connection string",
         "PostgreSql" => "PostgreSQL connection string",
         "MySql" => "MySQL connection string",
+        "MariaDb" => "MariaDB connection string",
         _ => $"{name} connection string",
     };
+
+    /// <summary>
+    /// The <c>DatabaseProvider</c> values a declared provider serves, by member name: its own, and for
+    /// MySQL also MariaDB, which runs MySQL's migrations through the same EF Core provider.
+    /// </summary>
+    private static string[] ServedEngines(string providerName) => providerName == "MySql"
+        ? ["MySql", "MariaDb"]
+        : [providerName];
 
     // Utilities
 
