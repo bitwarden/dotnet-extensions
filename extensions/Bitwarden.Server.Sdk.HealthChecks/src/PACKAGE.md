@@ -84,7 +84,7 @@ The package supports two types of health status reports:
 - **Degradation** (`ReportDegradation`): Temporary, recoverable issues. The degradation automatically clears when the returned `IDisposable` is disposed. Use this for transient failures, slow responses, or partial functionality.
 
 - **Unhealthy** (`ReportUnhealthy`): Persistent, critical issues. The unhealthy status remains until
-the application restarts. Use this for unrecoverable failures, missing dependencies, or critical configuration errors.
+  the application restarts. Use this for unrecoverable failures, missing dependencies, or critical configuration errors.
 
 ### The "Reported" Health Check
 
@@ -113,25 +113,38 @@ builder.Services
 app.MapHealthChecks("/healthz");
 ```
 
+### Checks for monitoring only
+
+Tag a check with `HealthCheckTags.Monitoring` when it describes something every instance shares,
+which taking one instance out of rotation would not fix, such as a backlog of messages waiting to be
+sent or a dead-letter queue. A host leaves such checks out of its readiness probe and reports their
+status some other way, such as a metric, which is where an alert on them belongs.
+
+```csharp
+builder.Services
+    .AddHealthChecks()
+    .AddCheck<BacklogHealthCheck>("Backlog", HealthStatus.Degraded, [HealthCheckTags.Monitoring]);
+```
+
 ## Best Practices
 
 1. **⚠️ Avoid self-inflicted DDOS with orchestrators**: If your application runs in an orchestrator
-(like Kubernetes) configured to restart unhealthy pods, be extremely careful when reporting
-unhealthy status for third-party service failures. If an external service (database, API, etc.) goes
-down and all your instances report unhealthy and restart, they will immediately check the still-down
-service, report unhealthy again, and restart in a loop. This creates a self-inflicted DDOS where
-your entire fleet continuously restarts. Consider using `ReportDegradation` for external
-dependencies instead, or only report unhealthy for issues with your own application that a restart
-could actually fix.
+   (like Kubernetes) configured to restart unhealthy pods, be extremely careful when reporting
+   unhealthy status for third-party service failures. If an external service (database, API, etc.) goes
+   down and all your instances report unhealthy and restart, they will immediately check the still-down
+   service, report unhealthy again, and restart in a loop. This creates a self-inflicted DDOS where
+   your entire fleet continuously restarts. Consider using `ReportDegradation` for external
+   dependencies instead, or only report unhealthy for issues with your own application that a restart
+   could actually fix.
 
 2. **Use degradation for temporary issues**: If the issue might resolve itself or is being handled
-with retry logic, use `ReportDegradation`.
+   with retry logic, use `ReportDegradation`.
 
 3. **Use unhealthy for critical failures**: If the issue requires manual intervention or application
-restart, use `ReportUnhealthy`.
+   restart, use `ReportUnhealthy`.
 
 4. **Identify issue**: Use a issue identifier that is unique to your system so that it can easily be
-identified when issues are encountered.
+   identified when issues are encountered.
 
 5. **Dispose degradations properly**: Consider using `using` statements or ensure `Dispose()` is
-called to clear degradations when the issue is resolved.
+   called to clear degradations when the issue is resolved.
