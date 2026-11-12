@@ -147,6 +147,7 @@ public sealed class CallChainTests
         Assert.Null(CallChain.Current);
     }
 
+    // Leaving the outer chain first leaves the inner one current until it is left too, and then neither is.
     [Fact]
     public void Enter_DisposedOutOfOrder_DoesNotBringBackAnEndedChain()
     {
@@ -154,9 +155,84 @@ public sealed class CallChainTests
         var inner = CallChain.Enter(["inner-service"]);
 
         outer.Dispose();
+        Assert.Equal(["inner-service"], CallChain.Current);
+
         inner.Dispose();
+        Assert.Null(CallChain.Current);
+    }
+
+    // A request from a person, an edge, a job or a message has no chain.
+    [Fact]
+    public void Enter_Null_IsNone()
+    {
+        using (CallChain.Enter(["outer-service"]))
+        {
+            using (CallChain.Enter(null))
+            {
+                Assert.Null(CallChain.Current);
+            }
+
+            Assert.Equal(["outer-service"], CallChain.Current);
+        }
+    }
+
+    // Sixteen names of 64 letters, none a hexadecimal digit so none reads as a GUID.
+    [Fact]
+    public void TryParse_TheLongestChain_ReadsEveryService()
+    {
+        IReadOnlyList<string> longest =
+        [
+            .. Enumerable.Range(0, CallChain.MaximumServices)
+                .Select(i => (char)('g' + i) + new string('s', CallChain.MaximumNameLength - 1)),
+        ];
+
+        var value = CallChain.Format(longest);
+
+        Assert.Equal((CallChain.MaximumServices * (CallChain.MaximumNameLength + 1)) - 1, value.Length);
+        Assert.True(CallChain.TryParse(value, out var parsed));
+        Assert.Equal(longest, parsed);
+    }
+
+    [Fact]
+    public async Task Enter_InsideAwaitedWork_DoesNotLeakOut()
+    {
+        async Task EnterInside()
+        {
+            await Task.Yield();
+            CallChain.Enter(["inner-service"]);
+        }
+
+        using (CallChain.Enter(["outer-service"]))
+        {
+            await EnterInside();
+
+            Assert.Equal(["outer-service"], CallChain.Current);
+        }
+
+        await EnterInside();
+        Assert.Null(CallChain.Current);
+    }
+
+    // Work started inside the request and not awaited keeps the chain it started with.
+    [Fact]
+    public async Task Enter_WorkStartedInside_KeepsTheChainAfterItIsLeft()
+    {
+        var left = new TaskCompletionSource();
+        Task<IReadOnlyList<string>?> child;
+
+        using (CallChain.Enter(["a-service"]))
+        {
+            child = Task.Run(async () =>
+            {
+                await left.Task;
+                return CallChain.Current;
+            }, TestContext.Current.CancellationToken);
+        }
 
         Assert.Null(CallChain.Current);
+        left.SetResult();
+
+        Assert.Equal(["a-service"], await child);
     }
 
     [Fact]
