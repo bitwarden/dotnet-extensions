@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Bitwarden.Server.Sdk.Resources.Endpoints;
 
 /// <summary>
-/// Configures each endpoint a group's <c>StandardEndpointExtensions.WithStandards{TBuilder}</c>
+/// Configures each endpoint a group's <see cref="StandardEndpointExtensions.WithStandards{TBuilder}"/>
 /// maps: its OpenAPI metadata, success status and standard filter.
 /// </summary>
 internal static class StandardEndpointConvention
@@ -100,7 +100,7 @@ internal static class StandardEndpointConvention
         var organization = method.IsDefined(typeof(NamesOrganizationAttribute), inherit: true);
         var provider = method.IsDefined(typeof(NamesProviderAttribute), inherit: true);
 
-        // Inert below the product layer, which takes them from the service calling it.
+        // Checked only in a product service: a domain service takes the owner from the service calling it.
         if ((organization || provider) && services.GetService<IServiceIdentity>()?.IsProductService == true)
         {
             OperationAuthorization.CheckNamesOwner(
