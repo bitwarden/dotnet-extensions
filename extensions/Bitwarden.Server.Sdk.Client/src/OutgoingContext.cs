@@ -133,7 +133,7 @@ internal static class OutgoingContext
 
     private static ContextValue Where(IContext? context) => new()
     {
-        ClientIp = Kept(context?.ClientIpAddress, value => System.Net.IPAddress.TryParse(value, out _)),
+        ClientIp = Kept(context?.ClientIpAddress, ContextHeader.IsAddress),
         DeviceType = Kept(context?.DeviceType, ContextHeader.IsDeviceType),
         DeviceIdentifier = Kept(context?.DeviceIdentifier, ContextHeader.IsDeviceIdentifier),
         RecordedProvider = context?.RecordedProviderId is { } provider && provider != Guid.Empty ? provider : null,

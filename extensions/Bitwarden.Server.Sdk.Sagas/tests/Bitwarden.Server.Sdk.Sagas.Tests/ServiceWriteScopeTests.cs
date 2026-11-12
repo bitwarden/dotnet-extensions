@@ -20,6 +20,53 @@ public sealed class ServiceWriteScopeTests
         Assert.Empty(guard.Told);
     }
 
+    // A key names one write to one service: the same key sent to another service is a write of its own.
+    [Fact]
+    public void TheSameKeySentToAnotherService_IsAnotherWrite()
+    {
+        var guard = new RecordingGuard();
+
+        using (var operation = ServiceWrites.Begin("operation", declared: null, guard))
+        {
+            ServiceWrites.Outgoing("billing-service", "key-1");
+            ServiceWrites.Outgoing("identity-service", "key-1");
+
+            Assert.True(operation.Spans);
+            Assert.Equal(["billing-service", "identity-service"], operation.Steps);
+        }
+
+        Assert.Single(guard.Told);
+    }
+
+    // A blank key is no key: each such write is counted.
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void AWriteWithABlankKey_IsCountedEachTime(string key)
+    {
+        using var operation = ServiceWrites.Begin("operation", declared: null, guard: null);
+        ServiceWrites.Outgoing("billing-service", key);
+        ServiceWrites.Outgoing("billing-service", key);
+
+        Assert.Equal(["billing-service", "billing-service"], operation.Steps);
+    }
+
+    // A refused write was never made: it is not among the steps, though the operation did span services.
+    [Fact]
+    public void ARefusedWrite_IsNotAStep()
+    {
+        var guard = new RecordingGuard { Refuse = true };
+
+        using var operation = ServiceWrites.Begin("operation", declared: null, guard);
+        ServiceWrites.Saving();
+
+        Assert.Throws<InvalidOperationException>(() => ServiceWrites.Outgoing("billing-service", "key-1"));
+
+        Assert.Equal([ServiceWrites.OwnDatabase], operation.Steps);
+        Assert.True(operation.Spans);
+        Assert.Equal([ServiceWrites.OwnDatabase, "billing-service"], Assert.Single(guard.Told).Steps);
+    }
+
     // The guard's refusal stops the write; every later write of the operation is refused too, and an operation that
     // caught it and went on is failed when it returns.
     [Fact]
