@@ -11,6 +11,10 @@
     <VersionSuffix Condition="'$(VersionSuffix)' == '' AND '$(IsPreRelease)' == 'true'">$(PreReleaseVersionLabel).$(PreReleaseVersionIteration)</VersionSuffix>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Context.Tests" />
+  </ItemGroup>
+
   <PropertyGroup>
     <Description>Who and what a call between Bitwarden services concerns, and how the call carries it.</Description>
   </PropertyGroup>
