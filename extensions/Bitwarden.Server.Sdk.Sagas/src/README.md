@@ -43,5 +43,6 @@ dotnet test --project extensions/Bitwarden.Server.Sdk.Sagas/tests/Bitwarden.Serv
 A change must keep:
 
 - **Names only in the steps.** A step is a service's name or `database`, never a value the write carries.
-- **A retry is one write.** A write is counted once per `Idempotency-Key`; one without a key is counted each time.
+- **A retry is one write.** A write is counted once per `Idempotency-Key` per service; one without a key, or with a
+  blank one, is counted each time.
 - **A refusal sticks**, including for a write made while the guard was deciding.

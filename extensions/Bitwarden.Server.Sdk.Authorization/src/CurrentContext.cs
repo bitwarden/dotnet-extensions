@@ -252,6 +252,12 @@ internal sealed class CurrentContext(IHttpContextAccessor accessor, bool isProdu
             : Carried(http)?.ClientVersionIsPrerelease == true
         : ContextScope.Current?.ClientVersionIsPrerelease == true;
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// Never during a request: no header says a request is an event's. Without one, what the current scope says.
+    /// </remarks>
+    public bool IsEvent => Http is null && ContextScope.Current?.IsEvent == true;
+
     private HttpContext? Http => accessor.HttpContext;
 
     /// <summary>
