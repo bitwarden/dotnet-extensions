@@ -11,6 +11,9 @@ public sealed class ContextValueTests
         new ContextValue { RecordedUser = Guid.NewGuid() },
         new ContextValue { RecordedProvider = Guid.NewGuid() },
         new ContextValue { Organizations = [Guid.NewGuid()] },
+        new ContextValue { FlagKind = FlagSubjectKind.ServiceAccount },
+        new ContextValue { FlagKey = Guid.NewGuid() },
+        new ContextValue { ClientVersion = "2026.10.0" },
     ];
 
     [Fact]
