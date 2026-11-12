@@ -162,11 +162,8 @@ builder.Services.AddOrderDatabase((options, db) =>
             db.UseSqlServer(options.ConnectionString, sql => sql.CommandTimeout(60));
             break;
         case DatabaseProvider.PostgreSql:
-            db.UseNpgsql(options.ConnectionString);
-            break;
-        case DatabaseProvider.MySql:
-            db.UseMySql(options.ConnectionString, new MariaDbServerVersion(new Version(11, 4)))
-                .AddInterceptors(new ReadCommittedInterceptor());
+            db.UseNpgsql(options.ConnectionString)
+                .AddInterceptors(new AuditInterceptor());
             break;
         default:
             throw new InvalidOperationException($"Provider {options.Provider} is not supported.");
@@ -182,9 +179,15 @@ schema doesn't declare has no migrations, and asking for them throws. The [SQL S
 build](#building-a-sql-server-migrator-image) registers no context, so it has only
 `AddOrderDatabase()`.
 
-The generated registration asks a MySQL server its version through `ServerVersion.AutoDetect` each
-time it builds a context's options. Passing a known version, as above, or one you cache per
-connection string, saves that round trip.
+For a schema that declares MySQL, the generated registration asks the server its version through
+`ServerVersion.AutoDetect` each time it builds a context's options. Passing a version you know, or
+one you cache per connection string, saves that round trip, and describes MariaDB as MariaDB:
+
+```csharp
+case DatabaseProvider.MySql:
+    db.UseMySql(options.ConnectionString, new MariaDbServerVersion(new Version(11, 4)));
+    break;
+```
 
 ### 4. Migrating on startup
 
