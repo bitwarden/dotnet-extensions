@@ -34,17 +34,17 @@ public sealed class ServerPasswordHasherTests
     private readonly IServerPasswordHasher _hasher = CreateHasher(new ServiceCollection());
 
     [Fact]
-    public void Hash_ThenVerify_Succeeds()
+    public void CreateStoredHash_ThenVerify_Succeeds()
     {
-        var stored = _hasher.Hash(ClientHash);
+        var stored = _hasher.CreateStoredHash(ClientHash);
 
-        Assert.Equal(PasswordHashVerification.Success, _hasher.Verify(stored, ClientHash));
+        Assert.Equal(PasswordHashVerification.Success, _hasher.VerifyStoredHash(stored, ClientHash));
     }
 
     [Fact]
-    public void Hash_IsV3Pbkdf2Sha512With100kIterations()
+    public void CreateStoredHash_IsV3Pbkdf2Sha512With100kIterations()
     {
-        var stored = Convert.FromBase64String(_hasher.Hash(ClientHash));
+        var stored = Convert.FromBase64String(_hasher.CreateStoredHash(ClientHash));
 
         Assert.Equal(HeaderLength + SaltLength + SubkeyLength, stored.Length);
         Assert.Equal(V3Marker, stored[0]);
@@ -60,46 +60,46 @@ public sealed class ServerPasswordHasherTests
     }
 
     [Fact]
-    public void Hash_SameClientHash_UsesFreshSalt()
+    public void CreateStoredHash_SameClientHash_UsesFreshSalt()
     {
-        Assert.NotEqual(_hasher.Hash(ClientHash), _hasher.Hash(ClientHash));
+        Assert.NotEqual(_hasher.CreateStoredHash(ClientHash), _hasher.CreateStoredHash(ClientHash));
     }
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData(" ")]
-    public void Hash_MissingClientHash_Throws(string? clientHash)
+    public void CreateStoredHash_MissingClientHash_Throws(string? clientHash)
     {
-        Assert.ThrowsAny<ArgumentException>(() => _hasher.Hash(clientHash!));
+        Assert.ThrowsAny<ArgumentException>(() => _hasher.CreateStoredHash(clientHash!));
     }
 
     [Theory]
     [InlineData(ServerMasterPasswordHash)]
     [InlineData(ServerSendPasswordHash)]
-    public void Verify_HashStoredByServer_Succeeds(string stored)
+    public void VerifyStoredHash_HashStoredByServer_Succeeds(string stored)
     {
-        Assert.Equal(PasswordHashVerification.Success, _hasher.Verify(stored, ClientHash));
+        Assert.Equal(PasswordHashVerification.Success, _hasher.VerifyStoredHash(stored, ClientHash));
     }
 
     [Fact]
-    public void Hash_VerifiedByServer_Succeeds()
+    public void CreateStoredHash_VerifiedByServer_Succeeds()
     {
         var server = new PasswordHasher<object>(Options.Create(new PasswordHasherOptions { IterationCount = ServerIterations }));
 
-        var result = server.VerifyHashedPassword(new object(), _hasher.Hash(ClientHash), ClientHash);
+        var result = server.VerifyHashedPassword(new object(), _hasher.CreateStoredHash(ClientHash), ClientHash);
 
         Assert.Equal(PasswordVerificationResult.Success, result);
     }
 
     [Fact]
-    public void Verify_LegacyServerHash_AsksForRehash()
+    public void VerifyStoredHash_LegacyServerHash_AsksForRehash()
     {
-        Assert.Equal(PasswordHashVerification.SuccessRehashNeeded, _hasher.Verify(ServerLegacyHash, ClientHash));
+        Assert.Equal(PasswordHashVerification.SuccessRehashNeeded, _hasher.VerifyStoredHash(ServerLegacyHash, ClientHash));
     }
 
     [Fact]
-    public void Verify_V2Hash_AsksForRehash()
+    public void VerifyStoredHash_V2Hash_AsksForRehash()
     {
         var v2 = new PasswordHasher<object>(Options.Create(new PasswordHasherOptions
         {
@@ -107,15 +107,15 @@ public sealed class ServerPasswordHasherTests
         }));
         var stored = v2.HashPassword(new object(), ClientHash);
 
-        Assert.Equal(PasswordHashVerification.SuccessRehashNeeded, _hasher.Verify(stored, ClientHash));
+        Assert.Equal(PasswordHashVerification.SuccessRehashNeeded, _hasher.VerifyStoredHash(stored, ClientHash));
     }
 
     [Fact]
-    public void Verify_WrongClientHash_Fails()
+    public void VerifyStoredHash_WrongClientHash_Fails()
     {
-        var stored = _hasher.Hash(ClientHash);
+        var stored = _hasher.CreateStoredHash(ClientHash);
 
-        Assert.Equal(PasswordHashVerification.Failed, _hasher.Verify(stored, "wrong"));
+        Assert.Equal(PasswordHashVerification.Failed, _hasher.VerifyStoredHash(stored, "wrong"));
     }
 
     [Theory]
@@ -125,27 +125,27 @@ public sealed class ServerPasswordHasherTests
     [InlineData("AQ==", null)]
     [InlineData("AQ==", "")]
     [InlineData("AQ==", " ")]
-    public void Verify_MissingValue_Fails(string? storedHash, string? clientHash)
+    public void VerifyStoredHash_MissingValue_Fails(string? storedHash, string? clientHash)
     {
-        Assert.Equal(PasswordHashVerification.Failed, _hasher.Verify(storedHash, clientHash));
+        Assert.Equal(PasswordHashVerification.Failed, _hasher.VerifyStoredHash(storedHash, clientHash));
     }
 
     [Theory]
     [InlineData("not base64!")]
     [InlineData("AQ==")]
-    public void Verify_MalformedStoredHash_Fails(string storedHash)
+    public void VerifyStoredHash_MalformedStoredHash_Fails(string storedHash)
     {
-        Assert.Equal(PasswordHashVerification.Failed, _hasher.Verify(storedHash, ClientHash));
+        Assert.Equal(PasswordHashVerification.Failed, _hasher.VerifyStoredHash(storedHash, ClientHash));
     }
 
     [Fact]
-    public void Hash_HostTunesIdentity_KeepsServerParameters()
+    public void CreateStoredHash_HostTunesIdentity_KeepsServerParameters()
     {
         var services = new ServiceCollection();
         services.Configure<PasswordHasherOptions>(options => options.IterationCount = 1);
         var hasher = CreateHasher(services);
 
-        var stored = Convert.FromBase64String(hasher.Hash(ClientHash));
+        var stored = Convert.FromBase64String(hasher.CreateStoredHash(ClientHash));
 
         Assert.Equal(ServerIterations, BinaryPrimitives.ReadInt32BigEndian(stored.AsSpan(5)));
     }

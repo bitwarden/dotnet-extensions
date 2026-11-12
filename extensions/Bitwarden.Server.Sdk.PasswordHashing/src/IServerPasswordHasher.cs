@@ -35,16 +35,16 @@ public interface IServerPasswordHasher
     /// <param name="clientHash">The password hash sent by the client.</param>
     /// <returns>The hash to store.</returns>
     /// <exception cref="ArgumentException"><paramref name="clientHash"/> is null, empty or white space.</exception>
-    string Hash(string clientHash);
+    string CreateStoredHash(string clientHash);
 
     /// <summary>
     /// Checks <paramref name="clientHash"/> against <paramref name="storedHash"/>.
     /// </summary>
-    /// <param name="storedHash">A hash returned by <see cref="Hash"/>, or stored by the Bitwarden server.</param>
+    /// <param name="storedHash">A hash returned by <see cref="CreateStoredHash"/>, or stored by the Bitwarden server.</param>
     /// <param name="clientHash">The password hash sent by the client.</param>
     /// <returns>
     /// <see cref="PasswordHashVerification.Failed"/> when either value is null, empty or white space,
     /// <paramref name="storedHash"/> is malformed, or the values do not match.
     /// </returns>
-    PasswordHashVerification Verify(string? storedHash, string? clientHash);
+    PasswordHashVerification VerifyStoredHash(string? storedHash, string? clientHash);
 }

@@ -20,14 +20,14 @@ internal sealed class ServerPasswordHasher : IServerPasswordHasher
         IterationCount = Iterations,
     }));
 
-    public string Hash(string clientHash)
+    public string CreateStoredHash(string clientHash)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(clientHash);
 
         return _hasher.HashPassword(_user, clientHash);
     }
 
-    public PasswordHashVerification Verify(string? storedHash, string? clientHash)
+    public PasswordHashVerification VerifyStoredHash(string? storedHash, string? clientHash)
     {
         if (string.IsNullOrWhiteSpace(storedHash) || string.IsNullOrWhiteSpace(clientHash))
         {

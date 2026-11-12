@@ -17,7 +17,7 @@ public enum PasswordHashVerification
 
     /// <summary>
     /// The client password hash matches, but the stored hash uses older parameters. Store
-    /// <see cref="IServerPasswordHasher.Hash"/> of the client password hash in its place.
+    /// <see cref="IServerPasswordHasher.CreateStoredHash"/> of the client password hash in its place.
     /// </summary>
     SuccessRehashNeeded,
 }

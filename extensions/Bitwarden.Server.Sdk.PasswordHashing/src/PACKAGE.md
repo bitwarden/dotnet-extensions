@@ -21,16 +21,16 @@ services.AddServerPasswordHasher();
 Store the hash of what the client sent:
 
 ```csharp
-user.MasterPassword = hasher.Hash(request.MasterPasswordHash);
+user.MasterPassword = hasher.CreateStoredHash(request.MasterPasswordHash);
 ```
 
 Check it, and replace a hash stored with older parameters:
 
 ```csharp
-var result = hasher.Verify(user.MasterPassword, request.MasterPasswordHash);
+var result = hasher.VerifyStoredHash(user.MasterPassword, request.MasterPasswordHash);
 if (result == PasswordHashVerification.SuccessRehashNeeded)
 {
-    user.MasterPassword = hasher.Hash(request.MasterPasswordHash);
+    user.MasterPassword = hasher.CreateStoredHash(request.MasterPasswordHash);
 }
 
 return result != PasswordHashVerification.Failed;
