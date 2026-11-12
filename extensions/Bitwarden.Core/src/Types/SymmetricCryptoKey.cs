@@ -26,7 +26,6 @@ public class SymmetricCryptoKey : ISpanParsable<SymmetricCryptoKey>
         _rawData = rawData.ToArray();
     }
 
-    [SuppressMessage("ApiDesign", "RS0030:Do not use banned APIs", Justification = "The HKDF extract step of Bitwarden's key derivation, keyed with the key's name as the clients derive it; the expand step is the platform's HKDF. Predates the ban; awaits Bitwarden.Core's owners.")]
     public static SymmetricCryptoKey Create(ReadOnlySpan<byte> secret, ReadOnlySpan<byte> name, ReadOnlySpan<byte> info)
     {
         Debug.Assert(secret.Length == 16);

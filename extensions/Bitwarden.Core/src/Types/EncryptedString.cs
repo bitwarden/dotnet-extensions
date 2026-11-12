@@ -28,7 +28,6 @@ public class EncryptedString : IDecryptable<SymmetricCryptoKey>
         };
     }
 
-    [SuppressMessage("ApiDesign", "RS0030:Do not use banned APIs", Justification = "Bitwarden's EncString, type 2 (AES-256-CBC with HMAC-SHA-256), byte for byte as the clients and the server read and write it. No general library implements the format. Predates the ban; awaits Bitwarden.Core's owners.")]
     private static byte[] DecryptAes256(ReadOnlySpan<char> encryptionPart, SymmetricCryptoKey symmetricCryptoKey)
     {
         var splitIndex = encryptionPart.IndexOf('|');
@@ -113,7 +112,6 @@ public class EncryptedString : IDecryptable<SymmetricCryptoKey>
         return new EncryptedString(type, encryptionPart);
     }
 
-    [SuppressMessage("ApiDesign", "RS0030:Do not use banned APIs", Justification = "Bitwarden's EncString, type 2 (AES-256-CBC with HMAC-SHA-256), byte for byte as the clients and the server read and write it. No general library implements the format. Predates the ban; awaits Bitwarden.Core's owners.")]
     private static void ValidateMac(Span<byte> macKey, ReadOnlySpan<byte> iv, ReadOnlySpan<byte> data, Span<byte> destination)
     {
         var hmac = IncrementalHash.CreateHMAC(HashAlgorithmName.SHA256, macKey);
@@ -136,7 +134,6 @@ public class EncryptedString : IDecryptable<SymmetricCryptoKey>
         }
     }
 
-    [SuppressMessage("ApiDesign", "RS0030:Do not use banned APIs", Justification = "Meant to write a type 2 EncString (AES-256-CBC with HMAC-SHA-256), a format no general library implements. It is defective: it drops the IV and writes no MAC, so nothing can decrypt its output, and nothing calls it. Predates the ban; awaits Bitwarden.Core's owners.")]
     public static EncryptedString Encrypt(byte[] unencryptedData, SymmetricCryptoKey key)
     {
         Span<byte> iv = stackalloc byte[16];
