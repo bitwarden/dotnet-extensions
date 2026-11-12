@@ -13,7 +13,7 @@ namespace Bitwarden.Server.Sdk.PasswordHashing;
 ///     |
 ///  [slow KDF]  (1)
 ///     |
-///  clientHash  -------- sent --------&gt;  clientHash
+///  clientHash  -------- sent -------->  clientHash
 ///                                          |
 ///                                       [slow hash]  (2)
 ///                                          |
