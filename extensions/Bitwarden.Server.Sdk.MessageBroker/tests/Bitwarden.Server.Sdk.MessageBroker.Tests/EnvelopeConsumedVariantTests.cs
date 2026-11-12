@@ -18,6 +18,25 @@ public sealed class VersionedPayload : Payload<VersionedPayload, VersionedV1, Ve
         [(typeof(VersionedV1), "v1"), (typeof(VersionedV2), "v2")];
 }
 
+// A V1 whose Upcast() throws when a field it expects is null — mirrors a wire message from an
+// older publisher that lacks a field the current V1 record expects.
+public sealed record ThrowingV1(string? RequiredField) : ThrowingPayload.IFloor<ThrowingV2>
+{
+    public ThrowingV2 Upcast() => new(RequiredField!.Trim());
+}
+
+public sealed record ThrowingV2(string Value) : ThrowingPayload.IPureCeiling<ThrowingV1>
+{
+    public ThrowingV1 Downcast() => new(Value);
+}
+
+public sealed class ThrowingPayload : Payload<ThrowingPayload, ThrowingV1, ThrowingV2>, IPayloadVariants<ThrowingPayload>, IPayloadWireName<ThrowingPayload>
+{
+    public static string WireName => "throwing";
+    public static IReadOnlyList<(Type, string)> Variants =>
+        [(typeof(ThrowingV1), "v1"), (typeof(ThrowingV2), "v2")];
+}
+
 /// <summary>
 /// Verifies that the wire name exposed by <see cref="Envelope{TPayload, TCeiling}"/> reflects the
 /// highest received variant at or below the ceiling — i.e. the variant the subscriber actually
@@ -47,6 +66,20 @@ public class EnvelopeConsumedVariantTests
 
         Assert.Equal("v1", envelope.ConsumedVariantWireName);
         Assert.IsType<VersionedV2>(envelope.Payload);
+    }
+
+    [Fact]
+    public void Construction_WrapsThrowingUpcast_AsInvalidOperationException()
+    {
+        // Payload author's Upcast() runs on wire data, so a field deserialized as null can make
+        // an ordinary .Trim() or Guid.Parse throw NullReferenceException. The envelope must
+        // translate that into InvalidOperationException so the transports' dead-letter catches
+        // hold instead of letting the exception wedge the consumer.
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            new TestEnvelope<ThrowingPayload, ThrowingV2>([new ThrowingV1(RequiredField: null)]));
+
+        Assert.IsType<NullReferenceException>(ex.InnerException);
+        Assert.Contains(nameof(ThrowingV1), ex.Message);
     }
 
     private sealed class TestEnvelope<TPayload, TCeiling> : Envelope<TPayload, TCeiling>

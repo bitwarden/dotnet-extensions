@@ -79,7 +79,20 @@ public abstract class Envelope<TPayload, TCeiling>
             var wireName = ChainResolutionCache.WireNamesByType[cur];
             var current = variant;
             while (current is not TCeiling && current is Payload<TPayload>.IPureUp step)
-                current = step.Upcast();
+            {
+                try
+                {
+                    current = step.Upcast();
+                }
+                catch (Exception ex) when (ex is not InvalidOperationException)
+                {
+                    // Author Upcast() runs on wire data; a missing field deserializes to null and
+                    // a .Trim() or Guid.Parse throws. Rethrow as InvalidOperationException so the
+                    // transports' existing dead-letter catches hold instead of wedging the consumer.
+                    throw new InvalidOperationException(
+                        $"{step.GetType().Name}.Upcast() threw while resolving {typeof(TCeiling).Name}.", ex);
+                }
+            }
 
             if (current is TCeiling reached) return (reached, wireName);
         }
