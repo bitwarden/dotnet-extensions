@@ -299,7 +299,7 @@ public class ChannelEscrowTests
             .ConfigureServices(services =>
             {
                 // Register before AddPublisher so the TryAdd inside AddPublisher is a no-op.
-                services.AddKeyedSingleton<IMessageSerializer>("test",
+                services.AddKeyedSingleton<IMessageSerializer>(MessageBrokerKeys.Publisher<MyItemPayload>("test"),
                     (_, _) => new ThrowingOnSerializeSerializer());
                 services.AddPublisher<MyItemPayload, MyItem>("test");
                 services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());

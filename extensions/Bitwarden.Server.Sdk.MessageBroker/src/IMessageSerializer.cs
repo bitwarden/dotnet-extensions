@@ -7,13 +7,14 @@ namespace Bitwarden.Server.Sdk.MessageBroker;
 /// <remarks>
 /// Register a custom implementation using
 /// <see cref="ServiceCollectionServiceExtensions.AddKeyedSingleton{TService,TImplementation}(IServiceCollection,object)"/>
-/// keyed to the topic name <em>before</em> calling
+/// keyed to <see cref="Microsoft.Extensions.DependencyInjection.MessageBrokerKeys.Publisher{TPayload}(string)"/>
+/// for the topic and payload family <em>before</em> calling
 /// <see cref="Microsoft.Extensions.DependencyInjection.MessageBrokerServiceCollectionExtensions.AddPublisher{TPayload, TCeiling}"/>
 /// or
 /// <see cref="Microsoft.Extensions.DependencyInjection.MessageBrokerServiceCollectionExtensions.AddSubscriber{TPayload, TCeiling}"/>
-/// to replace the default System.Text.Json serializer for that topic:
+/// to replace the default System.Text.Json serializer for that payload family on the topic:
 /// <code>
-/// services.AddKeyedSingleton&lt;IMessageSerializer, MySerializer&gt;("my-topic");
+/// services.AddKeyedSingleton&lt;IMessageSerializer, MySerializer&gt;(MessageBrokerKeys.Publisher&lt;MyPayload&gt;("my-topic"));
 /// services.AddPublisher&lt;MyPayload,MyVariantCeiling&gt;("my-topic");
 /// </code>
 /// A non-keyed <c>AddSingleton&lt;IMessageSerializer&gt;</c> registration is silently ignored.
