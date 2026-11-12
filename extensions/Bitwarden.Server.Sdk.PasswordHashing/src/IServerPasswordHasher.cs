@@ -5,30 +5,28 @@ namespace Bitwarden.Server.Sdk.PasswordHashing;
 /// a later proof against the stored hash. Used for master password hashes and Send password hashes.
 /// </summary>
 /// <remarks>
+/// The password is hashed with expensive work twice: once on the client, once on the server.
 /// <code>
-///  Client                                          Server
-///  ------                                          ------
-///  Master password:
-///    masterKey  = KDF(password, email)
-///    clientHash = PBKDF2-SHA256(masterKey,
-///                   salt: password, 1 iteration)
-///  Send password:
-///    clientHash = PBKDF2-SHA256(password,
-///                   salt: Send key, 100,000 iterations)
-///
-///  Create or change password:
-///    clientHash  -------------------------------&gt;  stored = Hash(clientHash)
-///                                                   (random salt, PBKDF2-SHA512,
-///                                                    100,000 iterations)
-///  Log in or open Send:
-///    clientHash  -------------------------------&gt;  Verify(stored, clientHash)
+///  Client                                Server
+///  ------                                ------
+///  password
+///     |
+///  [slow KDF]  (1)
+///     |
+///  clientHash  -------- sent --------&gt;  clientHash
+///                                          |
+///                                       [slow hash]  (2)
+///                                          |
+///                                       stored
 /// </code>
-/// The client hash is the credential itself: the server accepts whoever sends it, without needing
-/// the password. Stored as-is, anyone who reads the database (a leak, a backup, an insider) could
-/// send it and log in or open the Send. Stored as <see cref="Hash"/> of it, the stored value is
-/// useless as a credential, because <see cref="Verify"/> hashes what is sent and the stored value
-/// does not hash to itself. Recovering the client hash from it means guessing the password, at the
-/// cost of the client derivation plus 100,000 PBKDF2-SHA512 iterations per guess, and per salt.
+/// (1) keeps the password on the client. The server only ever sees clientHash, and recovering the
+/// password from it means guessing passwords through the slow KDF.
+///
+/// (2) keeps clientHash out of the database. clientHash is the credential: whoever sends it logs in
+/// or opens the Send, no password needed. Stored as-is, anyone who reads the database (a leak, a
+/// backup, an insider) could replay it. Stored after (2), the value is useless to send, because
+/// <see cref="Verify"/> hashes whatever arrives, and recovering clientHash means paying for (1) and
+/// (2) on every password guess, per salt.
 /// </remarks>
 public interface IServerPasswordHasher
 {
