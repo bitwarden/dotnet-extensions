@@ -45,7 +45,7 @@ internal sealed class CurrentContext(IHttpContextAccessor accessor, bool isProdu
     /// <summary>
     /// The claim naming the device a session was signed in on, as its client identifies it.
     /// </summary>
-    internal const string DeviceClaim = "device";
+    internal const string DeviceClaim = ClientHeaders.DeviceClaim;
 
     /// <summary>
     /// The claim Identity lists a person's confirmed organizations in on a product token, one value each.
@@ -56,21 +56,6 @@ internal sealed class CurrentContext(IHttpContextAccessor accessor, bool isProdu
     /// The claim naming the machine account a Secrets Manager access token belongs to.
     /// </summary>
     internal const string ServiceAccountClaim = "service_account";
-
-    /// <summary>
-    /// The header a Bitwarden client names its device type in, as a number.
-    /// </summary>
-    private const string ClientDeviceTypeHeader = "Device-Type";
-
-    /// <summary>
-    /// The header a Bitwarden client names its device in.
-    /// </summary>
-    private const string ClientDeviceIdentifierHeader = "Device-Identifier";
-
-    /// <summary>
-    /// The claim a session token may name its device type in.
-    /// </summary>
-    private const string DeviceTypeClaim = "devicetype";
 
     /// <inheritdoc />
     /// <remarks>
@@ -136,14 +121,15 @@ internal sealed class CurrentContext(IHttpContextAccessor accessor, bool isProdu
     /// the vocabulary, but it does know that a device type is not a paragraph.
     /// </para>
     /// <para>
-    /// In a product service it is the client's own: the <c>Device-Type</c> header, a device type's
-    /// number, or failing that the session token's <c>devicetype</c> claim. A domain
+    /// In a product service it is the client's own: the <c>Device-Type</c> header, or failing that the
+    /// session token's <c>devicetype</c> claim, each a device type's number or its name, carried as the
+    /// number (<see cref="ClientHeaders.DeviceType"/>). A domain
     /// service reads what the calling service carried in <see cref="BitwardenHeaders.Context"/>.
     /// </para>
     /// </remarks>
     public string? DeviceType => Http is { } http
         ? isProductService
-            ? ClientDeviceType(http)
+            ? ClientHeaders.DeviceType(http, Session(http))
             : Carried(http)?.DeviceType
         : ContextScope.Current?.DeviceType;
 
@@ -163,7 +149,7 @@ internal sealed class CurrentContext(IHttpContextAccessor accessor, bool isProdu
     /// </remarks>
     public string? DeviceIdentifier => Http is { } http
         ? isProductService
-            ? ClientDeviceIdentifier(http)
+            ? ClientHeaders.DeviceIdentifier(http, Session(http))
             : Carried(http)?.DeviceIdentifier
         : ContextScope.Current?.DeviceIdentifier;
 
@@ -208,61 +194,71 @@ internal sealed class CurrentContext(IHttpContextAccessor accessor, bool isProdu
 
     /// <inheritdoc />
     /// <remarks>
-    /// In a product service, the person's session's <c>organizations</c> claim, one identifier per value,
-    /// on a session issued to a person only; anything in the claim that isn't an identifier is dropped. A
-    /// domain service reads what the calling service carried in <see cref="BitwardenHeaders.Context"/>.
+    /// In a product service, the flag subject's organizations as its session says
+    /// (<see cref="FlagSubject.Of"/>): a person's <c>organizations</c> claim, one identifier per value,
+    /// anything that isn't an identifier dropped; or the organization an organization's client or an
+    /// access connector acts for. A domain service reads what the calling service carried in
+    /// <see cref="BitwardenHeaders.Context"/>.
     /// </remarks>
     public IReadOnlyList<Guid>? UserOrganizationIds => Http is { } http
         ? isProductService
-            ? Subject(http) is not null ? MemberOrganizations(http.User) : null
+            ? FlagSubjectOf(http).Organizations
             : Carried(http)?.Organizations
         : ContextScope.Current?.UserOrganizationIds;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// In a product service, as its session's <c>type</c> claim says (<see cref="FlagSubject.Of"/>); without a
+    /// session, <see cref="FlagSubjectKind.User"/>. A domain service reads what the calling service carried in
+    /// <see cref="BitwardenHeaders.Context"/>.
+    /// </remarks>
+    public FlagSubjectKind FlagSubjectKind => Http is { } http
+        ? isProductService
+            ? FlagSubjectOf(http).Kind
+            : Carried(http)?.FlagKind ?? FlagSubjectKind.User
+        : ContextScope.Current?.FlagSubjectKind ?? FlagSubjectKind.User;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// In a product service, as its session says (<see cref="FlagSubject.Of"/>); without a session, nobody. A
+    /// domain service reads what the calling service carried in <see cref="BitwardenHeaders.Context"/>.
+    /// </remarks>
+    public Guid? FlagSubjectKey => Http is { } http
+        ? isProductService
+            ? FlagSubjectOf(http).Key
+            : Carried(http)?.FlagKey
+        : ContextScope.Current?.FlagSubjectKey;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// In a product service, the client's <c>Bitwarden-Client-Version</c> header, when it is a version
+    /// (<see cref="ClientHeaders.ClientVersion"/>). A domain service reads what the calling service carried in
+    /// <see cref="BitwardenHeaders.Context"/>.
+    /// </remarks>
+    public string? ClientVersion => Http is { } http
+        ? isProductService
+            ? ClientHeaders.ClientVersion(http)
+            : Carried(http)?.ClientVersion
+        : ContextScope.Current?.ClientVersion;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// In a product service, the client's <c>Is-Prerelease</c> header is <c>1</c>, alongside a version. A domain
+    /// service reads what the calling service carried in <see cref="BitwardenHeaders.Context"/>.
+    /// </remarks>
+    public bool ClientVersionIsPrerelease => Http is { } http
+        ? isProductService
+            ? ClientHeaders.IsPrerelease(http)
+            : Carried(http)?.ClientVersionIsPrerelease == true
+        : ContextScope.Current?.ClientVersionIsPrerelease == true;
 
     private HttpContext? Http => accessor.HttpContext;
 
     /// <summary>
-    /// The organizations a person's session lists, by identifier, each once, or null for none.
+    /// The flag subject the validated session names, or nobody without one.
     /// </summary>
-    private static Guid[]? MemberOrganizations(ClaimsPrincipal session)
-    {
-        Guid[] organizations =
-        [
-            .. session.FindAll(OrganizationsClaim)
-                .Select(claim => Guid.TryParse(claim.Value, out var organization) ? organization : Guid.Empty)
-                .Where(organization => organization != Guid.Empty)
-                .Distinct(),
-        ];
-
-        return organizations.Length > 0 ? organizations : null;
-    }
-
-    /// <summary>
-    /// The device type the client says it is: the header, then the claim.
-    /// </summary>
-    private static string? ClientDeviceType(HttpContext http)
-    {
-        if (byte.TryParse(http.Request.Headers[ClientDeviceTypeHeader].FirstOrDefault(), out var fromHeader))
-        {
-            return fromHeader.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        }
-
-        return Session(http) is { } session
-            && byte.TryParse(session.FindFirst(DeviceTypeClaim)?.Value, out var fromClaim)
-                ? fromClaim.ToString(System.Globalization.CultureInfo.InvariantCulture)
-                : null;
-    }
-
-    /// <summary>
-    /// The device the client is on: the session's signed claim, then the client's header.
-    /// </summary>
-    private static string? ClientDeviceIdentifier(HttpContext http)
-    {
-        var value = Session(http)?.FindFirst(DeviceClaim)?.Value is { Length: > 0 } claimed
-            ? claimed
-            : http.Request.Headers[ClientDeviceIdentifierHeader].FirstOrDefault();
-
-        return ContextHeader.IsDeviceIdentifier(value) ? value : null;
-    }
+    private static FlagSubject FlagSubjectOf(HttpContext http) =>
+        Session(http) is { } session ? FlagSubject.Of(session) : FlagSubject.Anonymous;
 
     private static CallerCredential? CredentialOf(ClaimsPrincipal session)
     {
