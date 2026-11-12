@@ -52,6 +52,7 @@ public sealed class ContextScopeTests
         Assert.Same(First, ContextScope.Current);
     }
 
+    // Disposing the outer scope first leaves the inner one current until it is disposed too, and then neither is.
     [Fact]
     public void Dispose_OutOfOrder_DoesNotBringBackAnEndedScope()
     {
@@ -59,9 +60,96 @@ public sealed class ContextScopeTests
         var inner = ContextScope.Begin(Second);
 
         outer.Dispose();
+        Assert.Same(Second, ContextScope.Current);
+
         inner.Dispose();
+        Assert.Null(ContextScope.Current);
+    }
+
+    [Fact]
+    public void Dispose_OutOfOrder_ForAnEvent_IsNotAnEvent()
+    {
+        var outer = ContextScope.BeginForEvent(First);
+        var inner = ContextScope.BeginForEvent(Second);
+
+        outer.Dispose();
+        Assert.True(ContextScope.IsEvent);
+
+        inner.Dispose();
+        Assert.Null(ContextScope.Current);
+        Assert.False(ContextScope.IsEvent);
+    }
+
+    // Work started inside a scope and not awaited, such as a send in the background, keeps the context it started with.
+    [Fact]
+    public async Task Begin_WorkStartedInside_KeepsTheContextAfterTheScopeIsDisposed()
+    {
+        var disposed = new TaskCompletionSource();
+        Task<(IContext? Context, bool IsEvent)> child;
+
+        using (ContextScope.BeginForEvent(First))
+        {
+            child = Task.Run(async () =>
+            {
+                await disposed.Task;
+                return (ContextScope.Current, ContextScope.IsEvent);
+            }, TestContext.Current.CancellationToken);
+        }
 
         Assert.Null(ContextScope.Current);
+        disposed.SetResult();
+
+        var (context, isEvent) = await child;
+        Assert.Equal(First.OrganizationId, context?.OrganizationId);
+        Assert.True(context?.IsEvent);
+        Assert.True(isEvent);
+    }
+
+    // A handler's background work that names somebody on purpose is back to handling the event once that scope ends.
+    [Fact]
+    public async Task Begin_WorkStartedInsideAnEventsScope_IsTheEventsAgainAfterAScopeOfItsOwn()
+    {
+        var disposed = new TaskCompletionSource();
+        Task<bool> child;
+
+        using (ContextScope.BeginForEvent(First))
+        {
+            child = Task.Run(async () =>
+            {
+                await disposed.Task;
+
+                using (ContextScope.Begin(Second))
+                {
+                    Assert.False(ContextScope.IsEvent);
+                }
+
+                return ContextScope.IsEvent && ContextScope.Current?.OrganizationId == First.OrganizationId;
+            }, TestContext.Current.CancellationToken);
+        }
+
+        disposed.SetResult();
+
+        Assert.True(await child);
+    }
+
+    [Fact]
+    public async Task Begin_WorkStartedInside_KeepsAContextThatIsNotAnEvents()
+    {
+        var disposed = new TaskCompletionSource();
+        Task<IContext?> child;
+
+        using (ContextScope.Begin(First))
+        {
+            child = Task.Run(async () =>
+            {
+                await disposed.Task;
+                return ContextScope.Current;
+            }, TestContext.Current.CancellationToken);
+        }
+
+        disposed.SetResult();
+
+        Assert.Same(First, await child);
     }
 
     [Fact]
@@ -105,12 +193,27 @@ public sealed class ContextScopeTests
     {
         using (ContextScope.BeginForEvent(First))
         {
-            Assert.Same(First, ContextScope.Current);
+            Assert.Equal(First.OrganizationId, ContextScope.Current?.OrganizationId);
+            Assert.True(ContextScope.Current?.IsEvent);
             Assert.True(ContextScope.IsEvent);
         }
 
         Assert.Null(ContextScope.Current);
         Assert.False(ContextScope.IsEvent);
+    }
+
+    [Fact]
+    public void BeginForEvent_AContextAlreadyAnEvents_IsCurrentAsItIs()
+    {
+        using (ContextScope.BeginForEvent(First))
+        {
+            var events = ContextScope.Current!;
+
+            using (ContextScope.BeginForEvent(events))
+            {
+                Assert.Same(events, ContextScope.Current);
+            }
+        }
     }
 
     // A handler naming somebody on purpose begins its own scope inside the event's: that one is not the event's.
@@ -122,6 +225,7 @@ public sealed class ContextScopeTests
             using (ContextScope.Begin(Second))
             {
                 Assert.False(ContextScope.IsEvent);
+                Assert.False(ContextScope.Current?.IsEvent);
             }
 
             Assert.True(ContextScope.IsEvent);
