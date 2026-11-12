@@ -66,19 +66,27 @@ public sealed class ServerPasswordHasherTests
         Assert.NotEqual(_hasher.CreateStoredHash(Client), _hasher.CreateStoredHash(Client));
     }
 
+    [Fact]
+    public void CreateStoredHash_NullClientHash_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(() => _hasher.CreateStoredHash(new(null!)));
+    }
+
+    // As ASP.NET Identity's hasher, which the server used before: a blank value still hashes.
     [Theory]
-    [InlineData(null)]
     [InlineData("")]
     [InlineData(" ")]
-    public void CreateStoredHash_MissingClientHash_Throws(string? clientHash)
+    public void CreateStoredHash_BlankClientHash_Hashes(string clientHash)
     {
-        Assert.ThrowsAny<ArgumentException>(() => _hasher.CreateStoredHash(new(clientHash!)));
+        var stored = _hasher.CreateStoredHash(new(clientHash));
+
+        Assert.Equal(HeaderLength + SaltLength + SubkeyLength, Convert.FromBase64String(stored.Value).Length);
     }
 
     [Fact]
     public void CreateStoredHash_DefaultClientHash_Throws()
     {
-        Assert.ThrowsAny<ArgumentException>(() => _hasher.CreateStoredHash(default));
+        Assert.Throws<ArgumentNullException>(() => _hasher.CreateStoredHash(default));
     }
 
     [Theory]

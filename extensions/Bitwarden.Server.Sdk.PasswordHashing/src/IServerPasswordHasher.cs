@@ -34,7 +34,7 @@ public interface IServerPasswordHasher
     /// </summary>
     /// <param name="clientHash">The password hash sent by the client.</param>
     /// <returns>The hash to store.</returns>
-    /// <exception cref="ArgumentException">The value of <paramref name="clientHash"/> is null, empty or white space.</exception>
+    /// <exception cref="ArgumentNullException">The value of <paramref name="clientHash"/> is null.</exception>
     ServerStorableHash CreateStoredHash(ClientCreatedHash clientHash);
 
     /// <summary>

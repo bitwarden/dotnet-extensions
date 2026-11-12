@@ -22,7 +22,8 @@ internal sealed class ServerPasswordHasher : IServerPasswordHasher
 
     public ServerStorableHash CreateStoredHash(ClientCreatedHash clientHash)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(clientHash.Value, nameof(clientHash));
+        // Only null is refused, as ASP.NET Identity's hasher refuses it; a blank value hashes.
+        ArgumentNullException.ThrowIfNull(clientHash.Value, nameof(clientHash));
 
         return new ServerStorableHash(_hasher.HashPassword(_user, clientHash.Value));
     }
