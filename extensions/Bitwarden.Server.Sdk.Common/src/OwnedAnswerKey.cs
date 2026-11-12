@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Configuration;
@@ -143,6 +144,7 @@ public static class OwnedAnswerKey
     /// <param name="answer">The answer's name, for example <c>account-by-email</c>. It may not contain a line feed or <c>:</c>.</param>
     /// <param name="key">The key, normalized as the owner compares it (an address trimmed and lowercased).</param>
     /// <param name="secret">The configured secret (<see cref="ReadSecret(IConfiguration, string)"/>), or empty for none.</param>
+    [SuppressMessage("ApiDesign", "RS0030:Do not use banned APIs", Justification = "A keyed digest that names a cache entry, so the entry's key does not reveal the value it was made from. It is not a token, a signature or an encrypted format. Predates the ban; awaits its owning team's agreement.")]
     public static Guid Of(string answer, string key, ReadOnlySpan<byte> secret)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(answer);

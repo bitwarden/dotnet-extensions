@@ -116,6 +116,15 @@ See the [README.md](README.md) for detailed information about each package. Main
 -   Authentication components handle sensitive JWT tokens
 -   Secrets integration loads sensitive configuration
 
+### No hand-built crypto
+
+-   Make and check tokens, signatures, key formats and encrypted formats (JWT, JWS, JWE, JWK, COSE, EncString) with the library this repository already uses: `Microsoft.IdentityModel` for JWTs and JWKs, `Bitwarden.Core` for EncStrings. Never compose one by hand from `System.Security.Cryptography` primitives, even when the result would be correct and the library would add a dependency.
+-   The build enforces this. `BannedSymbols.txt` bans signing, verifying, encrypting, decrypting, key agreement and HMAC in every package, so a direct call fails with `RS0030`. Hashing, random numbers, key generation and key import stay allowed. Tests may build malformed tokens by hand.
+-   A direct call needs the owning team's agreement first (team-auth for authentication and tokens). Record it as a `[SuppressMessage("ApiDesign", "RS0030:Do not use banned APIs", Justification = "...")]` on the one member that needs it, saying what the code does, why no library serves it and who agreed. Reviewers treat any new suppression as a security change.
+-   A suppression on code that predates the ban says "Predates the ban" and names who its review awaits. `git grep RS0030` lists them; each is for its owners to agree to or replace.
+-   For work on authentication, tokens or crypto, agree the design and the library with the owning team before writing code.
+-   When code deliberately avoids a library the repository already has, say why in one line in the pull request description.
+
 ### Documentation Generation
 
 -   XML documentation files generated for all packable projects
