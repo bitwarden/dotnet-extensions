@@ -299,6 +299,44 @@ public sealed class CurrentContextTests
         }
     }
 
+    // A consumer handed IContext can tell an event's actor from a person acting.
+    [Fact]
+    public void IsEvent_NoRequest_InAnEventsScope_True()
+    {
+        using (ContextScope.BeginForEvent(new StatedContext { OrganizationId = Organization, UserId = Person }))
+        {
+            foreach (var context in new[] { Domain(null), Product(null) })
+            {
+                Assert.True(context.IsEvent);
+                Assert.Equal(Person, context.UserId);
+            }
+        }
+
+        Assert.False(Domain(null).IsEvent);
+    }
+
+    [Fact]
+    public void IsEvent_NoRequest_InAScopeThatIsNotAnEvents_False()
+    {
+        using (ContextScope.Begin(new StatedContext { OrganizationId = Organization, UserId = Person }))
+        {
+            Assert.False(Domain(null).IsEvent);
+            Assert.False(Product(null).IsEvent);
+        }
+    }
+
+    // No header says a request is an event's, and a scope is never honoured inside a request.
+    [Fact]
+    public void IsEvent_DuringARequest_False_WhateverTheScope()
+    {
+        using (ContextScope.BeginForEvent(new StatedContext { OrganizationId = Organization, UserId = Person }))
+        {
+            Assert.False(Domain(Called()).IsEvent);
+            Assert.False(Domain(Request()).IsEvent);
+            Assert.False(Product(Request()).IsEvent);
+        }
+    }
+
     [Fact]
     public void Owners_ProductService_AreTheSessionsClaims_NotTheHeaders()
     {

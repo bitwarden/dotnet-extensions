@@ -39,6 +39,25 @@ public sealed class ServiceWritesTests
         Assert.Null(told.Declared);
     }
 
+    // The order doesn't matter: a write to another service, then a save, spans too, and the guard is told before the save.
+    [Fact]
+    public void AWriteToAnotherServiceThenASave_Spans()
+    {
+        var guard = new RecordingGuard();
+
+        using (var operation = ServiceWrites.Begin("operation", declared: null, guard))
+        {
+            ServiceWrites.Outgoing("billing-service", "key-1");
+            Assert.False(operation.Spans);
+
+            ServiceWrites.Saving();
+
+            Assert.True(operation.Spans);
+        }
+
+        Assert.Equal(["billing-service", ServiceWrites.OwnDatabase], Assert.Single(guard.Told).Steps);
+    }
+
     // Two writes to the same other service span too: a failure between them leaves that service half done.
     [Fact]
     public void TwoWritesToOtherServices_Span()
@@ -87,6 +106,23 @@ public sealed class ServiceWritesTests
 
         Assert.Same(outer, ServiceWrites.Current);
         Assert.Single(outer.Steps);
+    }
+
+    // Work started without the execution context flowing is outside the operation, so its writes are not counted.
+    [Fact]
+    public async Task WorkStartedWithoutFlow_IsNotCounted()
+    {
+        using var operation = ServiceWrites.Begin("operation", declared: null, guard: null);
+
+        Task unflowed;
+        using (ExecutionContext.SuppressFlow())
+        {
+            unflowed = Task.Run(() => ServiceWrites.Outgoing("billing-service", "key-1"), TestContext.Current.CancellationToken);
+        }
+
+        await unflowed;
+
+        Assert.Empty(operation.Steps);
     }
 
     // Work the operation left running after it ended (fire and forget) is not counted against it.

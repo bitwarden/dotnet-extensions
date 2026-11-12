@@ -186,18 +186,30 @@ public sealed class ContextHeaderTests
     [InlineData("2001:0db8:0000:0000:0000:0000:0000:0001", "2001:db8::1")]
     [InlineData("2001:DB8::1", "2001:db8::1")]
     [InlineData("203.0.113.9", "203.0.113.9")]
-    [InlineData("::ffff:203.0.113.9", "::ffff:203.0.113.9")]
+    // A dual-stack socket reports an IPv4 client as IPv6: one client, one spelling.
+    [InlineData("::ffff:203.0.113.9", "203.0.113.9")]
     public void Write_AnAddress_IsCanonical(string address, string canonical)
     {
         Assert.Equal($$"""{"v":1,"clientIp":"{{canonical}}"}""", ContextHeader.Write(new ContextValue { ClientIp = address }));
     }
 
-    [Fact]
-    public void TryParse_AnAddress_IsCanonical()
+    [Theory]
+    [InlineData("2001:0db8:0000:0000:0000:0000:0000:0001", "2001:db8::1")]
+    [InlineData("::ffff:203.0.113.9", "203.0.113.9")]
+    public void TryParse_AnAddress_IsCanonical(string address, string canonical)
     {
-        Assert.True(ContextHeader.TryParse("""{"v":1,"clientIp":"2001:0db8:0000:0000:0000:0000:0000:0001"}""", out var read, out _));
+        Assert.True(ContextHeader.TryParse($$"""{"v":1,"clientIp":"{{address}}"}""", out var read, out _));
 
-        Assert.Equal("2001:db8::1", read.ClientIp);
+        Assert.Equal(canonical, read.ClientIp);
+    }
+
+    [Fact]
+    public void TryParse_AnotherVersion_IsRefusedWithoutEchoingIt()
+    {
+        Assert.False(ContextHeader.TryParse("""{"v":987654}""", out _, out var problem));
+
+        Assert.Contains("'v'", problem, StringComparison.Ordinal);
+        Assert.DoesNotContain("987654", problem, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -230,6 +242,11 @@ public sealed class ContextHeaderTests
     [InlineData("""{"v":1,"clientIp":"127.1"}""")]
     [InlineData("""{"v":1,"clientIp":"017.0.0.1"}""")]
     [InlineData("""{"v":1,"clientIp":"0x7f.0.0.1"}""")]
+    // The unspecified address names no client.
+    [InlineData("""{"v":1,"clientIp":"0.0.0.0"}""")]
+    [InlineData("""{"v":1,"clientIp":"::"}""")]
+    [InlineData("""{"v":1,"clientIp":"0:0:0:0:0:0:0:0"}""")]
+    [InlineData("""{"v":1,"clientIp":"::ffff:0.0.0.0"}""")]
     [InlineData("""{"v":1,"deviceType":"a device; with prose"}""")]
     [InlineData("""{"v":1,"deviceType":"10\n"}""")]
     [InlineData("""{"v":1,"deviceIdentifier":"device-1\n"}""")]
@@ -260,6 +277,12 @@ public sealed class ContextHeaderTests
     [InlineData("""{"v":1,"flagKey":"not-an-identifier"}""")]
     [InlineData("""{"v":1,"flagKey":"00000000-0000-0000-0000-000000000000"}""")]
     [InlineData("""{"v":1,"flagKey":"{c0000000-0000-4000-8000-000000000001}"}""")]
+    // An identifier padded with whitespace, which Guid.TryParseExact would take.
+    [InlineData("""{"v":1,"flagKey":" c0000000-0000-4000-8000-000000000001"}""")]
+    [InlineData("""{"v":1,"flagKey":"c0000000-0000-4000-8000-000000000001 "}""")]
+    [InlineData("""{"v":1,"credential":"SYSTEM","recordedUser":" b0000000-0000-4000-8000-000000000001 "}""")]
+    [InlineData("""{"v":1,"recordedProvider":"\td0000000-0000-4000-8000-000000000001"}""")]
+    [InlineData("""{"v":1,"organizations":["a0000000-0000-4000-8000-000000000001\n"]}""")]
     [InlineData("""{"v":1,"clientVersion":"2026"}""")]
     [InlineData("""{"v":1,"clientVersion":"2026.10.0-beta"}""")]
     [InlineData("""{"v":1,"clientVersion":2026.1}""")]
@@ -290,6 +313,8 @@ public sealed class ContextHeaderTests
         new ContextValue { ClientIp = "127.1" },
         new ContextValue { ClientIp = "017.0.0.1" },
         new ContextValue { ClientIp = "0x7f.0.0.1" },
+        new ContextValue { ClientIp = "0.0.0.0" },
+        new ContextValue { ClientIp = "::" },
         new ContextValue { DeviceType = "a device; with prose" },
         new ContextValue { DeviceType = "10\n" },
         new ContextValue { DeviceIdentifier = "device-1\n" },
@@ -324,6 +349,30 @@ public sealed class ContextHeaderTests
 
         Assert.False(ContextHeader.TryParse(header, out _, out var problem));
         Assert.Contains("16384", problem, StringComparison.Ordinal);
+    }
+
+    // Fewer characters than the limit, but more bytes once each two-byte character is counted.
+    [Fact]
+    public void TryParse_LongerThanTheLimitInBytesOnly_IsRefused()
+    {
+        var start = "{\"v\":1,\"deviceType\":\"10\",\"";
+        var header = start + new string('\u00e9', ContextHeader.MaximumLength / 2) + "\":1}";
+
+        Assert.True(header.Length <= ContextHeader.MaximumLength);
+        Assert.False(ContextHeader.TryParse(header, out _, out var problem));
+        Assert.Contains("16384", problem, StringComparison.Ordinal);
+    }
+
+    // A value far over the limit, as a transport with no header limit could hand over, is refused without a copy.
+    [Fact]
+    public void TryParse_FarLongerThanTheLimit_IsRefusedWithoutCopyingIt()
+    {
+        var header = new string(' ', 10_000_000);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+
+        Assert.False(ContextHeader.TryParse(header, out _, out _));
+
+        Assert.True(GC.GetAllocatedBytesForCurrentThread() - before < 10_000);
     }
 
     [Fact]
