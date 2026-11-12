@@ -170,8 +170,9 @@ caller as the callee answered: a `NotFoundException` as `404`, a `ServiceUnavail
 Every call carries these headers, from `IContext` (Bitwarden.Server.Sdk.Context):
 
 - `Bitwarden-Organization` and `Bitwarden-User`, and `Bitwarden-Provider` only when the context has one;
-- `Bitwarden-Context`, one closed, versioned JSON object: where the request came from, the caller's credential, and on
-  a call made as the acting person their organizations, for feature flags (at most 300, else left out);
+- `Bitwarden-Context`, one closed, versioned JSON object: where the request came from, the caller's credential, and,
+  for feature flags, the party the request's flags are evaluated for and the client's version on every call, and that
+  party's organizations on a call that keeps the actor (at most 300, else left out);
 - `Bitwarden-Call-Chain`, the services the request passed through with this one last, so a service called back while
   its own request waits can tell;
 - `Bitwarden-Delegation`, a context token the authorization server signs for this callee and this caller, exchanged

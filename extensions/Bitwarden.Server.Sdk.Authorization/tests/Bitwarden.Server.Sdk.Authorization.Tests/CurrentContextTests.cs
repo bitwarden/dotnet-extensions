@@ -49,6 +49,10 @@ public sealed class CurrentContextTests
                 RecordedUser = Person,
                 RecordedProvider = Provider,
                 Organizations = [Organization, OtherOrganization],
+                FlagKind = FlagSubjectKind.ServiceAccount,
+                FlagKey = Person,
+                ClientVersion = "2026.10.1",
+                ClientVersionIsPrerelease = true,
             },
             "a-context-token",
             ContextToken.Asserted));
@@ -67,6 +71,121 @@ public sealed class CurrentContextTests
         Assert.Null(context.RecordedUserId);
         Assert.Null(context.RecordedProviderId);
         Assert.Null(context.UserOrganizationIds);
+        Assert.Equal(FlagSubjectKind.User, context.FlagSubjectKind);
+        Assert.Null(context.FlagSubjectKey);
+        Assert.Null(context.ClientVersion);
+        Assert.False(context.ClientVersionIsPrerelease);
+    }
+
+    // ---- what flags are evaluated for ----
+
+    [Fact]
+    public void FlagSubject_DomainService_WhatTheCallingServiceCarried()
+    {
+        var context = Domain(Called());
+
+        Assert.Equal(FlagSubjectKind.ServiceAccount, context.FlagSubjectKind);
+        Assert.Equal(Person, context.FlagSubjectKey);
+        Assert.Equal("2026.10.1", context.ClientVersion);
+        Assert.True(context.ClientVersionIsPrerelease);
+    }
+
+    // Blue's IdentityClientType, from the token's type claim.
+    [Theory]
+    [InlineData(null, FlagSubjectKind.User)]
+    [InlineData("User", FlagSubjectKind.User)]
+    [InlineData("Organization", FlagSubjectKind.Organization)]
+    [InlineData("ServiceAccount", FlagSubjectKind.ServiceAccount)]
+    [InlineData("AccessConnector", FlagSubjectKind.AccessConnector)]
+    [InlineData("Send", FlagSubjectKind.User)]
+    [InlineData("organization", FlagSubjectKind.User)]
+    [InlineData("1", FlagSubjectKind.User)]
+    public void FlagSubject_ProductService_TheTokensType(string? type, FlagSubjectKind kind)
+    {
+        Claim[] claims = type is null ? [C("sub", Person.ToString())] : [C("sub", Person.ToString()), C("type", type)];
+
+        Assert.Equal(kind, Product(Request(claims)).FlagSubjectKind);
+    }
+
+    [Fact]
+    public void FlagSubject_ProductService_APersonByTheirSubject()
+    {
+        var context = Product(Request([C("sub", Person.ToString()), C("organizations", Organization.ToString())]));
+
+        Assert.Equal(Person, context.FlagSubjectKey);
+        Assert.Equal([Organization], context.UserOrganizationIds);
+    }
+
+    // A Send is nobody in particular, whatever else its token says.
+    [Fact]
+    public void FlagSubject_ProductService_ASendIsNobody()
+    {
+        var context = Product(Request([C("type", "Send"), C("sub", Person.ToString()), C("organizations", Organization.ToString())]));
+
+        Assert.Null(context.FlagSubjectKey);
+        Assert.Null(context.UserOrganizationIds);
+    }
+
+    [Fact]
+    public void FlagSubject_ProductService_AMachineAccountByItsAccount_ElseItsOrganization()
+    {
+        var machine = Guid.NewGuid();
+
+        var byAccount = Product(Request([C("type", "ServiceAccount"), C("service_account", machine.ToString()), C("organization", Organization.ToString())])).FlagSubjectKey;
+        var byOrganization = Product(Request([C("type", "ServiceAccount"), C("organization", Organization.ToString())])).FlagSubjectKey;
+
+        Assert.Equal(machine, byAccount);
+        Assert.Equal(Organization, byOrganization);
+    }
+
+    // No session, nobody: a token not yet authenticated says nothing.
+    [Fact]
+    public void FlagSubject_ProductService_Unauthenticated_Nobody()
+    {
+        var context = Product(Request([C("type", "Organization"), C("organization", Organization.ToString())], authenticated: false));
+
+        Assert.Equal(FlagSubjectKind.User, context.FlagSubjectKind);
+        Assert.Null(context.FlagSubjectKey);
+    }
+
+    [Theory]
+    [InlineData("2026.10.1", "1", "2026.10.1", true)]
+    [InlineData("2026.010.01", null, "2026.10.1", false)]
+    [InlineData("2026.10.1", "0", "2026.10.1", false)]
+    [InlineData("not-a-version", "1", null, false)]
+    [InlineData(null, "1", null, false)]
+    public void ClientVersion_ProductService_TheHeaderAsAVersion(string? header, string? prerelease, string? version, bool isPrerelease)
+    {
+        var http = Request();
+        if (header is not null)
+        {
+            http.Request.Headers["Bitwarden-Client-Version"] = header;
+        }
+
+        if (prerelease is not null)
+        {
+            http.Request.Headers["Is-Prerelease"] = prerelease;
+        }
+
+        var context = Product(http);
+
+        Assert.Equal(version, context.ClientVersion);
+        Assert.Equal(isPrerelease, context.ClientVersionIsPrerelease);
+    }
+
+    // Blue's Enum.TryParse takes a device type's name too; the number is what is carried.
+    [Theory]
+    [InlineData("Android", "0")]
+    [InlineData("WindowsCLI", "23")]
+    [InlineData("9", "9")]
+    [InlineData("android", null)]
+    [InlineData("Chrome", null)]
+    public void DeviceType_ProductService_ANumberOrAName(string header, string? carried)
+    {
+        var http = Request();
+        http.Request.Headers["Device-Type"] = header;
+
+        Assert.Equal(carried, Product(http).DeviceType);
     }
 
     [Fact]
@@ -288,11 +407,13 @@ public sealed class CurrentContextTests
         Assert.Null(Product(Request([C("sub", Person.ToString()), C("organizations", "not-an-identifier")])).UserOrganizationIds);
     }
 
-    // Only a person's session lists the person's organizations.
+    // The organizations a token lists are its flag subject's, whoever it names, as blue reads them from the claims
+    // alone; a token naming nobody lists none.
     [Fact]
-    public void UserOrganizationIds_ProductService_WithoutAPerson_Null()
+    public void UserOrganizationIds_ProductService_WithoutAPerson_TheTokensList()
     {
-        Assert.Null(Product(Request([C("organizations", Organization.ToString())])).UserOrganizationIds);
+        Assert.Equal([Organization], Product(Request([C("organizations", Organization.ToString())])).UserOrganizationIds);
+        Assert.Null(Product(Request([C("client_id", "installation.x")])).UserOrganizationIds);
     }
 
     // The client does not choose the address an audit record gives it.
