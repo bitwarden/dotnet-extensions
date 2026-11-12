@@ -20,6 +20,17 @@ public sealed class ServerPasswordHasherTests
     private const int SubkeyLength = 32;
     private const int HeaderLength = 13;
 
+    // Hashes of ClientHash produced by the Bitwarden server's own registrations
+    // (AddCustomIdentityServices for IPasswordHasher<User>, AddSendPasswordServices for Sends).
+    private const string ServerMasterPasswordHash =
+        "AQAAAAIAAYagAAAAEHkSHtEb9vUEGyeqeEWfvai8k2rNVxb46H1J4bwc/a1fLkV4B4luKD3tyQjlNp7uTw==";
+    private const string ServerSendPasswordHash =
+        "AQAAAAIAAYagAAAAEJ2PKNVcsvfAKEuo4cZBX1sC4++C7nOhANUcHT6kGEtebRiCxNDEBSAkny5IGBGqow==";
+
+    // Same, with the 25,000 iterations the server used from 2018 until it moved to 100,000.
+    private const string ServerLegacyHash =
+        "AQAAAAIAAGGoAAAAEHI1cg5ZNKVNQA0RSk5aKhHpBDUt3u6g6Uyh4qQtnNsj1cFK+Ls2DgPeVWiuBJn5Og==";
+
     private readonly IServerPasswordHasher _hasher = CreateHasher(new ServiceCollection());
 
     [Fact]
@@ -63,21 +74,11 @@ public sealed class ServerPasswordHasherTests
         Assert.ThrowsAny<ArgumentException>(() => _hasher.Hash(clientHash!));
     }
 
-    [Fact]
-    public void Verify_HashBuiltFromLayout_Succeeds()
+    [Theory]
+    [InlineData(ServerMasterPasswordHash)]
+    [InlineData(ServerSendPasswordHash)]
+    public void Verify_HashStoredByServer_Succeeds(string stored)
     {
-        var stored = BuildV3(ClientHash, ServerIterations);
-
-        Assert.Equal(PasswordHashVerification.Success, _hasher.Verify(stored, ClientHash));
-    }
-
-    [Fact]
-    public void Verify_HashStoredByServer_Succeeds()
-    {
-        // The server hashes master password and Send password hashes with ASP.NET Identity, V3, 100k.
-        var server = new PasswordHasher<object>(Options.Create(new PasswordHasherOptions { IterationCount = ServerIterations }));
-        var stored = server.HashPassword(new object(), ClientHash);
-
         Assert.Equal(PasswordHashVerification.Success, _hasher.Verify(stored, ClientHash));
     }
 
@@ -92,11 +93,9 @@ public sealed class ServerPasswordHasherTests
     }
 
     [Fact]
-    public void Verify_FewerIterations_AsksForRehash()
+    public void Verify_LegacyServerHash_AsksForRehash()
     {
-        var stored = BuildV3(ClientHash, iterations: 10_000);
-
-        Assert.Equal(PasswordHashVerification.SuccessRehashNeeded, _hasher.Verify(stored, ClientHash));
+        Assert.Equal(PasswordHashVerification.SuccessRehashNeeded, _hasher.Verify(ServerLegacyHash, ClientHash));
     }
 
     [Fact]
@@ -153,21 +152,4 @@ public sealed class ServerPasswordHasherTests
 
     private static IServerPasswordHasher CreateHasher(IServiceCollection services) =>
         services.AddServerPasswordHasher().BuildServiceProvider().GetRequiredService<IServerPasswordHasher>();
-
-    private static string BuildV3(string clientHash, int iterations)
-    {
-        var salt = RandomNumberGenerator.GetBytes(SaltLength);
-        var subkey = Rfc2898DeriveBytes.Pbkdf2(
-            Encoding.UTF8.GetBytes(clientHash), salt, iterations, HashAlgorithmName.SHA512, SubkeyLength);
-
-        var output = new byte[HeaderLength + SaltLength + SubkeyLength];
-        output[0] = V3Marker;
-        BinaryPrimitives.WriteInt32BigEndian(output.AsSpan(1), Sha512Prf);
-        BinaryPrimitives.WriteInt32BigEndian(output.AsSpan(5), iterations);
-        BinaryPrimitives.WriteInt32BigEndian(output.AsSpan(9), SaltLength);
-        salt.CopyTo(output, HeaderLength);
-        subkey.CopyTo(output, HeaderLength + SaltLength);
-
-        return Convert.ToBase64String(output);
-    }
 }
