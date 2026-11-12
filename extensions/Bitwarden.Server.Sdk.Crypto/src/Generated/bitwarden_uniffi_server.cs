@@ -846,6 +846,14 @@ static class _UniFFILib {
     
     
     
+    
+    
+    
+    
+    
+    
+    
+    
 
     static _UniFFILib() {
         _UniFFILib.uniffiCheckContractApiVersion();
@@ -895,6 +903,17 @@ static class _UniFFILib {
     public static extern
 #endif
      ulong uniffi_bitwarden_uniffi_server_fn_method_serverclient_crypto_parsing(ulong @ptr,ref UniffiRustCallStatus _uniffi_out_err
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     ulong uniffi_bitwarden_uniffi_server_fn_method_serverclient_key_data(ulong @ptr,ref UniffiRustCallStatus _uniffi_out_err
     );
 
     #if NET8_0_OR_GREATER
@@ -1016,6 +1035,50 @@ static class _UniFFILib {
     public static extern
 #endif
      RustBuffer uniffi_bitwarden_uniffi_server_fn_method_cryptoparsingclient_inspect_verifying_key(ulong @ptr,RustBuffer @verifyingKey,ref UniffiRustCallStatus _uniffi_out_err
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     ulong uniffi_bitwarden_uniffi_server_fn_clone_keydataclient(ulong @handle,ref UniffiRustCallStatus _uniffi_out_err
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     void uniffi_bitwarden_uniffi_server_fn_free_keydataclient(ulong @handle,ref UniffiRustCallStatus _uniffi_out_err
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_keydataclient_validate_key(ulong @ptr,RustBuffer @data,ref UniffiRustCallStatus _uniffi_out_err
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     RustBuffer uniffi_bitwarden_uniffi_server_fn_method_keydataclient_validate_unlock_method(ulong @ptr,RustBuffer @data,ref UniffiRustCallStatus _uniffi_out_err
     );
 
     #if NET8_0_OR_GREATER
@@ -1609,6 +1672,17 @@ static class _UniFFILib {
     [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
     public static extern
 #endif
+     ushort uniffi_bitwarden_uniffi_server_checksum_method_serverclient_key_data(
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
      ushort uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_data_envelope(
     );
 
@@ -1708,6 +1782,28 @@ static class _UniFFILib {
     [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
     public static extern
 #endif
+     ushort uniffi_bitwarden_uniffi_server_checksum_method_keydataclient_validate_key(
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
+     ushort uniffi_bitwarden_uniffi_server_checksum_method_keydataclient_validate_unlock_method(
+    );
+
+    #if NET8_0_OR_GREATER
+    [LibraryImport("bitwarden_uniffi_server")]
+    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static partial
+#else
+    [DllImport("bitwarden_uniffi_server", CallingConvention = CallingConvention.Cdecl)]
+    public static extern
+#endif
      ushort uniffi_bitwarden_uniffi_server_checksum_constructor_serverclient_new(
     );
 
@@ -1735,6 +1831,12 @@ static class _UniFFILib {
             var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_serverclient_crypto_parsing();
             if (checksum != 59849) {
                 throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_serverclient_crypto_parsing` checksum `59849`, library returned `{checksum}`");
+            }
+        }
+        {
+            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_serverclient_key_data();
+            if (checksum != 24760) {
+                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_serverclient_key_data` checksum `24760`, library returned `{checksum}`");
             }
         }
         {
@@ -1789,6 +1891,18 @@ static class _UniFFILib {
             var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_verifying_key();
             if (checksum != 24539) {
                 throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_cryptoparsingclient_inspect_verifying_key` checksum `24539`, library returned `{checksum}`");
+            }
+        }
+        {
+            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_keydataclient_validate_key();
+            if (checksum != 5741) {
+                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_keydataclient_validate_key` checksum `5741`, library returned `{checksum}`");
+            }
+        }
+        {
+            var checksum = _UniFFILib.uniffi_bitwarden_uniffi_server_checksum_method_keydataclient_validate_unlock_method();
+            if (checksum != 44792) {
+                throw new UniffiContractChecksumException($"Bitwarden.Server.Sdk.Crypto.Native: uniffi bindings expected function `uniffi_bitwarden_uniffi_server_checksum_method_keydataclient_validate_unlock_method` checksum `44792`, library returned `{checksum}`");
             }
         }
         {
@@ -2143,6 +2257,167 @@ class FfiConverterTypeCryptoParsingClient: FfiConverter<CryptoParsingClient, ulo
 
 
 /// <summary>
+/// Parses and validates key and unlock method `data`, returning the key ids it carries.
+/// </summary>
+internal interface IKeyDataClient {
+    /// <summary>
+    /// Validates a key's `data`, of the type its `type` member names.
+    /// </summary>
+    /// <exception cref="ServerException"></exception>
+    KeyInfo ValidateKey(string @data);
+    /// <summary>
+    /// Validates an unlock method's `data`, of the kind its `kind` member names.
+    /// </summary>
+    /// <exception cref="ServerException"></exception>
+    UnlockMethodInfo ValidateUnlockMethod(string @data);
+}
+/// <summary>
+/// Parses and validates key and unlock method `data`, returning the key ids it carries.
+/// </summary>
+internal class KeyDataClient : IKeyDataClient, IDisposable {
+    protected ulong pointer;
+    private int _wasDestroyed = 0;
+    private long _callCounter = 1;
+
+    public KeyDataClient(ulong pointer) {
+        this.pointer = pointer;
+    }
+
+    ~KeyDataClient() {
+        Destroy();
+    }
+
+    protected void FreeRustArcPtr() {
+        _UniffiHelpers.RustCall((ref UniffiRustCallStatus status) => {
+            _UniFFILib.uniffi_bitwarden_uniffi_server_fn_free_keydataclient(this.pointer, ref status);
+        });
+    }
+
+    protected ulong CloneRustArcPtr() {
+        return _UniffiHelpers.RustCall((ref UniffiRustCallStatus status) => {
+            return _UniFFILib.uniffi_bitwarden_uniffi_server_fn_clone_keydataclient(this.pointer, ref status);
+        });
+    }
+
+    public void Destroy()
+    {
+        // Only allow a single call to this method.
+        if (Interlocked.CompareExchange(ref _wasDestroyed, 1, 0) == 0)
+        {
+            // This decrement always matches the initial count of 1 given at creation time.
+            if (Interlocked.Decrement(ref _callCounter) == 0)
+            {
+                FreeRustArcPtr();
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        Destroy();
+        GC.SuppressFinalize(this); // Suppress finalization to avoid unnecessary GC overhead.
+    }
+
+    private void IncrementCallCounter() 
+    {
+        // Check and increment the call counter, to keep the object alive.
+        // This needs a compare-and-set retry loop in case of concurrent updates.
+        long count;
+        do
+        {
+            count = Interlocked.Read(ref _callCounter);
+            if (count == 0L) throw new System.ObjectDisposedException(String.Format("'{0}' object has already been destroyed", this.GetType().Name));
+            if (count == long.MaxValue) throw new System.OverflowException(String.Format("'{0}' call counter would overflow", this.GetType().Name));
+
+        } while (Interlocked.CompareExchange(ref _callCounter, count + 1, count) != count);
+    }
+
+    private void DecrementCallCounter() 
+    {
+        // This decrement always matches the increment we performed above.
+        if (Interlocked.Decrement(ref _callCounter) == 0) {
+            FreeRustArcPtr();
+        }
+    }
+
+    internal void CallWithPointer(Action<ulong> action)
+    {
+        IncrementCallCounter();
+        try {
+            action(CloneRustArcPtr());
+        }
+        finally {
+            DecrementCallCounter();
+        }
+    }
+
+    internal T CallWithPointer<T>(Func<ulong, T> func)
+    {   
+        IncrementCallCounter();
+        try {
+            return func(CloneRustArcPtr());
+        }
+        finally {
+            DecrementCallCounter();
+        }
+    }
+
+    
+    /// <summary>
+    /// Validates a key's `data`, of the type its `type` member names.
+    /// </summary>
+    /// <exception cref="ServerException"></exception>
+    public KeyInfo ValidateKey(string @data) {
+        return CallWithPointer(thisPtr => FfiConverterTypeKeyInfo.INSTANCE.Lift(
+    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
+    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_keydataclient_validate_key(thisPtr, FfiConverterString.INSTANCE.Lower(@data), ref _status)
+)));
+    }
+    
+    
+    /// <summary>
+    /// Validates an unlock method's `data`, of the kind its `kind` member names.
+    /// </summary>
+    /// <exception cref="ServerException"></exception>
+    public UnlockMethodInfo ValidateUnlockMethod(string @data) {
+        return CallWithPointer(thisPtr => FfiConverterTypeUnlockMethodInfo.INSTANCE.Lift(
+    _UniffiHelpers.RustCallWithError(FfiConverterTypeServerError.INSTANCE, (ref UniffiRustCallStatus _status) =>
+    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_keydataclient_validate_unlock_method(thisPtr, FfiConverterString.INSTANCE.Lower(@data), ref _status)
+)));
+    }
+    
+    
+
+    
+}
+class FfiConverterTypeKeyDataClient: FfiConverter<KeyDataClient, ulong> {
+    public static FfiConverterTypeKeyDataClient INSTANCE = new FfiConverterTypeKeyDataClient();
+
+
+    public override ulong Lower(KeyDataClient value) {
+        return value.CallWithPointer(thisPtr => thisPtr);
+    }
+
+    public override KeyDataClient Lift(ulong value) {
+        return new KeyDataClient(value);
+    }
+
+    public override KeyDataClient Read(BigEndianStream stream) {
+        return Lift(stream.ReadULong());
+    }
+
+    public override int AllocationSize(KeyDataClient value) {
+        return 8;
+    }
+
+    public override void Write(KeyDataClient value, BigEndianStream stream) {
+        stream.WriteULong(Lower(value));
+    }
+}
+
+
+
+/// <summary>
 /// Entry point of the server bindings.
 /// </summary>
 internal interface IServerClient {
@@ -2150,6 +2425,10 @@ internal interface IServerClient {
     /// Parses SDK crypto objects and reads the key ids they name, without decrypting.
     /// </summary>
     CryptoParsingClient CryptoParsing();
+    /// <summary>
+    /// Parses and validates the key service's key and unlock method `data`.
+    /// </summary>
+    KeyDataClient KeyData();
 }
 /// <summary>
 /// Entry point of the server bindings.
@@ -2258,6 +2537,17 @@ internal class ServerClient : IServerClient, IDisposable {
         return CallWithPointer(thisPtr => FfiConverterTypeCryptoParsingClient.INSTANCE.Lift(
     _UniffiHelpers.RustCall( (ref UniffiRustCallStatus _status) =>
     _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_serverclient_crypto_parsing(thisPtr,  ref _status)
+)));
+    }
+    
+    
+    /// <summary>
+    /// Parses and validates the key service's key and unlock method `data`.
+    /// </summary>
+    public KeyDataClient KeyData() {
+        return CallWithPointer(thisPtr => FfiConverterTypeKeyDataClient.INSTANCE.Lift(
+    _UniffiHelpers.RustCall( (ref UniffiRustCallStatus _status) =>
+    _UniFFILib.uniffi_bitwarden_uniffi_server_fn_method_serverclient_key_data(thisPtr,  ref _status)
 )));
     }
     
@@ -2393,6 +2683,117 @@ class FfiConverterTypeEncStringInfo: FfiConverterRustBuffer<EncStringInfo> {
 
 
 /// <summary>
+/// The key ids the objects in `data` carry, as 32 lowercase hex characters; [None] where no object
+/// names one.
+/// </summary>
+/// <param name="KeyId">
+/// The key pair's own id: its public or verifying key's.
+/// </param>
+/// <param name="ContainedKeyId">
+/// The key an envelope holds.
+/// </param>
+/// <param name="SealedByKeyId">
+/// The key that sealed it.
+/// </param>
+/// <param name="SignedByKeyId">
+/// The key that signed it.
+/// </param>
+internal record KeyIds (
+    /// <summary>
+    /// The key pair's own id: its public or verifying key's.
+    /// </summary>
+    string? KeyId, 
+    /// <summary>
+    /// The key an envelope holds.
+    /// </summary>
+    string? ContainedKeyId, 
+    /// <summary>
+    /// The key that sealed it.
+    /// </summary>
+    string? SealedByKeyId, 
+    /// <summary>
+    /// The key that signed it.
+    /// </summary>
+    string? SignedByKeyId
+) {
+}
+
+class FfiConverterTypeKeyIds: FfiConverterRustBuffer<KeyIds> {
+    public static FfiConverterTypeKeyIds INSTANCE = new FfiConverterTypeKeyIds();
+
+    public override KeyIds Read(BigEndianStream stream) {
+        return new KeyIds(
+            KeyId: FfiConverterOptionalString.INSTANCE.Read(stream),
+            ContainedKeyId: FfiConverterOptionalString.INSTANCE.Read(stream),
+            SealedByKeyId: FfiConverterOptionalString.INSTANCE.Read(stream),
+            SignedByKeyId: FfiConverterOptionalString.INSTANCE.Read(stream)
+        );
+    }
+
+    public override int AllocationSize(KeyIds value) {
+        return 0
+            + FfiConverterOptionalString.INSTANCE.AllocationSize(value.KeyId)
+            + FfiConverterOptionalString.INSTANCE.AllocationSize(value.ContainedKeyId)
+            + FfiConverterOptionalString.INSTANCE.AllocationSize(value.SealedByKeyId)
+            + FfiConverterOptionalString.INSTANCE.AllocationSize(value.SignedByKeyId);
+    }
+
+    public override void Write(KeyIds value, BigEndianStream stream) {
+            FfiConverterOptionalString.INSTANCE.Write(value.KeyId, stream);
+            FfiConverterOptionalString.INSTANCE.Write(value.ContainedKeyId, stream);
+            FfiConverterOptionalString.INSTANCE.Write(value.SealedByKeyId, stream);
+            FfiConverterOptionalString.INSTANCE.Write(value.SignedByKeyId, stream);
+    }
+}
+
+
+
+/// <summary>
+/// A validated key's type and the ids its `data` carries.
+/// </summary>
+/// <param name="DataType">
+/// The type `data` named.
+/// </param>
+/// <param name="KeyIds">
+/// The ids its objects carry.
+/// </param>
+internal record KeyInfo (
+    /// <summary>
+    /// The type `data` named.
+    /// </summary>
+    KeyDataType DataType, 
+    /// <summary>
+    /// The ids its objects carry.
+    /// </summary>
+    KeyIds KeyIds
+) {
+}
+
+class FfiConverterTypeKeyInfo: FfiConverterRustBuffer<KeyInfo> {
+    public static FfiConverterTypeKeyInfo INSTANCE = new FfiConverterTypeKeyInfo();
+
+    public override KeyInfo Read(BigEndianStream stream) {
+        return new KeyInfo(
+            DataType: FfiConverterTypeKeyDataType.INSTANCE.Read(stream),
+            KeyIds: FfiConverterTypeKeyIds.INSTANCE.Read(stream)
+        );
+    }
+
+    public override int AllocationSize(KeyInfo value) {
+        return 0
+            + FfiConverterTypeKeyDataType.INSTANCE.AllocationSize(value.DataType)
+            + FfiConverterTypeKeyIds.INSTANCE.AllocationSize(value.KeyIds);
+    }
+
+    public override void Write(KeyInfo value, BigEndianStream stream) {
+            FfiConverterTypeKeyDataType.INSTANCE.Write(value.DataType, stream);
+            FfiConverterTypeKeyIds.INSTANCE.Write(value.KeyIds, stream);
+    }
+}
+
+
+
+/// <summary>
 /// What a PublicKey carries.
 /// </summary>
 /// <param name="Algorithm">
@@ -2432,6 +2833,51 @@ class FfiConverterTypePublicKeyInfo: FfiConverterRustBuffer<PublicKeyInfo> {
     public override void Write(PublicKeyInfo value, BigEndianStream stream) {
             FfiConverterTypePublicKeyAlgorithm.INSTANCE.Write(value.Algorithm, stream);
             FfiConverterString.INSTANCE.Write(value.KeyId, stream);
+    }
+}
+
+
+
+/// <summary>
+/// A validated unlock method's kind and the ids its `data` carries.
+/// </summary>
+/// <param name="Kind">
+/// The kind `data` named.
+/// </param>
+/// <param name="KeyIds">
+/// The ids its objects carry.
+/// </param>
+internal record UnlockMethodInfo (
+    /// <summary>
+    /// The kind `data` named.
+    /// </summary>
+    UnlockMethodKind Kind, 
+    /// <summary>
+    /// The ids its objects carry.
+    /// </summary>
+    KeyIds KeyIds
+) {
+}
+
+class FfiConverterTypeUnlockMethodInfo: FfiConverterRustBuffer<UnlockMethodInfo> {
+    public static FfiConverterTypeUnlockMethodInfo INSTANCE = new FfiConverterTypeUnlockMethodInfo();
+
+    public override UnlockMethodInfo Read(BigEndianStream stream) {
+        return new UnlockMethodInfo(
+            Kind: FfiConverterTypeUnlockMethodKind.INSTANCE.Read(stream),
+            KeyIds: FfiConverterTypeKeyIds.INSTANCE.Read(stream)
+        );
+    }
+
+    public override int AllocationSize(UnlockMethodInfo value) {
+        return 0
+            + FfiConverterTypeUnlockMethodKind.INSTANCE.AllocationSize(value.Kind)
+            + FfiConverterTypeKeyIds.INSTANCE.AllocationSize(value.KeyIds);
+    }
+
+    public override void Write(UnlockMethodInfo value, BigEndianStream stream) {
+            FfiConverterTypeUnlockMethodKind.INSTANCE.Write(value.Kind, stream);
+            FfiConverterTypeKeyIds.INSTANCE.Write(value.KeyIds, stream);
     }
 }
 
@@ -2583,6 +3029,69 @@ class FfiConverterTypeEncStringAlgorithm: FfiConverterRustBuffer<EncStringAlgori
 
 
 /// <summary>
+/// What a key's `data` was.
+/// </summary>
+internal enum KeyDataType: int {
+    /// <summary>
+    /// `legacy-compat-private-key-envelope`: a public-key encryption pair.
+    /// </summary>
+    PrivateKey,
+    /// <summary>
+    /// `legacy-compat-signing-key-envelope`: a signing pair.
+    /// </summary>
+    SigningKey,
+    /// <summary>
+    /// `legacy-compat-symmetric-key-envelope`: a symmetric key sealed by another.
+    /// </summary>
+    SymmetricKey,
+    /// <summary>
+    /// `unsigned-shared-key`: a symmetric key sealed to a public key.
+    /// </summary>
+    SharedKey,
+    /// <summary>
+    /// `signed-security-state`: a security state signed by its owner's signing key.
+    /// </summary>
+    SecurityState
+}
+
+class FfiConverterTypeKeyDataType: FfiConverterRustBuffer<KeyDataType> {
+    public static FfiConverterTypeKeyDataType INSTANCE = new FfiConverterTypeKeyDataType();
+
+    public override KeyDataType Read(BigEndianStream stream) {
+        var value = stream.ReadInt();
+        switch (value) {
+            case 1: return KeyDataType.PrivateKey;
+            case 2: return KeyDataType.SigningKey;
+            case 3: return KeyDataType.SymmetricKey;
+            case 4: return KeyDataType.SharedKey;
+            case 5: return KeyDataType.SecurityState;
+            default: throw new InternalException(String.Format("invalid enum value '{0}' in FfiConverterTypeKeyDataType.Read()", value));
+        }
+    }
+
+    public override int AllocationSize(KeyDataType value) {
+        return 4;
+    }
+
+    public override void Write(KeyDataType value, BigEndianStream stream) {
+        switch (value) {
+            case KeyDataType.PrivateKey: stream.WriteInt(1); break;
+            case KeyDataType.SigningKey: stream.WriteInt(2); break;
+            case KeyDataType.SymmetricKey: stream.WriteInt(3); break;
+            case KeyDataType.SharedKey: stream.WriteInt(4); break;
+            case KeyDataType.SecurityState: stream.WriteInt(5); break;
+            default: throw new InternalException(String.Format("invalid enum value '{0}' in FfiConverterTypeKeyDataType.Write()", value));
+        }
+    }
+}
+
+
+
+
+
+
+
+/// <summary>
 /// The encryption algorithm of a PublicKey.
 /// </summary>
 internal enum PublicKeyAlgorithm: int {
@@ -2640,6 +3149,20 @@ internal class ServerException: UniffiException {
         public InvalidData(string message): base(message) {}
     }
     
+    /// <summary>
+    /// Two objects in the input name different keys where they must name the same one.
+    /// </summary>
+    public class KeyIdMismatch: ServerException {
+        public KeyIdMismatch(string message): base(message) {}
+    }
+    
+    /// <summary>
+    /// KDF settings below the SDK's minimums or outside Argon2's limits, or an empty salt.
+    /// </summary>
+    public class InvalidKdf: ServerException {
+        public InvalidKdf(string message): base(message) {}
+    }
+    
 }
 
 class FfiConverterTypeServerError : FfiConverterRustBuffer<ServerException>, CallStatusErrorHandler<ServerException> {
@@ -2649,6 +3172,8 @@ class FfiConverterTypeServerError : FfiConverterRustBuffer<ServerException>, Cal
         var value = stream.ReadInt();
         switch (value) {
             case 1: return new ServerException.InvalidData(FfiConverterString.INSTANCE.Read(stream));
+            case 2: return new ServerException.KeyIdMismatch(FfiConverterString.INSTANCE.Read(stream));
+            case 3: return new ServerException.InvalidKdf(FfiConverterString.INSTANCE.Read(stream));
             default:
                 throw new InternalException(String.Format("invalid error value '{0}' in FfiConverterTypeServerError.Read()", value));
         }
@@ -2663,11 +3188,74 @@ class FfiConverterTypeServerError : FfiConverterRustBuffer<ServerException>, Cal
             case ServerException.InvalidData:
                 stream.WriteInt(1);
                 break;
+            case ServerException.KeyIdMismatch:
+                stream.WriteInt(2);
+                break;
+            case ServerException.InvalidKdf:
+                stream.WriteInt(3);
+                break;
             default:
                 throw new InternalException(String.Format("invalid error value '{0}' in FfiConverterTypeServerError.Write()", value));
         }
     }
 }
+
+
+
+
+
+/// <summary>
+/// What an unlock method's `data` was.
+/// </summary>
+internal enum UnlockMethodKind: int {
+    /// <summary>
+    /// `master-password`.
+    /// </summary>
+    MasterPassword,
+    /// <summary>
+    /// `key-connector`.
+    /// </summary>
+    KeyConnector,
+    /// <summary>
+    /// `device`.
+    /// </summary>
+    Device,
+    /// <summary>
+    /// `passkey`.
+    /// </summary>
+    Passkey
+}
+
+class FfiConverterTypeUnlockMethodKind: FfiConverterRustBuffer<UnlockMethodKind> {
+    public static FfiConverterTypeUnlockMethodKind INSTANCE = new FfiConverterTypeUnlockMethodKind();
+
+    public override UnlockMethodKind Read(BigEndianStream stream) {
+        var value = stream.ReadInt();
+        switch (value) {
+            case 1: return UnlockMethodKind.MasterPassword;
+            case 2: return UnlockMethodKind.KeyConnector;
+            case 3: return UnlockMethodKind.Device;
+            case 4: return UnlockMethodKind.Passkey;
+            default: throw new InternalException(String.Format("invalid enum value '{0}' in FfiConverterTypeUnlockMethodKind.Read()", value));
+        }
+    }
+
+    public override int AllocationSize(UnlockMethodKind value) {
+        return 4;
+    }
+
+    public override void Write(UnlockMethodKind value, BigEndianStream stream) {
+        switch (value) {
+            case UnlockMethodKind.MasterPassword: stream.WriteInt(1); break;
+            case UnlockMethodKind.KeyConnector: stream.WriteInt(2); break;
+            case UnlockMethodKind.Device: stream.WriteInt(3); break;
+            case UnlockMethodKind.Passkey: stream.WriteInt(4); break;
+            default: throw new InternalException(String.Format("invalid enum value '{0}' in FfiConverterTypeUnlockMethodKind.Write()", value));
+        }
+    }
+}
+
+
 
 
 
