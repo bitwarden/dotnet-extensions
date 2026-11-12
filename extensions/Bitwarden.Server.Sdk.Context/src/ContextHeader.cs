@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -26,6 +25,8 @@ public static partial class ContextHeader
     /// The longest value accepted, in bytes.
     /// </summary>
     public const int MaximumLength = 16384;
+
+    private const int GuidLength = 36;
 
     /// <summary>
     /// The most organizations <see cref="ContextValue.Organizations"/> may list. <see cref="Write"/>
@@ -118,12 +119,15 @@ public static partial class ContextHeader
             return false;
         }
 
-        var bytes = Encoding.UTF8.GetBytes(header);
-        if (bytes.Length > MaximumLength)
+        // UTF-8 never takes fewer bytes than UTF-16 takes characters, so a value with too many characters is refused
+        // before anything counts or copies its bytes.
+        if (header.Length > MaximumLength || Encoding.UTF8.GetByteCount(header) > MaximumLength)
         {
             problem = $"It is longer than {MaximumLength} bytes.";
             return false;
         }
+
+        var bytes = Encoding.UTF8.GetBytes(header);
 
         try
         {
@@ -331,7 +335,7 @@ public static partial class ContextHeader
 
         if (version != Version)
         {
-            return $"Version {version.ToString(CultureInfo.InvariantCulture)} is not one this service reads.";
+            return $"'{VersionMember}' is not a version this service reads.";
         }
 
         CallerCredential? credential = null;
@@ -466,16 +470,24 @@ public static partial class ContextHeader
     }
 
     /// <summary>
-    /// Whether a value is an address as a host writes one: IPv4 as four decimal numbers, or IPv6 without a zone.
+    /// Whether a value is an address as a host writes one: IPv4 as four decimal numbers, or IPv6 without a zone. The
+    /// unspecified address (<c>0.0.0.0</c> or <c>::</c>) names no client, so it is not one.
     /// </summary>
     /// <remarks>
     /// <c>IPAddress.TryParse</c> also takes IPv4's legacy forms (<c>1</c>, <c>127.1</c>, <c>017.0.0.1</c> read as
     /// octal, <c>0x7f.0.0.1</c>), and IPv6 with a zone (<c>fe80::1%eth0</c>), brackets or a port. None of them is an
     /// address another service can use, and the legacy forms name a different address than they appear to.
     /// </remarks>
-    private static bool IsAddress(string value)
+    /// <param name="value">The value.</param>
+    public static bool IsAddress(string? value)
     {
-        if (!IPAddress.TryParse(value, out var address))
+        if (value is null || !IPAddress.TryParse(value, out var address))
+        {
+            return false;
+        }
+
+        var mapped = address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address;
+        if (mapped.Equals(IPAddress.Any) || mapped.Equals(IPAddress.IPv6Any))
         {
             return false;
         }
@@ -490,10 +502,28 @@ public static partial class ContextHeader
             part.Length is > 0 and <= 3 && part.All(char.IsAsciiDigit) && (part.Length == 1 || part[0] != '0'));
     }
 
-    private static string Canonical(string address) => IPAddress.Parse(address).ToString();
+    /// <summary>
+    /// The one spelling of an address: an IPv4 address written as IPv6 (<c>::ffff:203.0.113.9</c>, as a dual-stack
+    /// socket reports an IPv4 client) is written as IPv4.
+    /// </summary>
+    private static string Canonical(string address) => Parse(address).ToString();
 
-    private static bool TryIdentifier(string? text, out Guid identifier) =>
-        Guid.TryParseExact(text, "D", out identifier) && identifier != Guid.Empty;
+    private static IPAddress Parse(string address)
+    {
+        var parsed = IPAddress.Parse(address);
+
+        return parsed.IsIPv4MappedToIPv6 ? parsed.MapToIPv4() : parsed;
+    }
+
+    // Guid.TryParseExact takes surrounding whitespace, so the length is checked first: a padded identifier is refused.
+    private static bool TryIdentifier(string? text, out Guid identifier)
+    {
+        identifier = Guid.Empty;
+
+        return text is { Length: GuidLength }
+            && Guid.TryParseExact(text, "D", out identifier)
+            && identifier != Guid.Empty;
+    }
 
     private static bool TryOptionalIdentifier(string? text, out Guid? identifier)
     {
