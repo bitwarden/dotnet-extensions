@@ -340,8 +340,9 @@ public sealed class PartnerTokens(IHttpClientFactory clients)
   Data reaches a service only as Protected Data, in request bodies, and never in a header that reaches logs;
   authorization never reads it.
 - **Audit and targeting fields don't authorize.** `IContext.Credential`, `RecordedUserId` and `RecordedProviderId` are
-  for audit records, and `UserOrganizationIds` for feature flag targeting only: never let any of them drive
-  authorization, a row filter or a cache.
+  for audit records, and `FlagSubjectKind`, `FlagSubjectKey`, `UserOrganizationIds`, `ClientVersion` and
+  `ClientVersionIsPrerelease` for feature flag targeting only: never let any of them drive authorization, a row filter
+  or a cache. The same goes for the `FlagSubject` and `ClientHeaders` this package reads them with.
 - **Nothing that touches a caller's data should set `Anonymous`.**
 - **Set both `ReadScope` and `WriteScope`.** Without them, an operation that declares no scope demands none.
 - **A role, a permission and `Anonymous` count on the handler only,** never inherited from its class.
@@ -370,5 +371,6 @@ public sealed class PartnerTokens(IHttpClientFactory clients)
 | `NamesOrganizationAttribute`, `NamesProviderAttribute`, `CreatesOrganizationAttribute`, `INamesOrganization`, `INamesProvider`, `RequestNamedOwners` | Owners an operation names that the session doesn't (product services)      |
 | `AcceptsAssertedContextAttribute`                                                                                                                    | Callers whose own word for a person an operation accepts (domain services) |
 | `InternalCaller`                                                                                                                                     | Whether the caller is another service                                      |
+| `FlagSubject`, `ClientHeaders`                                                                                                                       | Whom a token's feature flags are for, and what a client says of itself     |
 | `DiscoveredIssuerTokens`                                                                                                                             | Verifies an access token another OpenID Connect issuer signed              |
 | `CallChainOptions`, `AcceptsReentryAttribute`, `CallReentryException`                                                                                | Calls back into a service while its own request waits                      |

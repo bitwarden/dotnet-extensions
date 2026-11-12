@@ -84,6 +84,74 @@ public sealed class ContextHeaderTests
         }));
     }
 
+    // The party flags are evaluated for, and the client's version, after the members before them.
+    [Theory]
+    [InlineData(FlagSubjectKind.Organization, "ORGANIZATION")]
+    [InlineData(FlagSubjectKind.ServiceAccount, "SERVICE_ACCOUNT")]
+    [InlineData(FlagSubjectKind.AccessConnector, "ACCESS_CONNECTOR")]
+    public void Write_ThenParse_TheFlagSubjectAndVersion_RoundTrip(FlagSubjectKind kind, string name)
+    {
+        var key = new Guid("c0000000-0000-4000-8000-000000000001");
+        var organization = new Guid("a0000000-0000-4000-8000-000000000001");
+
+        var written = ContextHeader.Write(new ContextValue
+        {
+            Credential = CallerCredential.Organization,
+            Organizations = [organization],
+            FlagKind = kind,
+            FlagKey = key,
+            ClientVersion = "2026.10.1",
+            ClientVersionIsPrerelease = true,
+        });
+
+        Assert.Equal(
+            $$"""{"v":1,"credential":"ORGANIZATION","organizations":["{{organization}}"],"flagKind":"{{name}}","flagKey":"{{key}}","clientVersion":"2026.10.1","clientVersionIsPrerelease":true}""",
+            written);
+        Assert.True(ContextHeader.TryParse(written, out var read, out var problem), problem);
+        Assert.Equal(kind, read.FlagKind);
+        Assert.Equal(key, read.FlagKey);
+        Assert.Equal("2026.10.1", read.ClientVersion);
+        Assert.True(read.ClientVersionIsPrerelease);
+        Assert.Equal(written, ContextHeader.Write(read));
+    }
+
+    // A user is the default kind, so it is left out, and read back the same whether written or not.
+    [Fact]
+    public void Write_AUsersFlagSubject_LeavesTheKindOut()
+    {
+        var written = ContextHeader.Write(new ContextValue { FlagKind = FlagSubjectKind.User, FlagKey = Person, ClientVersion = "1.2" });
+
+        Assert.Equal($$"""{"v":1,"flagKey":"{{Person}}","clientVersion":"1.2"}""", written);
+        Assert.True(ContextHeader.TryParse($$"""{"v":1,"flagKind":"USER","flagKey":"{{Person}}"}""", out var read, out _));
+        Assert.Equal(FlagSubjectKind.User, read.FlagKind);
+        Assert.Equal(Person, read.FlagKey);
+    }
+
+    // A version that isn't a prerelease says nothing about it.
+    [Fact]
+    public void Write_NotAPrerelease_LeavesTheMarkerOut()
+    {
+        Assert.Equal(
+            """{"v":1,"clientVersion":"2026.10.0.1"}""",
+            ContextHeader.Write(new ContextValue { ClientVersion = "2026.10.0.1" }));
+    }
+
+    [Theory]
+    [InlineData("1.2", true)]
+    [InlineData("2026.10.0", true)]
+    [InlineData("1.2.3.4", true)]
+    [InlineData("1", false)]
+    [InlineData("1.2.3.4.5", false)]
+    [InlineData("1.2.3-beta", false)]
+    [InlineData("1.2\n", false)]
+    [InlineData("1234567890.1", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void IsClientVersion_TwoToFourWholeNumbers(string? value, bool expected)
+    {
+        Assert.Equal(expected, ContextHeader.IsClientVersion(value));
+    }
+
     [Fact]
     public void Write_NothingToCarry_IsTheVersionAlone()
     {
@@ -186,6 +254,18 @@ public sealed class ContextHeaderTests
     [InlineData("""{"v":1,"organizations":[{"id":"a0000000-0000-4000-8000-000000000001"}]}""")]
     [InlineData("""{"v":1,"organizations":["00000000-0000-0000-0000-000000000000"]}""")]
     [InlineData("""{"v":1,"organizations":["a0000000-0000-4000-8000-000000000001","a0000000-0000-4000-8000-000000000001"]}""")]
+    [InlineData("""{"v":1,"flagKind":"PERSON"}""")]
+    [InlineData("""{"v":1,"flagKind":"user"}""")]
+    [InlineData("""{"v":1,"flagKind":1}""")]
+    [InlineData("""{"v":1,"flagKey":"not-an-identifier"}""")]
+    [InlineData("""{"v":1,"flagKey":"00000000-0000-0000-0000-000000000000"}""")]
+    [InlineData("""{"v":1,"flagKey":"{c0000000-0000-4000-8000-000000000001}"}""")]
+    [InlineData("""{"v":1,"clientVersion":"2026"}""")]
+    [InlineData("""{"v":1,"clientVersion":"2026.10.0-beta"}""")]
+    [InlineData("""{"v":1,"clientVersion":2026.1}""")]
+    [InlineData("""{"v":1,"clientVersionIsPrerelease":true}""")]
+    [InlineData("""{"v":1,"clientVersion":"2026.10.0","clientVersionIsPrerelease":false}""")]
+    [InlineData("""{"v":1,"clientVersion":"2026.10.0","clientVersionIsPrerelease":"true"}""")]
     [InlineData("""{"v":1,"organizations":[""")]
     [InlineData("{\"v\":1,\"clientIp\"")]
     [InlineData("{\"v\":1,\"organizations\":[\"a0000000-0000-4000-8000-000000000001\"")]
@@ -218,6 +298,10 @@ public sealed class ContextHeaderTests
         new ContextValue { RecordedProvider = Guid.Empty },
         new ContextValue { Credential = CallerCredential.System, RecordedUser = Guid.Empty },
         new ContextValue { Organizations = [Guid.Empty] },
+        new ContextValue { FlagKind = (FlagSubjectKind)99 },
+        new ContextValue { FlagKey = Guid.Empty },
+        new ContextValue { ClientVersion = "2026.10.0-beta" },
+        new ContextValue { ClientVersionIsPrerelease = true },
     ];
 
     [Theory]
