@@ -150,6 +150,12 @@ internal static class PipelineHarness
     {
         public ConcurrentQueue<Attempt> Attempts { get; } = new();
 
+        /// <summary>
+        /// Runs as each attempt arrives, before its step. Lets a test act while an attempt is in flight without racing a
+        /// timer.
+        /// </summary>
+        public Action? Arrived { get; set; }
+
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var body = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
@@ -157,6 +163,7 @@ internal static class PipelineHarness
                 request.Headers.TryGetValues(IdempotencyKeys.Header, out var keys) ? keys.Single() : null,
                 body,
                 request.Headers.TryGetValues(BitwardenHeaders.Organization, out var organizations) ? organizations.Single() : null));
+            Arrived?.Invoke();
 
             var step = script[Math.Min(Attempts.Count - 1, script.Length - 1)];
             if (step == Hang)
