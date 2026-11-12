@@ -6,7 +6,7 @@ namespace Bitwarden.Server.Sdk.Resources.Querying;
 /// Narrows a query to the rows whose field falls within a range.
 /// </summary>
 /// <remarks>
-/// The peer of <c>SortedQueryable</c>: compiled to an expression tree so the comparison
+/// The peer of <see cref="SortedQueryable"/>: compiled to an expression tree so the comparison
 /// reaches the database, and told which field the range applies to rather than guessing it from
 /// the filter's name: the operation decides what a filter means.
 /// </remarks>
