@@ -23,7 +23,8 @@ dotnet add package Bitwarden.Server.Sdk.Context
 - **Where it comes from.** A service host registers `IContext`, reading the request when there is one and the current
   `ContextScope` otherwise, and a client writes the headers on a service's outgoing calls. Any member may be absent.
 - **A scope flows on the execution context,** so everything the work calls, however deep, sees it, and nothing outside
-  it does. Disposing it restores the scope that was current before.
+  it does. Disposing it restores the scope that was current before. Work started inside it and not awaited keeps the
+  context it started with.
 
 ## Usage
 
@@ -63,9 +64,10 @@ public sealed class WidgetJob(IWidgetBilling billing)
 }
 ```
 
-A host handing an event to a service's handlers begins its scope with `ContextScope.BeginForEvent`, and
-`ContextScope.IsEvent` says the innermost scope is one: the person it names is the event's actor, there for the record
-only, and a client can hold a handler's calls to that. A scope begun inside it with `Begin` is not an event's.
+A host handing an event to a service's handlers begins its scope with `ContextScope.BeginForEvent`. The context it
+establishes reports `IContext.IsEvent`, and so does `ContextScope.IsEvent`: the person in `UserId` is the event's
+actor, there for the record only, and a client can hold a handler's calls to that. A scope begun inside it with `Begin`
+and a `StatedContext` is not an event's. No header carries `IsEvent`, so a request's context is never an event's.
 
 ### Write and read the `Bitwarden-Context` header
 
@@ -111,7 +113,7 @@ using Bitwarden.Server.Sdk.Context;
 public static class LoopBack
 {
     public static bool IsReentry(string? header, string self) =>
-        CallChain.TryParse(header, out var chain) && chain!.Contains(self, StringComparer.Ordinal);
+        CallChain.TryParse(header, out var chain) && chain.Contains(self, StringComparer.Ordinal);
 
     public static string Outgoing(string self) => CallChain.Format(CallChain.Append(CallChain.Current, self));
 }
@@ -128,9 +130,13 @@ public static class LoopBack
 - **`ContextHeader.Write` throws `ArgumentException`** for a value `TryParse` would refuse, such as more than 300
   organizations: leave `Organizations` out for a person in more. A service host's own clients write the header and the
   host reads it, so write it yourself only for a client of your own.
-- **A chain holds service names only,** at most 16 of them, so it can go into logs and metric tags. A value with
-  anything else in it, such as an identifier or free text, is not a chain: `TryParse` refuses it, `Enter` and `Append`
-  read it as none, and `Format` writes an empty string for it. The chain is not signed and grants nothing.
+- **A chain holds names shaped like a service's,** at most 16 of them. A value with anything else in it, such as a
+  GUID, an address or free text, is not a chain: `TryParse` refuses it, `Enter` and `Append` read it as none, and
+  `Format` writes an empty string for it. The shape refuses a GUID written as 32 hexadecimal digits or in hyphenated
+  form, alone or inside a name, but not identifiers in general: a person's name or a username of the same shape
+  passes. Checking each name against the services it knows, before writing a chain that arrived from another
+  service to a span, a metric tag or a log, is the host's responsibility; this package checks the shape only. The
+  chain is not signed and grants nothing.
 - **Keeping the context trustworthy is the service's job.** What a service must do, such as stripping the headers at
   its proxy, is in Bitwarden.Server.Sdk.Authorization's
   [Gotchas and constraints](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Authorization/src/PACKAGE.md#gotchas-and-constraints).

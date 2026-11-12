@@ -30,6 +30,10 @@ public interface IContext
     /// <summary>
     /// The user this operation is made on behalf of, if any.
     /// </summary>
+    /// <remarks>
+    /// When <see cref="IsEvent"/> is true, the event's actor instead: the person whose request published the event,
+    /// there for the record only. The work handling the event acts with its own authority, not on this person's behalf.
+    /// </remarks>
     Guid? UserId { get; }
 
     /// <summary>
@@ -140,4 +144,13 @@ public interface IContext
     /// For feature flag targeting only.
     /// </remarks>
     bool ClientVersionIsPrerelease => false;
+
+    /// <summary>
+    /// Whether this is the context of an event being handled, as <see cref="ContextScope.BeginForEvent"/> establishes
+    /// it, so that <see cref="UserId"/> names the event's actor, for the record only.
+    /// </summary>
+    /// <remarks>
+    /// Never carried between services: no header says a request is an event's, so a request's context is never one.
+    /// </remarks>
+    bool IsEvent => false;
 }
