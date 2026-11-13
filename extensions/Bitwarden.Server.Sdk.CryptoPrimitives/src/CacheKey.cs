@@ -117,9 +117,9 @@ public readonly struct CacheKey : IEquatable<CacheKey>
     }
 
     /// <summary>
-    /// Returns the type name only, so a key never reaches a log.
+    /// Returns the key as base64, which <see cref="FromString(string)"/> reads back.
     /// </summary>
-    public override string ToString() => nameof(CacheKey);
+    public override string ToString() => Convert.ToBase64String(AsSpan());
 
     /// <summary>
     /// Compares the keys in constant time.

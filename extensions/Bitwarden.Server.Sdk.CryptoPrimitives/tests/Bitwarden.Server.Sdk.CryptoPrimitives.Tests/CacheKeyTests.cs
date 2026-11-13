@@ -130,8 +130,16 @@ public sealed class CacheKeyTests
     }
 
     [Fact]
-    public void ToString_HidesBytes()
+    public void ToString_IsBase64()
     {
-        Assert.Equal("CacheKey", Sequential.ToString());
+        Assert.Equal("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=", Sequential.ToString());
+    }
+
+    [Fact]
+    public void ToString_RoundTripsThroughFromString()
+    {
+        var key = CacheKey.DeriveCacheKey(Sequential, "account-by-email", "user@example.com");
+
+        Assert.Equal(key, CacheKey.FromString(key.ToString()));
     }
 }
