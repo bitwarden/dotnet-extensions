@@ -41,10 +41,13 @@ public static class BitwardenClientServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
 
-        // At startup, not on the first read: a deployment missing the answer secret fails to start.
+        // At startup, not on the first read: a deployment missing the answer secret fails to start. The reads take the
+        // secret from here too. A container built without a host has no environment, and is treated as not Development.
         services.AddOptions<AnswerSecretCheck>()
-            .Configure<IConfiguration, IHostEnvironment>((check, configuration, environment) =>
-                check.Secret = Bitwarden.Server.Sdk.Resources.Caching.OwnedAnswerKey.ReadSecret(configuration, environment.EnvironmentName))
+            .Configure<IConfiguration, IServiceProvider>((check, configuration, provider) =>
+                check.Secret = Bitwarden.Server.Sdk.Resources.Caching.OwnedAnswerKey.ReadSecret(
+                    configuration,
+                    provider.GetService<IHostEnvironment>()?.EnvironmentName ?? Environments.Production))
             .ValidateOnStart();
 
         services.TryAddSingleton(provider => new CachedReadsConnectionHolder(
@@ -59,6 +62,7 @@ public static class BitwardenClientServiceCollectionExtensions
             provider.GetRequiredService<IOptionsMonitor<BitwardenClientOptions>>(),
             provider.GetRequiredService<IServiceScopeFactory>(),
             provider.GetRequiredService<IConfiguration>(),
+            provider.GetRequiredService<IOptions<AnswerSecretCheck>>().Value.Secret,
             provider.GetRequiredService<ILogger<CachedReads<TClient>>>(),
             CacheableAnswerRead.FromAssembly(typeof(TClient).Assembly)));
 
