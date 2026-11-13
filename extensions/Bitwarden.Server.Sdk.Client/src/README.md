@@ -62,3 +62,7 @@ A change must keep:
 - **Keys only to marked operations**, and the same key on every attempt of one call.
 - **Context written in one place.** `ContextHandler` writes every context header and removes whatever a call site set.
 - **No secret in a log, a message or `ToString()`.**
+- **Tokens made and checked by Microsoft.IdentityModel, never by hand.** `ClientAssertion` creates and signs its JWT
+  with `JsonWebTokenHandler` and takes its `kid` from the library's RFC 7638 thumbprint. `System.Security.Cryptography`
+  is used directly only to load and export keys and to generate random bytes; no JWS, signature or JWK is assembled by
+  hand.
