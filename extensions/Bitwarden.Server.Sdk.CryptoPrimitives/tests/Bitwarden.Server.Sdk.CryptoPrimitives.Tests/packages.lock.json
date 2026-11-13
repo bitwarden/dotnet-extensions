@@ -142,7 +142,7 @@
           "xunit.v3.runner.common": "[3.2.2]"
         }
       },
-      "bitwarden.cryptoprimitives": {
+      "bitwarden.server.sdk.cryptoprimitives": {
         "type": "Project"
       }
     }

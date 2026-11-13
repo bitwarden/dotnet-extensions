@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Bitwarden.CryptoPrimitives;
+namespace Bitwarden.Server.Sdk.CryptoPrimitives;
 
 /// <summary>
 /// A 32-byte key that derives cache keys, or a cache key derived from one.

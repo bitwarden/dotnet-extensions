@@ -9,12 +9,6 @@
   <Folder Name="/extensions/Bitwarden.Core/tests/">
     <Project Path="extensions/Bitwarden.Core/tests/Bitwarden.Core.Tests.csproj" />
   </Folder>
-  <Folder Name="/extensions/Bitwarden.CryptoPrimitives/">
-    <Project Path="extensions/Bitwarden.CryptoPrimitives/src/Bitwarden.CryptoPrimitives.csproj" />
-  </Folder>
-  <Folder Name="/extensions/Bitwarden.CryptoPrimitives/tests/">
-    <Project Path="extensions/Bitwarden.CryptoPrimitives/tests/Bitwarden.CryptoPrimitives.Tests/Bitwarden.CryptoPrimitives.Tests.csproj" />
-  </Folder>
   <Folder Name="/extensions/Bitwarden.Extensions.Configuration/">
     <Project Path="extensions/Bitwarden.Extensions.Configuration/src/Bitwarden.Extensions.Configuration.csproj" />
   </Folder>
@@ -41,6 +35,12 @@
   </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Common/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Common/tests/Bitwarden.Server.Sdk.Common.Tests/Bitwarden.Server.Sdk.Common.Tests.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.CryptoPrimitives/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.CryptoPrimitives/src/Bitwarden.Server.Sdk.CryptoPrimitives.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.CryptoPrimitives/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.CryptoPrimitives/tests/Bitwarden.Server.Sdk.CryptoPrimitives.Tests/Bitwarden.Server.Sdk.CryptoPrimitives.Tests.csproj" />
   </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Environment/" />
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Environment/src/">

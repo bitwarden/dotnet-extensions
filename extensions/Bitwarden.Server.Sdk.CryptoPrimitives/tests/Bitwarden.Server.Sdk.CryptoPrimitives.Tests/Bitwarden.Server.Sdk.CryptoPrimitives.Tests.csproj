@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Bitwarden.CryptoPrimitives.csproj" />
+    <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.CryptoPrimitives.csproj" />
   </ItemGroup>
 
 </Project>

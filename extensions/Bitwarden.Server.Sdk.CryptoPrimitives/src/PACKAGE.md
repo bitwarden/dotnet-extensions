@@ -1,4 +1,4 @@
-# Bitwarden.CryptoPrimitives
+# Bitwarden.Server.Sdk.CryptoPrimitives
 
 ## About
 
@@ -7,7 +7,7 @@ Cryptographic primitives built only on `System.Security.Cryptography`.
 ## Installing
 
 ```bash
-dotnet add package Bitwarden.CryptoPrimitives
+dotnet add package Bitwarden.Server.Sdk.CryptoPrimitives
 ```
 
 ## Usage

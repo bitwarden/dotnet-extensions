@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Bitwarden.CryptoPrimitives.Tests;
+namespace Bitwarden.Server.Sdk.CryptoPrimitives.Tests;
 
 public sealed class CacheKeyTests
 {

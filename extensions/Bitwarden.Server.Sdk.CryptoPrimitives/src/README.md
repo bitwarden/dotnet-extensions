@@ -1,4 +1,4 @@
-# Bitwarden.CryptoPrimitives
+# Bitwarden.Server.Sdk.CryptoPrimitives
 
 **Audience:** engineers changing this package.
 
@@ -17,5 +17,5 @@ Every primitive has known-answer vectors computed by an independent implementati
 repository root:
 
 ```bash
-dotnet test --project extensions/Bitwarden.CryptoPrimitives/tests/Bitwarden.CryptoPrimitives.Tests
+dotnet test --project extensions/Bitwarden.Server.Sdk.CryptoPrimitives/tests/Bitwarden.Server.Sdk.CryptoPrimitives.Tests
 ```
