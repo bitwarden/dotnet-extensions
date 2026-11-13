@@ -1,3 +1,5 @@
+using Bitwarden.Server.Sdk.CryptoPrimitives;
+
 namespace Bitwarden.Server.Sdk.Client;
 
 /// <summary>
@@ -7,7 +9,7 @@ namespace Bitwarden.Server.Sdk.Client;
 internal sealed class AnswerSecretCheck
 {
     /// <summary>
-    /// The secret read, empty for none.
+    /// The secret read: <see cref="CacheSecret.Development"/> when none is configured and none is required.
     /// </summary>
-    public byte[] Secret { get; set; } = [];
+    public CacheSecret Secret { get; set; }
 }

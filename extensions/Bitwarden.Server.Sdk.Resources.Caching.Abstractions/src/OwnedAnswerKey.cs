@@ -1,5 +1,5 @@
-using System.Security.Cryptography;
 using System.Text;
+using Bitwarden.Server.Sdk.CryptoPrimitives;
 using Microsoft.Extensions.Configuration;
 
 namespace Bitwarden.Server.Sdk.Resources.Caching;
@@ -17,19 +17,18 @@ namespace Bitwarden.Server.Sdk.Resources.Caching;
 /// </para>
 /// <para>
 /// The subject is the key itself when it is an identifier. A key written as text, such as an
-/// address, is never kept as written. Its subject is the first sixteen bytes of a digest of the
-/// answer's name, a line feed and the key as the owner compares it, read in order, so the subject's
-/// hexadecimal is the digest's. The owner and its clients both reach the subject through
-/// <see cref="Of(string, string, ReadOnlySpan{byte})"/>, from the same normalized text.
+/// address, is never kept as written. Its subject is the first sixteen bytes of
+/// <see cref="CacheKey.DeriveCacheKey(CacheSecret, ReadOnlySpan{string})"/> over the answer's name and
+/// the key as the owner compares it, read in order, so the subject's hexadecimal is the derived key's.
+/// The owner and its clients both reach the subject through
+/// <see cref="Of(string, string, CacheSecret)"/>, from the same normalized text.
 /// </para>
 /// <para>
-/// The digest is SHA-256 unless a secret is configured under <see cref="SecretKey"/>, and then it is
-/// HMAC-SHA-256 keyed with that secret. A plain digest keeps the text out of the cache, but anyone who
-/// can read the cache and guess an address can confirm it. A keyed digest can only be confirmed by
-/// someone who also holds the secret, so outside <c>Development</c> a host with a service cache
-/// requires one (<see cref="ReadSecret(IConfiguration, string)"/>). Every service and client sharing a cache must hold the same
-/// secret: one with a different secret, or none, reaches subjects nobody fills, so it always asks
-/// the owner.
+/// The secret is configured under <see cref="SecretKey"/>. Only holders of the secret can confirm a
+/// guessed address is in the cache, so outside <c>Development</c> a host with a service cache requires
+/// one (<see cref="ReadSecret(IConfiguration, string)"/>), and in <c>Development</c> it falls back to
+/// <see cref="CacheSecret.Development"/>. Every service and client sharing a cache must hold the same
+/// secret: one with a different secret reaches subjects nobody fills, so it always asks the owner.
 /// </para>
 /// </remarks>
 public static class OwnedAnswerKey
@@ -40,69 +39,24 @@ public static class OwnedAnswerKey
     public const string Extension = "x-bitwarden-answer";
 
     /// <summary>
-    /// The digest published for an answer keyed by text.
+    /// The derivation published for an answer keyed by text:
+    /// <see cref="CacheKey.DeriveCacheKey(CacheSecret, ReadOnlySpan{string})"/>.
     /// </summary>
     /// <remarks>
-    /// It is the same whether or not a secret keys the digest. The secret is a deployment's
-    /// configuration, while the published contract is the same in every deployment, so every service
-    /// and client sharing a cache learns of the secret from its own configuration.
+    /// The secret is a deployment's configuration, while the published contract is the same in every
+    /// deployment, so every service and client sharing a cache learns of the secret from its own
+    /// configuration.
     /// </remarks>
-    public const string Digest = "sha-256";
+    public const string Digest = "cache-key";
 
     /// <summary>
-    /// The configuration key of the secret that keys the digest: base64, at least
-    /// <see cref="MinimumSecretLength"/> bytes.
+    /// The configuration key of the secret that keys answers by text: base64 of
+    /// <see cref="CacheSecret.Length"/> bytes.
     /// </summary>
-    /// <remarks>
-    /// Keys the digest of answers keyed by text with HMAC-SHA-256. Unset: the digest is plain SHA-256.
-    /// </remarks>
     public const string SecretKey = "Caching:Owned:AnswerSecret";
-
-    /// <summary>
-    /// The fewest bytes a configured secret may have.
-    /// </summary>
-    public const int MinimumSecretLength = 32;
-
-    // Strict, so text that isn't valid UTF-16 (a lone surrogate) throws rather than encode as U+FFFD
-    // and collide with the text that holds U+FFFD itself. Valid text encodes as Encoding.UTF8 does.
-    private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     // Compared as IHostEnvironment.IsDevelopment compares it, without referencing hosting here.
     private const string DevelopmentEnvironment = "Development";
-
-    /// <summary>
-    /// Reads the configured secret.
-    /// </summary>
-    /// <param name="configuration">The configuration holding <see cref="SecretKey"/>.</param>
-    /// <returns>The secret, or empty when none is configured.</returns>
-    /// <exception cref="InvalidOperationException">The secret is not base64, or is shorter than <see cref="MinimumSecretLength"/> bytes.</exception>
-    public static byte[] ReadSecret(IConfiguration configuration)
-    {
-        ArgumentNullException.ThrowIfNull(configuration);
-
-        var value = configuration[SecretKey];
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return [];
-        }
-
-        byte[] secret;
-        try
-        {
-            secret = Convert.FromBase64String(value);
-        }
-        catch (FormatException exception)
-        {
-            throw new InvalidOperationException($"{SecretKey} is not base64.", exception);
-        }
-
-        if (secret.Length < MinimumSecretLength)
-        {
-            throw new InvalidOperationException($"{SecretKey} must be at least {MinimumSecretLength} bytes.");
-        }
-
-        return secret;
-    }
 
     /// <summary>
     /// Reads the configured secret, and refuses to go without one where it is required: a service
@@ -111,53 +65,75 @@ public static class OwnedAnswerKey
     /// </summary>
     /// <remarks>
     /// A host calls this as it starts, so a deployment missing the secret fails to start rather than
-    /// keep text-keyed answers under a digest anyone can compute.
+    /// keep text-keyed answers under a key anyone can derive.
     /// </remarks>
     /// <param name="configuration">The configuration holding <see cref="SecretKey"/>.</param>
     /// <param name="environmentName">The host's environment name, for example <c>Production</c>.</param>
-    /// <returns>The secret, or empty when none is configured and none is required.</returns>
-    /// <exception cref="InvalidOperationException">The secret is required and unset, is not base64, or is shorter than <see cref="MinimumSecretLength"/> bytes.</exception>
-    public static byte[] ReadSecret(IConfiguration configuration, string environmentName)
+    /// <returns>
+    /// The secret, or <see cref="CacheSecret.Development"/> when none is configured and none is required.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">
+    /// The secret is required and unset or is <see cref="CacheSecret.Development"/>, or is not base64 of
+    /// <see cref="CacheSecret.Length"/> bytes.
+    /// </exception>
+    public static CacheSecret ReadSecret(IConfiguration configuration, string environmentName)
     {
+        ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(environmentName);
 
-        var secret = ReadSecret(configuration);
-        if (secret.Length == 0
-            && !string.IsNullOrWhiteSpace(configuration[OwnedCacheEntry.ConnectionKey])
-            && !string.Equals(environmentName, DevelopmentEnvironment, StringComparison.OrdinalIgnoreCase))
+        var required = !string.IsNullOrWhiteSpace(configuration[OwnedCacheEntry.ConnectionKey])
+            && !string.Equals(environmentName, DevelopmentEnvironment, StringComparison.OrdinalIgnoreCase);
+
+        var value = configuration[SecretKey];
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            if (required)
+            {
+                throw new InvalidOperationException(
+                    $"{SecretKey} must be set when a service cache is configured ({OwnedCacheEntry.ConnectionKey}) outside {DevelopmentEnvironment}.");
+            }
+
+            return CacheSecret.Development;
+        }
+
+        CacheSecret secret;
+        try
+        {
+            secret = CacheSecret.FromString(value);
+        }
+        catch (FormatException exception)
+        {
+            throw new InvalidOperationException($"{SecretKey} is not base64 of {CacheSecret.Length} bytes.", exception);
+        }
+
+        // The development secret is public, so configuring it gives no more protection than none.
+        if (required && secret == CacheSecret.Development)
         {
             throw new InvalidOperationException(
-                $"{SecretKey} must be set when a service cache is configured ({OwnedCacheEntry.ConnectionKey}) outside {DevelopmentEnvironment}.");
+                $"{SecretKey} may not be the development secret when a service cache is configured ({OwnedCacheEntry.ConnectionKey}) outside {DevelopmentEnvironment}.");
         }
 
         return secret;
     }
 
     /// <summary>
-    /// The subject of a key written as text, by plain SHA-256.
+    /// The subject of a key written as text: the first sixteen bytes of
+    /// <see cref="CacheKey.DeriveCacheKey(CacheSecret, ReadOnlySpan{string})"/> over the answer's name
+    /// and the key.
     /// </summary>
-    /// <param name="answer">The answer's name, for example <c>account-by-email</c>. It may not contain a line feed, <c>:</c>, <c>{</c> or <c>}</c>.</param>
+    /// <param name="answer">The answer's name, for example <c>account-by-email</c>. It may not contain <c>:</c>, <c>{</c> or <c>}</c>.</param>
     /// <param name="key">The key, normalized as the owner compares it (an address trimmed and lowercased).</param>
+    /// <param name="secret">The configured secret (<see cref="ReadSecret(IConfiguration, string)"/>).</param>
     /// <exception cref="ArgumentException"><paramref name="answer"/> is empty or holds a character it may not, or the text is not valid UTF-16 (a lone surrogate).</exception>
-    public static Guid Of(string answer, string key) => Of(answer, key, []);
-
-    /// <summary>
-    /// The subject of a key written as text: by HMAC-SHA-256 with <paramref name="secret"/>, or by
-    /// plain SHA-256 when it is empty.
-    /// </summary>
-    /// <param name="answer">The answer's name, for example <c>account-by-email</c>. It may not contain a line feed, <c>:</c>, <c>{</c> or <c>}</c>.</param>
-    /// <param name="key">The key, normalized as the owner compares it (an address trimmed and lowercased).</param>
-    /// <param name="secret">The configured secret (<see cref="ReadSecret(IConfiguration, string)"/>), or empty for none.</param>
-    /// <exception cref="ArgumentException"><paramref name="answer"/> is empty or holds a character it may not, or the text is not valid UTF-16 (a lone surrogate).</exception>
-    public static Guid Of(string answer, string key, ReadOnlySpan<byte> secret)
+    public static Guid Of(string answer, string key, CacheSecret secret)
     {
-        ThrowIfNotAnAnswer(answer);
+        OwnedCacheEntry.ThrowIfNotAName(answer);
         ArgumentNullException.ThrowIfNull(key);
 
-        byte[] text;
+        CacheKey derived;
         try
         {
-            text = StrictUtf8.GetBytes($"{answer}\n{key}");
+            derived = CacheKey.DeriveCacheKey(secret, answer, key);
         }
         catch (EncoderFallbackException)
         {
@@ -166,39 +142,18 @@ public static class OwnedAnswerKey
             throw new ArgumentException("The answer's name or the key is not valid UTF-16 text.", nameof(key));
         }
 
-        Span<byte> digest = stackalloc byte[32];
-        if (secret.IsEmpty)
-        {
-            SHA256.HashData(text, digest);
-        }
-        else
-        {
-            HMACSHA256.HashData(secret, text, digest);
-        }
-
-        return new Guid(digest[..16], bigEndian: true);
+        return new Guid(derived.AsSpan()[..16], bigEndian: true);
     }
 
     /// <summary>
     /// The key template an answer's entries are stored under.
     /// </summary>
     /// <param name="service">The owning service's name. It may not contain <c>:</c>, <c>{</c> or <c>}</c>.</param>
-    /// <param name="answer">The answer's name. It may not contain a line feed, <c>:</c>, <c>{</c> or <c>}</c>.</param>
+    /// <param name="answer">The answer's name. It may not contain <c>:</c>, <c>{</c> or <c>}</c>.</param>
     /// <exception cref="ArgumentException">A name is empty or holds a character it may not.</exception>
     public static string Template(string service, string answer)
     {
-        ThrowIfNotAnAnswer(answer);
-        return $"{OwnedCacheEntry.Prefix(service)}{OwnedCacheEntry.AnswerResourceType}:{answer}:{OwnedCacheEntry.KeyPlaceholder}";
-    }
-
-    // The line feed separates the name from the key in the digested text.
-    private static void ThrowIfNotAnAnswer(string answer)
-    {
         OwnedCacheEntry.ThrowIfNotAName(answer);
-
-        if (answer.Contains('\n', StringComparison.Ordinal))
-        {
-            throw new ArgumentException("An answer's name may not contain a line feed.", nameof(answer));
-        }
+        return $"{OwnedCacheEntry.Prefix(service)}{OwnedCacheEntry.AnswerResourceType}:{answer}:{OwnedCacheEntry.KeyPlaceholder}";
     }
 }

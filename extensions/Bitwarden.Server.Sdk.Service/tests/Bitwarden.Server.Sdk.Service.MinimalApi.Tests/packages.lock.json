@@ -45,6 +45,11 @@
           "Microsoft.AspNetCore.Authentication.JwtBearer": "8.0.20"
         }
       },
+      "Bitwarden.Server.Sdk.CryptoPrimitives": {
+        "type": "Transitive",
+        "resolved": "0.1.0",
+        "contentHash": "g67cxy1PRAWWqEbTFxTP+hnttXZWHUPgBKtTHc9g8rlylDhtyisbRnX6Omixvpmj8bUujCUjrRO3Oterq5O/Kw=="
+      },
       "Bitwarden.Server.Sdk.Environment": {
         "type": "Transitive",
         "resolved": "0.1.0",
@@ -607,7 +612,7 @@
           "Bitwarden.Server.Sdk.Http": "[0.1.0, )",
           "Bitwarden.Server.Sdk.Idempotency.Abstractions": "[0.1.0, )",
           "Bitwarden.Server.Sdk.Resources.Caching.Abstractions": "[0.1.0, )",
-          "Bitwarden.Server.Sdk.Sagas": "[0.1.0, )",
+          "Bitwarden.Server.Sdk.Sagas": "[0.2.0, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.14, )",
           "Microsoft.Extensions.Http": "[10.0.14, )",
           "Newtonsoft.Json": "[13.0.4, )",
@@ -684,6 +689,7 @@
       "bitwarden.server.sdk.resources.caching.abstractions": {
         "type": "Project",
         "dependencies": {
+          "Bitwarden.Server.Sdk.CryptoPrimitives": "[0.1.0, )",
           "Microsoft.Extensions.Configuration.Abstractions": "[10.0.14, )"
         }
       },
@@ -706,8 +712,8 @@
           "Bitwarden.Server.Sdk.RateLimiting": "[0.1.0, )",
           "Bitwarden.Server.Sdk.Resources": "[0.1.0, )",
           "Bitwarden.Server.Sdk.Resources.Caching.Abstractions": "[0.1.0, )",
-          "Bitwarden.Server.Sdk.Sagas": "[0.1.0, )",
-          "Bitwarden.Server.Sdk.Service.Abstractions": "[0.1.0, )",
+          "Bitwarden.Server.Sdk.Sagas": "[0.2.0, )",
+          "Bitwarden.Server.Sdk.Service.Abstractions": "[0.2.0, )",
           "Microsoft.AspNetCore.OpenApi": "[10.0.13, )",
           "Microsoft.IdentityModel.Protocols.OpenIdConnect": "[8.23.0, )",
           "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.19.1, )",

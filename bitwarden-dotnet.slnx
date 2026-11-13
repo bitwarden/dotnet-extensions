@@ -47,12 +47,19 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Context/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Context/tests/Bitwarden.Server.Sdk.Context.Tests/Bitwarden.Server.Sdk.Context.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.CryptoPrimitives/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.CryptoPrimitives/src/Bitwarden.Server.Sdk.CryptoPrimitives.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.CryptoPrimitives/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.CryptoPrimitives/tests/Bitwarden.Server.Sdk.CryptoPrimitives.Tests/Bitwarden.Server.Sdk.CryptoPrimitives.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Data.Abstractions/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Data.Abstractions/src/Bitwarden.Server.Sdk.Data.Abstractions.csproj" />
   </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Data.Abstractions/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Data.Abstractions/tests/Bitwarden.Server.Sdk.Data.Abstractions.Tests/Bitwarden.Server.Sdk.Data.Abstractions.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Environment/" />
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Environment/src/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Environment/src/Bitwarden.Server.Sdk.Environment.csproj" />
   </Folder>
@@ -123,6 +130,12 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.MessageBroker/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.MessageBroker/tests/Bitwarden.Server.Sdk.MessageBroker.Tests/Bitwarden.Server.Sdk.MessageBroker.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.PasswordHashing/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.PasswordHashing/src/Bitwarden.Server.Sdk.PasswordHashing.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.PasswordHashing/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.PasswordHashing/tests/Bitwarden.Server.Sdk.PasswordHashing.Tests/Bitwarden.Server.Sdk.PasswordHashing.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.RateLimiting/">
     <Project Path="extensions/Bitwarden.Server.Sdk.RateLimiting/src/Bitwarden.Server.Sdk.RateLimiting.csproj" />
   </Folder>
@@ -178,6 +191,16 @@
   </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.WebEssentials/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.WebEssentials/tests/Bitwarden.Server.Sdk.WebEssentials.Tests/Bitwarden.Server.Sdk.WebEssentials.Tests.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Database/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Database/src/Bitwarden.Server.Sdk.Database.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Database/analyzers/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Database/analyzers/Bitwarden.Server.Sdk.Database.Analyzers/Bitwarden.Server.Sdk.Database.Analyzers.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Database/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Database/tests/Bitwarden.Server.Sdk.Database.Tests/Bitwarden.Server.Sdk.Database.Tests.csproj" />
+    <Project Path="extensions/Bitwarden.Server.Sdk.Database/tests/Bitwarden.Server.Sdk.Database.Analyzers.Tests/Bitwarden.Server.Sdk.Database.Analyzers.Tests.csproj" />
   </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk/">
     <Project Path="extensions/Bitwarden.Server.Sdk/src/Bitwarden.Server.Sdk.csproj" />

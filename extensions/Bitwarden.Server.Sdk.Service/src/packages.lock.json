@@ -100,6 +100,11 @@
           "Microsoft.IdentityModel.Tokens": "8.23.0"
         }
       },
+      "Bitwarden.Server.Sdk.CryptoPrimitives": {
+        "type": "Transitive",
+        "resolved": "0.1.0",
+        "contentHash": "g67cxy1PRAWWqEbTFxTP+hnttXZWHUPgBKtTHc9g8rlylDhtyisbRnX6Omixvpmj8bUujCUjrRO3Oterq5O/Kw=="
+      },
       "Bitwarden.Server.Sdk.Environment": {
         "type": "Transitive",
         "resolved": "0.1.0",
@@ -320,7 +325,10 @@
         }
       },
       "bitwarden.server.sdk.resources.caching.abstractions": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "Bitwarden.Server.Sdk.CryptoPrimitives": "[0.1.0, )"
+        }
       },
       "bitwarden.server.sdk.sagas": {
         "type": "Project"

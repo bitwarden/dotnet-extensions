@@ -1,3 +1,4 @@
+using Bitwarden.Server.Sdk.CryptoPrimitives;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Primitives;
 
@@ -5,35 +6,37 @@ namespace Bitwarden.Server.Sdk.Resources.Caching.Abstractions.Tests;
 
 public sealed class OwnedAnswerKeyTests
 {
-    private static readonly byte[] Secret = Enumerable.Repeat((byte)1, 32).ToArray();
+    private static readonly CacheSecret Secret = new(Enumerable.Repeat((byte)1, CacheSecret.Length).ToArray());
 
+    // Vectors computed independently with Python's hmac and hashlib:
+    // hmac.new(secret, b"".join(struct.pack(">Q", len(b)) + b for b in utf8_params), sha256).digest()[:16]
     [Fact]
-    public void Of_IsTheFirstSixteenBytesOfTheDigest_InOrder()
-    {
-        var subject = OwnedAnswerKey.Of("account-by-email", "user@example.com");
-
-        Assert.Equal(Guid.Parse("2287adc1-b81a-8a83-04c7-0bfd109b5d4a"), subject);
-        Assert.Equal("2287adc1b81a8a8304c70bfd109b5d4a", subject.ToString("N"));
-    }
-
-    [Fact]
-    public void Of_WithASecret_IsTheFirstSixteenBytesOfTheKeyedDigest()
+    public void Of_IsTheFirstSixteenBytesOfTheCacheKey_InOrder()
     {
         var subject = OwnedAnswerKey.Of("account-by-email", "user@example.com", Secret);
 
-        Assert.Equal("f5c35293c26a2cc91ee90d972a30b995", subject.ToString("N"));
+        Assert.Equal(Guid.Parse("f88ab9e1-7533-3961-74bc-53a007d35b66"), subject);
+        Assert.Equal("f88ab9e17533396174bc53a007d35b66", subject.ToString("N"));
     }
 
     [Fact]
-    public void Of_WithAnEmptySecret_IsThePlainDigest()
+    public void Of_IsTheCacheKeyOverTheAnswerAndTheKey()
     {
-        Assert.Equal(OwnedAnswerKey.Of("account-by-email", "user@example.com"), OwnedAnswerKey.Of("account-by-email", "user@example.com", []));
+        var derived = CacheKey.DeriveCacheKey(Secret, "account-by-email", "user@example.com");
+
+        Assert.Equal(Convert.ToHexStringLower(derived.AsSpan()[..16]), OwnedAnswerKey.Of("account-by-email", "user@example.com", Secret).ToString("N"));
+    }
+
+    [Fact]
+    public void Of_WithTheDevelopmentSecret_IsItsVector()
+    {
+        Assert.Equal("6bc4267737c3bab35ac7c3b85d990618", OwnedAnswerKey.Of("account-by-email", "user@example.com", CacheSecret.Development).ToString("N"));
     }
 
     [Fact]
     public void Of_WithAnotherSecret_IsAnotherSubject()
     {
-        var other = Enumerable.Repeat((byte)2, 32).ToArray();
+        var other = new CacheSecret(Enumerable.Repeat((byte)2, CacheSecret.Length).ToArray());
 
         Assert.NotEqual(OwnedAnswerKey.Of("account-by-email", "user@example.com", Secret), OwnedAnswerKey.Of("account-by-email", "user@example.com", other));
     }
@@ -42,29 +45,30 @@ public sealed class OwnedAnswerKeyTests
     [InlineData("")]
     [InlineData(" ")]
     [InlineData("\t\n")]
-    public void ReadSecret_Blank_IsEmpty(string value)
+    public void ReadSecret_Blank_IsTheDevelopmentSecret(string value)
     {
-        Assert.Empty(OwnedAnswerKey.ReadSecret(Configuration(value)));
+        Assert.Equal(CacheSecret.Development, OwnedAnswerKey.ReadSecret(Configuration(value), "Production"));
     }
 
     [Fact]
-    public void ReadSecret_Unset_IsEmpty()
+    public void ReadSecret_Unset_IsTheDevelopmentSecret()
     {
-        Assert.Empty(OwnedAnswerKey.ReadSecret(Configuration(null)));
+        Assert.Equal(CacheSecret.Development, OwnedAnswerKey.ReadSecret(Configuration(null), "Production"));
     }
 
     [Fact]
     public void ReadSecret_ReadsBase64()
     {
-        Assert.Equal(Secret, OwnedAnswerKey.ReadSecret(Configuration(Convert.ToBase64String(Secret))));
+        Assert.Equal(Secret, OwnedAnswerKey.ReadSecret(Configuration(Secret.ToString()), "Production"));
     }
 
     [Theory]
     [InlineData("not base64!")]
     [InlineData("AAAA")]
+    [InlineData("AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB")]
     public void ReadSecret_NotAUsableSecret_Throws(string value)
     {
-        var exception = Assert.Throws<InvalidOperationException>(() => OwnedAnswerKey.ReadSecret(Configuration(value)));
+        var exception = Assert.Throws<InvalidOperationException>(() => OwnedAnswerKey.ReadSecret(Configuration(value), "Development"));
 
         Assert.Contains(OwnedAnswerKey.SecretKey, exception.Message);
         Assert.DoesNotContain(value, exception.Message);
@@ -86,9 +90,24 @@ public sealed class OwnedAnswerKeyTests
     [Theory]
     [InlineData("Development")]
     [InlineData("development")]
-    public void ReadSecret_WithACacheInDevelopment_AllowsThePlainDigest(string environment)
+    public void ReadSecret_WithACacheInDevelopment_IsTheDevelopmentSecret(string environment)
     {
-        Assert.Empty(OwnedAnswerKey.ReadSecret(Configuration(null, "redis:6379"), environment));
+        Assert.Equal(CacheSecret.Development, OwnedAnswerKey.ReadSecret(Configuration(null, "redis:6379"), environment));
+    }
+
+    [Fact]
+    public void ReadSecret_WithACacheOutsideDevelopment_RefusesTheDevelopmentSecret()
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            OwnedAnswerKey.ReadSecret(Configuration(CacheSecret.Development.ToString(), "redis:6379"), "Production"));
+
+        Assert.Contains(OwnedAnswerKey.SecretKey, exception.Message);
+    }
+
+    [Fact]
+    public void ReadSecret_WithACacheInDevelopment_AllowsTheDevelopmentSecret()
+    {
+        Assert.Equal(CacheSecret.Development, OwnedAnswerKey.ReadSecret(Configuration(CacheSecret.Development.ToString(), "redis:6379"), "Development"));
     }
 
     [Theory]
@@ -96,7 +115,7 @@ public sealed class OwnedAnswerKeyTests
     [InlineData(" ")]
     public void ReadSecret_WithABlankCache_RequiresNothing(string cache)
     {
-        Assert.Empty(OwnedAnswerKey.ReadSecret(Configuration(null, cache), "Production"));
+        Assert.Equal(CacheSecret.Development, OwnedAnswerKey.ReadSecret(Configuration(null, cache), "Production"));
     }
 
     [Fact]
@@ -106,15 +125,15 @@ public sealed class OwnedAnswerKeyTests
     }
 
     [Fact]
-    public void ReadSecret_WithoutACache_RequiresNothing()
+    public void ReadSecret_WithoutAConfiguration_Throws()
     {
-        Assert.Empty(OwnedAnswerKey.ReadSecret(Configuration(null), "Production"));
+        Assert.Throws<ArgumentNullException>(() => OwnedAnswerKey.ReadSecret(null!, "Production"));
     }
 
     [Fact]
     public void ReadSecret_WithACacheAndASecret_ReadsIt()
     {
-        Assert.Equal(Secret, OwnedAnswerKey.ReadSecret(Configuration(Convert.ToBase64String(Secret), "redis:6379"), "Production"));
+        Assert.Equal(Secret, OwnedAnswerKey.ReadSecret(Configuration(Secret.ToString(), "redis:6379"), "Production"));
     }
 
     [Fact]
@@ -123,19 +142,19 @@ public sealed class OwnedAnswerKeyTests
         var exception = Assert.Throws<InvalidOperationException>(() =>
             OwnedAnswerKey.ReadSecret(Configuration("AAAA", "redis:6379"), "Production"));
 
-        Assert.Contains("at least", exception.Message);
+        Assert.Contains("base64 of 32 bytes", exception.Message);
     }
 
     [Fact]
     public void Of_TheSameKeyForTwoAnswers_IsTwoSubjects()
     {
-        Assert.NotEqual(OwnedAnswerKey.Of("account-by-email", "user@example.com"), OwnedAnswerKey.Of("invitation-by-email", "user@example.com"));
+        Assert.NotEqual(OwnedAnswerKey.Of("account-by-email", "user@example.com", Secret), OwnedAnswerKey.Of("invitation-by-email", "user@example.com", Secret));
     }
 
     [Fact]
     public void Of_DoesNotNormalizeTheKey()
     {
-        Assert.NotEqual(OwnedAnswerKey.Of("account-by-email", "user@example.com"), OwnedAnswerKey.Of("account-by-email", "User@Example.com"));
+        Assert.NotEqual(OwnedAnswerKey.Of("account-by-email", "user@example.com", Secret), OwnedAnswerKey.Of("account-by-email", "User@Example.com", Secret));
     }
 
     [Theory]
@@ -144,17 +163,16 @@ public sealed class OwnedAnswerKeyTests
     [InlineData(" ")]
     public void Of_WithoutAnAnswer_Throws(string? answer)
     {
-        Assert.ThrowsAny<ArgumentException>(() => OwnedAnswerKey.Of(answer!, "user@example.com"));
+        Assert.ThrowsAny<ArgumentException>(() => OwnedAnswerKey.Of(answer!, "user@example.com", Secret));
     }
 
     [Theory]
-    [InlineData("account\nby-email")]
     [InlineData("account:by-email")]
     [InlineData("account{by-email")]
     [InlineData("account}by-email")]
     public void Of_AnAnswerThatCouldBeConfused_Throws(string answer)
     {
-        Assert.Throws<ArgumentException>(() => OwnedAnswerKey.Of(answer, "user@example.com"));
+        Assert.Throws<ArgumentException>(() => OwnedAnswerKey.Of(answer, "user@example.com", Secret));
     }
 
     // Built at run time: an attribute's string can't hold a lone surrogate.
@@ -177,30 +195,32 @@ public sealed class OwnedAnswerKeyTests
     [Fact]
     public void Of_TheReplacementCharacter_IsItsUtf8()
     {
-        Assert.Equal(
-            Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData("account-by-email\nuser\uFFFD@example.com"u8)[..16]),
-            OwnedAnswerKey.Of("account-by-email", "user\uFFFD@example.com").ToString("N"));
+        Assert.Equal("2c9d475dfa243778952e699be8a23b11", OwnedAnswerKey.Of("account-by-email", "user\uFFFD@example.com", Secret).ToString("N"));
     }
 
     [Fact]
     public void Of_TextBeyondTheBasicPlane_IsItsUtf8()
     {
-        Assert.Equal(
-            Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData("account-by-email\nuser\U0001F600@example.com"u8)[..16]),
-            OwnedAnswerKey.Of("account-by-email", "user\U0001F600@example.com").ToString("N"));
+        Assert.Equal("cdaca37618146a0989e5e19be1ef87be", OwnedAnswerKey.Of("account-by-email", "user\U0001F600@example.com", Secret).ToString("N"));
+    }
+
+    // A line feed no longer separates the name from the key: the cache key length-prefixes each.
+    [Fact]
+    public void Of_ALineFeedMovedBetweenTheAnswerAndTheKey_IsAnotherSubject()
+    {
+        Assert.NotEqual(OwnedAnswerKey.Of("account-by-email", "a\nb", Secret), OwnedAnswerKey.Of("account-by-email\na", "b", Secret));
     }
 
     [Fact]
     public void Of_WithoutAKey_Throws()
     {
-        Assert.Throws<ArgumentNullException>(() => OwnedAnswerKey.Of("account-by-email", null!));
+        Assert.Throws<ArgumentNullException>(() => OwnedAnswerKey.Of("account-by-email", null!, Secret));
     }
 
     [Theory]
     [InlineData("widget-service", "widget:by-name")]
     [InlineData("widget-service", "widget{by-name")]
     [InlineData("widget-service", "widget}by-name")]
-    [InlineData("widget-service", "widget\nby-name")]
     [InlineData("widget-service", " ")]
     [InlineData("widget:service", "widget-by-name")]
     [InlineData("widget{service", "widget-by-name")]
@@ -231,9 +251,8 @@ public sealed class OwnedAnswerKeyTests
     public void Constants_AreTheContract()
     {
         Assert.Equal("x-bitwarden-answer", OwnedAnswerKey.Extension);
-        Assert.Equal("sha-256", OwnedAnswerKey.Digest);
+        Assert.Equal("cache-key", OwnedAnswerKey.Digest);
         Assert.Equal("Caching:Owned:AnswerSecret", OwnedAnswerKey.SecretKey);
-        Assert.Equal(32, OwnedAnswerKey.MinimumSecretLength);
     }
 
     private static IConfiguration Configuration(string? secret, string? cache = null) => new SecretOnly(secret, cache);
