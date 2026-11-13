@@ -161,12 +161,14 @@ public sealed class InternalTls
                 throw new InvalidOperationException($"{Section}:ServerKey can't be read as a base64 PKCS #8 private key.", exception);
             }
 
+            byte[]? pkcs12 = null;
             try
             {
                 using var withKey = WithKey(certificate, key);
                 // Exported and read back, so the key is one the platform's TLS can use on every operating system: an
                 // ephemeral key, as CopyWithPrivateKey makes, isn't usable by SslStream on Windows.
-                return X509CertificateLoader.LoadPkcs12(withKey.Export(X509ContentType.Pkcs12), null);
+                pkcs12 = withKey.Export(X509ContentType.Pkcs12);
+                return X509CertificateLoader.LoadPkcs12(pkcs12, null);
             }
             catch (Exception exception) when (exception is CryptographicException or ArgumentException)
             {
@@ -175,6 +177,10 @@ public sealed class InternalTls
             finally
             {
                 CryptographicOperations.ZeroMemory(key);
+                if (pkcs12 is not null)
+                {
+                    CryptographicOperations.ZeroMemory(pkcs12);
+                }
             }
         }
     }
@@ -198,7 +204,7 @@ public sealed class InternalTls
                 }
 
             default:
-                throw new CryptographicException("The certificate's key is neither ECDSA nor RSA.");
+                throw new InvalidOperationException($"{Section}:ServerCertificate's key is neither ECDSA nor RSA.");
         }
     }
 

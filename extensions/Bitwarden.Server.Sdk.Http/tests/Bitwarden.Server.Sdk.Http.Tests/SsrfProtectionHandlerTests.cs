@@ -1,16 +1,12 @@
 using System.Net;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Bitwarden.Server.Sdk.Http.Tests;
 
 public class SsrfProtectionHandlerTests
 {
     /// <summary>
-    /// A test delegating handler that captures requests and returns canned responses.
-    /// Registered after <see cref="HttpClientBuilderSsrfExtensions.AddSsrfProtection"/> so that
-    /// the default <see cref="SocketsHttpHandler"/> remains as the primary handler (allowing
-    /// <c>AllowAutoRedirect = false</c> to be set correctly), while this handler intercepts
-    /// requests before they reach the network.
+    /// A test handler standing in for the guard's sender: it captures requests and returns canned responses.
     /// </summary>
     private class TestInnerHandler : DelegatingHandler
     {
@@ -18,7 +14,7 @@ public class SsrfProtectionHandlerTests
         public List<HttpRequestMessage> AllRequests { get; } = [];
 
         /// <summary>
-        /// Each request's address as it was sent, before the guard gives the request its host name back.
+        /// Each request's address as it was sent.
         /// </summary>
         public List<Uri> SentUris { get; } = [];
 
@@ -65,84 +61,51 @@ public class SsrfProtectionHandlerTests
     }
 
     /// <summary>
-    /// Creates an HttpClient with SSRF protection wired up via the public
-    /// <see cref="HttpClientBuilderSsrfExtensions.AddSsrfProtection"/> extension.
+    /// A client sending through a guard that resolves names with the system's DNS, in front of a
+    /// <see cref="TestInnerHandler"/>.
     /// </summary>
     private static (HttpClient client, TestInnerHandler inner) CreateClient(bool followRedirects = true)
     {
         var inner = new TestInnerHandler();
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddHttpClient("test")
-            .AddSsrfProtection(followRedirects)
-            .AddHttpMessageHandler(() => inner);
-        var provider = services.BuildServiceProvider();
-        var factory = provider.GetRequiredService<IHttpClientFactory>();
-        return (factory.CreateClient("test"), inner);
-    }
-
-    [Fact]
-    public async Task SendAsync_NullRequestUri_ThrowsInvalidOperationException()
-    {
-        var (client, _) = CreateClient();
-        var request = new HttpRequestMessage
+        var guard = new SsrfProtectionHandler(NullLogger<SsrfProtectionHandler>.Instance, new SsrfConnector())
         {
-            RequestUri = null,
-            Method = HttpMethod.Get
+            FollowRedirects = followRedirects,
+            InnerHandler = inner,
+            Sender = inner,
         };
 
-        // HttpClient validates the URI before the handler runs
-        await Assert.ThrowsAsync<InvalidOperationException>(() => client.SendAsync(request, TestContext.Current.CancellationToken));
+        return (new HttpClient(guard), inner);
     }
 
     [Theory]
-    [InlineData("http://127.0.0.1/test")]
+    [InlineData("http://0.0.0.0/test")]
     [InlineData("http://10.0.0.1/test")]
-    [InlineData("http://192.168.1.1/test")]
-    [InlineData("http://172.16.0.1/test")]
     [InlineData("http://169.254.169.254/latest/meta-data/")] // AWS metadata
     [InlineData("http://100.64.0.1/test")]                   // CGNAT
     [InlineData("http://[::1]/test")]                         // IPv6 loopback
-    [InlineData("http://[::7f00:1]/test")]                    // IPv4-compatible 127.0.0.1
     [InlineData("http://[::ffff:0:a00:1]/test")]              // SIIT 10.0.0.1
-    [InlineData("http://[fec0::1]/test")]                     // IPv6 site-local
     public async Task SendAsync_DirectIpInternal_ThrowsSsrfProtectionException(string url)
     {
-        var (client, _) = CreateClient();
+        // IPAddressExtensionsTests covers every range; these show an address in a URL is checked as written.
+        var (client, inner) = CreateClient();
 
         await Assert.ThrowsAsync<SsrfProtectionException>(
             () => client.GetAsync(url, TestContext.Current.CancellationToken));
+        Assert.Empty(inner.AllRequests);
     }
 
+    // A public address in a URL is sent, pinned to itself.
     [Theory]
-    [InlineData("http://8.8.8.8/test")]
-    [InlineData("http://1.1.1.1/test")]
-    [InlineData("http://52.20.30.40/test")]
-    public async Task SendAsync_DirectIpPublic_Succeeds(string url)
+    [InlineData("http://8.8.8.8/test", "8.8.8.8")]
+    [InlineData("http://[2606:4700::1111]/test", "2606:4700::1111")]
+    public async Task SendAsync_DirectIpPublic_IsSentPinnedToIt(string url, string address)
     {
         var (client, inner) = CreateClient();
 
         var response = await client.GetAsync(url, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.NotNull(inner.LastRequest);
-    }
-
-    [Fact]
-    public async Task SendAsync_PublicHost_PreservesHostHeader()
-    {
-        // This test verifies that when a hostname resolves to a public IP,
-        // the handler rewrites the URI to the IP but preserves the Host header.
-        // We can't easily mock DNS in C#, so we test with a direct IP that
-        // doesn't need DNS resolution.
-        var (client, inner) = CreateClient();
-
-        var response = await client.GetAsync("http://8.8.8.8/test", TestContext.Current.CancellationToken);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.NotNull(inner.LastRequest);
-        // URI host should be rewritten to the IP
-        Assert.Equal("8.8.8.8", inner.LastRequest!.RequestUri!.Host);
+        Assert.Equal(IPAddress.Parse(address), Pinned(inner.LastRequest!).Address);
     }
 
     [Fact]
@@ -169,55 +132,21 @@ public class SsrfProtectionHandlerTests
             () => client.GetAsync("http://localhost/test", TestContext.Current.CancellationToken));
     }
 
+    // An attacker-controlled site redirecting to the AWS metadata endpoint, or to the loopback address: the hop is
+    // refused before it is sent.
     [Theory]
-    [InlineData("http://0.0.0.0/test")]
-    [InlineData("http://127.0.0.2/test")]
-    [InlineData("http://100.100.100.100/test")] // CGNAT
-    public async Task SendAsync_VariousInternalIps_ThrowsSsrfProtectionException(string url)
+    [InlineData(HttpStatusCode.Found, "http://169.254.169.254/latest/meta-data/")]
+    [InlineData(HttpStatusCode.MovedPermanently, "http://127.0.0.1/admin")]
+    public async Task SendAsync_RedirectToInternalIp_ThrowsSsrfProtectionException(HttpStatusCode status, string location)
     {
-        var (client, _) = CreateClient();
-
-        await Assert.ThrowsAsync<SsrfProtectionException>(
-            () => client.GetAsync(url, TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task SendAsync_RedirectToInternalIp_ThrowsSsrfProtectionException()
-    {
-        // Simulates an attacker-controlled domain redirecting to the AWS metadata endpoint
         var (client, inner) = CreateClient();
-        var redirectResponse = new HttpResponseMessage(HttpStatusCode.Found);
-        redirectResponse.Headers.Location = new Uri("http://169.254.169.254/latest/meta-data/");
+        var redirectResponse = new HttpResponseMessage(status);
+        redirectResponse.Headers.Location = new Uri(location);
         inner.EnqueueResponse(redirectResponse);
 
         await Assert.ThrowsAsync<SsrfProtectionException>(
             () => client.GetAsync("http://8.8.8.8/attacker", TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task SendAsync_RedirectToPublicIp_Succeeds()
-    {
-        var (client, inner) = CreateClient();
-        var redirectResponse = new HttpResponseMessage(HttpStatusCode.Found);
-        redirectResponse.Headers.Location = new Uri("http://1.1.1.1/final");
-        inner.EnqueueResponse(redirectResponse);
-
-        var response = await client.GetAsync("http://8.8.8.8/start", TestContext.Current.CancellationToken);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(2, inner.AllRequests.Count);
-    }
-
-    [Fact]
-    public async Task SendAsync_RedirectToLocalhost_ThrowsSsrfProtectionException()
-    {
-        var (client, inner) = CreateClient();
-        var redirectResponse = new HttpResponseMessage(HttpStatusCode.MovedPermanently);
-        redirectResponse.Headers.Location = new Uri("http://127.0.0.1/admin");
-        inner.EnqueueResponse(redirectResponse);
-
-        await Assert.ThrowsAsync<SsrfProtectionException>(
-            () => client.GetAsync("http://8.8.8.8/redirect-to-localhost", TestContext.Current.CancellationToken));
+        Assert.Single(inner.AllRequests);
     }
 
     [Fact]
@@ -256,20 +185,6 @@ public class SsrfProtectionHandlerTests
 
         await Assert.ThrowsAsync<SsrfProtectionException>(
             () => client.GetAsync("http://8.8.8.8/start", TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task SendAsync_RelativeRedirect_ResolvesAgainstOriginalUri()
-    {
-        var (client, inner) = CreateClient();
-        var redirectResponse = new HttpResponseMessage(HttpStatusCode.Found);
-        redirectResponse.Headers.Location = new Uri("/new-path", UriKind.Relative);
-        inner.EnqueueResponse(redirectResponse);
-
-        var response = await client.GetAsync("http://8.8.8.8/original", TestContext.Current.CancellationToken);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(2, inner.AllRequests.Count);
     }
 
     [Fact]
@@ -503,8 +418,7 @@ public class SsrfProtectionHandlerTests
     public async Task SendAsync_RelativeRedirectAfterAbsoluteRedirect_ResolvesAgainstCurrentHost()
     {
         // Chain: 8.8.8.8 -> 302 http://1.1.1.1/hop2 -> 302 /relative
-        // The relative redirect should resolve against 1.1.1.1 (the current hop),
-        // not 8.8.8.8 (the original request which got IP-rewritten by ValidateAndSendAsync).
+        // The relative redirect should resolve against 1.1.1.1 (the current hop), not 8.8.8.8 (the original request).
         var (client, inner) = CreateClient();
 
         var redirect1 = new HttpResponseMessage(HttpStatusCode.Found);
@@ -522,7 +436,7 @@ public class SsrfProtectionHandlerTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(3, inner.AllRequests.Count);
         // The third request should have resolved /relative-path against 1.1.1.1
-        Assert.Equal("1.1.1.1", inner.AllRequests[2].Headers.Host);
+        Assert.Equal(new Uri("http://1.1.1.1/relative-path"), inner.SentUris[2]);
     }
 
     [Fact]
@@ -657,36 +571,39 @@ public class SsrfProtectionHandlerTests
     }
 
     // A handler below the guard that follows a redirect itself takes the request somewhere the guard never checked:
-    // the guard refuses the answer rather than hand it back.
+    // the request has gone out by then, and the guard refuses the answer rather than hand it back.
     [Fact]
     public async Task SendAsync_AHandlerBelowFollowingARedirect_IsRefused()
     {
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddHttpClient("test")
-            .AddSsrfProtection()
-            .AddHttpMessageHandler(() => new FollowingHandler(new Uri("http://169.254.169.254/latest/meta-data/")));
-        var client = services.BuildServiceProvider().GetRequiredService<IHttpClientFactory>().CreateClient("test");
+        var (invoker, _, _) = Guard(new FakeNetwork(null), new FollowingHandler(new Uri("http://169.254.169.254/latest/meta-data/")));
 
-        await Assert.ThrowsAsync<SsrfProtectionException>(
-            () => client.GetAsync("http://8.8.8.8/start", TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<SsrfProtectionException>(() => invoker.SendAsync(
+            new HttpRequestMessage(HttpMethod.Get, "http://8.8.8.8/start"), TestContext.Current.CancellationToken));
+    }
+
+    // A handler below that readdresses the request is refused even when the response it gives names the checked
+    // address.
+    [Fact]
+    public async Task SendAsync_AHandlerBelowReaddressingTheRequest_IsRefused()
+    {
+        var (invoker, _, _) = Guard(Names(), new Readdressing(new Uri("http://169.254.169.254/")));
+
+        await Assert.ThrowsAsync<SsrfProtectionException>(() => invoker.SendAsync(
+            new HttpRequestMessage(HttpMethod.Get, "http://example.test/"), TestContext.Current.CancellationToken));
     }
 
     // A request with no address is refused rather than handed on.
     [Fact]
     public async Task SendAsync_NoRequestUri_ThrowsSsrfProtectionException()
     {
-        using var invoker = new HttpMessageInvoker(
-            new SsrfProtectionHandler(Microsoft.Extensions.Logging.Abstractions.NullLogger<SsrfProtectionHandler>.Instance)
-            {
-                InnerHandler = new TestInnerHandler(),
-            });
+        var (invoker, inner, _) = Guard(Names());
         using var request = new HttpRequestMessage(HttpMethod.Get, (Uri?)null);
 
         var exception = await Assert.ThrowsAsync<SsrfProtectionException>(
             () => invoker.SendAsync(request, TestContext.Current.CancellationToken));
 
         Assert.Equal("Request URI is null.", exception.Message);
+        Assert.Empty(inner.AllRequests);
     }
 
     // A host that resolves to nothing (here a reserved, never-resolving name) is refused: nothing is checked, so
@@ -718,18 +635,208 @@ public class SsrfProtectionHandlerTests
         Assert.Empty(inner.AllRequests);
     }
 
-    // The request connects to the address the guard checked, never to the name, which could resolve elsewhere by then;
-    // the Host header carries the name.
+    // A body is read only once the first hop is checked: a refused request reads none of it.
     [Fact]
-    public async Task SendAsync_AName_IsSentToTheAddressItWasCheckedAt()
+    public async Task SendAsync_ARefusedRequest_ReadsNoBody()
     {
-        var (invoker, inner, _) = Guard(("example.test", ["93.184.216.34"]));
+        var (invoker, _, _) = Guard(Names(("example.test", ["10.0.0.1"])));
+        var body = new CountingStream();
+
+        await Assert.ThrowsAsync<SsrfProtectionException>(() => invoker.SendAsync(
+            new HttpRequestMessage(HttpMethod.Post, "http://example.test/") { Content = new StreamContent(body) },
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal(0, body.Reads);
+    }
+
+    // A request that may use HTTP/3 is refused: QUIC connections don't go through the connector, so they couldn't
+    // be pinned to the checked address.
+    [Theory]
+    [InlineData(3, HttpVersionPolicy.RequestVersionOrLower)]
+    [InlineData(1, HttpVersionPolicy.RequestVersionOrHigher)]
+    public async Task SendAsync_ARequestThatMayUseHttp3_IsRefused(int major, HttpVersionPolicy policy)
+    {
+        var (invoker, inner, _) = Guard(Names());
+
+        await Assert.ThrowsAsync<SsrfProtectionException>(() => invoker.SendAsync(
+            new HttpRequestMessage(HttpMethod.Get, "http://8.8.8.8/") { Version = new Version(major, major == 1 ? 1 : 0), VersionPolicy = policy },
+            TestContext.Current.CancellationToken));
+        Assert.Empty(inner.AllRequests);
+    }
+
+    // A guard that wasn't set up by AddSsrfProtection, or whose sender was swapped or changed since, sends nothing.
+    [Fact]
+    public async Task SendAsync_WithoutASender_Throws()
+    {
+        var inner = new TestInnerHandler();
+        using var invoker = new HttpMessageInvoker(
+            new SsrfProtectionHandler(NullLogger<SsrfProtectionHandler>.Instance, new FakeNetwork(null)) { InnerHandler = inner });
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => invoker.SendAsync(
+            new HttpRequestMessage(HttpMethod.Get, "http://8.8.8.8/"), TestContext.Current.CancellationToken));
+        Assert.Empty(inner.AllRequests);
+    }
+
+    [Fact]
+    public async Task SendAsync_ASenderThatIsNotBelowTheGuard_Throws()
+    {
+        var inner = new TestInnerHandler();
+        using var invoker = new HttpMessageInvoker(
+            new SsrfProtectionHandler(NullLogger<SsrfProtectionHandler>.Instance, new FakeNetwork(null))
+            {
+                InnerHandler = inner,
+                Sender = new TestInnerHandler(),
+            });
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => invoker.SendAsync(
+            new HttpRequestMessage(HttpMethod.Get, "http://8.8.8.8/"), TestContext.Current.CancellationToken));
+        Assert.Empty(inner.AllRequests);
+    }
+
+    [Theory]
+    [InlineData("redirects")]
+    [InlineData("cookies")]
+    [InlineData("connect")]
+    public async Task SendAsync_ASenderChangedAfterItWasSetUp_Throws(string change)
+    {
+        var network = new FakeNetwork(null);
+        var sender = network.Sender();
+        switch (change)
+        {
+            case "redirects":
+                sender.AllowAutoRedirect = true;
+                break;
+            case "cookies":
+                sender.UseCookies = true;
+                break;
+            case "connect":
+                sender.ConnectCallback = (_, _) => throw new InvalidOperationException("Never connects.");
+                break;
+        }
+
+        var (invoker, _, _) = Guard(network, sender);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => invoker.SendAsync(
+            new HttpRequestMessage(HttpMethod.Get, "http://8.8.8.8/"), TestContext.Current.CancellationToken));
+        Assert.Empty(network.Opened);
+    }
+
+    // The request keeps its host, for TLS, cookies and telemetry; the guard records the address it checked, and the
+    // connection is made to that address, never to the name, which could resolve elsewhere by then.
+    [Fact]
+    public async Task SendAsync_AName_IsConnectedToTheAddressItWasCheckedAt()
+    {
+        using var server = new ScriptedServer();
+        var network = new FakeNetwork(server, ("example.test", ["93.184.216.34"]));
+        var (invoker, _, _) = Guard(network, network.Sender());
 
         using var response = await invoker.SendAsync(
             new HttpRequestMessage(HttpMethod.Get, "http://example.test/path?query=1"), TestContext.Current.CancellationToken);
 
-        Assert.Equal(new Uri("http://93.184.216.34/path?query=1"), inner.SentUris.Single());
-        Assert.Equal("example.test", inner.LastRequest!.Headers.Host);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal([new IPEndPoint(IPAddress.Parse("93.184.216.34"), 80)], network.Opened);
+        Assert.Equal(["example.test"], network.Resolved);
+        Assert.StartsWith("GET /path?query=1 HTTP/1.1\n", server.Requests.Single(), StringComparison.Ordinal);
+        Assert.Contains("Host: example.test\n", server.Requests.Single(), StringComparison.Ordinal);
+        Assert.Equal(new Uri("http://example.test/path?query=1"), response.RequestMessage!.RequestUri);
+    }
+
+    // Through a proxy, the request is addressed to the checked address, with the host in the Host header, so the proxy
+    // has no name to resolve differently; the caller's request and the response's name the host again.
+    [Fact]
+    public async Task SendAsync_ThroughAProxy_IsAddressedToTheCheckedAddress()
+    {
+        using var server = new ScriptedServer();
+        var network = new FakeNetwork(server, ("example.test", ["93.184.216.34"]));
+        var (invoker, _, _) = Guard(network, network.Sender(new WebProxy("http://proxy.test:3128")));
+        var request = new HttpRequestMessage(HttpMethod.Get, "http://example.test/path");
+
+        using var response = await invoker.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal([new DnsEndPoint("proxy.test", 3128)], network.Opened);
+        Assert.StartsWith("GET http://93.184.216.34/path HTTP/1.1\n", server.Requests.Single(), StringComparison.Ordinal);
+        Assert.Contains("Host: example.test\n", server.Requests.Single(), StringComparison.Ordinal);
+        Assert.Equal(new Uri("http://example.test/path"), request.RequestUri);
+        Assert.Equal(new Uri("http://example.test/path"), response.RequestMessage!.RequestUri);
+    }
+
+    // A host the proxy bypasses is connected to directly, pinned to the checked address.
+    [Fact]
+    public async Task SendAsync_AHostTheProxyBypasses_IsConnectedToDirectly()
+    {
+        using var server = new ScriptedServer();
+        var network = new FakeNetwork(server, ("example.test", ["93.184.216.34"]));
+        var proxy = new WebProxy("http://proxy.test:3128", BypassOnLocal: false, BypassList: [@"example\.test"]);
+        var (invoker, _, _) = Guard(network, network.Sender(proxy));
+
+        using var response = await invoker.SendAsync(
+            new HttpRequestMessage(HttpMethod.Get, "http://example.test/path"), TestContext.Current.CancellationToken);
+
+        Assert.Equal([new IPEndPoint(IPAddress.Parse("93.184.216.34"), 80)], network.Opened);
+        Assert.StartsWith("GET /path HTTP/1.1\n", server.Requests.Single(), StringComparison.Ordinal);
+    }
+
+    // Through a proxy, a port that isn't the scheme's default stays in the Host header.
+    [Theory]
+    [InlineData("http://example.test:8080/", "example.test:8080", "http://93.184.216.34:8080/")]
+    [InlineData("http://example.test/", "example.test", "http://93.184.216.34/")]
+    public async Task SendAsync_ThroughAProxy_TheHostHeaderKeepsAPortThatIsNotTheDefault(string url, string hostHeader, string addressed)
+    {
+        using var server = new ScriptedServer();
+        var network = new FakeNetwork(server, ("example.test", ["93.184.216.34"]));
+        var (invoker, _, _) = Guard(network, network.Sender(new WebProxy("http://proxy.test:3128")));
+
+        using var response = await invoker.SendAsync(new HttpRequestMessage(HttpMethod.Get, url), TestContext.Current.CancellationToken);
+
+        Assert.StartsWith($"GET {addressed} HTTP/1.1\n", server.Requests.Single(), StringComparison.Ordinal);
+        Assert.Contains($"Host: {hostHeader}\n", server.Requests.Single(), StringComparison.Ordinal);
+    }
+
+    // Through a proxy, a Host header the caller set is sent as it is; the request is still addressed to the checked
+    // address.
+    [Fact]
+    public async Task SendAsync_ThroughAProxy_AHostHeaderTheCallerSet_IsKept()
+    {
+        using var server = new ScriptedServer();
+        var network = new FakeNetwork(server, ("example.test", ["93.184.216.34"]));
+        var (invoker, _, _) = Guard(network, network.Sender(new WebProxy("http://proxy.test:3128")));
+        var request = new HttpRequestMessage(HttpMethod.Get, "http://example.test/");
+        request.Headers.Host = "virtual.example";
+
+        using var response = await invoker.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.StartsWith("GET http://93.184.216.34/ HTTP/1.1\n", server.Requests.Single(), StringComparison.Ordinal);
+        Assert.Contains("Host: virtual.example\n", server.Requests.Single(), StringComparison.Ordinal);
+    }
+
+    // Through a proxy, a redirect's relative Location resolves against the host the caller asked for, and the next
+    // hop is resolved, checked and addressed by that name's address again.
+    [Fact]
+    public async Task SendAsync_ThroughAProxy_ARelativeRedirectResolvesAgainstTheHost()
+    {
+        using var server = new ScriptedServer("HTTP/1.1 302 Found\r\nLocation: /next");
+        var network = new FakeNetwork(server, ("example.test", ["93.184.216.34"]));
+        var (invoker, _, _) = Guard(network, network.Sender(new WebProxy("http://proxy.test:3128")));
+
+        using var response = await invoker.SendAsync(
+            new HttpRequestMessage(HttpMethod.Get, "http://example.test/start"), TestContext.Current.CancellationToken);
+
+        Assert.Equal(["example.test", "example.test"], network.Resolved);
+        Assert.StartsWith("GET http://93.184.216.34/next HTTP/1.1\n", server.Requests[1], StringComparison.Ordinal);
+        Assert.Equal(new Uri("http://example.test/next"), response.RequestMessage!.RequestUri);
+    }
+
+    // Through a proxy, a send that fails still leaves the caller's request naming the host it asked for.
+    [Fact]
+    public async Task SendAsync_ThroughAProxy_ASendThatFails_LeavesTheRequestNamingTheHost()
+    {
+        var network = new FakeNetwork(null, ("example.test", ["93.184.216.34"]));
+        var (invoker, _, _) = Guard(network, network.Sender(new WebProxy("http://proxy.test:3128")));
+        var request = new HttpRequestMessage(HttpMethod.Get, "http://example.test/start");
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => invoker.SendAsync(request, TestContext.Current.CancellationToken));
+
+        Assert.Equal(new Uri("http://example.test/start"), request.RequestUri);
     }
 
     // Every address a name resolves to is checked: one internal address among public ones refuses the request.
@@ -739,7 +846,7 @@ public class SsrfProtectionHandlerTests
     [InlineData("2606:4700::1111", "::1")]
     public async Task SendAsync_ANameResolvingToAnyInternalAddress_IsRefused(string first, string second)
     {
-        var (invoker, inner, _) = Guard(("example.test", [first, second]));
+        var (invoker, inner, _) = Guard(Names(("example.test", [first, second])));
 
         await Assert.ThrowsAsync<SsrfProtectionException>(() => invoker.SendAsync(
             new HttpRequestMessage(HttpMethod.Get, "http://example.test/"), TestContext.Current.CancellationToken));
@@ -747,57 +854,18 @@ public class SsrfProtectionHandlerTests
         Assert.Empty(inner.AllRequests);
     }
 
-    // IPv4 is preferred when a name resolves to both families.
-    [Fact]
-    public async Task SendAsync_ANameResolvingToBothFamilies_IsSentOverIPv4()
-    {
-        var (invoker, inner, _) = Guard(("example.test", ["2606:4700::1111", "1.1.1.1"]));
-
-        using var response = await invoker.SendAsync(
-            new HttpRequestMessage(HttpMethod.Get, "http://example.test/"), TestContext.Current.CancellationToken);
-
-        Assert.Equal("1.1.1.1", inner.SentUris.Single().Host);
-    }
-
-    // A name resolving to IPv6 only is sent to that address.
-    [Fact]
-    public async Task SendAsync_ANameResolvingToIPv6Only_IsSentThere()
-    {
-        var (invoker, inner, _) = Guard(("example.test", ["2606:4700::1111"]));
-
-        using var response = await invoker.SendAsync(
-            new HttpRequestMessage(HttpMethod.Get, "http://example.test/"), TestContext.Current.CancellationToken);
-
-        Assert.Equal("[2606:4700::1111]", inner.SentUris.Single().Host);
-    }
-
-    // A port that isn't the scheme's default stays in the Host header.
+    // IPv4 is preferred when a name resolves to both families; a name resolving to IPv6 only is pinned to it.
     [Theory]
-    [InlineData("http://example.test:8080/", "example.test:8080")]
-    [InlineData("https://example.test:8443/", "example.test:8443")]
-    [InlineData("https://example.test/", "example.test")]
-    public async Task SendAsync_TheHostHeader_KeepsAPortThatIsNotTheDefault(string url, string hostHeader)
+    [InlineData(new[] { "2606:4700::1111", "1.1.1.1" }, "1.1.1.1")]
+    [InlineData(new[] { "2606:4700::1111" }, "2606:4700::1111")]
+    public async Task SendAsync_AName_IsPinnedToIPv4WhenItHasOne(string[] addresses, string pinned)
     {
-        var (invoker, inner, _) = Guard(("example.test", ["93.184.216.34"]));
+        var (invoker, inner, _) = Guard(Names(("example.test", addresses)));
 
-        using var response = await invoker.SendAsync(new HttpRequestMessage(HttpMethod.Get, url), TestContext.Current.CancellationToken);
+        using var response = await invoker.SendAsync(
+            new HttpRequestMessage(HttpMethod.Get, "http://example.test/"), TestContext.Current.CancellationToken);
 
-        Assert.Equal(hostHeader, inner.LastRequest!.Headers.Host);
-        Assert.Equal(new Uri(url).Port, inner.SentUris.Single().Port);
-    }
-
-    // A Host header the caller set is sent as it is; the address the request connects to is still the checked one.
-    [Fact]
-    public async Task SendAsync_AHostHeaderTheCallerSet_IsKept()
-    {
-        var (invoker, inner, _) = Guard(("example.test", ["93.184.216.34"]));
-        var request = new HttpRequestMessage(HttpMethod.Get, "http://example.test/");
-        request.Headers.Host = "virtual.example";
-
-        using var response = await invoker.SendAsync(request, TestContext.Current.CancellationToken);
-
-        Assert.Equal("virtual.example", inner.LastRequest!.Headers.Host);
-        Assert.Equal("93.184.216.34", inner.SentUris.Single().Host);
+        Assert.Equal(IPAddress.Parse(pinned), Pinned(inner.LastRequest!).Address);
     }
 
     // An internationalized name is resolved, and sent in the Host header, in its ASCII form, which is all a connection
@@ -805,71 +873,25 @@ public class SsrfProtectionHandlerTests
     [Fact]
     public async Task SendAsync_AnInternationalizedName_IsSentInItsAsciiForm()
     {
-        using var listener = new RecordingListener();
-        var connectedTo = new List<string>();
-        var (invoker, _, resolved) = Guard(
-            ("xn--bcher-kva.de", ["93.184.216.34"]),
-            new SocketsHttpHandler
-            {
-                AllowAutoRedirect = false,
-                // Every connection reaches the listener, whatever address the request was for.
-                ConnectCallback = async (context, cancellationToken) =>
-                {
-                    connectedTo.Add(context.DnsEndPoint.Host);
-                    var socket = new System.Net.Sockets.Socket(System.Net.Sockets.SocketType.Stream, System.Net.Sockets.ProtocolType.Tcp);
-                    await socket.ConnectAsync(IPAddress.Loopback, listener.Port, cancellationToken);
-                    return new System.Net.Sockets.NetworkStream(socket, ownsSocket: true);
-                },
-            });
+        using var server = new ScriptedServer();
+        var network = new FakeNetwork(server, ("xn--bcher-kva.de", ["93.184.216.34"]));
+        var (invoker, _, _) = Guard(network, network.Sender());
 
         using var response = await invoker.SendAsync(
             new HttpRequestMessage(HttpMethod.Get, "http://bücher.de/"), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(["xn--bcher-kva.de"], resolved);
-        Assert.Contains("Host: xn--bcher-kva.de", listener.Requests.Single());
-        Assert.Equal(["93.184.216.34"], connectedTo);
-    }
-
-    // The connection goes to the checked address, but the caller's request, and the response's, name the host it
-    // asked for, so a Location the caller resolves against them reaches that host.
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task SendAsync_TheRequestAndTheResponse_NameTheHostNotTheAddress(bool followRedirects)
-    {
-        var (invoker, inner, _) = Guard(("example.test", ["93.184.216.34"]), followRedirects: followRedirects);
-        var redirect = new HttpResponseMessage(HttpStatusCode.Found);
-        redirect.Headers.Location = new Uri("/next", UriKind.Relative);
-        inner.EnqueueResponse(redirect);
-        var request = new HttpRequestMessage(HttpMethod.Get, "http://example.test/start");
-
-        using var response = await invoker.SendAsync(request, TestContext.Current.CancellationToken);
-
-        var last = followRedirects ? "http://example.test/next" : "http://example.test/start";
-        Assert.Equal(new Uri("http://example.test/start"), request.RequestUri);
-        Assert.Equal(new Uri(last), response.RequestMessage!.RequestUri);
-        Assert.All(inner.SentUris, sent => Assert.Equal("93.184.216.34", sent.Host));
-    }
-
-    // A send that fails still leaves the caller's request naming the host it asked for.
-    [Fact]
-    public async Task SendAsync_ASendThatFails_LeavesTheRequestNamingTheHost()
-    {
-        var (invoker, _, _) = Guard(("example.test", ["93.184.216.34"]), new Failing());
-        var request = new HttpRequestMessage(HttpMethod.Get, "http://example.test/start");
-
-        await Assert.ThrowsAsync<HttpRequestException>(() => invoker.SendAsync(request, TestContext.Current.CancellationToken));
-
-        Assert.Equal(new Uri("http://example.test/start"), request.RequestUri);
+        Assert.Equal(["xn--bcher-kva.de"], network.Resolved);
+        Assert.Contains("Host: xn--bcher-kva.de\n", server.Requests.Single(), StringComparison.Ordinal);
+        Assert.Equal([new IPEndPoint(IPAddress.Parse("93.184.216.34"), 80)], network.Opened);
     }
 
     // A relative Location resolves against the host name the request was for, so the next hop is resolved and checked
-    // by that name and carries it in its Host header.
+    // by that name and keeps it.
     [Fact]
     public async Task SendAsync_ARelativeRedirect_ResolvesAgainstTheHostName()
     {
-        var (invoker, inner, resolved) = Guard(("example.test", ["93.184.216.34"]));
+        var (invoker, inner, network) = Guard(Names(("example.test", ["93.184.216.34"])));
         var redirect = new HttpResponseMessage(HttpStatusCode.Found);
         redirect.Headers.Location = new Uri("/next", UriKind.Relative);
         inner.EnqueueResponse(redirect);
@@ -877,57 +899,40 @@ public class SsrfProtectionHandlerTests
         using var response = await invoker.SendAsync(
             new HttpRequestMessage(HttpMethod.Get, "http://example.test/start"), TestContext.Current.CancellationToken);
 
-        Assert.Equal(["example.test", "example.test"], resolved);
-        Assert.Equal("example.test", inner.AllRequests[1].Headers.Host);
-        Assert.Equal(new Uri("http://93.184.216.34/next"), inner.SentUris[1]);
-    }
-
-    // A handler below that readdresses the request is refused even when the response it gives names the checked
-    // address.
-    [Fact]
-    public async Task SendAsync_AHandlerBelowReaddressingTheRequest_IsRefused()
-    {
-        var (invoker, _, _) = Guard(("example.test", ["93.184.216.34"]), new Readdressing(new Uri("http://169.254.169.254/")));
-
-        await Assert.ThrowsAsync<SsrfProtectionException>(() => invoker.SendAsync(
-            new HttpRequestMessage(HttpMethod.Get, "http://example.test/"), TestContext.Current.CancellationToken));
+        Assert.Equal(["example.test", "example.test"], network.Resolved);
+        Assert.Equal(new Uri("http://example.test/next"), inner.SentUris[1]);
+        Assert.Equal(IPAddress.Parse("93.184.216.34"), Pinned(inner.AllRequests[1]).Address);
     }
 
     /// <summary>
-    /// A guard whose resolver answers each name in <paramref name="names"/> with its addresses, in front of
-    /// <paramref name="below"/>, or else a <see cref="TestInnerHandler"/>; and the names it was asked to resolve.
+    /// A network resolving each of <paramref name="names"/> to its addresses, with nothing to connect to.
     /// </summary>
-    private static (HttpMessageInvoker Invoker, TestInnerHandler Inner, List<string> Resolved) Guard(
-        (string Name, string[] Addresses) names,
+    private static FakeNetwork Names(params (string Name, string[] Addresses)[] names) => new(null, names);
+
+    /// <summary>
+    /// The address the guard checked for <paramref name="request"/>.
+    /// </summary>
+    private static SsrfPin Pinned(HttpRequestMessage request) =>
+        request.Options.TryGetValue(SsrfConnector.PinKey, out var pin) ? pin : throw new InvalidOperationException("Not pinned.");
+
+    /// <summary>
+    /// A guard resolving through <paramref name="network"/>, set up in front of <paramref name="below"/>, or else a
+    /// <see cref="TestInnerHandler"/>, as its sender.
+    /// </summary>
+    private static (HttpMessageInvoker Invoker, TestInnerHandler Inner, FakeNetwork Network) Guard(
+        FakeNetwork network,
         HttpMessageHandler? below = null,
         bool followRedirects = true)
     {
         var inner = new TestInnerHandler();
-        var resolved = new List<string>();
-        var handler = new SsrfProtectionHandler(
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<SsrfProtectionHandler>.Instance,
-            (host, _) =>
-            {
-                resolved.Add(host);
-                return host == names.Name
-                    ? Task.FromResult(names.Addresses.Select(IPAddress.Parse).ToArray())
-                    : throw new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.HostNotFound);
-            })
+        var handler = new SsrfProtectionHandler(NullLogger<SsrfProtectionHandler>.Instance, network)
         {
             FollowRedirects = followRedirects,
             InnerHandler = below ?? inner,
+            Sender = below ?? inner,
         };
 
-        return (new HttpMessageInvoker(handler), inner, resolved);
-    }
-
-    /// <summary>
-    /// Fails every send, as a connection that can't be made does.
-    /// </summary>
-    private sealed class Failing : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            throw new HttpRequestException("Connection refused.");
+        return (new HttpMessageInvoker(handler), inner, network);
     }
 
     /// <summary>
@@ -945,65 +950,10 @@ public class SsrfProtectionHandlerTests
     }
 
     /// <summary>
-    /// Answers every request with 200 and keeps each request's head as it arrived.
-    /// </summary>
-    private sealed class RecordingListener : IDisposable
-    {
-        private readonly System.Net.Sockets.TcpListener _listener = new(IPAddress.Loopback, 0);
-        private readonly CancellationTokenSource _stopping = new();
-        private readonly System.Collections.Concurrent.ConcurrentQueue<string> _requests = new();
-
-        public RecordingListener()
-        {
-            _listener.Start();
-            _ = ServeAsync();
-        }
-
-        public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
-
-        public IReadOnlyCollection<string> Requests => _requests;
-
-        private async Task ServeAsync()
-        {
-            try
-            {
-                while (!_stopping.IsCancellationRequested)
-                {
-                    using var connection = await _listener.AcceptTcpClientAsync(_stopping.Token);
-                    var stream = connection.GetStream();
-                    var reader = new StreamReader(stream, System.Text.Encoding.ASCII);
-                    var head = new System.Text.StringBuilder();
-                    string? line;
-                    while (!string.IsNullOrEmpty(line = await reader.ReadLineAsync(_stopping.Token)))
-                    {
-                        head.Append(line).Append('\n');
-                    }
-
-                    _requests.Enqueue(head.ToString());
-                    await stream.WriteAsync(
-                        System.Text.Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"),
-                        _stopping.Token);
-                }
-            }
-            catch (Exception) when (_stopping.IsCancellationRequested)
-            {
-                // Stopped.
-            }
-        }
-
-        public void Dispose()
-        {
-            _stopping.Cancel();
-            _listener.Stop();
-            _stopping.Dispose();
-        }
-    }
-
-    /// <summary>
     /// Follows a redirect to <paramref name="to"/> as a primary handler with automatic redirects would: the request
     /// it answers for is now addressed there.
     /// </summary>
-    private sealed class FollowingHandler(Uri to) : DelegatingHandler
+    private sealed class FollowingHandler(Uri to) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -1018,5 +968,31 @@ public class SsrfProtectionHandlerTests
     private sealed class OnceOnlyStream(string text) : MemoryStream(System.Text.Encoding.UTF8.GetBytes(text))
     {
         public override bool CanSeek => false;
+    }
+
+    /// <summary>
+    /// A stream counting the reads made of it.
+    /// </summary>
+    private sealed class CountingStream() : MemoryStream("body"u8.ToArray())
+    {
+        public int Reads { get; private set; }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            Reads++;
+            return base.Read(buffer, offset, count);
+        }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            Reads++;
+            return base.ReadAsync(buffer, cancellationToken);
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            Reads++;
+            return base.ReadAsync(buffer, offset, count, cancellationToken);
+        }
     }
 }

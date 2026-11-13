@@ -1,6 +1,4 @@
 using System.Net;
-using System.Net.Sockets;
-using System.Text;
 using Bitwarden.Server.Sdk.Environment;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -90,21 +88,36 @@ public sealed class HttpClientBuilderSsrfExtensionsTests
         Assert.False(primary.AllowAutoRedirect);
     }
 
-    // A primary handler with no redirect switch of its own (a test's fake, standing in for the sites a client
-    // fetches) is sent with as it is.
+    // A primary handler that can't pin connections (a test's fake, standing in for the sites a client fetches) fails
+    // the client's creation rather than going unguarded.
     [Fact]
-    public async Task APrimaryHandlerWithNoRedirectSwitch_IsSentWith()
+    public void APrimaryHandlerThatIsNotASocketsHandler_FailsTheClientsCreation()
     {
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddHttpClient("test")
             .AddSsrfProtection()
             .ConfigurePrimaryHttpMessageHandler(() => new Answering());
+        var factory = services.BuildServiceProvider().GetRequiredService<IHttpClientFactory>();
+
+        Assert.Throws<InvalidOperationException>(() => factory.CreateClient("test"));
+    }
+
+    // A client left with the factory's own primary handler sends through a SocketsHttpHandler pinned to the checked
+    // addresses.
+    [Fact]
+    public async Task AClientWithTheFactorysPrimaryHandler_IsPinned()
+    {
+        using var server = new ScriptedServer();
+        var network = new FakeNetwork(server, ("example.test", ["93.184.216.34"]));
+        var services = Services(network);
+        services.AddHttpClient("test").AddSsrfProtection();
         var client = services.BuildServiceProvider().GetRequiredService<IHttpClientFactory>().CreateClient("test");
 
-        using var response = await client.GetAsync("http://8.8.8.8/start", TestContext.Current.CancellationToken);
+        using var response = await client.GetAsync("http://example.test/", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal([new IPEndPoint(IPAddress.Parse("93.184.216.34"), 80)], network.Opened);
     }
 
     // A primary handler that hands requests on is followed to the one that sends them, which stops following.
@@ -128,26 +141,65 @@ public sealed class HttpClientBuilderSsrfExtensionsTests
     [Fact]
     public async Task ARedirectToAnInternalAddress_IsRefused_WithThePrimaryHandlerConfiguredAfterTheGuard()
     {
-        using var listener = new RedirectingListener();
-        var services = new ServiceCollection();
-        services.AddLogging();
+        using var server = new ScriptedServer("HTTP/1.1 302 Found\r\nLocation: http://169.254.169.254/latest/meta-data/");
+        var network = new FakeNetwork(server);
+        var services = Services(network);
         services.AddHttpClient("test")
             .AddSsrfProtection()
-            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
-            {
-                // Every connection reaches the listener, whatever address the request was for.
-                ConnectCallback = async (_, cancellationToken) =>
-                {
-                    var socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
-                    await socket.ConnectAsync(IPAddress.Loopback, listener.Port, cancellationToken);
-                    return new NetworkStream(socket, ownsSocket: true);
-                },
-            });
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { UseProxy = false });
         var client = services.BuildServiceProvider().GetRequiredService<IHttpClientFactory>().CreateClient("test");
 
         await Assert.ThrowsAsync<SsrfProtectionException>(
             () => client.GetAsync("http://8.8.8.8/start", TestContext.Current.CancellationToken));
-        Assert.Equal(1, listener.Served);
+        Assert.Single(server.Requests);
+    }
+
+    // A handler the client adds, after the guard or under every client's guard, runs once for each request the caller
+    // sends: a credential it attaches never reaches a redirect hop the remote server chose.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ACredentialHandler_NeverReachesARedirectHop(bool guardedByTheDefaults)
+    {
+        using var server = new ScriptedServer("HTTP/1.1 302 Found\r\nLocation: http://1.1.1.1/next");
+        var network = new FakeNetwork(server);
+        var services = Services(network);
+        if (guardedByTheDefaults)
+        {
+            services.ConfigureHttpClientDefaults(defaults => defaults.AddSsrfProtection());
+            services.AddHttpClient("test").AddHttpMessageHandler(() => new Bearer());
+        }
+        else
+        {
+            services.AddHttpClient("test").AddSsrfProtection().AddHttpMessageHandler(() => new Bearer());
+        }
+
+        var client = services.BuildServiceProvider().GetRequiredService<IHttpClientFactory>().CreateClient("test");
+
+        using var response = await client.GetAsync("http://8.8.8.8/start", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Authorization: Bearer SECRET-TOKEN\n", server.Requests[0], StringComparison.Ordinal);
+        Assert.DoesNotContain("Authorization", server.Requests[1], StringComparison.Ordinal);
+    }
+
+    // Two names on one address (a shared CDN, say) keep their cookies apart: the client keeps none, so a cookie one
+    // site sets is never sent to the other.
+    [Fact]
+    public async Task ACookieOneHostSets_IsNeverSentToAnotherOnTheSameAddress()
+    {
+        using var server = new ScriptedServer("HTTP/1.1 200 OK\r\nSet-Cookie: session=victim-secret");
+        var network = new FakeNetwork(server, ("victim-idp.example", ["93.184.216.34"]), ("attacker.example", ["93.184.216.34"]));
+        var services = Services(network);
+        services.AddHttpClient("test").AddSsrfProtection();
+        var client = services.BuildServiceProvider().GetRequiredService<IHttpClientFactory>().CreateClient("test");
+
+        (await client.GetAsync("http://victim-idp.example/", TestContext.Current.CancellationToken)).Dispose();
+        (await client.GetAsync("http://attacker.example/", TestContext.Current.CancellationToken)).Dispose();
+        (await client.GetAsync("http://victim-idp.example/", TestContext.Current.CancellationToken)).Dispose();
+
+        Assert.Equal(3, server.Requests.Count);
+        Assert.All(server.Requests, request => Assert.DoesNotContain("Cookie", request, StringComparison.Ordinal));
     }
 
     // A client guarded by every client's defaults and by its own registration has one guard, and follows a redirect
@@ -156,17 +208,19 @@ public sealed class HttpClientBuilderSsrfExtensionsTests
     [Fact]
     public async Task AClientGuardedByTheDefaultsAndItsOwnRegistration_FollowsARedirect()
     {
-        var site = new RedirectingOnce();
-        var services = new ServiceCollection();
-        services.AddLogging();
+        using var server = new ScriptedServer("HTTP/1.1 302 Found\r\nLocation: http://1.1.1.1/final");
+        var network = new FakeNetwork(server);
+        var services = Services(network);
         services.ConfigureHttpClientDefaults(defaults => defaults.AddSsrfProtection());
-        services.AddHttpClient("test").AddSsrfProtection().ConfigurePrimaryHttpMessageHandler(() => site);
+        services.AddHttpClient("test").AddSsrfProtection();
         var client = services.BuildServiceProvider().GetRequiredService<IHttpClientFactory>().CreateClient("test");
 
         using var response = await client.GetAsync("http://8.8.8.8/start", TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(["http://8.8.8.8/start", "http://1.1.1.1/final"], site.Sent);
+        Assert.Equal(
+            [new IPEndPoint(IPAddress.Parse("8.8.8.8"), 80), new IPEndPoint(IPAddress.Parse("1.1.1.1"), 80)],
+            network.Opened);
     }
 
     // Guarded twice, a client keeps the first registration's choice of following redirects.
@@ -176,91 +230,40 @@ public sealed class HttpClientBuilderSsrfExtensionsTests
     public async Task AClientGuardedTwice_KeepsTheFirstRegistrationsFollowRedirects(
         bool first, bool second, HttpStatusCode status, int sent)
     {
-        var site = new RedirectingOnce();
-        var services = new ServiceCollection();
-        services.AddLogging();
+        using var server = new ScriptedServer("HTTP/1.1 302 Found\r\nLocation: http://1.1.1.1/final");
+        var services = Services(new FakeNetwork(server));
         services.AddHttpClient("test")
             .AddSsrfProtection(followRedirects: first)
-            .AddSsrfProtection(followRedirects: second)
-            .ConfigurePrimaryHttpMessageHandler(() => site);
+            .AddSsrfProtection(followRedirects: second);
         var client = services.BuildServiceProvider().GetRequiredService<IHttpClientFactory>().CreateClient("test");
 
         using var response = await client.GetAsync("http://8.8.8.8/start", TestContext.Current.CancellationToken);
 
         Assert.Equal(status, response.StatusCode);
-        Assert.Equal(sent, site.Sent.Count);
+        Assert.Equal(sent, server.Requests.Count);
     }
 
     /// <summary>
-    /// Answers its first request with a redirect to a public address, and any later one with 200, keeping the address
-    /// each was sent to.
+    /// Services whose guards reach the network through <paramref name="network"/>, with no proxy.
     /// </summary>
-    private sealed class RedirectingOnce : HttpMessageHandler
+    private static ServiceCollection Services(FakeNetwork network)
     {
-        public List<string> Sent { get; } = [];
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<SsrfConnector>(network);
+        services.ConfigureHttpClientDefaults(defaults => defaults.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { UseProxy = false }));
+        return services;
+    }
 
+    /// <summary>
+    /// Attaches a credential to every request it sees.
+    /// </summary>
+    private sealed class Bearer : DelegatingHandler
+    {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            Sent.Add(request.RequestUri!.AbsoluteUri);
-            var response = new HttpResponseMessage(Sent.Count == 1 ? HttpStatusCode.Found : HttpStatusCode.OK) { RequestMessage = request };
-            if (Sent.Count == 1)
-            {
-                response.Headers.Location = new Uri("http://1.1.1.1/final");
-            }
-
-            return Task.FromResult(response);
-        }
-    }
-
-    /// <summary>
-    /// Answers its first request with a redirect to the cloud metadata address, and any later one with a secret.
-    /// </summary>
-    private sealed class RedirectingListener : IDisposable
-    {
-        private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
-        private readonly CancellationTokenSource _stopping = new();
-        private int _served;
-
-        public RedirectingListener()
-        {
-            _listener.Start();
-            _ = ServeAsync();
-        }
-
-        public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
-
-        public int Served => Volatile.Read(ref _served);
-
-        private async Task ServeAsync()
-        {
-            try
-            {
-                while (!_stopping.IsCancellationRequested)
-                {
-                    using var connection = await _listener.AcceptTcpClientAsync(_stopping.Token);
-                    var stream = connection.GetStream();
-                    var reader = new StreamReader(stream, Encoding.ASCII);
-                    while (!string.IsNullOrEmpty(await reader.ReadLineAsync(_stopping.Token)))
-                    {
-                    }
-
-                    var answer = Interlocked.Increment(ref _served) == 1
-                        ? "HTTP/1.1 302 Found\r\nLocation: http://169.254.169.254/latest/meta-data/\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-                        : "HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\nsecret";
-                    await stream.WriteAsync(Encoding.ASCII.GetBytes(answer), _stopping.Token);
-                }
-            }
-            catch (Exception) when (_stopping.IsCancellationRequested)
-            {
-                // Stopped.
-            }
-        }
-
-        public void Dispose()
-        {
-            _stopping.Cancel();
-            _listener.Stop();
-            _stopping.Dispose();
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "SECRET-TOKEN");
+            return base.SendAsync(request, cancellationToken);
         }
     }
 

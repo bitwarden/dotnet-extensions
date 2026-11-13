@@ -17,16 +17,22 @@ dotnet add package Bitwarden.Server.Sdk.Http
 
 ## Configuration
 
-The package reads no settings itself. `InternalTls` binds from the `Tls` section (`InternalTls.Section`) wherever a
-host binds it, and that host applies them:
+The package reads no settings itself, and applies none. `InternalTls` binds from the `Tls` section
+(`InternalTls.Section`) wherever a host binds it, and only a host that applies a setting gives it effect: in a host
+that doesn't, `Tls:RequireHttps` set to `true` changes nothing. No host in this repository applies `Tls:RequireHttps`,
+`Tls:ServerCertificate`, `Tls:ServerKey` or `Tls:HealthPort` yet.
 
 | Setting                      | Default | What it does                                                                                              |
 | ---------------------------- | ------- | --------------------------------------------------------------------------------------------------------- |
 | `Tls:CertificateAuthorities` | None    | PEM files of root certificate authorities trusted for calls between services, besides the system's roots. |
 | `Tls:RequireHttps`           | `false` | Whether calls to other services must use `https://`, and whether the host may listen only on `https://`.  |
 | `Tls:ServerCertificate`      | None    | The host's server certificate, base64 of its DER encoding. With `Tls:ServerKey`.                          |
-| `Tls:ServerKey`              | None    | Its private key, base64 of its PKCS #8 encoding. A secret.                                                |
+| `Tls:ServerKey`              | None    | Its private key, base64 of its PKCS #8 encoding. A secret: see below.                                     |
 | `Tls:HealthPort`             | None    | The one port a host may listen on in plain HTTP with `Tls:RequireHttps`, for its probes alone.            |
+
+`Tls:ServerKey` must reach the host through its secrets provider or an environment variable, never a file in a
+repository. It stays in `IConfiguration` as a string for the life of the process, so never show the `Tls` section in a
+view of the configuration.
 
 ## Key concepts
 
@@ -37,7 +43,8 @@ host binds it, and that host applies them:
 - **The guard checks before connecting.** It resolves each request's host and throws `SsrfProtectionException` when
   the name can't be resolved or any address it resolves to is private, loopback, link-local or otherwise reserved, such
   as `Request to '169.254.169.254' was blocked because it resolves to an internal IP address.` Otherwise it connects to
-  the address it checked, so the name can't resolve elsewhere in between, and keeps the host for TLS.
+  the address it checked, so the name can't resolve elsewhere in between. The request keeps its host name, so TLS,
+  cookies and telemetry see the name.
 - **Channels between services.** TLS between services is a Secure Channel. With a token on each call that the callee
   checks, it is a Trusted Channel.
 
@@ -88,10 +95,11 @@ Redirects:
 
 - The guard turns automatic redirects off on the client's primary handler, whoever configures it, follows up to 10
   itself and checks every hop.
-- It never carries the original request's headers, `Authorization` among them, to the next hop.
+- It never carries the original request's headers, `Authorization` among them, to the next hop. It runs below every
+  handler the client adds, whenever it was added, so a handler that attaches a credential runs once for each request
+  you send and never sees a redirect hop.
 - It returns, rather than follows, a redirect from `https://` to `http://`, which would leave TLS, and a redirect to a
   scheme other than `http` or `https`.
-- A response that a handler below it redirected is refused, not returned.
 
 ### Guard a client in the cloud only
 
@@ -201,14 +209,26 @@ public static class InternalCalls
   destination is the deployment's own: the guard would refuse it. It has no allowlist.
 - **A self-hosted install's client is unguarded** with `AddCloudSsrfProtection()`. Use `AddSsrfProtection()` for any
   destination a self-hosted install's users, rather than its operator, choose.
+- **The client sends with a `SocketsHttpHandler`.** The guard pins each connection through the handler's
+  `ConnectCallback`, and turns off its automatic redirects and its cookies. The factory's own primary handler is
+  replaced with one. A primary handler you configure must be a `SocketsHttpHandler` without a `ConnectCallback` of its
+  own: creating the client fails, naming it, for an `HttpClientHandler` with any setting changed, or any other handler.
+  Set the same settings on a `SocketsHttpHandler` instead.
+- **No HTTP/3.** QUIC connections don't go through `ConnectCallback`, so the guard refuses a request for HTTP/3 or one
+  whose version policy allows a higher version.
+- **Don't show a refusal's message to a user.** It says whether a name resolves, and whether it resolves to an
+  internal address, which maps the internal network for whoever chose the address. Catch `SsrfProtectionException`
+  itself: it isn't an `HttpRequestException`.
 - **Guarding twice.** A client guarded by both `ConfigureHttpClientDefaults` and its own registration gets one guard,
   with the first registration's `followRedirects`. Every client's defaults apply first.
-- **Following redirects buffers the body.** The guard buffers the request body in memory once, so a `307` or `308` can
-  send it again. Use `followRedirects: false` for a client that streams large bodies.
-- **A proxy sees the checked address, not the host.** Each request is addressed to the IP address the guard checked,
-  with the host in the `Host` header, so a proxy's request line carries the address and a proxy bypass rule naming the
-  host no longer matches. Once the response arrives, the request's and the response's `RequestUri` name the host
-  again.
+- **Following redirects buffers the body.** Once the first hop is checked, the guard buffers the request body and keeps
+  a copy, so it is held in memory twice, with no limit, and a `307` or `308` can send it again. Use
+  `followRedirects: false` for a client that sends large or streamed bodies.
+- **A proxy sees the checked address, not the host.** A request that goes through a proxy is addressed to the IP
+  address the guard checked, with the host in the `Host` header, so the proxy has no name to resolve differently. The
+  proxy's request line, and the client's telemetry for that request, carry the address. A proxy bypass rule naming
+  the host still applies: such a request connects directly, pinned to the checked address. Once the response arrives,
+  the request's and the response's `RequestUri` name the host again.
 - **A check when saving doesn't replace the guard.** A name can resolve differently later, so keep the guard on the
   client.
 - **What leaves.** Data a service sends to a webhook leaves the Bitwarden Secure Environment. Send identifiers, never
