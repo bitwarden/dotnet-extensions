@@ -116,4 +116,3 @@ now and is allowed for server authentication. A name that doesn't match is never
 | `IServiceIdentity`, `TokenAudience`                             | Which service this is, and which token audience it accepts                                     |
 | `EncryptedAttribute`, `PersonalDataAttribute`                   | Mark a field as Protected Data or as personal data                                             |
 | `InternalTls`                                                   | Which certificate authorities a service trusts for calls between services                      |
-| `IServiceExtension`, `ServiceExtensionAttribute`                | How a package configures every service that references it                                      |

@@ -1,10 +1,10 @@
 using System.Diagnostics.CodeAnalysis;
 
-namespace Bitwarden.Server.Sdk.Common;
+namespace Bitwarden.Server.Sdk.Service;
 
 /// <summary>
-/// Declares that an assembly carries an <see cref="IServiceExtension"/> every service referencing
-/// it should apply.
+/// Declares that an assembly carries an <see cref="IServiceExtension"/> a service host applies to
+/// every service referencing it.
 /// </summary>
 /// <remarks>
 /// Declared on the assembly rather than discovered by scanning, so an extension is something a

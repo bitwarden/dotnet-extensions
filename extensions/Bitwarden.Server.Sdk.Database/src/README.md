@@ -12,8 +12,8 @@ plumbing. See `PACKAGE.md` for the consumer guide.
   schema name derived from `TContext` by stripping `DatabaseContext` (e.g. `VaultDatabaseContext` →
   `Vault`). `SqlServerMigrations` chooses DbUp (the default) or EF Core for SQL Server.
   `DesignTimeServices` names an `IDatabaseDesignTimeServices`, whose static `ConfigureServices`
-  registers the context's constructor dependencies for the design-time factories on the
-  `DesignTimeContext` it's given.
+  registers the context's constructor dependencies for the design-time factories and the
+  migration executable on the `DesignTimeContext` it's given.
 
 ### Configuration
 
@@ -30,7 +30,8 @@ plumbing. See `PACKAGE.md` for the consumer guide.
   registration: configures the EF Core provider from named `DatabaseOptions`, replaces
   `IMigrationsAssembly` with the generated dispatcher, and registers a keyed `IDatabaseMigrator`.
   Registering a schema does not migrate it: the hosted runner only acts on schemas a host has opted
-  in with `AutoMigrateWhenSelfHosted(key)`.
+  in with `AutoMigrateWhenSelfHosted(key)`. The provider callback runs before the migrations
+  assembly is installed, so a callback that replaces `IMigrationsAssembly` itself is overridden.
 - `DatabaseServiceCollectionExtensions.AddSqlServerDatabaseMigrator(name, scriptsAssembly)` — SQL-Server-only
   variant: skips the EF Core DbContext and registers only the DbUp migrator.
 
@@ -73,7 +74,7 @@ where relevant):
 | `SqliteContext`, `PostgreSqlContext`, `MySqlContext` | `internal` | Provider subcontexts; `internal` so EF Designer files can reference them via `[DbContext(typeof(...))]`. By default there's no SQL Server subcontext, since DbUp owns that schema; `SqlServerMigrations = SqlServerMigrations.EfCore` adds a `SqlServerContext` |
 | `SqliteContextFactory`, `PostgreSqlContextFactory`, `MySqlContextFactory` | `file` | EF design-time factories discovered by `dotnet ef` tooling, plus `SqlServerContextFactory` when SQL Server uses EF Core migrations |
 | `VaultDatabaseMigrationsAssembly` | `file` | Concrete `MigrationsAssemblyBase` with compile-time migration lists; used by EF Core's `IMigrationsAssembly`. Dispatches on an exact `IDatabaseProvider.Name` match, and throws for SQL Server |
-| `VaultDatabaseServiceCollectionExtensions` | `public` | `AddVaultDatabase()` extension method |
+| `VaultDatabaseServiceCollectionExtensions` | `public` | `AddVaultDatabase()` extension method, and an `AddVaultDatabase(configureProvider)` overload that takes the caller's provider configuration in place of the generated one (a private `ConfigureProvider`, which `AddVaultDatabase()` passes); both install the generated migrations assembly |
 | `VaultDatabaseMigrationProgram` | `internal` | CLI entry point; called from `Program.Main` |
 | `Program` | `internal` | `static Task Main(string[] args)` delegating to `VaultDatabaseMigrationProgram.RunAsync` |
 
@@ -81,7 +82,7 @@ where relevant):
 
 | Symbol | Effect |
 |--------|--------|
-| `SQLSERVER_MIGRATOR_BUILD` | Strips EF Core provider contexts, factories, and the `IMigrationsAssembly` dispatcher. `AddVaultDatabase()` calls `AddSqlServerDatabaseMigrator` instead. Used by SQL-Server-only deployment builds that bundle only DbUp. |
+| `SQLSERVER_MIGRATOR_BUILD` | Strips EF Core provider contexts, factories, and the `IMigrationsAssembly` dispatcher. `AddVaultDatabase()` calls `AddSqlServerDatabaseMigrator` instead, and the `configureProvider` overload isn't emitted, since there is no context to configure. Used by SQL-Server-only deployment builds that bundle only DbUp. |
 
 ## SQL Server script conventions
 
@@ -242,7 +243,9 @@ Implemented:
 - Subcontexts forward the context constructor with the most parameters among the non-private ones
   taking exactly one `DbContextOptions` or `DbContextOptions<TContext>` (`BW0022` when there is
   none), defaults included. When it takes more than its options, the factories construct the
-  subcontext with `ActivatorUtilities` from the services `DesignTimeServices` registers; `BW0025`
+  subcontext with `ActivatorUtilities` from the services `DesignTimeServices` registers, and the
+  migration executable adds the same registrations to the services it resolves the context from;
+  `BW0025`
   rejects a constructor with an undefaulted extra parameter and no `DesignTimeServices`, and
   `BW0023` a type that can't be used. A sealed context is `BW0021`, but only when some engine is
   migrated by EF Core, since only then are subcontexts emitted.

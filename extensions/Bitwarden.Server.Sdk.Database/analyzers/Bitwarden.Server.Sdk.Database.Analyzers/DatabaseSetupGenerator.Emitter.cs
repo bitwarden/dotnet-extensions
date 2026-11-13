@@ -133,6 +133,11 @@ public sealed partial class DatabaseSetupGenerator
     private static bool NeedsDesignTimeServices(AttributeInfo attr)
         => attr.Constructor is { } ctor && ctor.Parameters.Array.Length > 1;
 
+    // Whether the design-time activator is emitted: for a context that takes more than its options,
+    // when any engine is migrated by EF Core (EmitEfCoreInfrastructure).
+    private static bool HasDesignTimeActivator(AttributeInfo attr, ImmutableArray<ProviderSpec> providers)
+        => NeedsDesignTimeServices(attr) && providers.Any(p => IsEfCore(attr, p));
+
     // What a factory's options builder is typed for: the context itself when its constructor asks for
     // DbContextOptions<TContext>, otherwise the subcontext.
     private static string OptionsFor(string providerName, AttributeInfo attr)
@@ -169,8 +174,15 @@ public sealed partial class DatabaseSetupGenerator
             public static TContext Create<TContext>(DbContextOptions options)
                 where TContext : DbContext
             {
-                var services = new ServiceCollection();{{configure}}
+                var services = new ServiceCollection();
+                Register(services);
                 return ActivatorUtilities.CreateInstance<TContext>(services.BuildServiceProvider(), options);
+            }
+
+            // The schema's design-time services, for the factories above and for the migration
+            // executable, which resolves the context from its own services to migrate it.
+            public static void Register(IServiceCollection services)
+            {{{configure}}
             }{{configureMethod}}
         }
         """;
@@ -347,12 +359,19 @@ public sealed partial class DatabaseSetupGenerator
         }
 
         var cases = string.Join("\n", providers.Select(p =>
-            $"                    case DatabaseProvider.{p.Name}:\n" +
-            $"                        builder.{ProviderUseCall(p.Name)};\n" +
-            "                        break;"));
+            $"            case DatabaseProvider.{p.Name}:\n" +
+            $"                builder.{ProviderUseCall(p.Name)};\n" +
+            "                break;"));
 
         if (attr.SqlServerEfCore)
             return EmitEfCoreDiExtension(attr, cases);
+
+        var configureScripts = $$"""
+                    services.Configure<SqlServerMigrationOptions>({{Literal(attr.MigratorKey)}}, o =>
+                    {
+            {{assignments}}
+                    });
+            """;
 
         return $$"""
         public static class {{attr.SchemaName}}ServiceCollectionExtensions
@@ -366,33 +385,13 @@ public sealed partial class DatabaseSetupGenerator
             /// </summary>
             public static IServiceCollection Add{{attr.SchemaName}}(this IServiceCollection services)
             {
-                services.Configure<SqlServerMigrationOptions>({{Literal(attr.MigratorKey)}}, o =>
-                {
-        {{assignments}}
-                });
+        {{configureScripts}}
                 return services.AddSqlServerDatabaseMigrator({{Literal(attr.MigratorKey)}}, typeof({{attr.TypeName}}).Assembly);
             }
         #else
-            /// <summary>
-            /// Registers {{attr.SchemaName}} migration services against the named options key {{Literal(attr.MigratorKey)}}.
-            /// </summary>
-            public static IServiceCollection Add{{attr.SchemaName}}(this IServiceCollection services)
-            {
-                services.Configure<SqlServerMigrationOptions>({{Literal(attr.MigratorKey)}}, o =>
-                {
-        {{assignments}}
-                });
-                return services.AddDatabase<{{attr.TypeName}}, {{attr.SchemaName}}MigrationsAssembly>({{Literal(attr.MigratorKey)}},
-                    static (opts, builder) =>
-                    {
-                        switch (opts.Provider)
-                        {
-        {{cases}}
-                            default:
-                                throw new global::System.InvalidOperationException($"Provider {opts.Provider} is not supported by {{attr.SchemaName}}.");
-                        }
-                    });
-            }
+        {{EmitRegistrationOverloads(attr, configureScripts, "")}}
+
+        {{EmitConfigureProvider(attr, cases)}}
         #endif
         }
         """;
@@ -403,22 +402,65 @@ public sealed partial class DatabaseSetupGenerator
     private static string EmitEfCoreDiExtension(AttributeInfo attr, string cases) => $$"""
         public static class {{attr.SchemaName}}ServiceCollectionExtensions
         {
+        {{EmitRegistrationOverloads(attr, configureScripts: null, ", SqlServerMigrations.EfCore")}}
+
+        {{EmitConfigureProvider(attr, cases)}}
+        }
+        """;
+
+    // The two Add{Schema} overloads: one with the generated provider configuration, and one taking
+    // the caller's in its place. Both install the generated migrations assembly, which AddDatabase
+    // applies after the provider configuration, so a caller's configuration can't displace it.
+    private static string EmitRegistrationOverloads(
+        AttributeInfo attr,
+        string? configureScripts,
+        string sqlServerMigrations)
+    {
+        // Spliced at the start of a line, so it carries its own line break when there is one.
+        var scripts = configureScripts is null ? "" : configureScripts + "\n";
+
+        return $$"""
             /// <summary>
             /// Registers {{attr.SchemaName}} migration services against the named options key {{Literal(attr.MigratorKey)}}.
             /// </summary>
             public static IServiceCollection Add{{attr.SchemaName}}(this IServiceCollection services)
-                => services.AddDatabase<{{attr.TypeName}}, {{attr.SchemaName}}MigrationsAssembly>({{Literal(attr.MigratorKey)}},
-                    static (opts, builder) =>
-                    {
-                        switch (opts.Provider)
-                        {
+                => services.Add{{attr.SchemaName}}(ConfigureProvider);
+
+            /// <summary>
+            /// Registers {{attr.SchemaName}} migration services against the named options key {{Literal(attr.MigratorKey)}},
+            /// opening the context with the caller's provider configuration instead of the generated one.
+            /// </summary>
+            /// <param name="services">
+            /// The service collection to add to.
+            /// </param>
+            /// <param name="configureProvider">
+            /// Configures the EF Core provider for the engine that <see cref="DatabaseOptions.Provider"/> names, at
+            /// <see cref="DatabaseOptions.ConnectionString"/>. {{attr.SchemaName}}'s migrations assembly is installed after
+            /// it runs, so each engine still gets only its own migrations.
+            /// </param>
+            public static IServiceCollection Add{{attr.SchemaName}}(
+                this IServiceCollection services,
+                global::System.Action<DatabaseOptions, DbContextOptionsBuilder> configureProvider)
+            {
+                global::System.ArgumentNullException.ThrowIfNull(configureProvider);
+        {{scripts}}        return services.AddDatabase<{{attr.TypeName}}, {{attr.SchemaName}}MigrationsAssembly>({{Literal(attr.MigratorKey)}},
+                    configureProvider{{sqlServerMigrations}});
+            }
+        """;
+    }
+
+    // The generated provider configuration: each declared engine's provider at the configured
+    // connection string.
+    private static string EmitConfigureProvider(AttributeInfo attr, string cases) => $$"""
+            private static void ConfigureProvider(DatabaseOptions opts, DbContextOptionsBuilder builder)
+            {
+                switch (opts.Provider)
+                {
         {{cases}}
-                            default:
-                                throw new global::System.InvalidOperationException($"Provider {opts.Provider} is not supported by {{attr.SchemaName}}.");
-                        }
-                    },
-                    SqlServerMigrations.EfCore);
-        }
+                    default:
+                        throw new global::System.InvalidOperationException($"Provider {opts.Provider} is not supported by {{attr.SchemaName}}.");
+                }
+            }
         """;
 
     private static string EmitCli(
@@ -513,10 +555,16 @@ public sealed partial class DatabaseSetupGenerator
               + "        };"
             : $"        var root = new RootCommand(\"{description}\");";
 
+        // A context that takes more than its options resolves the rest from the schema's design-time
+        // services here too: the executable builds it only to migrate, as EF tooling builds it.
+        var registerDatabase = HasDesignTimeActivator(attr, providers)
+            ? $"services => {{ services.Add{attr.SchemaName}(); {attr.SchemaName}DesignTimeActivator.Register(services); }}"
+            : $"services => services.Add{attr.SchemaName}()";
+
         var migrateCalls = string.Join("\n", providers.Select(p =>
             $"            await DatabaseMigrationCli.MigrateOneAsync(DatabaseProvider.{p.Name}, " +
             $"parseResult.GetValue({LowerFirst(p.Name)}), {Literal(attr.MigratorKey)}, " +
-            $"services => services.Add{attr.SchemaName}());"));
+            $"{registerDatabase});"));
 
         var efProviders = string.Join("\n", providers
             .Where(p => IsEfCore(attr, p))

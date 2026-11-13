@@ -94,8 +94,9 @@ well as its options, and can ask for `DbContextOptions<TContext>` rather than `D
 The context mustn't be `sealed` (`BW0021`) while any engine is migrated by EF Core, since the
 subcontexts derive from it.
 
-EF Core tooling constructs the subcontexts through the generated design-time factories, which can't
-see the application's services. Name a type that registers what the constructor needs:
+EF Core tooling constructs the subcontexts through the generated design-time factories, and the
+migration executable resolves the context from services of its own; neither can see the
+application's services. Name a type that registers what the constructor needs:
 
 ```csharp
 [assembly: DatabaseSetup<OrderDatabaseContext>(
@@ -115,7 +116,8 @@ public class OrderDatabaseContext(DbContextOptions<OrderDatabaseContext> options
 }
 ```
 
-Only design-time tooling uses these registrations; the application resolves its context from its own
+Only design-time tooling and the migration executable use these registrations, and both build the
+context to migrate it, never to read its rows; the application resolves its context from its own
 services as usual. A constructor whose extra parameters all have defaults needs none. One with a
 parameter nothing could supply is `BW0025`, and a `DesignTimeServices` type that doesn't implement
 `IDatabaseDesignTimeServices` is `BW0023`. A context with no non-private constructor taking a single
@@ -142,6 +144,50 @@ builder.Services.AddOrderDatabase();
 ```
 
 Valid `Provider` values: `Sqlite`, `SqlServer`, `PostgreSql`, `MySql`.
+
+#### Opening the context with your own provider options
+
+`AddOrderDatabase()` opens the context with each engine's provider at the configured connection
+string and nothing more. To set provider options of your own, such as an interceptor, a command
+timeout, or a MySQL server version you already know, pass the provider configuration to the
+overload that takes one. It replaces the generated configuration for every engine, so handle each
+engine the schema declares. In the host's `Program.cs`:
+
+```csharp
+builder.Services.AddOrderDatabase((options, db) =>
+{
+    switch (options.Provider)
+    {
+        case DatabaseProvider.SqlServer:
+            db.UseSqlServer(options.ConnectionString, sql => sql.CommandTimeout(60));
+            break;
+        case DatabaseProvider.PostgreSql:
+            db.UseNpgsql(options.ConnectionString)
+                .AddInterceptors(new AuditInterceptor());
+            break;
+        default:
+            throw new InvalidOperationException($"Provider {options.Provider} is not supported.");
+    }
+});
+```
+
+The schema's migrations come with the registration either way: the generated migrations assembly is
+installed after your configuration runs, so each engine still gets only its own migrations, and one
+your configuration installs is replaced. Which migrations those are follows the EF Core provider you
+use, not `DatabaseOptions.Provider`, so configure the provider that `Provider` names. A provider the
+schema doesn't declare has no migrations, and asking for them throws. The [SQL Server migrator
+build](#building-a-sql-server-migrator-image) registers no context, so it has only
+`AddOrderDatabase()`.
+
+For a schema that declares MySQL, the generated registration asks the server its version through
+`ServerVersion.AutoDetect` each time it builds a context's options. Passing a version you know, or
+one you cache per connection string, saves that round trip, and describes MariaDB as MariaDB:
+
+```csharp
+case DatabaseProvider.MySql:
+    db.UseMySql(options.ConnectionString, new MariaDbServerVersion(new Version(11, 4)));
+    break;
+```
 
 ### 4. Migrating on startup
 
