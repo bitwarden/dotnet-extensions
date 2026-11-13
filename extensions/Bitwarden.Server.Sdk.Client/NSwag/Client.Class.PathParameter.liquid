@@ -1,0 +1,43 @@
+{% comment %}
+NSwag 14.7.0's own template, with one change: a date-time
+parameter is moved to UTC (.ToUniversalTime()) before it is formatted, so the clients' format,
+yyyy-MM-ddTHH:mm:ss.FFFFFFFZ, always names the right instant. Each client names this directory
+with /TemplateDirectory; every template not here is NSwag's own.
+{% endcomment %}
+{% if parameter.IsDateTimeArray -%}
+{
+    bool isAfterFirst = false;
+    foreach (var item in {{ parameter.VariableName }})
+    {
+        if (isAfterFirst) urlBuilder_.Append(',');
+        urlBuilder_.Append(System.Uri.EscapeDataString(item.ToUniversalTime().ToString("{{ ParameterDateTimeFormat }}", System.Globalization.CultureInfo.InvariantCulture)));
+        isAfterFirst = true;
+    }
+}
+{% elsif parameter.IsDateArray -%}
+{
+    bool isAfterFirst = false;
+    foreach (var item in {{ parameter.VariableName }})
+    {
+        if (isAfterFirst) urlBuilder_.Append(',');
+        urlBuilder_.Append(System.Uri.EscapeDataString(item.ToString("{{ ParameterDateFormat }}", System.Globalization.CultureInfo.InvariantCulture)));
+        isAfterFirst = true;
+    }
+}
+{% elsif parameter.IsDateTime -%}
+urlBuilder_.Append(System.Uri.EscapeDataString({{ parameter.VariableName }}.ToUniversalTime().ToString("{{ ParameterDateTimeFormat }}", System.Globalization.CultureInfo.InvariantCulture)));
+{% elsif parameter.IsDate -%}
+urlBuilder_.Append(System.Uri.EscapeDataString({{ parameter.VariableName }}.ToString("{{ ParameterDateFormat }}", System.Globalization.CultureInfo.InvariantCulture)));
+{% elsif parameter.IsArray -%}
+{
+    bool isAfterFirst = false;
+    foreach (var item in {{ parameter.VariableName }})
+    {
+        if (isAfterFirst) urlBuilder_.Append(',');
+        urlBuilder_.Append(ConvertToString(item, System.Globalization.CultureInfo.InvariantCulture));
+        isAfterFirst = true;
+    }
+}
+{% else -%}
+urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString({{ parameter.VariableName }}, System.Globalization.CultureInfo.InvariantCulture)));
+{%- endif %}
