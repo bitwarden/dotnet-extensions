@@ -1,32 +1,33 @@
 using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
-using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 
 namespace Bitwarden.Server.Sdk.CryptoPrimitives;
 
 /// <summary>
-/// A 32-byte key that derives cache keys, or a cache key derived from one.
+/// A 32-byte cache key derived from a <see cref="CacheSecret"/> and a list of parameters.
 /// </summary>
 /// <remarks>
-/// <see cref="DeriveCacheKey(CacheKey, ReadOnlySpan{string})"/> computes
+/// <see cref="DeriveCacheKey(CacheSecret, ReadOnlySpan{string})"/> computes
 /// <c>HMAC-SHA-256(secret, LP(p0) || ... || LP(pn))</c>, where
 /// <c>LP(x) = uint64_be(len(utf8(x))) || utf8(x)</c>. Length-prefixing every parameter keeps
 /// <c>("ab", "c")</c> and <c>("a", "bc")</c> apart.
 /// </remarks>
 public readonly struct CacheKey : IEquatable<CacheKey>
 {
+    private const string Name = "cache key";
+
     /// <summary>
     /// The length of a cache key, in bytes.
     /// </summary>
-    public const int Length = 32;
+    public const int Length = Bytes32.Length;
 
     private const int LengthPrefixSize = sizeof(ulong);
 
     private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
-    private readonly Bytes _bytes;
+    private readonly Bytes32 _bytes;
 
     /// <summary>
     /// Creates a cache key from exactly <see cref="Length"/> bytes.
@@ -34,12 +35,12 @@ public readonly struct CacheKey : IEquatable<CacheKey>
     /// <exception cref="ArgumentException"><paramref name="bytes"/> is not <see cref="Length"/> bytes.</exception>
     public CacheKey(ReadOnlySpan<byte> bytes)
     {
-        if (bytes.Length != Length)
-        {
-            throw new ArgumentException($"A cache key is {Length} bytes, not {bytes.Length}.", nameof(bytes));
-        }
+        _bytes = Bytes32.From(bytes, Name, nameof(bytes));
+    }
 
-        bytes.CopyTo(_bytes);
+    private CacheKey(Bytes32 bytes)
+    {
+        _bytes = bytes;
     }
 
     /// <summary>
@@ -47,24 +48,7 @@ public readonly struct CacheKey : IEquatable<CacheKey>
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="value"/> is null.</exception>
     /// <exception cref="FormatException"><paramref name="value"/> is not base64 of <see cref="Length"/> bytes.</exception>
-    public static CacheKey FromString(string value)
-    {
-        ArgumentNullException.ThrowIfNull(value);
-
-        // Decode into one spare byte, so a value longer than a key fails the length check.
-        Span<byte> bytes = stackalloc byte[Length + 1];
-        if (!Convert.TryFromBase64String(value, bytes, out var written) || written != Length)
-        {
-            throw new FormatException($"A cache key is base64 of {Length} bytes.");
-        }
-
-        return new CacheKey(bytes[..Length]);
-    }
-
-    /// <summary>
-    /// A key used while in development mode with no key configured.
-    /// </summary>
-    public static CacheKey Development => default;
+    public static CacheKey FromString(string value) => new(Bytes32.FromBase64(value, Name));
 
     /// <summary>
     /// Returns the key's bytes.
@@ -77,7 +61,7 @@ public readonly struct CacheKey : IEquatable<CacheKey>
     /// </summary>
     /// <exception cref="ArgumentNullException">A parameter is null.</exception>
     /// <exception cref="EncoderFallbackException">A parameter is not valid UTF-16.</exception>
-    public static CacheKey DeriveCacheKey(CacheKey secret, params ReadOnlySpan<string> parameters)
+    public static CacheKey DeriveCacheKey(CacheSecret secret, params ReadOnlySpan<string> parameters)
     {
         using var hmac = IncrementalHash.CreateHMAC(HashAlgorithmName.SHA256, secret.AsSpan());
         Span<byte> prefix = stackalloc byte[LengthPrefixSize];
@@ -130,11 +114,4 @@ public readonly struct CacheKey : IEquatable<CacheKey>
     /// Compares the keys in constant time.
     /// </summary>
     public static bool operator !=(CacheKey left, CacheKey right) => !left.Equals(right);
-
-    // Holds the key inline, so CacheKey is a value with no heap allocation and default is all zeros.
-    [InlineArray(Length)]
-    private struct Bytes
-    {
-        private byte _element0;
-    }
 }
