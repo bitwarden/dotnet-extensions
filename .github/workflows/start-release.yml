@@ -24,6 +24,7 @@ on:
           - Bitwarden.Server.Sdk.Infrastructure.Testing
           - Bitwarden.Server.Sdk.MessageBroker
           - Bitwarden.Server.Sdk.PasswordHashing
+          - Bitwarden.Server.Sdk.Resources.Caching.Abstractions
           - Bitwarden.Server.Sdk.RestrictedDependencies
           - Bitwarden.Server.Sdk.Sagas
           - Bitwarden.Server.Sdk.Service.Abstractions
