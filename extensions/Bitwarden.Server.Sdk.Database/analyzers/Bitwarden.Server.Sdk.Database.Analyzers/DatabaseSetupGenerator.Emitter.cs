@@ -365,7 +365,7 @@ public sealed partial class DatabaseSetupGenerator
             "                break;"));
 
         if (attr.SqlServerEfCore)
-            return EmitEfCoreDiExtension(attr, cases);
+            return EmitEfCoreDiExtension(attr, providers, cases);
 
         var configureScripts = $$"""
                     services.Configure<SqlServerMigrationOptions>({{Literal(attr.MigratorKey)}}, o =>
@@ -392,7 +392,7 @@ public sealed partial class DatabaseSetupGenerator
         #else
         {{EmitRegistrationOverloads(attr, configureScripts, "")}}
 
-        {{EmitConfigureProvider(attr, cases)}}
+        {{EmitConfigureProvider(attr, providers, cases)}}
         #endif
         }
         """;
@@ -400,12 +400,15 @@ public sealed partial class DatabaseSetupGenerator
 
     // Every engine is migrated by EF Core, so there are no scripts to configure and no DbUp-only
     // migrator build to register for.
-    private static string EmitEfCoreDiExtension(AttributeInfo attr, string cases) => $$"""
+    private static string EmitEfCoreDiExtension(
+        AttributeInfo attr,
+        ImmutableArray<ProviderSpec> providers,
+        string cases) => $$"""
         public static class {{attr.SchemaName}}ServiceCollectionExtensions
         {
         {{EmitRegistrationOverloads(attr, configureScripts: null, ", SqlServerMigrations.EfCore")}}
 
-        {{EmitConfigureProvider(attr, cases)}}
+        {{EmitConfigureProvider(attr, providers, cases)}}
         }
         """;
 
@@ -451,8 +454,11 @@ public sealed partial class DatabaseSetupGenerator
     }
 
     // The generated provider configuration: each declared engine's provider at the configured
-    // connection string.
-    private static string EmitConfigureProvider(AttributeInfo attr, string cases) => $$"""
+    // connection string, followed by the MySQL server version cache when the schema declares MySQL.
+    private static string EmitConfigureProvider(
+        AttributeInfo attr,
+        ImmutableArray<ProviderSpec> providers,
+        string cases) => $$"""
             private static void ConfigureProvider(DatabaseOptions opts, DbContextOptionsBuilder builder)
             {
                 switch (opts.Provider)
@@ -461,6 +467,35 @@ public sealed partial class DatabaseSetupGenerator
                     default:
                         throw new global::System.InvalidOperationException($"Provider {opts.Provider} is not supported by {{attr.SchemaName}}.");
                 }
+            }{{(providers.Any(p => p.Name == "MySql") ? "\n\n" + MySqlServerVersions : "")}}
+        """;
+
+    // Pomelo needs the MySQL server's version, and ServerVersion.AutoDetect connects to the server to
+    // ask it. ConfigureProvider runs each time a context's options are built, so the answer is kept
+    // per server for the life of the process. The key is the server's address alone: the version
+    // belongs to the server, not to the database or the account, and a key without the connection
+    // string's credentials keeps them out of the cache.
+    private const string MySqlServerVersions = """
+            // MySQL server versions, by the server's address, so each server is asked its version once per
+            // process rather than each time a context's options are built. A detection that throws stores
+            // nothing, so the next options build asks again. Builds that race on a server's first detection
+            // may each ask it; the first answer stored is the one kept.
+            private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<string, ServerVersion> _mySqlServerVersions = new();
+
+            private static ServerVersion MySqlServerVersionFor(string connectionString)
+            {
+                var connection = new global::MySqlConnector.MySqlConnectionStringBuilder(connectionString);
+                var server = new global::MySqlConnector.MySqlConnectionStringBuilder
+                {
+                    Server = connection.Server,
+                    Port = connection.Port,
+                    ConnectionProtocol = connection.ConnectionProtocol,
+                    PipeName = connection.PipeName,
+                }.ConnectionString;
+                return _mySqlServerVersions.GetOrAdd(
+                    server,
+                    static (_, connectionString) => ServerVersion.AutoDetect(connectionString),
+                    connectionString);
             }
         """;
 

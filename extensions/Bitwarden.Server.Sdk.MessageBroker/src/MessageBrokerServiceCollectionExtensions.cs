@@ -123,7 +123,7 @@ public static class MessageBrokerServiceCollectionExtensions
             var metrics = sp.GetRequiredService<MessageBrokerMetrics>();
             if (!string.IsNullOrEmpty(options.AzureServiceBusConnectionString))
             {
-                return new AzureServiceBusSubscriber<TPayload, TCeiling>(sp.GetRequiredService<AzureServiceBusConnection>().Client, name, subscriptionName, serializer, metrics);
+                return new AzureServiceBusSubscriber<TPayload, TCeiling>(sp.GetRequiredService<AzureServiceBusConnection>(), name, subscriptionName, serializer, metrics);
             }
             if (!string.IsNullOrEmpty(options.RabbitUri))
             {

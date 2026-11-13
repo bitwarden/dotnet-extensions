@@ -29,7 +29,21 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
     public async IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var conn = await _connection.GetConnectionAsync(cancellationToken);
-        await using var rabbitChannel = await conn.CreateChannelAsync(cancellationToken: cancellationToken);
+        // The host can close the connection while the stream is still being set up. That is a
+        // shutdown, not a broker failure, so the stream ends as it does when the channel closes.
+        // Setup calls also end when the connection has closed, rather than waiting for a reply.
+        using var setupCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _connection.Closed);
+        IChannel rabbitChannel;
+        try
+        {
+            rabbitChannel = await conn.CreateChannelAsync(cancellationToken: setupCancellation.Token);
+        }
+        catch (Exception) when (_connection.IsClosing && !cancellationToken.IsCancellationRequested)
+        {
+            yield break;
+        }
+
+        await using var channelLifetime = rabbitChannel;
 
         var innerChannel = Channel.CreateUnbounded<RabbitEnvelope>();
 
@@ -112,8 +126,15 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
 
         // Limit unacked messages per consumer so the broker distributes messages fairly
         // across competing consumers rather than pushing everything to one consumer.
-        await rabbitChannel.BasicQosAsync(prefetchSize: 0, prefetchCount: 1, global: false, cancellationToken: cancellationToken);
-        await rabbitChannel.BasicConsumeAsync(_queueName, autoAck: false, consumer: consumer, cancellationToken: cancellationToken);
+        try
+        {
+            await rabbitChannel.BasicQosAsync(prefetchSize: 0, prefetchCount: 1, global: false, cancellationToken: setupCancellation.Token);
+            await rabbitChannel.BasicConsumeAsync(_queueName, autoAck: false, consumer: consumer, cancellationToken: setupCancellation.Token);
+        }
+        catch (Exception) when (_connection.IsClosing && !cancellationToken.IsCancellationRequested)
+        {
+            yield break;
+        }
 
         await foreach (var envelope in innerChannel.Reader.ReadAllAsync(cancellationToken))
         {
