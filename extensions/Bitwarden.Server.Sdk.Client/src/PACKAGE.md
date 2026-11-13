@@ -12,7 +12,8 @@ breaker per callee, and every failure turned into the exception it means.
 
 It depends on Bitwarden.Server.Sdk.Context, Bitwarden.Server.Sdk.Errors, Bitwarden.Server.Sdk.Http,
 Bitwarden.Server.Sdk.Idempotency.Abstractions, Bitwarden.Server.Sdk.Resources.Caching.Abstractions,
-Bitwarden.Server.Sdk.Sagas, Microsoft.Extensions.Http, StackExchange.Redis (cached reads) and Newtonsoft.Json (reading
+Bitwarden.Server.Sdk.Sagas, Microsoft.Extensions.Http, Microsoft.IdentityModel.JsonWebTokens (signing client
+assertions), StackExchange.Redis (cached reads) and Newtonsoft.Json (reading
 a cached answer into a type NSwag generated). It needs an authorization server that issues client-credentials tokens
 with an `audience`, and RFC 8693 token exchange for context tokens.
 

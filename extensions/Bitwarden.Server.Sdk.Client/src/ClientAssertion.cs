@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
+using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.Tokens;
 
 namespace Bitwarden.Server.Sdk.Client;
 
@@ -38,26 +38,37 @@ public sealed class ClientAssertion : IDisposable
     /// </summary>
     public static readonly TimeSpan Lifetime = TimeSpan.FromSeconds(60);
 
+    private static readonly JsonWebTokenHandler Handler = new();
+
     private readonly RSA? _rsa;
     private readonly ECDsa? _ecdsa;
-    private readonly string _keyId;
+    private readonly SigningCredentials _credentials;
 
     private ClientAssertion(RSA? rsa, ECDsa? ecdsa)
     {
         _rsa = rsa;
         _ecdsa = ecdsa;
-        _keyId = Thumbprint(rsa, ecdsa);
+
+        SecurityKey key = ecdsa is not null ? new ECDsaSecurityKey(ecdsa) : new RsaSecurityKey(rsa!);
+        key.KeyId = Thumbprint(rsa, ecdsa);
+
+        // Each instance signs with its own factory, and caches nothing: the default factory caches a signer per key
+        // thumbprint, which would outlive this instance's key once it is disposed.
+        _credentials = new SigningCredentials(key, ecdsa is not null ? SecurityAlgorithms.EcdsaSha256 : SecurityAlgorithms.RsaSha256)
+        {
+            CryptoProviderFactory = new CryptoProviderFactory { CacheSignatureProviders = false },
+        };
     }
 
     /// <summary>
     /// The JWS algorithm this key signs with: <c>ES256</c> or <c>RS256</c>.
     /// </summary>
-    public string Algorithm => _ecdsa is not null ? "ES256" : "RS256";
+    public string Algorithm => _credentials.Algorithm;
 
     /// <summary>
     /// The key's RFC 7638 thumbprint, base64url: its <c>kid</c>.
     /// </summary>
-    public string KeyId => _keyId;
+    public string KeyId => _credentials.Key.KeyId;
 
     /// <summary>
     /// Reads a private key.
@@ -179,31 +190,23 @@ public sealed class ClientAssertion : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(clientId);
         ArgumentException.ThrowIfNullOrWhiteSpace(audience);
 
-        var issued = now.ToUnixTimeSeconds();
-        var header = Json(writer =>
-        {
-            writer.WriteString("alg", Algorithm);
-            writer.WriteString("typ", JwtType);
-            writer.WriteString("kid", _keyId);
-        });
-        var payload = Json(writer =>
-        {
-            writer.WriteString("iss", clientId);
-            writer.WriteString("sub", clientId);
-            writer.WriteString("aud", audience);
-            writer.WriteString("jti", Base64Url(RandomNumberGenerator.GetBytes(32)));
-            writer.WriteNumber("iat", issued);
-            writer.WriteNumber("nbf", issued);
-            writer.WriteNumber("exp", issued + (long)Lifetime.TotalSeconds);
-        });
+        var issued = now.UtcDateTime;
 
-        var signed = $"{Base64Url(header)}.{Base64Url(payload)}";
-        var data = Encoding.ASCII.GetBytes(signed);
-        var signature = _ecdsa is not null
-            ? _ecdsa.SignData(data, HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation)
-            : _rsa!.SignData(data, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-
-        return $"{signed}.{Base64Url(signature)}";
+        return Handler.CreateToken(new SecurityTokenDescriptor
+        {
+            TokenType = JwtType,
+            Issuer = clientId,
+            Audience = audience,
+            IssuedAt = issued,
+            NotBefore = issued,
+            Expires = issued + Lifetime,
+            Claims = new Dictionary<string, object>
+            {
+                [JwtRegisteredClaimNames.Sub] = clientId,
+                [JwtRegisteredClaimNames.Jti] = Base64UrlEncoder.Encode(RandomNumberGenerator.GetBytes(32)),
+            },
+            SigningCredentials = _credentials,
+        });
     }
 
     /// <inheritdoc />
@@ -214,42 +217,19 @@ public sealed class ClientAssertion : IDisposable
     }
 
     /// <summary>
-    /// RFC 7638: the SHA-256 of the required members of the public JWK, in lexicographic order, without spaces.
+    /// The key's RFC 7638 JWK thumbprint, base64url, computed from its public half only.
     /// </summary>
     private static string Thumbprint(RSA? rsa, ECDsa? ecdsa)
     {
-        string canonical;
-
         if (ecdsa is not null)
         {
-            var parameters = ecdsa.ExportParameters(includePrivateParameters: false);
-            canonical = $"{{\"crv\":\"P-256\",\"kty\":\"EC\",\"x\":\"{Base64Url(parameters.Q.X!)}\",\"y\":\"{Base64Url(parameters.Q.Y!)}\"}}";
-        }
-        else
-        {
-            var parameters = rsa!.ExportParameters(includePrivateParameters: false);
-            canonical = $"{{\"e\":\"{Base64Url(parameters.Exponent!)}\",\"kty\":\"RSA\",\"n\":\"{Base64Url(parameters.Modulus!)}\"}}";
+            using var publicKey = ECDsa.Create(ecdsa.ExportParameters(includePrivateParameters: false));
+            return Thumbprint(new ECDsaSecurityKey(publicKey));
         }
 
-        return Base64Url(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
+        return Thumbprint(new RsaSecurityKey(rsa!.ExportParameters(includePrivateParameters: false)));
     }
 
-    /// <summary>
-    /// A JSON object, written without reflection, so a trimmed or ahead-of-time compiled host can sign.
-    /// </summary>
-    private static byte[] Json(Action<Utf8JsonWriter> members)
-    {
-        using var buffer = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(buffer))
-        {
-            writer.WriteStartObject();
-            members(writer);
-            writer.WriteEndObject();
-        }
-
-        return buffer.ToArray();
-    }
-
-    private static string Base64Url(byte[] bytes) =>
-        Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    private static string Thumbprint(SecurityKey publicKey) =>
+        Base64UrlEncoder.Encode(JsonWebKeyConverter.ConvertFromSecurityKey(publicKey).ComputeJwkThumbprint());
 }
