@@ -13,17 +13,21 @@ on:
           - Bitwarden.Server.Sdk
           - Bitwarden.Server.Sdk.Authentication
           - Bitwarden.Server.Sdk.Caching
-          - Bitwarden.Server.Sdk.Common
+          - Bitwarden.Server.Sdk.Context
           - Bitwarden.Server.Sdk.CryptoPrimitives
+          - Bitwarden.Server.Sdk.Data.Abstractions
           - Bitwarden.Server.Sdk.Database
           - Bitwarden.Server.Sdk.Environment
           - Bitwarden.Server.Sdk.Errors
           - Bitwarden.Server.Sdk.Features
           - Bitwarden.Server.Sdk.HealthChecks
+          - Bitwarden.Server.Sdk.Http
+          - Bitwarden.Server.Sdk.Idempotency.Abstractions
           - Bitwarden.Server.Sdk.Infrastructure
           - Bitwarden.Server.Sdk.Infrastructure.Testing
           - Bitwarden.Server.Sdk.MessageBroker
           - Bitwarden.Server.Sdk.PasswordHashing
+          - Bitwarden.Server.Sdk.Resources.Caching.Abstractions
           - Bitwarden.Server.Sdk.RestrictedDependencies
           - Bitwarden.Server.Sdk.Sagas
           - Bitwarden.Server.Sdk.Service.Abstractions
