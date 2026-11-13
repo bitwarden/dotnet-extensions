@@ -219,6 +219,176 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
     }
 
     [Fact]
+    public async Task ShouldInlineIfBodyWhenIsPatternTrue()
+    {
+        await RunDefaultCodeFixAsync(
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class Something
+            {
+                public Something(IFeatureService featureService)
+                {
+                    if (featureService.IsEnabled(MyFlags.Flag) is true)
+                    {
+                        Do(true);
+                    }
+                    else
+                    {
+                        Do(false);
+                    }
+                }
+
+                private void Do(bool value) { }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class Something
+            {
+                public Something(IFeatureService featureService)
+                {
+                    Do(true);
+                }
+
+                private void Do(bool value) { }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task ShouldRemoveIfBlockWhenIsPatternFalse()
+    {
+        await RunDefaultCodeFixAsync(
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class Something
+            {
+                public Something(IFeatureService featureService)
+                {
+                    if (featureService.IsEnabled(MyFlags.Flag) is false)
+                    {
+                        Do(true);
+                    }
+                    Do(false);
+                }
+
+                private void Do(bool value) { }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class Something
+            {
+                public Something(IFeatureService featureService)
+                {
+                    Do(false);
+                }
+
+                private void Do(bool value) { }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task ShouldInlineIfBodyWhenIsPatternNotFalse()
+    {
+        await RunDefaultCodeFixAsync(
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class Something
+            {
+                public Something(IFeatureService featureService)
+                {
+                    if (featureService.IsEnabled(MyFlags.Flag) is not false)
+                    {
+                        Do(true);
+                    }
+                    else
+                    {
+                        Do(false);
+                    }
+                }
+
+                private void Do(bool value) { }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class Something
+            {
+                public Something(IFeatureService featureService)
+                {
+                    Do(true);
+                }
+
+                private void Do(bool value) { }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task ShouldRemoveIfBlockWhenIsPatternNotTrue()
+    {
+        await RunDefaultCodeFixAsync(
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class Something
+            {
+                public Something(IFeatureService featureService)
+                {
+                    if (featureService.IsEnabled(MyFlags.Flag) is not true)
+                    {
+                        Do(true);
+                    }
+                    Do(false);
+                }
+
+                private void Do(bool value) { }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class Something
+            {
+                public Something(IFeatureService featureService)
+                {
+                    Do(false);
+                }
+
+                private void Do(bool value) { }
+            }
+            """
+        );
+    }
+
+    [Fact]
     public async Task BracelessIfCheck_InlinesBody()
     {
         await RunDefaultCodeFixAsync(
@@ -753,7 +923,6 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
                 [Fact]
                 public void TestMethod()
                 {
-
                 }
             }
             """
@@ -932,14 +1101,12 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
                 [Fact]
                 public void TestMethod1()
                 {
-
                     Do();
                 }
 
                 [Fact]
                 public void TestMethod2()
                 {
-
                     Do();
                 }
 
@@ -950,7 +1117,7 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
     }
 
     [Fact]
-    public async Task TestCode_MocksNonConstant_AddsErrorDirective()
+    public async Task TestCode_MocksNonConstant_SimpleTheory_ConvertsToFact()
     {
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(Substitute).Assembly.Location));
         TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(FactAttribute).Assembly.Location));
@@ -998,13 +1165,403 @@ public class RemoveFeatureFlagCodeFixerTests : TestBase
                     _featureService = Substitute.For<IFeatureService>();
                 }
 
+                [Fact]
+                public void TestMethod()
+                {
+                }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task TestCode_MocksNonConstant_ParamAlsoUsedInBody_OnlyRemovesReturns()
+    {
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(Substitute).Assembly.Location));
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(FactAttribute).Assembly.Location));
+
+        await RunDefaultCodeFixAsync("""
+            using NSubstitute;
+            using Xunit;
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class TestClass
+            {
+                private readonly IFeatureService _featureService;
+
+                public TestClass()
+                {
+                    _featureService = Substitute.For<IFeatureService>();
+                }
+
                 [Theory]
                 [InlineData(true)]
                 [InlineData(false)]
                 public void TestMethod(bool flagValue)
                 {
+                    _featureService
+                        .IsEnabled(MyFlags.Flag)
+                        .Returns(flagValue);
 
+                    DoWork(flagValue);
                 }
+
+                private void DoWork(bool flag) { }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+            using NSubstitute;
+            using Xunit;
+
+            namespace Test;
+
+            public class TestClass
+            {
+                private readonly IFeatureService _featureService;
+
+                public TestClass()
+                {
+                    _featureService = Substitute.For<IFeatureService>();
+                }
+
+                [Theory]
+                [InlineData(true)]
+                [InlineData(false)]
+                public void TestMethod(bool flagValue)
+                {
+                    DoWork(flagValue);
+                }
+
+                private void DoWork(bool flag) { }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task TestCode_MocksNonConstant_ExtraInlineDataArgs_OnlyRemovesReturns()
+    {
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(Substitute).Assembly.Location));
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(FactAttribute).Assembly.Location));
+
+        await RunDefaultCodeFixAsync("""
+            using NSubstitute;
+            using Xunit;
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class TestClass
+            {
+                private readonly IFeatureService _featureService;
+
+                public TestClass()
+                {
+                    _featureService = Substitute.For<IFeatureService>();
+                }
+
+                [Theory]
+                [InlineData(true, "foo")]
+                [InlineData(false, "bar")]
+                public void TestMethod(bool flagValue, string value)
+                {
+                    _featureService
+                        .IsEnabled(MyFlags.Flag)
+                        .Returns(flagValue);
+                }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+            using NSubstitute;
+            using Xunit;
+
+            namespace Test;
+
+            public class TestClass
+            {
+                private readonly IFeatureService _featureService;
+
+                public TestClass()
+                {
+                    _featureService = Substitute.For<IFeatureService>();
+                }
+
+                [Theory]
+                [InlineData(true, "foo")]
+                [InlineData(false, "bar")]
+                public void TestMethod(bool flagValue, string value)
+                {
+                }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task TestCode_MocksNonConstant_MoreThanTwoInlineData_OnlyRemovesReturns()
+    {
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(Substitute).Assembly.Location));
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(FactAttribute).Assembly.Location));
+
+        await RunDefaultCodeFixAsync("""
+            using NSubstitute;
+            using Xunit;
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class TestClass
+            {
+                private readonly IFeatureService _featureService;
+
+                public TestClass()
+                {
+                    _featureService = Substitute.For<IFeatureService>();
+                }
+
+                [Theory]
+                [InlineData(true)]
+                [InlineData(false)]
+                [InlineData(true)]
+                public void TestMethod(bool flagValue)
+                {
+                    _featureService
+                        .IsEnabled(MyFlags.Flag)
+                        .Returns(flagValue);
+                }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+            using NSubstitute;
+            using Xunit;
+
+            namespace Test;
+
+            public class TestClass
+            {
+                private readonly IFeatureService _featureService;
+
+                public TestClass()
+                {
+                    _featureService = Substitute.For<IFeatureService>();
+                }
+
+                [Theory]
+                [InlineData(true)]
+                [InlineData(false)]
+                [InlineData(true)]
+                public void TestMethod(bool flagValue)
+                {
+                }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task TestCode_MocksNonConstant_ParamUsedTwiceInBody_OnlyRemovesReturns()
+    {
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(Substitute).Assembly.Location));
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(FactAttribute).Assembly.Location));
+
+        await RunDefaultCodeFixAsync("""
+            using NSubstitute;
+            using Xunit;
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class TestClass
+            {
+                private readonly IFeatureService _featureService;
+
+                public TestClass()
+                {
+                    _featureService = Substitute.For<IFeatureService>();
+                }
+
+                [Theory]
+                [InlineData(true)]
+                [InlineData(false)]
+                public void TestMethod(bool flagValue)
+                {
+                    _featureService
+                        .IsEnabled(MyFlags.Flag)
+                        .Returns(flagValue);
+
+                    DoWork(flagValue);
+                    DoWork(flagValue);
+                }
+
+                private void DoWork(bool flag) { }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+            using NSubstitute;
+            using Xunit;
+
+            namespace Test;
+
+            public class TestClass
+            {
+                private readonly IFeatureService _featureService;
+
+                public TestClass()
+                {
+                    _featureService = Substitute.For<IFeatureService>();
+                }
+
+                [Theory]
+                [InlineData(true)]
+                [InlineData(false)]
+                public void TestMethod(bool flagValue)
+                {
+                    DoWork(flagValue);
+                    DoWork(flagValue);
+                }
+
+                private void DoWork(bool flag) { }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task TestCode_MocksNonConstant_LocalFunctionParam_OnlyRemovesReturns()
+    {
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(Substitute).Assembly.Location));
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(FactAttribute).Assembly.Location));
+
+        await RunDefaultCodeFixAsync("""
+            using NSubstitute;
+            using Xunit;
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class TestClass
+            {
+                private readonly IFeatureService _featureService;
+
+                public TestClass()
+                {
+                    _featureService = Substitute.For<IFeatureService>();
+                }
+
+                [Theory]
+                [InlineData(true)]
+                [InlineData(false)]
+                public void TestMethod(bool flagValue)
+                {
+                    void Setup(bool b)
+                    {
+                        _featureService
+                            .IsEnabled(MyFlags.Flag)
+                            .Returns(b);
+                    }
+                    Setup(flagValue);
+                }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+            using NSubstitute;
+            using Xunit;
+
+            namespace Test;
+
+            public class TestClass
+            {
+                private readonly IFeatureService _featureService;
+
+                public TestClass()
+                {
+                    _featureService = Substitute.For<IFeatureService>();
+                }
+
+                [Theory]
+                [InlineData(true)]
+                [InlineData(false)]
+                public void TestMethod(bool flagValue)
+                {
+                    void Setup(bool b)
+                    {
+                    }
+                    Setup(flagValue);
+                }
+            }
+            """
+        );
+    }
+
+    [Fact]
+    public async Task TestCode_MocksNonConstant_MethodHasExtraParam_OnlyRemovesReturns()
+    {
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(Substitute).Assembly.Location));
+        TestState.AdditionalReferences.Add(MetadataReference.CreateFromFile(typeof(FactAttribute).Assembly.Location));
+
+        await RunDefaultCodeFixAsync("""
+            using NSubstitute;
+            using Xunit;
+            using Bitwarden.Server.Sdk.Features;
+
+            namespace Test;
+
+            public class TestClass
+            {
+                private readonly IFeatureService _featureService;
+
+                public TestClass()
+                {
+                    _featureService = Substitute.For<IFeatureService>();
+                }
+
+                [Theory]
+                [InlineData(true)]
+                [InlineData(false)]
+                public void TestMethod(bool flagValue, string value)
+                {
+                    _featureService
+                        .IsEnabled(MyFlags.Flag)
+                        .Returns(flagValue);
+
+                    DoWork(value);
+                }
+
+                private void DoWork(string v) { }
+            }
+            """,
+            """
+            using Bitwarden.Server.Sdk.Features;
+            using NSubstitute;
+            using Xunit;
+
+            namespace Test;
+
+            public class TestClass
+            {
+                private readonly IFeatureService _featureService;
+
+                public TestClass()
+                {
+                    _featureService = Substitute.For<IFeatureService>();
+                }
+
+                [Theory]
+                [InlineData(true)]
+                [InlineData(false)]
+                public void TestMethod(bool flagValue, string value)
+                {
+                    DoWork(value);
+                }
+
+                private void DoWork(string v) { }
             }
             """
         );
