@@ -25,6 +25,11 @@
           "xunit.v3.core.mtp-v2": "[3.2.2]"
         }
       },
+      "Bitwarden.Server.Sdk.CryptoPrimitives": {
+        "type": "Transitive",
+        "resolved": "0.1.0",
+        "contentHash": "g67cxy1PRAWWqEbTFxTP+hnttXZWHUPgBKtTHc9g8rlylDhtyisbRnX6Omixvpmj8bUujCUjrRO3Oterq5O/Kw=="
+      },
       "Microsoft.ApplicationInsights": {
         "type": "Transitive",
         "resolved": "2.23.0",
@@ -158,6 +163,7 @@
       "bitwarden.server.sdk.resources.caching.abstractions": {
         "type": "Project",
         "dependencies": {
+          "Bitwarden.Server.Sdk.CryptoPrimitives": "[0.1.0, )",
           "Microsoft.Extensions.Configuration.Abstractions": "[10.0.14, )"
         }
       }
