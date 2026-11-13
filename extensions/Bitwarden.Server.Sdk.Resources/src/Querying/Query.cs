@@ -87,7 +87,7 @@ public sealed record Query
     /// <remarks>
     /// An expression read this way is taken as a caller's: it is matched against rows only once the
     /// platform has checked it against the resource's filterable fields, as it does for a
-    /// <c>Search{T}</c> or a bulk request on the operations that take them.
+    /// <see cref="Search{T}"/> or a bulk request on the operations that take them.
     /// </remarks>
     public static Query Parse(JsonElement element, string pointer = "/filter")
     {
