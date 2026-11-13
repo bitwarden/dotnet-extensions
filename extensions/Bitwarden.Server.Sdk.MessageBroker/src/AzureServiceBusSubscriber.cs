@@ -10,25 +10,36 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
 {
     private readonly string _topicName;
     private readonly string _subscriptionName;
-    private readonly ServiceBusClient _client;
+    private readonly AzureServiceBusConnection _connection;
     private readonly IMessageSerializer _serializer;
     private readonly MessageBrokerMetrics _metrics;
 
-    public AzureServiceBusSubscriber(ServiceBusClient client, string topicName, string subscriptionName, IMessageSerializer serializer, MessageBrokerMetrics metrics)
+    public AzureServiceBusSubscriber(AzureServiceBusConnection connection, string topicName, string subscriptionName, IMessageSerializer serializer, MessageBrokerMetrics metrics)
     {
         _topicName = topicName;
         _subscriptionName = subscriptionName;
-        _client = client;
+        _connection = connection;
         _serializer = serializer;
         _metrics = metrics;
     }
 
     public async IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await using var receiver = _client
-            .CreateReceiver(_topicName, _subscriptionName, new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.PeekLock });
+        ServiceBusReceiver receiver;
+        try
+        {
+            receiver = _connection.Client
+                .CreateReceiver(_topicName, _subscriptionName, new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.PeekLock });
+        }
+        catch (ObjectDisposedException) when (_connection.IsClosing)
+        {
+            // The connection closed before the stream started.
+            yield break;
+        }
 
-        while (!cancellationToken.IsCancellationRequested && !_client.IsClosed)
+        await using var receiverLifetime = receiver;
+
+        while (!cancellationToken.IsCancellationRequested && !_connection.IsClosing)
         {
             // Receive one message at a time so the receiver holds at most one pending lock.
             // This ensures that when iteration stops (break / cancellation), no unprocessed
@@ -36,15 +47,19 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
             IReadOnlyList<ServiceBusReceivedMessage> received;
             try
             {
-                received = await receiver.ReceiveMessagesAsync(maxMessages: 1, cancellationToken: cancellationToken);
+                // The Azure SDK does not cancel a receive that is still opening its link, and closing
+                // the client does not end it either: it waits out its try timeout. Stop waiting for it
+                // once the connection has closed, and observe the failure it ends with.
+                var receive = receiver.ReceiveMessagesAsync(maxMessages: 1, cancellationToken: cancellationToken);
+                _ = receive.ContinueWith(static t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+                received = await receive.WaitAsync(_connection.Closed);
             }
-            catch (OperationCanceledException)
+            catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or ServiceBusException
+                                       && _connection.IsClosing
+                                       && !cancellationToken.IsCancellationRequested)
             {
-                throw;
-            }
-            catch (ObjectDisposedException) when (_client.IsClosed)
-            {
-                // The client was disposed while we were waiting — exit the loop cleanly.
+                // The connection closed while the receive was opening its link or waiting for a
+                // message. Whatever the Azure SDK surfaced, this is a shutdown: end the stream.
                 break;
             }
             catch (ServiceBusException ex)
