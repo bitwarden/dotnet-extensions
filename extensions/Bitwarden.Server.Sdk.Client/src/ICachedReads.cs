@@ -85,7 +85,7 @@ public interface ICachedReads<TClient>
     /// <param name="answer">The answer's name: <c>widget-by-name</c>.</param>
     /// <param name="key">
     /// The key, as the owner compares it: an identifier, or for an answer keyed by text the normalised
-    /// text, which is digested here (<see cref="OwnedAnswerKey.Of(string, string, ReadOnlySpan{byte})"/>) and never sent to Redis as written.
+    /// text, which is digested here (<see cref="OwnedAnswerKey.Of(string, string, Bitwarden.Server.Sdk.CryptoPrimitives.CacheSecret)"/>) and never sent to Redis as written.
     /// </param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>

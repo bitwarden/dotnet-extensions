@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Bitwarden.Server.Sdk.CryptoPrimitives;
 using Bitwarden.Server.Sdk.Resources.Caching;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +19,7 @@ namespace Bitwarden.Server.Sdk.Client;
 /// <param name="options">The client's options, for the scopes its credential holds.</param>
 /// <param name="scopes">A scope per read, for the context it is made in.</param>
 /// <param name="configuration">Switches one resource's reads off without a release.</param>
+/// <param name="answerSecret">The answer secret, read and checked as the host starts.</param>
 /// <param name="logger">Records a cache that could not be read; never what it held.</param>
 /// <param name="indexes">The owner's indexed questions.</param>
 /// <param name="answers">The owner's answers.</param>
@@ -29,6 +31,7 @@ internal sealed class CachedReads<TClient>(
     IOptionsMonitor<BitwardenClientOptions> options,
     IServiceScopeFactory scopes,
     IConfiguration configuration,
+    CacheSecret answerSecret,
     ILogger<CachedReads<TClient>> logger,
     IReadOnlyDictionary<string, CacheableAnswerRead>? answers = null) : ICachedReads<TClient>
 {
@@ -36,8 +39,6 @@ internal sealed class CachedReads<TClient>(
     /// How long a read may wait on Redis, on the connection's clock, before the service is asked instead.
     /// </summary>
     internal static readonly TimeSpan Patience = TimeSpan.FromMilliseconds(250);
-
-    private readonly byte[] _answerSecret = OwnedAnswerKey.ReadSecret(configuration);
 
     private readonly NearIndexAnswers _near = new(
         int.TryParse(configuration[NearIndexAnswers.CapacityKey], out var capacity) ? capacity : NearIndexAnswers.DefaultCapacity,
@@ -180,7 +181,7 @@ internal sealed class CachedReads<TClient>(
         Guid subject;
         if (published.Digested)
         {
-            subject = OwnedAnswerKey.Of(published.Name, key, _answerSecret);
+            subject = OwnedAnswerKey.Of(published.Name, key, answerSecret);
         }
         else if (!Guid.TryParse(key, out subject))
         {
