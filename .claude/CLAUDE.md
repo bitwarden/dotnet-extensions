@@ -116,6 +116,15 @@ See the [README.md](README.md) for detailed information about each package. Main
 -   Authentication components handle sensitive JWT tokens
 -   Secrets integration loads sensitive configuration
 
+### No hand-built crypto
+
+-   Make and check tokens, signatures, key formats and encrypted formats (JWT, JWS, JWE, JWK, COSE, EncString) with the library this repository already uses: `Microsoft.IdentityModel` for JWTs and JWKs, `Bitwarden.Core` for EncStrings. Never compose one by hand from `System.Security.Cryptography` primitives, even when the result would be correct and the library would add a dependency, unless the owning team agrees (below).
+-   HMAC used as a keyed digest or for key derivation is not hand-built crypto, and neither is `Bitwarden.Core`'s own implementation of the EncString format. A token signed with HMAC by hand is. Tests may build malformed tokens by hand.
+-   Hand-building one anyway needs the owning team's agreement first (team-auth for authentication and tokens). Record it in a comment on the code that says what it does, why no library serves it, and which team agreed where (an ADR, a decision or a pull request).
+-   A pull request that adds or changes hand-built crypto is blocked until a human has reviewed that code and commented on the pull request about it, even when the code carries an agreement comment. A Claude review that finds it requests changes, never approves, and does not count as that human review.
+-   For work on authentication, tokens or crypto, agree the design and the library with the owning team before writing code.
+-   When code deliberately avoids a library the repository already has, say why in one line in the pull request description.
+
 ### Documentation Generation
 
 -   XML documentation files generated for all packable projects
