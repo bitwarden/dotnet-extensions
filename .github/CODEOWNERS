@@ -19,4 +19,5 @@
 .github/workflows/review-code.yml @bitwarden/team-ai-sme
 
 # Key Management team
+extensions/Bitwarden.CryptoPrimitives @bitwarden/team-key-management-dev
 extensions/Bitwarden.Server.Sdk.PasswordHashing @bitwarden/team-key-management-dev

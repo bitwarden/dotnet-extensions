@@ -9,6 +9,7 @@ on:
         required: true
         type: choice
         options:
+          - Bitwarden.CryptoPrimitives
           - Bitwarden.Extensions.Configuration
           - Bitwarden.Server.Sdk
           - Bitwarden.Server.Sdk.Authentication
