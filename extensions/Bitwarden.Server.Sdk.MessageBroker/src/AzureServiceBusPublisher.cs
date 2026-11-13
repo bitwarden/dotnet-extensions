@@ -1,10 +1,11 @@
 using System.Buffers;
-using System.Diagnostics;
 using Azure.Messaging.ServiceBus;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-internal sealed class AzureServiceBusPublisher<T> : IPublisher<T>, IAsyncDisposable
+internal sealed class AzureServiceBusPublisher<TPayload, TCeiling> : Publisher<TPayload, TCeiling>, IAsyncDisposable
+    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
+    where TCeiling : Payload<TPayload>.ICeiling
 {
     private readonly string _topicName;
     private readonly ServiceBusSender _sender;
@@ -19,52 +20,24 @@ internal sealed class AzureServiceBusPublisher<T> : IPublisher<T>, IAsyncDisposa
         _metrics = metrics;
     }
 
-    public async Task PublishAsync(T message, CancellationToken cancellationToken = default)
+    protected internal override async Task SendAsync(
+        IReadOnlyList<Payload<TPayload>.IVariant> variants,
+        CancellationToken cancellationToken)
     {
-        using var activity = MessageBrokerActivitySource.Source.StartActivity(
-            $"{_topicName} publish", ActivityKind.Producer);
-        _metrics.RecordPublish(_topicName);
-        // TODO: Use an ArrayPool<byte>.Shared based buffer writer for extra performance.
+        using var activity = MessageBrokerActivitySource.StartProducerActivity(_topicName, TPayload.WireName);
+        _metrics.RecordPublish(_topicName, TPayload.WireName);
         var buffer = new ArrayBufferWriter<byte>();
-        _serializer.Serialize(message, buffer);
+        _serializer.SerializeVariants<TPayload>(variants, buffer);
         var sbMessage = new ServiceBusMessage(buffer.WrittenMemory)
         {
             MessageId = Guid.NewGuid().ToString(),
         };
+        sbMessage.ApplicationProperties[BrokerProperties.PayloadFamily] = TPayload.WireName;
         if (activity?.Id is { } traceId)
-            sbMessage.ApplicationProperties["traceparent"] = traceId;
+            sbMessage.ApplicationProperties[BrokerProperties.TraceParent] = traceId;
         try
         {
             await _sender.SendMessageAsync(sbMessage, cancellationToken);
-        }
-        catch (ServiceBusException ex) when (ex.Reason != ServiceBusFailureReason.MessageSizeExceeded)
-        {
-            throw new BrokerUnavailableException(_topicName, ex);
-        }
-    }
-
-    public async Task PublishBatchAsync(IEnumerable<T> messages, CancellationToken cancellationToken = default)
-    {
-        var messageList = messages.ToList();
-        using var activity = MessageBrokerActivitySource.Source.StartActivity(
-            $"{_topicName} publish", ActivityKind.Producer);
-        _metrics.RecordPublish(_topicName, messageList.Count);
-        var traceId = activity?.Id;
-        var sbMessages = messageList.Select(m =>
-        {
-            var buffer = new ArrayBufferWriter<byte>();
-            _serializer.Serialize(m, buffer);
-            var sbMessage = new ServiceBusMessage(buffer.WrittenMemory)
-            {
-                MessageId = Guid.NewGuid().ToString(),
-            };
-            if (traceId is not null)
-                sbMessage.ApplicationProperties["traceparent"] = traceId;
-            return sbMessage;
-        });
-        try
-        {
-            await _sender.SendMessagesAsync(sbMessages, cancellationToken);
         }
         catch (ServiceBusException ex) when (ex.Reason != ServiceBusFailureReason.MessageSizeExceeded)
         {
