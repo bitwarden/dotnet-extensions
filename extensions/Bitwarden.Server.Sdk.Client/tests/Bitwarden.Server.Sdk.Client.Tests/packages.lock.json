@@ -44,6 +44,11 @@
           "xunit.v3.core.mtp-v2": "[3.2.2]"
         }
       },
+      "Bitwarden.Server.Sdk.CryptoPrimitives": {
+        "type": "Transitive",
+        "resolved": "0.1.0",
+        "contentHash": "g67cxy1PRAWWqEbTFxTP+hnttXZWHUPgBKtTHc9g8rlylDhtyisbRnX6Omixvpmj8bUujCUjrRO3Oterq5O/Kw=="
+      },
       "Bitwarden.Server.Sdk.Environment": {
         "type": "Transitive",
         "resolved": "0.1.0",
@@ -456,7 +461,7 @@
           "Bitwarden.Server.Sdk.Http": "[0.1.0, )",
           "Bitwarden.Server.Sdk.Idempotency.Abstractions": "[0.1.0, )",
           "Bitwarden.Server.Sdk.Resources.Caching.Abstractions": "[0.1.0, )",
-          "Bitwarden.Server.Sdk.Sagas": "[0.1.0, )",
+          "Bitwarden.Server.Sdk.Sagas": "[0.2.0, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.14, )",
           "Microsoft.Extensions.Http": "[10.0.14, )",
           "Microsoft.IdentityModel.JsonWebTokens": "[8.23.0, )",
@@ -483,6 +488,7 @@
       "bitwarden.server.sdk.resources.caching.abstractions": {
         "type": "Project",
         "dependencies": {
+          "Bitwarden.Server.Sdk.CryptoPrimitives": "[0.1.0, )",
           "Microsoft.Extensions.Configuration.Abstractions": "[10.0.14, )"
         }
       },

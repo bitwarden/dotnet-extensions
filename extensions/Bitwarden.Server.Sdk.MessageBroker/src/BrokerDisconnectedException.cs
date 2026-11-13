@@ -1,7 +1,7 @@
 namespace Bitwarden.Server.Sdk.MessageBroker;
 
 /// <summary>
-/// Thrown from <see cref="ISubscriber{T}.SubscribeAsync"/> when the broker closes the connection
+/// Thrown from <see cref="ISubscriber{TPayload, TCeiling}.SubscribeAsync"/> when the broker closes the connection
 /// unexpectedly during an active subscription (not as a result of a cancellation request or normal
 /// host shutdown). The original broker-specific exception is preserved as
 /// <see cref="Exception.InnerException"/>.
