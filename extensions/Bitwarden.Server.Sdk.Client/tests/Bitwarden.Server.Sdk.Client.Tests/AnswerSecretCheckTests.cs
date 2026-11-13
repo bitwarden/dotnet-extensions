@@ -36,7 +36,25 @@ public sealed class AnswerSecretCheckTests
         provider.GetRequiredService<IStartupValidator>().Validate();
     }
 
-    private static ServiceProvider Provider(string environment, string? cache, string? secret)
+    [Fact]
+    public async Task Resolve_WithoutAHostOrACache_ReadsWithoutASecret()
+    {
+        await using var provider = Provider(environment: null, cache: null, secret: null);
+
+        Assert.NotNull(provider.GetRequiredService<ICachedReads<AnswerSecretCheckTests>>());
+    }
+
+    [Fact]
+    public void Start_WithoutAHost_WithACacheButNoSecret_Refused()
+    {
+        using var provider = Provider(environment: null, cache: "redis:6379", secret: null);
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => provider.GetRequiredService<IStartupValidator>().Validate());
+
+        Assert.Contains(OwnedAnswerKey.SecretKey, refusal.Message);
+    }
+
+    private static ServiceProvider Provider(string? environment, string? cache, string? secret)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -48,7 +66,11 @@ public sealed class AnswerSecretCheckTests
 
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(configuration);
-        services.AddSingleton<IHostEnvironment>(new Environment(environment));
+        if (environment is not null)
+        {
+            services.AddSingleton<IHostEnvironment>(new Environment(environment));
+        }
+
         services.AddLogging();
         services.AddCachedReads<AnswerSecretCheckTests>("callee-service");
         return services.BuildServiceProvider();

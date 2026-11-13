@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Bitwarden.Server.Sdk.Context;
+using Bitwarden.Server.Sdk.CryptoPrimitives;
 using Bitwarden.Server.Sdk.Resources.Caching;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -70,7 +71,7 @@ public sealed class CachedReadsTests(RedisFixture redis) : IClassFixture<RedisFi
               { "name": "standing-of", "key": "shelf-service:answer:standing-of:{key}", "keyedBy": "borrower", "digest": null,
                 "scope": "shelves.read", "context": { "organization": "forbidden", "user": "forbidden", "provider": "optional" } },
               { "name": "standing-by-label", "key": "shelf-service:answer:standing-by-label:{key}", "keyedBy": "label",
-                "digest": "sha-256", "scope": "shelves.read",
+                "digest": "cache-key", "scope": "shelves.read",
                 "context": { "organization": "forbidden", "user": "forbidden", "provider": "optional" } },
               { "name": "standing-by-shelfmark", "key": "shelf-service:answer:standing-by-shelfmark:{key}", "keyedBy": "shelfmark",
                 "digest": "sha-3", "scope": "shelves.read",
@@ -633,9 +634,9 @@ public sealed class CachedReadsTests(RedisFixture redis) : IClassFixture<RedisFi
     }
 
     [Fact]
-    public async Task ReadAnswer_TextKey_ReadByItsDigest()
+    public async Task ReadAnswer_TextKey_ReadByItsDerivedKey()
     {
-        await Store($"{Service}:answer:standing-by-label:{OwnedAnswerKey.Of("standing-by-label", "rare")}", ("v", "0"), ("d", """{"value":"labelled"}"""));
+        await Store($"{Service}:answer:standing-by-label:{OwnedAnswerKey.Of("standing-by-label", "rare", CacheSecret.Development)}", ("v", "0"), ("d", """{"value":"labelled"}"""));
         _context.OrganizationId = null;
 
         var answer = await Reads().ReadAnswerAsync("standing", "standing-by-label", "rare", Token);
@@ -644,13 +645,13 @@ public sealed class CachedReadsTests(RedisFixture redis) : IClassFixture<RedisFi
     }
 
     [Fact]
-    public async Task ReadAnswer_TextKey_WithTheOwnersSecret_ReadByItsKeyedDigest()
+    public async Task ReadAnswer_TextKey_WithTheOwnersSecret_ReadByItsDerivedKey()
     {
-        var secret = Enumerable.Repeat((byte)7, 32).ToArray();
+        var secret = new CacheSecret(Enumerable.Repeat((byte)7, CacheSecret.Length).ToArray());
         await Store($"{Service}:answer:standing-by-label:{OwnedAnswerKey.Of("standing-by-label", "rare", secret)}", ("v", "0"), ("d", """{"value":"labelled"}"""));
         _context.OrganizationId = null;
 
-        var answer = await Reads(configuration: new() { [OwnedAnswerKey.SecretKey] = Convert.ToBase64String(secret) })
+        var answer = await Reads(answerSecret: secret)
             .ReadAnswerAsync("standing", "standing-by-label", "rare", Token);
 
         Assert.Equal(CachedAnswerKind.Hit, answer.Kind);
@@ -659,7 +660,7 @@ public sealed class CachedReadsTests(RedisFixture redis) : IClassFixture<RedisFi
     [Fact]
     public async Task ReadAnswer_TextKey_WithoutTheOwnersSecret_Miss()
     {
-        var secret = Enumerable.Repeat((byte)7, 32).ToArray();
+        var secret = new CacheSecret(Enumerable.Repeat((byte)7, CacheSecret.Length).ToArray());
         await Store($"{Service}:answer:standing-by-label:{OwnedAnswerKey.Of("standing-by-label", "scarce", secret)}", ("v", "0"), ("d", """{"value":"labelled"}"""));
         _context.OrganizationId = null;
 
@@ -719,7 +720,8 @@ public sealed class CachedReadsTests(RedisFixture redis) : IClassFixture<RedisFi
         string[]? scopes = null,
         Dictionary<string, string?>? configuration = null,
         bool connected = true,
-        CachedReadsConnection? connection = null)
+        CachedReadsConnection? connection = null,
+        CacheSecret answerSecret = default)
     {
         var services = new ServiceCollection()
             .AddSingleton<IContext>(_context)
@@ -734,6 +736,7 @@ public sealed class CachedReadsTests(RedisFixture redis) : IClassFixture<RedisFi
             services.GetRequiredService<IOptionsMonitor<BitwardenClientOptions>>(),
             services.GetRequiredService<IServiceScopeFactory>(),
             new ConfigurationBuilder().AddInMemoryCollection(configuration ?? []).Build(),
+            answerSecret,
             NullLogger<CachedReads<CachedReadsTests>>.Instance,
             CacheableAnswerRead.FromContract(new MemoryStream(Encoding.UTF8.GetBytes(Contract))));
     }
