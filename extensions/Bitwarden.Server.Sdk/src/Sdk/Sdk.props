@@ -3,4 +3,13 @@
   <PropertyGroup>
     <UsingBitwardenServerSdk>true</UsingBitwardenServerSdk>
   </PropertyGroup>
+
+  <!--
+    When consumed as an MSBuild SDK, NuGet does not automatically register assemblies
+    placed in analyzers/dotnet/cs/ — we must explicitly add them as Analyzer items.
+  -->
+  <ItemGroup>
+    <Analyzer Include="$(MSBuildThisFileDirectory)..\analyzers\dotnet\cs\Bitwarden.Server.Sdk.Analyzers.dll" />
+    <Analyzer Include="$(MSBuildThisFileDirectory)..\analyzers\dotnet\cs\Bitwarden.Server.Sdk.CodeFixers.dll" />
+  </ItemGroup>
 </Project>
