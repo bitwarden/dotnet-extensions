@@ -19,6 +19,8 @@
     <!-- The host's environment decides whether the answer secret is required. -->
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.14" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.14" />
+    <!-- Creates and signs client assertions. -->
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.23.0" />
     <!-- Reads the service-owned caches of the services a client calls. -->
     <PackageReference Include="StackExchange.Redis" Version="2.13.17" />
     <!-- Reads a cached answer into the generated client's type, which NSwag generates for Newtonsoft. -->
