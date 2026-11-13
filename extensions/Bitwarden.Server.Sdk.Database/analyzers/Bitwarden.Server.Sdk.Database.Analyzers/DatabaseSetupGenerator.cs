@@ -650,7 +650,7 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
         "Sqlite" => "UseSqlite(opts.ConnectionString)",
         "SqlServer" => "UseSqlServer(opts.ConnectionString)",
         "PostgreSql" => "UseNpgsql(opts.ConnectionString)",
-        "MySql" => "UseMySql(opts.ConnectionString, ServerVersion.AutoDetect(opts.ConnectionString))",
+        "MySql" => "UseMySql(opts.ConnectionString, MySqlServerVersionFor(opts.ConnectionString))",
         _ => throw new System.InvalidOperationException($"Unknown provider: {providerName}"),
     };
 
