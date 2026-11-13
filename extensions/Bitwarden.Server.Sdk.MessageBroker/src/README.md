@@ -1,24 +1,41 @@
 # Bitwarden.Server.Sdk.MessageBroker
 
+**Audience:** Maintainers of this package. Application developers consuming the package should read
+[PACKAGE.md](PACKAGE.md) instead.
+
 Transport-agnostic publish/subscribe messaging for Bitwarden services. Three backends share one API:
 Azure Service Bus, RabbitMQ, and an in-memory `System.Threading.Channels` fallback.
+
+A topic is a service's outbound event stream, so one topic can carry many payload families (for
+example, a user service might publish `user.created` and `user.deleted` through one
+`user-events` topic). Each message is tagged with its family wire name so subscriptions bind or
+filter down to the event types they care about.
 
 ## Architecture
 
 ### Core abstractions
 
-- `IPublisher<T>` — publishes messages to a named topic
-- `ISubscriber<T>` — receives messages from a named topic as `IAsyncEnumerable<Envelope<T>>`
-- `Envelope<T>` — wraps a received message with broker metadata (`MessageId`, `TraceId`,
-  `DeliveryCount`) and settlement methods (`CompleteAsync`, `RequeueAsync`, `DeadLetterAsync`)
+- `Publisher<TPayload, TCeiling>` — publishes payloads of a named topic via the fluent
+  `Publish(ceiling).With(assist?).SendAsync(ct)` chain
+- `ISubscriber<TPayload, TCeiling>` — receives messages from a named topic as
+  `IAsyncEnumerable<Envelope<TPayload, TCeiling>>`
+- `Envelope<TPayload, TCeiling>` — wraps a received payload with broker metadata (`MessageId`,
+  `TraceId`, `DeliveryCount`) and settlement methods (`CompleteAsync`, `RequeueAsync`,
+  `DeadLetterAsync`)
 
-Both interfaces are registered as keyed singletons. The service key is the topic name, or
-`topic/subscription` when a subscription name is provided.
+Both are registered as keyed singletons in the dependency-injection container. A publisher key is
+`{topic}#{familyWireName}` — the composite identity lets several families register publishers on
+the same topic side-by-side. Build it with `MessageBrokerKeys.Publisher<TPayload>(topic)` for
+programmatic resolution; spell it literally at `[FromKeyedServices]` injection sites since
+attribute arguments must be compile-time constants. A subscriber key stays
+`{topic}/{subscription}` — each subscription identifies a single family at the broker, so the pair
+uniquely names the receiver.
 
 ### Backend selection
 
-`MessageBrokerServiceCollectionExtensions` (`AddPublisher<T>` / `AddSubscriber<T>`) registers the
-appropriate backend at DI resolution time based on `MessagingOptions`:
+`MessageBrokerServiceCollectionExtensions` (`AddPublisher<TPayload, TCeiling>` /
+`AddSubscriber<TPayload, TCeiling>`) registers the appropriate backend at service-resolution time
+based on `MessagingOptions`:
 
 1. `AzureServiceBusConnectionString` set → Azure Service Bus
 2. `RabbitUri` set → RabbitMQ
@@ -28,43 +45,47 @@ Setting both raises `OptionsValidationException` at startup via `MessagingOption
 
 ### Key source files
 
-| File | Purpose |
-|---|---|
-| `MessageBrokerServiceCollectionExtensions.cs` | DI registration; backend selection logic |
-| `Envelope.cs` | Abstract base class for received messages |
-| `IMessageConsumer.cs` | Public interface for consumers registered via `AddMessageConsumer` |
-| `ConsumerBackgroundService.cs` | Hosted service that drives the consumer loop; auto-settles envelopes |
-| `IMessageEscrowStore.cs` | Public interface for durable message escrow on shutdown |
-| `ChannelPublisher.cs` / `ChannelSubscriber.cs` | In-memory backend |
-| `ChannelEnvelope.cs` | In-memory envelope; handles `RequeueAsync` requeue logic |
-| `ChannelTopic.cs` | Fan-out channel; one `Channel<T>` per subscription; drains to escrow on shutdown |
-| `ChannelEscrowRegistration.cs` | Registers startup recovery and shutdown drain callbacks with `ChannelTopic` |
-| `RabbitPublisher.cs` / `RabbitSubscriber.cs` | RabbitMQ backend |
-| `RabbitConnection.cs` | Manages the shared RabbitMQ connection for the host lifetime |
-| `AzureServiceBusPublisher.cs` / `AzureServiceBusSubscriber.cs` | Azure Service Bus backend |
-| `MessageBrokerActivitySource.cs` | Shared `ActivitySource` for publish and consume spans |
-| `MessageBrokerMetrics.cs` | Shared metrics (publish counter, consume counter, channel depth gauge) |
-| `SystemTextJsonMessageSerializer.cs` | Default JSON serializer |
+| File                                                           | Purpose                                                                          |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `MessageBrokerServiceCollectionExtensions.cs`                  | Service-collection registration; backend selection logic                         |
+| `MessageBrokerKeys.cs`                                         | Composite publisher keyed-service key builder                                    |
+| `Envelope.cs`                                                  | Abstract base class for received messages                                        |
+| `IMessageConsumer.cs`                                          | Public interface for consumers registered via `AddMessageConsumer`               |
+| `ConsumerBackgroundService.cs`                                 | Hosted service that drives the consumer loop; auto-settles envelopes             |
+| `IMessageEscrowStore.cs`                                       | Public interface for durable message escrow on shutdown                          |
+| `ChannelPublisher.cs` / `ChannelSubscriber.cs`                 | In-memory backend                                                                |
+| `ChannelEnvelope.cs`                                           | In-memory envelope; handles `RequeueAsync` requeue logic                         |
+| `ChannelTopic.cs`                                              | Fan-out channel; one `Channel<T>` per subscription; drains to escrow on shutdown |
+| `ChannelEscrowRegistration.cs`                                 | Registers startup recovery and shutdown drain callbacks with `ChannelTopic`      |
+| `RabbitPublisher.cs` / `RabbitSubscriber.cs`                   | RabbitMQ backend                                                                 |
+| `RabbitConnection.cs`                                          | Manages the shared RabbitMQ connection for the host lifetime                     |
+| `AzureServiceBusPublisher.cs` / `AzureServiceBusSubscriber.cs` | Azure Service Bus backend                                                        |
+| `MessageBrokerActivitySource.cs`                               | Shared `ActivitySource` for publish and consume spans                            |
+| `MessageBrokerMetrics.cs`                                      | Shared metrics (publish counter, consume counter, channel depth gauge)           |
+| `SystemTextJsonMessageSerializer.cs`                           | Default JSON serializer                                                          |
 
 ## RabbitMQ topology
 
 The library does not provision RabbitMQ topology; operators pre-declare it (see
-[PACKAGE.md](PACKAGE.md) for the required exchanges, queues, bindings, and policies). The
+[BROKER-TOPOLOGY.md](BROKER-TOPOLOGY.md) for the required exchanges, queues, bindings, and policies). The
 expected shape is driven by two design choices:
 
 - **Quorum queues** for subscriber queues. The `x-delivery-count` header on quorum queues
-  (RabbitMQ 3.12+) is what `RabbitSubscriber` reads into `Envelope<T>.DeliveryCount`. Classic
+  (RabbitMQ 3.12+) is what `RabbitSubscriber` reads into `Envelope<TPayload, TCeiling>.DeliveryCount`. Classic
   queues only expose a boolean `redelivered` flag, which is not enough to drive delivery-limit
   behavior.
-- **Fanout exchanges** per topic, with one durable queue per subscription bound to the exchange.
-  Each subscription receives every message independently, giving pub/sub fan-out with
-  per-subscription competing consumers when multiple instances share a subscription name.
+- **Topic exchanges** per topic, with one durable queue per subscription bound to the exchange
+  with the payload family wire name as its routing key. Each subscription receives only its
+  family's messages; several subscriptions on the same exchange with different routing keys split
+  the outbound stream by family. Multiple instances sharing a subscription name act as competing
+  consumers against that subscription's queue.
 
 ## Shutdown and escrow
 
-`ChannelTopic<T>` is registered as an `IHostedService` first, so it stops last under LIFO shutdown
-order — after all `ConsumerBackgroundService` instances have exited. Its `StopAsync` calls the
-`ShutdownDrain` callbacks registered by `ChannelEscrowRegistration<T>`, which serialize any
+`ChannelTopic<TPayload, TCeiling>` is registered as an `IHostedService` first, so it stops last
+under the generic host's reverse-registration-order shutdown — after all
+`ConsumerBackgroundService` instances have exited. Its `StopAsync` calls the
+`ShutdownDrain` callbacks registered by `ChannelEscrowRegistration<TPayload, TCeiling>`, which serialize any
 messages still in the channel and write them to `IMessageEscrowStore` before sealing the writers.
 
 `ChannelSubscriber` is a simple pass-through: it reads from the channel reader until `WaitToReadAsync`
@@ -76,20 +97,13 @@ The stop sequence when using `AddMessageConsumer` is:
 2. `ChannelTopic.StopAsync` → drain callbacks serialize remaining messages → writes to `IMessageEscrowStore` → seals writers
 
 At the next startup, `ChannelTopic.StartAsync` calls the recovery callbacks registered by
-`ChannelEscrowRegistration<T>`, which deserialize the stored messages and re-inject them into the
+`ChannelEscrowRegistration<TPayload, TCeiling>`, which deserialize the stored messages and re-inject them into the
 channel writer before consumers begin processing.
 
-When no `IMessageEscrowStore` is registered, undelivered messages are logged as errors (message ID
-only) and discarded. Register an implementation with the DI container to enable durable recovery:
-
-```csharp
-services.AddSingleton<IMessageEscrowStore, MyDatabaseEscrowStore>();
-```
-
-The escrow key is `{topicName}/{subscriptionName}` (the same as the DI service key). Each entry in the
-store is a JSON-encoded blob containing `MessageId`, `TraceId`, `DeliveryCount`, and the serialized
-message payload. Consumers should be idempotent — at-most-once delivery becomes at-least-once when
-escrow is enabled.
+The escrow key is `{topicName}/{subscriptionName}` (the same as the DI service key). Each entry in
+the store is a JSON-encoded blob containing `MessageId`, `TraceId`, `DeliveryCount`, and the
+serialized message payload. See [PACKAGE.md](PACKAGE.md) for consumer-facing registration
+guidance.
 
 ## Observability
 
@@ -99,29 +113,69 @@ in RabbitMQ, `ApplicationProperties["traceparent"]` in Azure Service Bus, `Trace
 `ChannelEnvelope`. The consumer span is started with this context as the parent so publish and
 consume spans share a trace.
 
-## TODO: Message payload versioning
+Every publish counter, consume counter, queue-depth gauge, and activity tag carries
+`messaging.payload.family` alongside `messaging.destination.name`, so metrics and traces split by
+family on a topic that carries several.
 
-When a message type `T` changes shape (renamed field, changed type, restructured payload), messages
-already in a queue were serialized with the old schema. There is currently no framework support for
-evolving the payload across versions.
+## Payload versioning
 
-`System.Text.Json` handles non-breaking changes (adding a nullable field, removing a field) silently,
-but breaking changes require explicit transformation. Key open questions before implementing:
+A payload is a family of data structure variants forming a chain from floor (oldest known shape)
+to ceiling (newest). Publishers send the complete ceiling-to-floor sequence in a single message;
+each subscriber picks the highest variant it can decode and, if that variant is below its declared
+ceiling, walks pure upcasts back up to reach the highest variant. Old subscribers keep working
+against new publishers as long as the old variant is still on the wire. New subscribers keep
+working against old publishers as long as the older ceiling can upcast to the newer one.
 
-- Where does the version signal live — in the payload itself, the topic name, or a metadata header?
-- Is upcasting chained (v1→v2→v3) or direct (any old version → current)?
-- Is an explicit version field on the message type required, or is it optional convention?
+Concrete payloads derive from `Payload<TSelf, TFloor, TCeiling>` and implement
+`IPayloadVariants<TSelf>` and `IPayloadWireName<TSelf>`. `IPayloadVariants<TSelf>.Variants`
+pairs each variant type with a stable wire name that identifies the shape within the family;
+`IPayloadWireName<TSelf>.WireName` names the family itself and rides on every outgoing message
+as the broker's routing key (RabbitMQ) or application property (Azure Service Bus). Both
+dimensions are decoupled from CLR type names so authors can rename or move the C# types
+without breaking messages already on the wire. The wire body is a JSON array of variants with a
+`$type` discriminator per element; unknown discriminators are skipped so a subscriber survives a
+publisher that has variants it was not built against.
+
+Every non-ceiling variant declares an upcast to its ceiling-side neighbor via `IPureUp<TUp>`.
+Downcasts come in two kinds: **pure** (`IPure<TDown, TUp>`, `IPureCeiling<TDown>`) when the
+floor-side neighbor can be produced from the current variant alone, and **assisted**
+(`IAssisted<...>`, `IAssistedCeiling<...>`) when the downcast needs caller-supplied data. Assist
+data is injected at publish time through a fluent chain: `publisher.Publish(ceiling).With(assist1).With(assist2).SendAsync()`. The compiler refuses `SendAsync` until every assisted downcast between the current
+position and the floor has been crossed, so a publisher cannot omit data an older subscriber needs.
+
+`ChainValidator<TPayload, TCeiling>` runs once per payload family at DI registration and throws
+an aggregate exception if the declared variants are not complete, sparse, and linear: duplicate
+types or wire names, missing floor or ceiling, forks, cycles, or Next/Previous references that
+disagree with the variant list.
+
+### Key source files
+
+| File                                 | Purpose                                                                                                     |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `Payload.cs`                         | Variant-side interfaces (`IFloor`, `ICeiling`, `IPure`, `IAssisted`, `IAssist`, …) and payload base classes |
+| `ChainWalk.cs`                       | Reflects `TDown`/`TUp` off a variant type to walk the declared chain                                        |
+| `ChainValidator.cs`                  | Startup-time chain-shape validation                                                                         |
+| `Publisher.cs`                       | `Publisher<TPayload, TCeiling>` base + `PublishBuilder` fluent chain                                        |
+| `Envelope.cs`                        | Selects the received variant, upcasts it to the consumer's ceiling                                          |
+| `SystemTextJsonMessageSerializer.cs` | Polymorphic array wire format with `$type` discriminator                                                    |
 
 ## Running tests
 
-```
-cd tests/Bitwarden.Server.Sdk.MessageBroker.Tests
-dotnet run
-```
-
-Tests require Docker (for Testcontainers). The RabbitMQ and Azure Service Bus emulator containers
-start automatically. Use `dotnet run` rather than `dotnet test`; this is an xUnit v3 project with
+Tests require Docker so Testcontainers can start the RabbitMQ and Azure Service Bus emulator
+containers. Use `dotnet run` rather than `dotnet test`; this is an xUnit v3 project with
 `OutputType=Exe`.
+
+1. Change into the test project directory:
+
+   ```bash
+   cd tests/Bitwarden.Server.Sdk.MessageBroker.Tests
+   ```
+
+2. Run the suite:
+
+   ```bash
+   dotnet run
+   ```
 
 The test suite covers all three backends via the shared `BehaviorTests` base class.
 Channel-specific tests (drain on shutdown, queue depth gauge) live in `ChannelBehaviorTests`.
