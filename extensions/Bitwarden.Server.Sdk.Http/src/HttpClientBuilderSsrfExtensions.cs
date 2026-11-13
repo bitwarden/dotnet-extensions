@@ -17,15 +17,15 @@ public static class HttpClientBuilderSsrfExtensions
 {
     /// <summary>
     /// Adds SSRF protection to an HTTP client by registering the <see cref="SsrfProtectionHandler"/>
-    /// as an additional delegating handler, directly above the primary handler, and connecting only to the addresses
-    /// it checked. This ensures that all requests made by the client resolve DNS before connecting and block
+    /// as an additional delegating handler, below every other the client adds, and connecting only to the addresses it
+    /// checked. This ensures that all requests made by the client resolve DNS before connecting and block
     /// requests to internal/private IP ranges, including those reached via HTTP redirects.
     /// </summary>
     /// <remarks>
     /// <para>
     /// The client's primary handler must be a <see cref="SocketsHttpHandler"/> (the default) with no
     /// <see cref="SocketsHttpHandler.ConnectCallback"/> of its own; creating the client fails otherwise. Its automatic
-    /// redirects and cookies are turned off. The guard runs below every other handler the client adds, so those run
+    /// redirects and cookies are turned off, and its proxy is fixed when the client is created. The guard runs below every other handler the client adds, so those run
     /// once for each request the caller sends and never for a redirect the guard follows.
     /// </para>
     /// <para>
@@ -77,7 +77,7 @@ public static class HttpClientBuilderSsrfExtensions
             }
         });
 
-        // Put the guard directly above the primary handler, disable auto-redirect and cookies on the primary handler,
+        // Put the guard below every handler the client adds, disable auto-redirect and cookies on the primary handler,
         // and have it connect to the addresses the guard checked. Without this, the inner handler follows redirects
         // internally, bypassing SSRF checks on redirect targets, and connects wherever the name resolves by then. A
         // filter runs after every configuration action, so a primary handler the client names after this call is the

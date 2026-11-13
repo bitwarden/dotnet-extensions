@@ -29,23 +29,34 @@ internal class SsrfConnector
 
     /// <summary>
     /// Connects for <paramref name="context"/>'s request: to the address checked for it when the connection is to the
-    /// host the request names, or to the proxy when the request goes through one. Any other connection is refused.
+    /// host the request names, or to the proxy when the request goes through one and still names the checked address.
+    /// Any other connection is refused.
     /// </summary>
     public async ValueTask<Stream> ConnectAsync(SocketsHttpConnectionContext context, CancellationToken cancellationToken)
     {
-        if (!context.InitialRequestMessage.Options.TryGetValue(PinKey, out var pin))
+        var request = context.InitialRequestMessage;
+        var endpoint = context.DnsEndPoint;
+        if (!request.Options.TryGetValue(PinKey, out var pin))
         {
+            // An https request through a proxy reaches it through a tunnel, which SocketsHttpHandler asks for with a
+            // CONNECT request of its own, unpinned, naming the request's host. The guard addressed that request to the
+            // address it checked, so the tunnel is opened only to an address that isn't internal.
+            if (request.Method == HttpMethod.Connect && TunnelsToPublicAddress(request))
+            {
+                return await OpenAsync(endpoint, cancellationToken).ConfigureAwait(false);
+            }
+
             throw new SsrfProtectionException("A connection was asked for a request that SSRF protection did not check.");
         }
 
-        var endpoint = context.DnsEndPoint;
         if (endpoint.Port == pin.Port && Names(endpoint.Host, pin))
         {
             return await OpenAsync(new IPEndPoint(pin.Address, pin.Port), cancellationToken).ConfigureAwait(false);
         }
 
-        // A proxied request names the checked address, so the proxy is given no name to resolve differently.
-        if (pin.Proxied)
+        // A proxied request names the checked address, so the proxy is given no name to resolve differently. One a
+        // handler below the guard readdressed names something else, and is refused.
+        if (pin.Proxied && request.RequestUri is { } uri && uri.Port == pin.Port && Names(uri.Host, pin))
         {
             return await OpenAsync(endpoint, cancellationToken).ConfigureAwait(false);
         }
@@ -71,6 +82,21 @@ internal class SsrfConnector
             socket.Dispose();
             throw;
         }
+    }
+
+    /// <summary>
+    /// Whether a tunnel request names, in its <c>Host</c> header, an IP address that isn't internal.
+    /// </summary>
+    private static bool TunnelsToPublicAddress(HttpRequestMessage tunnel)
+    {
+        var authority = tunnel.Headers.Host;
+        if (authority is null || !Uri.TryCreate($"https://{authority}", UriKind.Absolute, out var target) ||
+            !IPAddress.TryParse(target.Host.Trim('[', ']'), out var address))
+        {
+            return false;
+        }
+
+        return !(address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address).IsInternal();
     }
 
     /// <summary>

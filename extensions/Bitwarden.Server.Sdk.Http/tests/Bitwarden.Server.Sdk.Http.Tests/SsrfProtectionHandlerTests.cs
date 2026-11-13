@@ -79,6 +79,7 @@ public class SsrfProtectionHandlerTests
 
     [Theory]
     [InlineData("http://0.0.0.0/test")]
+    [InlineData("http://127.0.0.2/test")]
     [InlineData("http://10.0.0.1/test")]
     [InlineData("http://169.254.169.254/latest/meta-data/")] // AWS metadata
     [InlineData("http://100.64.0.1/test")]                   // CGNAT
@@ -697,6 +698,7 @@ public class SsrfProtectionHandlerTests
     [InlineData("redirects")]
     [InlineData("cookies")]
     [InlineData("connect")]
+    [InlineData("proxy")]
     public async Task SendAsync_ASenderChangedAfterItWasSetUp_Throws(string change)
     {
         var network = new FakeNetwork(null);
@@ -711,6 +713,10 @@ public class SsrfProtectionHandlerTests
                 break;
             case "connect":
                 sender.ConnectCallback = (_, _) => throw new InvalidOperationException("Never connects.");
+                break;
+            case "proxy":
+                // The process's default proxy, left to be read later, rather than one fixed.
+                sender.UseProxy = true;
                 break;
         }
 
@@ -758,6 +764,22 @@ public class SsrfProtectionHandlerTests
         Assert.Contains("Host: example.test\n", server.Requests.Single(), StringComparison.Ordinal);
         Assert.Equal(new Uri("http://example.test/path"), request.RequestUri);
         Assert.Equal(new Uri("http://example.test/path"), response.RequestMessage!.RequestUri);
+    }
+
+    // Through a proxy, an https request's tunnel is opened to the checked address, so the proxy connects there.
+    [Fact]
+    public async Task SendAsync_ThroughAProxy_AnHttpsRequestTunnelsToTheCheckedAddress()
+    {
+        using var server = new ScriptedServer();
+        var network = new FakeNetwork(server, ("example.test", ["93.184.216.34"]));
+        var (invoker, _, _) = Guard(network, network.Sender(new WebProxy("http://proxy.test:3128")));
+
+        // The server can't speak TLS, so the request fails once the tunnel is open.
+        await Record.ExceptionAsync(() => invoker.SendAsync(
+            new HttpRequestMessage(HttpMethod.Get, "https://example.test/"), TestContext.Current.CancellationToken));
+
+        Assert.Equal([new DnsEndPoint("proxy.test", 3128)], network.Opened);
+        Assert.StartsWith("CONNECT 93.184.216.34:443 HTTP/1.1\n", server.Requests[0], StringComparison.Ordinal);
     }
 
     // A host the proxy bypasses is connected to directly, pinned to the checked address.

@@ -43,8 +43,8 @@ view of the configuration.
 - **The guard checks before connecting.** It resolves each request's host and throws `SsrfProtectionException` when
   the name can't be resolved or any address it resolves to is private, loopback, link-local or otherwise reserved, such
   as `Request to '169.254.169.254' was blocked because it resolves to an internal IP address.` Otherwise it connects to
-  the address it checked, so the name can't resolve elsewhere in between. The request keeps its host name, so TLS,
-  cookies and telemetry see the name.
+  the address it checked, so the name can't resolve elsewhere in between. The request keeps its host name, so TLS and
+  telemetry see the name.
 - **Channels between services.** TLS between services is a Secure Channel. With a token on each call that the callee
   checks, it is a Trusted Channel.
 
@@ -84,7 +84,8 @@ public class WebhookSender(IHttpClientFactory clients)
         }
         catch (SsrfProtectionException)
         {
-            // The address is internal or can't be resolved. Nothing was sent.
+            // The address, or a redirect's, is internal or can't be resolved. When it is a redirect's, the
+            // request that was redirected has already been sent.
             return false;
         }
     }
@@ -97,7 +98,7 @@ Redirects:
   itself and checks every hop.
 - It never carries the original request's headers, `Authorization` among them, to the next hop. It runs below every
   handler the client adds, whenever it was added, so a handler that attaches a credential runs once for each request
-  you send and never sees a redirect hop.
+  you send and never sees a redirect hop. Don't attach a credential in a handler a filter adds, which may run below it.
 - It returns, rather than follows, a redirect from `https://` to `http://`, which would leave TLS, and a redirect to a
   scheme other than `http` or `https`.
 
@@ -210,10 +211,11 @@ public static class InternalCalls
 - **A self-hosted install's client is unguarded** with `AddCloudSsrfProtection()`. Use `AddSsrfProtection()` for any
   destination a self-hosted install's users, rather than its operator, choose.
 - **The client sends with a `SocketsHttpHandler`.** The guard pins each connection through the handler's
-  `ConnectCallback`, and turns off its automatic redirects and its cookies. The factory's own primary handler is
-  replaced with one. A primary handler you configure must be a `SocketsHttpHandler` without a `ConnectCallback` of its
-  own: creating the client fails, naming it, for an `HttpClientHandler` with any setting changed, or any other handler.
-  Set the same settings on a `SocketsHttpHandler` instead.
+  `ConnectCallback`, turns off its automatic redirects and its cookies, and fixes its proxy when the client is created.
+  The factory's own primary handler is one. A primary handler you configure must be a `SocketsHttpHandler` without a
+  `ConnectCallback` of its own: creating the client fails, naming it, for an `HttpClientHandler`, a `DelegatingHandler`
+  wrapping a `SocketsHttpHandler`, or any other handler. Set the same settings on a `SocketsHttpHandler` instead, and add
+  other handlers with `AddHttpMessageHandler`.
 - **No HTTP/3.** QUIC connections don't go through `ConnectCallback`, so the guard refuses a request for HTTP/3 or one
   whose version policy allows a higher version.
 - **Don't show a refusal's message to a user.** It says whether a name resolves, and whether it resolves to an
@@ -225,8 +227,10 @@ public static class InternalCalls
   a copy, so it is held in memory twice, with no limit, and a `307` or `308` can send it again. Use
   `followRedirects: false` for a client that sends large or streamed bodies.
 - **A proxy sees the checked address, not the host.** A request that goes through a proxy is addressed to the IP
-  address the guard checked, with the host in the `Host` header, so the proxy has no name to resolve differently. The
-  proxy's request line, and the client's telemetry for that request, carry the address. A proxy bypass rule naming
+  address the guard checked, with the host in the `Host` header, so the proxy has no name to resolve differently; an
+  `https` request's tunnel is opened to that address. The proxy's request line, and the client's telemetry for that
+  request, carry the address. The proxy is the client's own, or the process's default one when the client is created:
+  a default proxy changed later doesn't apply to it. A proxy bypass rule naming
   the host still applies: such a request connects directly, pinned to the checked address. Once the response arrives,
   the request's and the response's `RequestUri` name the host again.
 - **A check when saving doesn't replace the guard.** A name can resolve differently later, so keep the guard on the

@@ -88,52 +88,25 @@ public sealed class HttpClientBuilderSsrfExtensionsTests
         Assert.False(primary.AllowAutoRedirect);
     }
 
-    // A primary handler that can't pin connections (a test's fake, standing in for the sites a client fetches) fails
-    // the client's creation rather than going unguarded.
+    // A client left with the factory's own primary handler sends through it, set up to connect only where the guard
+    // checked.
     [Fact]
-    public void APrimaryHandlerThatIsNotASocketsHandler_FailsTheClientsCreation()
+    public void AClientWithTheFactorysPrimaryHandler_IsSetUp()
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddHttpClient("test")
-            .AddSsrfProtection()
-            .ConfigurePrimaryHttpMessageHandler(() => new Answering());
-        var factory = services.BuildServiceProvider().GetRequiredService<IHttpClientFactory>();
-
-        Assert.Throws<InvalidOperationException>(() => factory.CreateClient("test"));
-    }
-
-    // A client left with the factory's own primary handler sends through a SocketsHttpHandler pinned to the checked
-    // addresses.
-    [Fact]
-    public async Task AClientWithTheFactorysPrimaryHandler_IsPinned()
-    {
-        using var server = new ScriptedServer();
-        var network = new FakeNetwork(server, ("example.test", ["93.184.216.34"]));
-        var services = Services(network);
         services.AddHttpClient("test").AddSsrfProtection();
-        var client = services.BuildServiceProvider().GetRequiredService<IHttpClientFactory>().CreateClient("test");
 
-        using var response = await client.GetAsync("http://example.test/", TestContext.Current.CancellationToken);
+        HttpMessageHandler? handler = services.BuildServiceProvider().GetRequiredService<IHttpMessageHandlerFactory>().CreateHandler("test");
+        while (handler is DelegatingHandler delegating)
+        {
+            handler = delegating.InnerHandler;
+        }
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal([new IPEndPoint(IPAddress.Parse("93.184.216.34"), 80)], network.Opened);
-    }
-
-    // A primary handler that hands requests on is followed to the one that sends them, which stops following.
-    [Fact]
-    public void APrimaryHandlerHandingRequestsOn_ItsSenderStopsFollowingRedirects()
-    {
-        var sender = new SocketsHttpHandler();
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddHttpClient("test")
-            .AddSsrfProtection()
-            .ConfigurePrimaryHttpMessageHandler(() => new HandingOn(sender));
-
-        using var client = services.BuildServiceProvider().GetRequiredService<IHttpClientFactory>().CreateClient("test");
-
+        var sender = Assert.IsType<SocketsHttpHandler>(handler);
         Assert.False(sender.AllowAutoRedirect);
+        Assert.False(sender.UseCookies);
+        Assert.IsType<SsrfConnector>(sender.ConnectCallback?.Target);
     }
 
     // An attacker's server redirecting to the metadata address is refused however the client was put together:
@@ -184,13 +157,15 @@ public sealed class HttpClientBuilderSsrfExtensionsTests
     }
 
     // Two names on one address (a shared CDN, say) keep their cookies apart: the client keeps none, so a cookie one
-    // site sets is never sent to the other.
-    [Fact]
-    public async Task ACookieOneHostSets_IsNeverSentToAnotherOnTheSameAddress()
+    // site sets is never sent to the other, even through a proxy, where both are addressed by the one address.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ACookieOneHostSets_IsNeverSentToAnotherOnTheSameAddress(bool proxied)
     {
         using var server = new ScriptedServer("HTTP/1.1 200 OK\r\nSet-Cookie: session=victim-secret");
         var network = new FakeNetwork(server, ("victim-idp.example", ["93.184.216.34"]), ("attacker.example", ["93.184.216.34"]));
-        var services = Services(network);
+        var services = Services(network, proxied ? new WebProxy("http://proxy.test:3128") : null);
         services.AddHttpClient("test").AddSsrfProtection();
         var client = services.BuildServiceProvider().GetRequiredService<IHttpClientFactory>().CreateClient("test");
 
@@ -244,14 +219,16 @@ public sealed class HttpClientBuilderSsrfExtensionsTests
     }
 
     /// <summary>
-    /// Services whose guards reach the network through <paramref name="network"/>, with no proxy.
+    /// Services whose guards reach the network through <paramref name="network"/>, through <paramref name="proxy"/> or
+    /// else directly.
     /// </summary>
-    private static ServiceCollection Services(FakeNetwork network)
+    private static ServiceCollection Services(FakeNetwork network, IWebProxy? proxy = null)
     {
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<SsrfConnector>(network);
-        services.ConfigureHttpClientDefaults(defaults => defaults.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { UseProxy = false }));
+        services.ConfigureHttpClientDefaults(defaults => defaults.ConfigurePrimaryHttpMessageHandler(
+            () => new SocketsHttpHandler { UseProxy = proxy is not null, Proxy = proxy }));
         return services;
     }
 
@@ -266,17 +243,6 @@ public sealed class HttpClientBuilderSsrfExtensionsTests
             return base.SendAsync(request, cancellationToken);
         }
     }
-
-    /// <summary>
-    /// Answers every request itself, as a test's fake site does.
-    /// </summary>
-    private sealed class Answering : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { RequestMessage = request });
-    }
-
-    private sealed class HandingOn(HttpMessageHandler inner) : DelegatingHandler(inner);
 
     private sealed class Install(bool selfHosted) : IBitwardenEnvironment
     {

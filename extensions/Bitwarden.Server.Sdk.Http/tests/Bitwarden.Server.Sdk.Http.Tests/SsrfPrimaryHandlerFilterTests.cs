@@ -5,8 +5,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Bitwarden.Server.Sdk.Http.Tests;
 
 /// <summary>
-/// The filter puts a guarded client's guard directly above its sending handler, and sets that handler up to connect
-/// only where the guard checked, after every other configuration has run; it leaves other clients, and a client the
+/// The filter puts a guarded client's guard below every handler the client adds, and sets its sending handler up to
+/// connect only where the guard checked, after every other configuration has run; it leaves other clients, and a client the
 /// guard doesn't apply to, as they were.
 /// </summary>
 public sealed class SsrfPrimaryHandlerFilterTests
@@ -22,7 +22,20 @@ public sealed class SsrfPrimaryHandlerFilterTests
         Assert.False(primary.AllowAutoRedirect);
         Assert.False(primary.UseCookies);
         Assert.IsType<SsrfConnector>(primary.ConnectCallback?.Target);
+        Assert.Same(HttpClient.DefaultProxy, primary.Proxy);
         Assert.Same(primary, GuardOf(builder).Sender);
+    }
+
+    // A proxy the handler names is the one it keeps.
+    [Fact]
+    public void AProxyTheHandlerNames_IsKept()
+    {
+        var proxy = new System.Net.WebProxy("http://proxy.test:3128");
+        var primary = new SocketsHttpHandler { Proxy = proxy };
+
+        Run(new SsrfPrimaryHandlerFilter("guarded", _ => true), Builder("guarded", primary));
+
+        Assert.Same(proxy, primary.Proxy);
     }
 
     // The guard goes below every handler the client added, whenever it was added, so they run once for each request
@@ -53,17 +66,13 @@ public sealed class SsrfPrimaryHandlerFilterTests
         Assert.Same(primary, GuardOf(builder).Sender);
     }
 
-    // A primary handler handing requests on is followed, through every layer, to the one that sends them.
+    // A handler wrapping the one that sends would sit below the guard and see every redirect hop.
     [Fact]
-    public void HandlersHandingRequestsOn_AreFollowedToTheSender()
+    public void AWrappedSocketsHandler_Throws()
     {
-        var sender = new SocketsHttpHandler();
-        var builder = Builder("any", new HandingOn(new HandingOn(sender)));
+        var builder = Builder("guarded", new HandingOn(new SocketsHttpHandler()));
 
-        Run(new SsrfPrimaryHandlerFilter(null, _ => true), builder);
-
-        Assert.False(sender.AllowAutoRedirect);
-        Assert.Same(sender, GuardOf(builder).Sender);
+        Assert.Throws<InvalidOperationException>(() => Run(new SsrfPrimaryHandlerFilter("guarded", _ => true), builder));
     }
 
     // With no name every client is guarded; with one, only that client.
@@ -126,36 +135,12 @@ public sealed class SsrfPrimaryHandlerFilterTests
         Assert.Single(builder.AdditionalHandlers);
     }
 
-    // The factory's own primary handler, an HttpClientHandler with nothing set, has no ConnectCallback to pin
-    // connections with: a SocketsHttpHandler takes its place. Redirects and cookies don't count, as the guard turns
-    // them off anyway.
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void AnHttpClientHandlerWithNothingSet_IsReplaced(bool redirectsAndCookiesOff)
-    {
-        var primary = new HttpClientHandler();
-        if (redirectsAndCookiesOff)
-        {
-            primary.AllowAutoRedirect = false;
-            primary.UseCookies = false;
-        }
-
-        var builder = Builder("guarded", primary);
-
-        Run(new SsrfPrimaryHandlerFilter("guarded", _ => true), builder);
-
-        var sender = Assert.IsType<SocketsHttpHandler>(builder.PrimaryHandler);
-        Assert.IsType<SsrfConnector>(sender.ConnectCallback?.Target);
-        Assert.Same(sender, GuardOf(builder).Sender);
-    }
-
-    // An HttpClientHandler with something set fails the client's creation, naming the client, rather than losing the
-    // setting or going unguarded.
+    // An HttpClientHandler has no ConnectCallback to pin connections with: the client fails to be created, naming
+    // itself, rather than going unguarded.
     [Fact]
-    public void AnHttpClientHandlerWithSomethingSet_Throws()
+    public void AnHttpClientHandler_Throws()
     {
-        using var primary = new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.GZip };
+        using var primary = new HttpClientHandler();
 
         var exception = Assert.Throws<InvalidOperationException>(
             () => Run(new SsrfPrimaryHandlerFilter("guarded", _ => true), Builder("guarded", primary)));

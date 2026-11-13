@@ -21,7 +21,7 @@ namespace Bitwarden.Server.Sdk.Http;
 /// <para>
 /// It also handles HTTP redirects manually so that each redirect hop is validated
 /// against SSRF rules. A redirect from https to http is returned, not followed.
-/// <see cref="SsrfPrimaryHandlerFilter"/> puts it directly above the primary handler and sets <see cref="Sender"/>;
+/// <see cref="SsrfPrimaryHandlerFilter"/> puts it below every handler the client adds and sets <see cref="Sender"/>;
 /// it refuses to send until that is done, and again if the primary handler was replaced or changed since.
 /// </para>
 /// </remarks>
@@ -201,6 +201,7 @@ internal class SsrfProtectionHandler : DelegatingHandler
 
         if (!ReferenceEquals(handler, Sender) ||
             Sender is SocketsHttpHandler { AllowAutoRedirect: true } or SocketsHttpHandler { UseCookies: true } ||
+            Sender is SocketsHttpHandler { UseProxy: true, Proxy: null } ||
             Sender is SocketsHttpHandler socketsHttpHandler && socketsHttpHandler.ConnectCallback?.Target is not SsrfConnector)
         {
             throw new InvalidOperationException(
@@ -309,11 +310,10 @@ internal class SsrfProtectionHandler : DelegatingHandler
 
     /// <summary>
     /// Whether <see cref="Sender"/> sends a request for <paramref name="uri"/> through a proxy, as
-    /// <see cref="SocketsHttpHandler"/> decides it: its own proxy, or else the process's default one.
+    /// <see cref="SocketsHttpHandler"/> decides it: by the proxy <see cref="SsrfPrimaryHandlerFilter"/> fixed on it.
     /// </summary>
     private bool ThroughProxy(Uri uri) =>
-        Sender is SocketsHttpHandler { UseProxy: true } socketsHttpHandler &&
-        (socketsHttpHandler.Proxy ?? HttpClient.DefaultProxy) is { } proxy &&
+        Sender is SocketsHttpHandler { UseProxy: true, Proxy: { } proxy } &&
         !proxy.IsBypassed(uri) &&
         proxy.GetProxy(uri) is not null;
 

@@ -22,12 +22,13 @@ host, not here.
   connection to any other host, unless the request goes through a proxy. Tests replace it to fake DNS and sockets.
 - `SsrfPrimaryHandlerFilter`, an `IHttpMessageHandlerBuilderFilter`. A configuration action reaches only the primary
   handler set when it runs, so a filter, which runs after every configuration action, does the setting up. It moves the
-  guard to the end of the additional handlers, directly above the primary handler, so the client's own handlers never
-  see a redirect hop. It replaces the factory's own `HttpClientHandler`, one with nothing set, with a
-  `SocketsHttpHandler`, follows a `DelegatingHandler` chain to the handler that sends, and requires a
-  `SocketsHttpHandler` there. It turns that handler's redirects and cookies off, sets `SsrfConnector.ConnectAsync` as
-  its `ConnectCallback` and gives it to the guard as its `Sender`. Anything else fails the client's creation. A client
-  whose handlers were cleared after the guard was added has no guard, and is left alone.
+  guard to the end of the additional handlers, so the client's own handlers never see a redirect hop; only a handler a
+  filter registered earlier adds afterwards (the factory's logging handler) sits below it. It requires the primary
+  handler to be a `SocketsHttpHandler`, not a `DelegatingHandler` wrapping one, which would see every hop. It turns that
+  handler's redirects and cookies off, fixes its proxy (the process's default one, if it names none), sets
+  `SsrfConnector.ConnectAsync` as its `ConnectCallback` and gives it to the guard as its `Sender`. Anything else fails
+  the client's creation. A client whose handlers were cleared after the guard was added has no guard, and is left
+  alone.
 
 The guard refuses to send unless its `Sender` is below it and still set up that way, so a filter that runs later and
 swaps or changes the primary handler can't leave it unpinned. It refuses a request that may use HTTP/3, whose QUIC
@@ -35,8 +36,8 @@ connections bypass `ConnectCallback`.
 
 For each hop, `SsrfProtectionHandler.CheckAsync` resolves the host (its `IdnHost` form for a name), refuses when any
 address is internal or none resolves, and picks the first IPv4 address (else the first address). `SendCheckedAsync`
-sets the pin and sends. A request that goes through a proxy (the sender's own, else `HttpClient.DefaultProxy`, unless
-it bypasses the host) is addressed to the checked address instead, with the host in the `Host` header, so the proxy
+sets the pin and sends. A request that goes through the sender's proxy (unless it bypasses the host) is addressed to
+the checked address instead, with the host in the `Host` header, so the proxy
 can't resolve the name differently; the host is put back on the request and the response's request once the response
 arrives. After sending, a response whose request was readdressed below the guard is refused; the request has gone out
 by then. When it follows redirects it checks the first hop before buffering the body, keeps the body's bytes and
@@ -60,12 +61,12 @@ A change must keep:
   was, so a name can't resolve elsewhere in between, directly or through a proxy.
 - **Every hop checked.** Automatic redirects stay off below the guard, whoever configures the primary handler, and no
   redirect leaves TLS.
-- **Nothing between the guard and the sender but what the factory adds.** The client's own handlers run above it.
+- **Nothing the client adds between the guard and the sender.** The client's own handlers run above it.
 - **No secret in a message.** A refusal names the setting, never a key, a certificate or a path's contents.
 
 ## Testing
 
-Every source file has a matching test class in `tests/Bitwarden.Server.Sdk.Http.Tests`.
+Every source file with logic has a matching test class in `tests/Bitwarden.Server.Sdk.Http.Tests`.
 
 ```bash
 dotnet test --project extensions/Bitwarden.Server.Sdk.Http/tests/Bitwarden.Server.Sdk.Http.Tests
