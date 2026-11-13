@@ -106,7 +106,7 @@ public sealed class HttpClientBuilderSsrfExtensionsTests
         var sender = Assert.IsType<SocketsHttpHandler>(handler);
         Assert.False(sender.AllowAutoRedirect);
         Assert.False(sender.UseCookies);
-        Assert.IsType<SsrfConnector>(sender.ConnectCallback?.Target);
+        Assert.IsType<SsrfConnection>(sender.ConnectCallback?.Target);
     }
 
     // An attacker's server redirecting to the metadata address is refused however the client was put together:

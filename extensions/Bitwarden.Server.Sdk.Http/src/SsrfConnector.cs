@@ -9,7 +9,8 @@ namespace Bitwarden.Server.Sdk.Http;
 /// elsewhere between the check and the connection.
 /// </summary>
 /// <remarks>
-/// <see cref="SsrfPrimaryHandlerFilter"/> sets <see cref="ConnectAsync"/> as the primary handler's
+/// <see cref="SsrfPrimaryHandlerFilter"/> sets an <see cref="SsrfConnection"/>, which connects through
+/// <see cref="ConnectAsync"/> with the handler's proxy, as the primary handler's
 /// <see cref="SocketsHttpHandler.ConnectCallback"/>. A connection the handler pools serves later requests to the same
 /// host; each of those is checked again before it is sent.
 /// </remarks>
@@ -29,10 +30,11 @@ internal class SsrfConnector
 
     /// <summary>
     /// Connects for <paramref name="context"/>'s request: to the address checked for it when the connection is to the
-    /// host the request names, or to the proxy when the request goes through one and still names the checked address.
-    /// Any other connection is refused.
+    /// host the request names, or to <paramref name="proxy"/> when the request goes through it and still names the
+    /// checked address. Any other connection is refused.
     /// </summary>
-    public async ValueTask<Stream> ConnectAsync(SocketsHttpConnectionContext context, CancellationToken cancellationToken)
+    public async ValueTask<Stream> ConnectAsync(
+        SocketsHttpConnectionContext context, IWebProxy? proxy, CancellationToken cancellationToken)
     {
         var request = context.InitialRequestMessage;
         var endpoint = context.DnsEndPoint;
@@ -40,8 +42,9 @@ internal class SsrfConnector
         {
             // An https request through a proxy reaches it through a tunnel, which SocketsHttpHandler asks for with a
             // CONNECT request of its own, unpinned, naming the request's host. The guard addressed that request to the
-            // address it checked, so the tunnel is opened only to an address that isn't internal.
-            if (request.Method == HttpMethod.Connect && TunnelsToPublicAddress(request))
+            // address it checked, so the tunnel is opened only to the handler's proxy, for an address that isn't
+            // internal.
+            if (request.Method == HttpMethod.Connect && Tunnels(request, endpoint, proxy))
             {
                 return await OpenAsync(endpoint, cancellationToken).ConfigureAwait(false);
             }
@@ -85,18 +88,23 @@ internal class SsrfConnector
     }
 
     /// <summary>
-    /// Whether a tunnel request names, in its <c>Host</c> header, an IP address that isn't internal.
+    /// Whether a tunnel request names, in its <c>Host</c> header, an IP address that isn't internal, and goes to the
+    /// proxy <paramref name="proxy"/> names for it.
     /// </summary>
-    private static bool TunnelsToPublicAddress(HttpRequestMessage tunnel)
+    private static bool Tunnels(HttpRequestMessage tunnel, DnsEndPoint endpoint, IWebProxy? proxy)
     {
         var authority = tunnel.Headers.Host;
-        if (authority is null || !Uri.TryCreate($"https://{authority}", UriKind.Absolute, out var target) ||
-            !IPAddress.TryParse(target.Host.Trim('[', ']'), out var address))
+        if (proxy is null || authority is null || !Uri.TryCreate($"https://{authority}", UriKind.Absolute, out var target) ||
+            !IPAddress.TryParse(target.Host.Trim('[', ']'), out var address) ||
+            address.IsInternal())
         {
             return false;
         }
 
-        return !(address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address).IsInternal();
+        return !proxy.IsBypassed(target) &&
+            proxy.GetProxy(target) is { } through &&
+            string.Equals(through.IdnHost, endpoint.Host, StringComparison.OrdinalIgnoreCase) &&
+            through.Port == endpoint.Port;
     }
 
     /// <summary>

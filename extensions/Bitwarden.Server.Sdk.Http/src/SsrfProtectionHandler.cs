@@ -202,7 +202,7 @@ internal class SsrfProtectionHandler : DelegatingHandler
         if (!ReferenceEquals(handler, Sender) ||
             Sender is SocketsHttpHandler { AllowAutoRedirect: true } or SocketsHttpHandler { UseCookies: true } ||
             Sender is SocketsHttpHandler { UseProxy: true, Proxy: null } ||
-            Sender is SocketsHttpHandler socketsHttpHandler && socketsHttpHandler.ConnectCallback?.Target is not SsrfConnector)
+            Sender is SocketsHttpHandler socketsHttpHandler && socketsHttpHandler.ConnectCallback?.Target is not SsrfConnection)
         {
             throw new InvalidOperationException(
                 "SSRF protection's primary handler was replaced or changed after it was set up.");

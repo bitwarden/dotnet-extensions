@@ -19,14 +19,17 @@ host, not here.
   second guard below the first would follow a redirect itself, and the first would refuse its answer.
 - `SsrfConnector`, a singleton: the network as the guard sees it. It resolves names, and opens each connection to the
   address the guard checked for the request that asked for it (an `SsrfPin` in the request's options). It refuses a
-  connection to any other host, unless the request goes through a proxy. Tests replace it to fake DNS and sockets.
+  connection to any other host, unless the request goes through the handler's proxy and still names the checked
+  address, or is the handler's own CONNECT for a tunnel to that proxy naming an address that isn't internal. Tests
+  replace it to fake DNS and sockets.
 - `SsrfPrimaryHandlerFilter`, an `IHttpMessageHandlerBuilderFilter`. A configuration action reaches only the primary
   handler set when it runs, so a filter, which runs after every configuration action, does the setting up. It moves the
   guard to the end of the additional handlers, so the client's own handlers never see a redirect hop; only a handler a
   filter registered earlier adds afterwards (the factory's logging handler) sits below it. It requires the primary
   handler to be a `SocketsHttpHandler`, not a `DelegatingHandler` wrapping one, which would see every hop. It turns that
   handler's redirects and cookies off, fixes its proxy (the process's default one, if it names none), sets
-  `SsrfConnector.ConnectAsync` as its `ConnectCallback` and gives it to the guard as its `Sender`. Anything else fails
+  an `SsrfConnection` (the connector with that proxy) as its `ConnectCallback` and gives it to the guard as its
+  `Sender`. Anything else fails
   the client's creation. A client whose handlers were cleared after the guard was added has no guard, and is left
   alone.
 

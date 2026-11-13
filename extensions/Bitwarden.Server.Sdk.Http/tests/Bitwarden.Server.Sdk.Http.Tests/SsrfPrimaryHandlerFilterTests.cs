@@ -21,7 +21,7 @@ public sealed class SsrfPrimaryHandlerFilterTests
 
         Assert.False(primary.AllowAutoRedirect);
         Assert.False(primary.UseCookies);
-        Assert.IsType<SsrfConnector>(primary.ConnectCallback?.Target);
+        Assert.IsType<SsrfConnection>(primary.ConnectCallback?.Target);
         Assert.Same(HttpClient.DefaultProxy, primary.Proxy);
         Assert.Same(primary, GuardOf(builder).Sender);
     }

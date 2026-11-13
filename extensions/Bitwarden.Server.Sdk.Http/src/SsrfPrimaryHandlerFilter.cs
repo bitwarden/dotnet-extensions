@@ -22,7 +22,7 @@ namespace Bitwarden.Server.Sdk.Http;
 /// <para>
 /// The primary handler must be a <see cref="SocketsHttpHandler"/> with no
 /// <see cref="SocketsHttpHandler.ConnectCallback"/> of its own. Its automatic redirects and cookies are turned off, its
-/// proxy is fixed, and <see cref="SsrfConnector.ConnectAsync"/> opens its connections. Any other handler, a
+/// proxy is fixed, and an <see cref="SsrfConnection"/> opens its connections. Any other handler, a
 /// <see cref="DelegatingHandler"/> wrapping one among them, fails the client's creation: it would see every redirect hop.
 /// </para>
 /// </remarks>
@@ -61,9 +61,7 @@ internal sealed class SsrfPrimaryHandlerFilter(string? name, Func<IServiceProvid
                 $"SSRF protection on the '{builder.Name}' client needs a SocketsHttpHandler as its primary handler, and found {builder.PrimaryHandler.GetType().Name}. Configure a SocketsHttpHandler with the same settings instead, and add any other handler with AddHttpMessageHandler.");
         }
 
-        var connector = builder.Services.GetRequiredService<SsrfConnector>();
-        Func<SocketsHttpConnectionContext, CancellationToken, ValueTask<Stream>> connect = connector.ConnectAsync;
-        if (sender.ConnectCallback is not null && sender.ConnectCallback != connect)
+        if (sender.ConnectCallback is not null && sender.ConnectCallback.Target is not SsrfConnection)
         {
             throw new InvalidOperationException(
                 $"SSRF protection on the '{builder.Name}' client connects to the addresses it checked itself, and its SocketsHttpHandler already has a ConnectCallback.");
@@ -71,7 +69,6 @@ internal sealed class SsrfPrimaryHandlerFilter(string? name, Func<IServiceProvid
 
         sender.AllowAutoRedirect = false;
         sender.UseCookies = false;
-        sender.ConnectCallback = connect;
 
         // The handler takes the process's default proxy when it first sends, and the guard decides each request by the
         // proxy: both use the one named here, so a default proxy changed later can't set them apart.
@@ -80,6 +77,8 @@ internal sealed class SsrfPrimaryHandlerFilter(string? name, Func<IServiceProvid
             sender.Proxy ??= HttpClient.DefaultProxy;
         }
 
+        sender.ConnectCallback = new SsrfConnection(
+            builder.Services.GetRequiredService<SsrfConnector>(), sender.UseProxy ? sender.Proxy : null).ConnectAsync;
         guard.Sender = sender;
     };
 }

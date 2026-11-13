@@ -80,6 +80,66 @@ public sealed class SsrfConnectorTests
             network, Send(network.Sender(Proxy()), "http://203.0.113.9/", new SsrfPin("example.test", 80, _checked, true)));
     }
 
+    // A proxied request for another port than the checked one is refused.
+    [Fact]
+    public async Task AProxiedRequestForAnotherPort_IsRefused()
+    {
+        using var server = new ScriptedServer();
+        var network = new FakeNetwork(server);
+
+        await AssertRefused(
+            network, Send(network.Sender(Proxy()), "http://93.184.216.34:8080/", new SsrfPin("example.test", 80, _checked, true)));
+    }
+
+    // A request without a pin is refused whatever it names in its Host header: only the handler's own CONNECT for a
+    // tunnel is let through unpinned.
+    [Fact]
+    public async Task ARequestWithoutAPinNamingAPublicAddress_IsRefused()
+    {
+        using var server = new ScriptedServer();
+        var network = new FakeNetwork(server);
+        var request = new HttpRequestMessage(HttpMethod.Get, "http://example.test/");
+        request.Headers.Host = "93.184.216.34";
+
+        await AssertRefused(network, Send(network.Sender(Proxy()), request));
+    }
+
+    // A CONNECT is a tunnel only to the handler's proxy: a caller's own, sent straight to a host nobody checked, is
+    // refused whatever address it names.
+    [Fact]
+    public async Task ACallersOwnConnectToAnotherHost_IsRefused()
+    {
+        using var server = new ScriptedServer();
+        var network = new FakeNetwork(server);
+        var request = new HttpRequestMessage(HttpMethod.Connect, "http://internal.test/");
+        request.Headers.Host = "93.184.216.34:80";
+
+        await AssertRefused(network, Send(network.Sender(), request));
+    }
+
+    // A CONNECT the proxy bypasses goes straight to its host, which isn't the handler's proxy: refused.
+    [Fact]
+    public async Task AConnectThatBypassesTheProxy_IsRefused()
+    {
+        using var server = new ScriptedServer();
+        var network = new FakeNetwork(server);
+        var proxy = new WebProxy("http://proxy.test:3128", BypassOnLocal: false, BypassList: [@"internal\.test"]);
+        var request = new HttpRequestMessage(HttpMethod.Connect, "http://internal.test/");
+        request.Headers.Host = "93.184.216.34:80";
+
+        await AssertRefused(network, Send(network.Sender(proxy), request));
+    }
+
+    // A tunnel for a name, rather than the checked address, would leave the proxy the name to resolve.
+    [Fact]
+    public async Task ATunnelForAName_IsRefused()
+    {
+        using var server = new ScriptedServer();
+        var network = new FakeNetwork(server);
+
+        await AssertRefused(network, Send(network.Sender(Proxy()), "https://example.test/", pin: null));
+    }
+
     // A request the guard didn't expect to go through a proxy would leave the proxy the name to resolve.
     [Fact]
     public async Task AnUnproxiedRequestGoingToAProxy_IsRefused()
@@ -91,15 +151,17 @@ public sealed class SsrfConnectorTests
             network, Send(network.Sender(Proxy()), "http://example.test/", new SsrfPin("example.test", 80, _checked, false)));
     }
 
-    [Fact]
-    public async Task ATunnelToAnInternalAddress_IsRefused()
+    // A tunnel to an internal address is refused, however it is written.
+    [Theory]
+    [InlineData("https://10.0.0.1/", "10.0.0.1")]
+    [InlineData("https://[::ffff:10.0.0.1]/", "10.0.0.1")]
+    public async Task ATunnelToAnInternalAddress_IsRefused(string url, string address)
     {
         using var server = new ScriptedServer();
         var network = new FakeNetwork(server);
-        var @internal = IPAddress.Parse("10.0.0.1");
 
         await AssertRefused(
-            network, Send(network.Sender(Proxy()), "https://10.0.0.1/", new SsrfPin("example.test", 443, @internal, true)));
+            network, Send(network.Sender(Proxy()), url, new SsrfPin("example.test", 443, IPAddress.Parse(address), true)));
     }
 
     // Without a fake, a connection is a TCP connection to the endpoint, and a name is resolved by the system.
@@ -113,7 +175,7 @@ public sealed class SsrfConnectorTests
             AllowAutoRedirect = false,
             UseCookies = false,
             UseProxy = false,
-            ConnectCallback = connector.ConnectAsync,
+            ConnectCallback = new SsrfConnection(connector, null).ConnectAsync,
         };
 
         using var response = await Send(
@@ -125,15 +187,20 @@ public sealed class SsrfConnectorTests
 
     private static WebProxy Proxy() => new("http://proxy.test:3128");
 
-    private static async Task<HttpResponseMessage> Send(SocketsHttpHandler sender, string url, SsrfPin? pin)
+    private static Task<HttpResponseMessage> Send(SocketsHttpHandler sender, string url, SsrfPin? pin)
     {
-        using var invoker = new HttpMessageInvoker(sender, disposeHandler: false);
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         if (pin is not null)
         {
             request.Options.Set(SsrfConnector.PinKey, pin);
         }
 
+        return Send(sender, request);
+    }
+
+    private static async Task<HttpResponseMessage> Send(SocketsHttpHandler sender, HttpRequestMessage request)
+    {
+        using var invoker = new HttpMessageInvoker(sender, disposeHandler: false);
         return await invoker.SendAsync(request, TestContext.Current.CancellationToken);
     }
 

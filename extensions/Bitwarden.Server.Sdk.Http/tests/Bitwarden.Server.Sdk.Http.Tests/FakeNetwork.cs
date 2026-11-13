@@ -45,6 +45,6 @@ internal sealed class FakeNetwork(ScriptedServer? server, params (string Name, s
         UseCookies = false,
         UseProxy = proxy is not null,
         Proxy = proxy,
-        ConnectCallback = ConnectAsync,
+        ConnectCallback = new SsrfConnection(this, proxy).ConnectAsync,
     };
 }
