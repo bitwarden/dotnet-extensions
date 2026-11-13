@@ -9,7 +9,7 @@ namespace Bitwarden.Server.Sdk.Resources;
 /// <typeparam name="T">The resource.</typeparam>
 /// <remarks>
 /// <para>
-/// Its own type rather than a <c>ResourceListDocument{T}</c>, for two things the
+/// Its own type rather than a <see cref="ResourceListDocument{T}"/>, for two things the
 /// standards ask of a bulk create's answer: <c>meta.affectedCount</c>, always, and the
 /// <c>lid</c> each item carried, echoed beside the created resource's <c>id</c> and
 /// <c>type</c>. Neither belongs on an ordinary list, and publishing them there would tell every
