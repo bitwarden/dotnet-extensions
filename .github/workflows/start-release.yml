@@ -12,13 +12,17 @@ on:
           - Bitwarden.Extensions.Configuration
           - Bitwarden.Server.Sdk
           - Bitwarden.Server.Sdk.Authentication
+          - Bitwarden.Server.Sdk.Authorization
           - Bitwarden.Server.Sdk.Caching
           - Bitwarden.Server.Sdk.Common
+          - Bitwarden.Server.Sdk.Context
           - Bitwarden.Server.Sdk.Database
           - Bitwarden.Server.Sdk.Environment
           - Bitwarden.Server.Sdk.Errors
           - Bitwarden.Server.Sdk.Features
           - Bitwarden.Server.Sdk.HealthChecks
+          - Bitwarden.Server.Sdk.Idempotency
+          - Bitwarden.Server.Sdk.Idempotency.Abstractions
           - Bitwarden.Server.Sdk.Infrastructure
           - Bitwarden.Server.Sdk.Infrastructure.Testing
           - Bitwarden.Server.Sdk.MessageBroker

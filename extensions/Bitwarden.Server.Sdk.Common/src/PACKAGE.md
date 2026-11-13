@@ -2,9 +2,9 @@
 
 ## About
 
-The small set of types that a Bitwarden service and the code that calls it both need to agree on:
-which headers carry caller context. The error document, its codes and the standard exceptions are
-in Bitwarden.Server.Sdk.Errors.
+The small set of types that a Bitwarden service and the code that calls it both need to agree on. The
+error document, its codes and the standard exceptions are in Bitwarden.Server.Sdk.Errors, and the
+context headers, values and tokens in Bitwarden.Server.Sdk.Context.
 
 The package has almost no dependencies, so a program that only calls a service does not have to
 depend on the framework that hosts it.
@@ -16,36 +16,6 @@ dotnet add package Bitwarden.Server.Sdk.Common
 ```
 
 ## Usage
-
-### Find out who is calling
-
-`IContext` tells you which organization a request is about and which user it is on behalf of. In a
-service, inject it:
-
-```csharp
-public class WidgetHandler(IContext context)
-{
-    public Task<IReadOnlyList<Widget>> ListAsync() =>
-        _store.ListForOrganizationAsync(context.OrganizationId!.Value);
-}
-```
-
-The organization and user tell you what a request concerns. They are never permission to do it: your
-service still checks its own access rules.
-
-### Do work that didn't come from a request
-
-A background job or a message from a queue has no incoming request to carry the caller's context.
-State it yourself for the duration of the work:
-
-```csharp
-using (ContextScope.Begin(new StatedContext { OrganizationId = message.OrganizationId }))
-{
-    await _billingClient.RecalculateAsync(message.OrganizationId);
-}
-```
-
-Don't do this while handling a request. There, the context comes from the request itself.
 
 ### Remember a lookup for the rest of a request
 
@@ -129,16 +99,10 @@ starts. Every service and client sharing the cache must use the same secret.
 
 ## Types
 
-| Type                                                            | Purpose                                                                                        |
-| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `BitwardenHeaders`                                              | The headers that carry caller context between services                                         |
-| `CallerContextHeader`, `CallerContextValue`, `CallerCredential` | Writes and strictly reads the `Bitwarden-Context` header                                       |
-| `CallerContextToken`, `CallerContextAssertion`, `ICallerProof`  | The signed form of a call's context, what one call asserts, and the token it is exchanged from |
-| `IContext`, `ContextScope`, `StatedContext`                     | Who and what the current operation concerns                                                    |
-| `RequestMemo`                                                   | Facts read once in a request and remembered until it ends                                      |
-| `IRequestNamedOwner`, `IOrganizationCreation`                   | Owners an operation names itself, for its outgoing calls                                       |
-| `IServiceIdentity`, `TokenAudience`                             | Which service this is, and which token audience it accepts                                     |
-| `EncryptedAttribute`, `PersonalDataAttribute`                   | Mark a field as Protected Data or as personal data                                             |
-| `OwnedCacheEntry`                                               | How a service-owned cache entry is stored in Redis                                             |
-| `OwnedAnswerKey`                                                | How a service-owned answer is keyed in the same cache                                          |
-| `InternalTls`                                                   | Which certificate authorities a service trusts for calls between services                      |
+| Type                                          | Purpose                                                                   |
+| --------------------------------------------- | ------------------------------------------------------------------------- |
+| `RequestMemo`                                 | Facts read once in a request and remembered until it ends                 |
+| `EncryptedAttribute`, `PersonalDataAttribute` | Mark a field as Protected Data or as personal data                        |
+| `OwnedCacheEntry`                             | How a service-owned cache entry is stored in Redis                        |
+| `OwnedAnswerKey`                              | How a service-owned answer is keyed in the same cache                     |
+| `InternalTls`                                 | Which certificate authorities a service trusts for calls between services |
