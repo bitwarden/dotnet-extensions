@@ -1,13 +1,33 @@
 # Broker topology
 
-**Audience:** Operators and platform engineers provisioning Azure Service Bus or RabbitMQ
+**Audience:** Operators and platform engineers provisioning Azure Service Bus, RabbitMQ or LavinMQ
 infrastructure for services that use `Bitwarden.Server.Sdk.MessageBroker`. Application developers
 can skip this document — the in-memory channel backend used during development needs no setup.
 
+## Supported brokers
+
+MessageBroker supports three brokers, chosen through configuration: Azure Service Bus, RabbitMQ and
+LavinMQ. Services don't depend on which one is in use.
+
+| Deployment | Default broker    | Can instead use                        |
+| ---------- | ----------------- | -------------------------------------- |
+| Cloud      | Azure Service Bus | —                                      |
+| Self-host  | RabbitMQ 4.3.6    | Azure Service Bus, LavinMQ 2.10.4      |
+| Lite       | LavinMQ 2.10.4    | Azure Service Bus, RabbitMQ 4.3.6      |
+
+Topics, queues and subscriptions must exist before the services start. With a broker other than the
+default, the operator sets them up from the release's broker topology before each upgrade.
+
+RabbitMQ and LavinMQ share one backend in the library (the `Rabbit*` types, configured with
+`RabbitUri`): it relies on what both brokers provide, quorum queues, policies, `delivery-limit`,
+`dead-letter-strategy`, `x-delivery-count` and importing `definitions.json`, and the differences
+between them are listed under [RabbitMQ and LavinMQ](#rabbitmq-and-lavinmq).
+
+## Provisioning
+
 The library does not provision broker topology. The exchanges, queues, topics, subscriptions, and
 related filters and policies must be declared on the broker before the application starts —
-typically as part of the broker container's bootstrap or via infrastructure-as-code (Terraform,
-Pulumi, broker-specific CLIs).
+typically as part of the broker container's bootstrap or via infrastructure-as-code.
 
 A broker topic carries messages from many payload families. Publishers stamp every outgoing message with
 their family wire name (`IPayloadWireName<TPayload>.WireName`) so subscriptions can bind or filter
@@ -98,9 +118,9 @@ Sender** on each topic it publishes to and each command queue it sends to, and *
 Data Receiver** on each of its own subscriptions and on its own command queue. No other service
 needs receive rights on them.
 
-## RabbitMQ
+## RabbitMQ and LavinMQ
 
-For each unique `topic` passed to `AddPublisher<TPayload, TCeiling>(topic)`:
+RabbitMQ and LavinMQ take the same topology, declared the same way. For each unique `topic` passed to `AddPublisher<TPayload, TCeiling>(topic)`:
 
 - A durable **topic** exchange named `{topic}`.
 
@@ -110,9 +130,7 @@ For each `AddSubscriber<TPayload, TCeiling>(topic, subscription)`:
   routing key `{WireName}` (the `IPayloadWireName<TPayload>.WireName` of the family the
   subscriber consumes).
 - A server-side policy applying `delivery-limit` to the queue, capping the number of
-  redelivery attempts before a message is dead-lettered. LavinMQ also needs it for
-  `Envelope.DeliveryCount`: it sends `x-delivery-count` only on a queue that has a delivery limit,
-  so without one every redelivery reads as the second.
+  redelivery attempts before a message is dead-lettered.
 - A server-side policy applying `dead-letter-exchange`, `dead-letter-strategy: at-least-once`,
   and `overflow: reject-publish` to the queue, plus the target dead-letter exchange and a
   quorum queue bound to it.
@@ -130,11 +148,12 @@ RabbitMQ counts toward the limit and in the `x-delivery-count` header that becom
 `Envelope.DeliveryCount`.
 
 Policies must be used rather than queue arguments because quorum queue arguments cannot be
-changed on an existing queue. See the RabbitMQ documentation on
-[quorum queue poison-message handling](https://www.rabbitmq.com/docs/quorum-queues#poison-message-handling)
-and [policies](https://www.rabbitmq.com/docs/policies) for the full command reference, and
-`management.load_definitions` for declarative bootstrap via a `definitions.json` file loaded
-at broker startup.
+changed on an existing queue. Declare the topology in a `definitions.json` file and import it when
+the broker starts: both brokers import the same file, RabbitMQ with `load_definitions` (see the
+RabbitMQ documentation on [definitions](https://www.rabbitmq.com/docs/definitions) and
+[quorum queue poison-message handling](https://www.rabbitmq.com/docs/quorum-queues#poison-message-handling)),
+and LavinMQ with its definitions import. RabbitMQ's `rabbitmqadmin` and `rabbitmqctl` have no
+equivalents in `lavinmqctl`, so a definitions file is the one way that works for both.
 
 ### Example: a user service
 
@@ -148,37 +167,45 @@ services.AddSubscriber<UserDeletedPayload, UserDeleted>("user-events", "organiza
 ```
 
 where `UserCreatedPayload.WireName` is `"user.created"` and `UserDeletedPayload.WireName` is
-`"user.deleted"`. Declare the topology with `rabbitmqadmin` and `rabbitmqctl`:
+`"user.deleted"`. Its topology, as `definitions.json`:
 
-```bash
-# One topic exchange carries both families.
-rabbitmqadmin exchanges declare --name "user-events" --type "topic" --durable true
+- one topic exchange carries both families;
+- one quorum queue per subscription, bound with its family's wire name as routing key;
+- a dead-letter exchange and queue, whose names must not match a subscription queue's policy, or the
+  policy would apply to the dead-letter queue too and cycle its messages back through it;
+- one policy per subscription queue, matching its name exactly. A `delivery-limit` of 9 dead-letters
+  a message after its tenth delivery.
 
-# One queue per subscription, each bound with its family's wire name as routing key.
-rabbitmqadmin queues declare --name "user-events.vault" --type "quorum" --durable true
-rabbitmqadmin bindings declare --source "user-events" \
-  --destination-type "queue" --destination "user-events.vault" --routing-key "user.created"
-
-rabbitmqadmin queues declare --name "user-events.organizations" --type "quorum" --durable true
-rabbitmqadmin bindings declare --source "user-events" \
-  --destination-type "queue" --destination "user-events.organizations" --routing-key "user.deleted"
-
-# Dead-letter exchange and queue. The names must not match the policy pattern
-# below, which would otherwise re-apply the dead-letter policy to the dead-letter
-# queue and cycle its messages back through itself.
-rabbitmqadmin exchanges declare --name "dead-letter.user-events" --type "fanout" --durable true
-rabbitmqadmin queues declare --name "dead-letter.user-events" --type "quorum" --durable true
-rabbitmqadmin bindings declare --source "dead-letter.user-events" \
-  --destination-type "queue" --destination "dead-letter.user-events"
-
-# Policy applying delivery-limit, dead-letter-exchange, dead-letter-strategy, and
-# overflow to the user-events.* subscription queues.
-rabbitmqctl set_policy user-events-subscriptions "^user-events\." \
-  '{"delivery-limit":10,"dead-letter-exchange":"dead-letter.user-events","dead-letter-strategy":"at-least-once","overflow":"reject-publish"}' \
-  --apply-to quorum_queues
+```json
+{
+  "exchanges": [
+    { "name": "user-events", "vhost": "/", "type": "topic", "durable": true, "auto_delete": false, "internal": false, "arguments": {} },
+    { "name": "dead-letter.user-events", "vhost": "/", "type": "fanout", "durable": true, "auto_delete": false, "internal": false, "arguments": {} }
+  ],
+  "queues": [
+    { "name": "user-events.vault", "vhost": "/", "durable": true, "auto_delete": false, "arguments": { "x-queue-type": "quorum" } },
+    { "name": "user-events.organizations", "vhost": "/", "durable": true, "auto_delete": false, "arguments": { "x-queue-type": "quorum" } },
+    { "name": "dead-letter.user-events", "vhost": "/", "durable": true, "auto_delete": false, "arguments": { "x-queue-type": "quorum" } }
+  ],
+  "bindings": [
+    { "source": "user-events", "vhost": "/", "destination": "user-events.vault", "destination_type": "queue", "routing_key": "user.created", "arguments": {} },
+    { "source": "user-events", "vhost": "/", "destination": "user-events.organizations", "destination_type": "queue", "routing_key": "user.deleted", "arguments": {} },
+    { "source": "dead-letter.user-events", "vhost": "/", "destination": "dead-letter.user-events", "destination_type": "queue", "routing_key": "", "arguments": {} }
+  ],
+  "policies": [
+    {
+      "vhost": "/", "name": "user-events.vault", "pattern": "^user-events\\.vault$", "apply-to": "queues", "priority": 0,
+      "definition": { "delivery-limit": 9, "dead-letter-exchange": "dead-letter.user-events", "dead-letter-strategy": "at-least-once", "overflow": "reject-publish" }
+    },
+    {
+      "vhost": "/", "name": "user-events.organizations", "pattern": "^user-events\\.organizations$", "apply-to": "queues", "priority": 0,
+      "definition": { "delivery-limit": 9, "dead-letter-exchange": "dead-letter.user-events", "dead-letter-strategy": "at-least-once", "overflow": "reject-publish" }
+    }
+  ]
+}
 ```
 
-### Command queues (RabbitMQ)
+### Command queues
 
 For each unique `queue` passed to `AddCommandConsumer<TPayload, TCeiling, TConsumer>(queue)`:
 
@@ -198,3 +225,18 @@ so don't grant it to service users.
 Senders publish with `mandatory`, so a command sent before the queue exists is returned by the
 broker and `SendAsync` throws `BrokerUnavailableException` instead of the command being dropped.
 
+### Where RabbitMQ and LavinMQ differ
+
+- **Delivery count.** Both count a `basic.reject` toward a quorum queue's `delivery-limit` and in
+  the `x-delivery-count` header that becomes `Envelope.DeliveryCount`. RabbitMQ sends the header as
+  a 64-bit integer and LavinMQ as a 32-bit one; the library reads either. LavinMQ sends it only on a
+  queue that has a delivery limit, so without the policy every redelivery reads as the second.
+- **Provisioning.** Both import `definitions.json`. `rabbitmqadmin` and `rabbitmqctl` have no
+  equivalents in `lavinmqctl`, so use a definitions file for either broker.
+- **Dead-lettering.** Both set the `x-death` header on a dead-lettered message, naming the queue it
+  came from, which is what replaying it relies on.
+- **Permissions.** Both check `configure`, `write` and `read` against regular expressions over
+  resource names, so the rights described under command queues apply to both.
+
+The library's RabbitMQ tests run against both brokers (`MESSAGING_TESTS_AMQP_IMAGE`; CI runs them on
+LavinMQ 2.10.4 as well as RabbitMQ 4.3.6).

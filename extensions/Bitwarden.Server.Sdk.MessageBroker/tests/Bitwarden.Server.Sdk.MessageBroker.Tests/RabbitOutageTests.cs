@@ -66,9 +66,9 @@ public sealed class RabbitOutageTests : IAsyncLifetime
     private async Task StartBrokerAsync()
     {
         _broker ??= new ContainerBuilder()
-            .WithImage("rabbitmq")
+            .WithImage(AmqpTestBroker.Image)
             .WithPortBinding(_port, 5672)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Server startup complete"))
+            .WithWaitStrategy(AmqpTestBroker.Ready)
             .Build();
         await _broker.StartAsync(TestContext.Current.CancellationToken);
     }

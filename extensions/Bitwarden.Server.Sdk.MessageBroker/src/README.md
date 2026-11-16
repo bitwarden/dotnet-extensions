@@ -4,7 +4,9 @@
 [PACKAGE.md](PACKAGE.md) instead.
 
 Transport-agnostic publish/subscribe messaging for Bitwarden services. Three backends share one API:
-Azure Service Bus, RabbitMQ, and an in-memory `System.Threading.Channels` fallback.
+Azure Service Bus, RabbitMQ (which also serves LavinMQ), and an in-memory
+`System.Threading.Channels` fallback. Which brokers are supported for which deployment is in
+[BROKER-TOPOLOGY.md](BROKER-TOPOLOGY.md#supported-brokers).
 
 A topic is a service's outbound event stream, so one topic can carry many payload families (for
 example, a user service might publish `user.created` and `user.deleted` through one
