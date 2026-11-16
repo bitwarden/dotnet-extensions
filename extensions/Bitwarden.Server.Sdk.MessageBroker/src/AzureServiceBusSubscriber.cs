@@ -150,24 +150,26 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
         public override string? TraceId => _sbMessage.ApplicationProperties.TryGetValue(BrokerProperties.TraceParent, out var tp) ? tp as string : null;
         public override int DeliveryCount => _sbMessage.DeliveryCount;
 
-        protected override Task CompleteAsyncCore(CancellationToken cancellationToken)
+        protected override async Task CompleteAsyncCore(CancellationToken cancellationToken)
         {
-            _lockRenewal.Stop();
-            return _receiver.CompleteMessageAsync(_sbMessage, cancellationToken);
+            await _lockRenewal.StopAsync();
+            await _receiver.CompleteMessageAsync(_sbMessage, cancellationToken);
         }
 
         // If the receiver is already closed (iterator was disposed), the lock was released
         // automatically on close, which is equivalent to abandonment.
-        protected override Task RequeueCoreAsync(CancellationToken cancellationToken)
+        protected override async Task RequeueCoreAsync(CancellationToken cancellationToken)
         {
-            _lockRenewal.Stop();
-            return _receiver.IsClosed ? Task.CompletedTask : _receiver.AbandonMessageAsync(_sbMessage, cancellationToken: cancellationToken);
+            await _lockRenewal.StopAsync();
+            if (!_receiver.IsClosed)
+                await _receiver.AbandonMessageAsync(_sbMessage, cancellationToken: cancellationToken);
         }
 
-        protected override Task DeadLetterAsyncCore(string? reason, CancellationToken cancellationToken)
+        protected override async Task DeadLetterAsyncCore(string? reason, CancellationToken cancellationToken)
         {
-            _lockRenewal.Stop();
-            return _receiver.IsClosed ? Task.CompletedTask : _receiver.DeadLetterMessageAsync(_sbMessage, deadLetterReason: reason, cancellationToken: cancellationToken);
+            await _lockRenewal.StopAsync();
+            if (!_receiver.IsClosed)
+                await _receiver.DeadLetterMessageAsync(_sbMessage, deadLetterReason: reason, cancellationToken: cancellationToken);
         }
     }
 }
