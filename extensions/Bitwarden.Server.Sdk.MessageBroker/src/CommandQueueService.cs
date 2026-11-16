@@ -15,13 +15,18 @@ internal sealed class CommandQueueService : BackgroundService
     private readonly ICommandQueueReceiver _receiver;
     private readonly Dictionary<string, CommandFamilyHandler> _handlers;
     private readonly ILogger<CommandQueueService> _logger;
+    private readonly SubscriptionReadiness _readiness;
 
     public CommandQueueService(
         string queueName,
         ICommandQueueReceiver receiver,
         IEnumerable<CommandFamilyHandler> handlers,
-        ILogger<CommandQueueService> logger)
+        ILogger<CommandQueueService> logger,
+        SubscriptionReadiness readiness)
     {
+        _readiness = readiness;
+        // As ConsumerBackgroundService does: expected from the moment it exists.
+        readiness.Expect(queueName);
         _queueName = queueName;
         _receiver = receiver;
         _handlers = handlers.Where(h => h.QueueName == queueName).ToDictionary(h => h.FamilyWireName);
@@ -31,11 +36,11 @@ internal sealed class CommandQueueService : BackgroundService
     // As ConsumerBackgroundService does: a receive that fails is opened again rather than
     // faulting the service.
     protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
-        ResubscribeLoop.RunAsync(ReceiveAsync, _logger, _queueName, TimeProvider.System, stoppingToken);
+        ResubscribeLoop.RunAsync(ReceiveAsync, _logger, _queueName, _readiness, TimeProvider.System, stoppingToken);
 
-    private async Task ReceiveAsync(Action onMessage, CancellationToken stoppingToken)
+    private async Task ReceiveAsync(Action onSubscribed, Action onMessage, CancellationToken stoppingToken)
     {
-        await foreach (var message in _receiver.ReceiveAsync(stoppingToken))
+        await foreach (var message in _receiver.ReceiveAsync(onSubscribed, stoppingToken))
         {
             onMessage();
             if (message.FamilyWireName is null || !_handlers.TryGetValue(message.FamilyWireName, out var handler))

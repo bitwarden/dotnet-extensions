@@ -4,7 +4,7 @@ using Azure.Messaging.ServiceBus;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>
+internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>, ISignalsSubscribed<TPayload, TCeiling>
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
 {
@@ -28,7 +28,11 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
         _metrics = metrics;
     }
 
-    public async IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    public IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync(CancellationToken cancellationToken) =>
+        SubscribeAsync(static () => { }, cancellationToken);
+
+    public async IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync(
+        Action onSubscribed, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ServiceBusReceiver receiver;
         try
@@ -43,6 +47,30 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
         }
 
         await using var receiverLifetime = receiver;
+
+        // A receive on a quiet subscription waits for a message, so say the subscription is in
+        // place once a peek succeeds: it opens the link and needs the same Listen right.
+        var subscribed = false;
+        try
+        {
+            var peek = receiver.PeekMessageAsync(cancellationToken: cancellationToken);
+            _ = peek.ContinueWith(static t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+            await peek.WaitAsync(_connection.Closed);
+            subscribed = true;
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or ServiceBusException
+                                   && _connection.IsClosing
+                                   && !cancellationToken.IsCancellationRequested)
+        {
+            // The connection closed while the link was opening: a shutdown.
+        }
+        catch (ServiceBusException ex)
+        {
+            throw new BrokerDisconnectedException(_topicName, ex);
+        }
+        if (!subscribed)
+            yield break;
+        onSubscribed();
 
         while (!cancellationToken.IsCancellationRequested && !_connection.IsClosing)
         {

@@ -18,7 +18,7 @@ internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
         _queueName = queueName;
     }
 
-    public async IAsyncEnumerable<CommandQueueMessage> ReceiveAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<CommandQueueMessage> ReceiveAsync(Action onSubscribed, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // As RabbitSubscriber does: the host can close the connection while the stream is still
         // being set up. That is a shutdown, not a broker failure, so the stream ends as it does
@@ -86,6 +86,9 @@ internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
         {
             yield break;
         }
+
+        // Connection, channel and consumer are all in place.
+        onSubscribed();
 
         await foreach (var message in innerChannel.Reader.ReadAllAsync(cancellationToken))
             yield return message;

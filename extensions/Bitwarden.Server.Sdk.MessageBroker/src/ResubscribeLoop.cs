@@ -14,17 +14,23 @@ internal static class ResubscribeLoop
     internal static readonly TimeSpan MaximumDelay = TimeSpan.FromSeconds(30);
 
     /// <param name="receiveAsync">
-    /// Opens the stream and handles messages until it ends. Calls <c>onMessage</c> after each
-    /// message, which resets the delay: a failure after a working stream is a new outage.
+    /// Opens the stream and handles messages until it ends. Calls its first argument once the
+    /// subscription is in place, and its second after each message, which resets the delay: a
+    /// failure after a working stream is a new outage.
     /// </param>
     /// <param name="logger">Logs each failure and the delay before the next attempt.</param>
-    /// <param name="source">The topic subscription or command queue, for the log.</param>
+    /// <param name="source">The topic subscription or command queue, for the log and the readiness probe.</param>
+    /// <param name="readiness">
+    /// Told when the consumer is receiving and when it is failing. The consumer said it was expected
+    /// when it was created.
+    /// </param>
     /// <param name="timeProvider">Times the wait between attempts.</param>
     /// <param name="stoppingToken">Cancelled when the host stops.</param>
     internal static async Task RunAsync(
-        Func<Action, CancellationToken, Task> receiveAsync,
+        Func<Action, Action, CancellationToken, Task> receiveAsync,
         ILogger logger,
         string source,
+        SubscriptionReadiness readiness,
         TimeProvider timeProvider,
         CancellationToken stoppingToken)
     {
@@ -33,7 +39,14 @@ internal static class ResubscribeLoop
         {
             try
             {
-                await receiveAsync(() => delay = InitialDelay, stoppingToken);
+                await receiveAsync(
+                    () => readiness.Receiving(source),
+                    () =>
+                    {
+                        delay = InitialDelay;
+                        readiness.Receiving(source);
+                    },
+                    stoppingToken);
                 return;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -42,6 +55,7 @@ internal static class ResubscribeLoop
             }
             catch (Exception ex)
             {
+                readiness.Failing(source);
                 logger.LogWarning(ex,
                     "Receiving from {Source} failed; subscribing again in {Delay}.", source, delay);
             }

@@ -17,7 +17,7 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
         _queueName = queueName;
     }
 
-    public async IAsyncEnumerable<CommandQueueMessage> ReceiveAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<CommandQueueMessage> ReceiveAsync(Action onSubscribed, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ServiceBusReceiver receiver;
         try
@@ -36,6 +36,29 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
         // Stop waiting for a receive once either the caller cancels (the host stopping this
         // service, which comes before the connection closes) or the connection closes.
         using var stopWaiting = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _connection.Closed);
+
+        // As AzureServiceBusSubscriber does: a receive on a quiet queue waits for a message, so say
+        // the receiver is in place once a peek succeeds.
+        var subscribed = false;
+        try
+        {
+            var peek = receiver.PeekMessageAsync(cancellationToken: cancellationToken);
+            _ = peek.ContinueWith(static t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+            await peek.WaitAsync(stopWaiting.Token);
+            subscribed = true;
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or ServiceBusException
+                                   && _connection.IsClosing
+                                   && !cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (ServiceBusException ex)
+        {
+            throw new BrokerDisconnectedException(_queueName, ex);
+        }
+        if (!subscribed)
+            yield break;
+        onSubscribed();
 
         while (!cancellationToken.IsCancellationRequested && !_connection.IsClosing)
         {

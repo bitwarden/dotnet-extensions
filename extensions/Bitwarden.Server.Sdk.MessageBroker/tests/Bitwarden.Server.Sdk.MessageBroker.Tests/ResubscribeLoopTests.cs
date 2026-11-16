@@ -26,8 +26,11 @@ public class ResubscribeLoopTests
         }
     }
 
+    // The tests here are about the wait between attempts, not readiness, so the subscribed signal is ignored.
     private Task RunAsync(Func<Action, CancellationToken, Task> receiveAsync, CancellationToken stoppingToken) =>
-        ResubscribeLoop.RunAsync(receiveAsync, _logger, "topic/subscription", _time, stoppingToken);
+        ResubscribeLoop.RunAsync(
+            (_, onMessage, token) => receiveAsync(onMessage, token), _logger, "topic/subscription",
+            new SubscriptionReadiness(), _time, stoppingToken);
 
     [Fact]
     public async Task EachFailureInARowDoublesTheWait_UpToThirtySeconds()

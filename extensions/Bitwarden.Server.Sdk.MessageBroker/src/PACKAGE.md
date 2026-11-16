@@ -484,6 +484,16 @@ integrate with any OpenTelemetry-compatible pipeline.
 | `messaging.client.consumed.messages`  | Counter | Messages delivered to a consumer, tagged with `messaging.destination.name`, `messaging.payload.family`, and `messaging.variant.name` (wire name of the highest received variant at or below the subscriber's ceiling).                             |
 | `messaging.channel.queued.messages`   | Gauge   | Current number of messages buffered in the in-memory channel, tagged with `messaging.destination.name` and `messaging.payload.family` (one series per family on a topic that carries several).                                                     |
 
+### Readiness
+
+A host that calls `AddHealthChecks()` gets a check named `Message broker subscriptions`, added by
+`AddMessageConsumer` and `AddCommandConsumer`. It is unhealthy, naming each one, while any hosted
+consumer isn't receiving: before it has subscribed, and while it is subscribing again after a
+failure. A consumer counts as receiving once its subscription is in place: on RabbitMQ when its
+consumer is registered, on Azure Service Bus when a peek on its subscription or queue succeeds, and
+in memory at once. The check names subscriptions and queues, never the broker or an error's text:
+the probe answers without a credential, and those belong in the log.
+
 ## Serialization
 
 Messages are serialized as JSON using `System.Text.Json`. Each variant is written as one element of
