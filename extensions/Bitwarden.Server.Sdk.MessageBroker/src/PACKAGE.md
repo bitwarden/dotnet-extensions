@@ -487,9 +487,12 @@ integrate with any OpenTelemetry-compatible pipeline.
 ### Readiness
 
 A host that calls `AddHealthChecks()` gets a check named `Message broker subscriptions`, added by
-`AddMessageConsumer` and `AddCommandConsumer`. It is unhealthy, naming each one, while any hosted
-consumer isn't receiving: before it has subscribed, and while it is subscribing again after a
-failure. A consumer counts as receiving once its subscription is in place: on RabbitMQ when its
+`AddMessageConsumer` and `AddCommandConsumer`. It reports Degraded, naming each one, while any
+hosted consumer isn't receiving: before it has subscribed, and while it is subscribing again after a
+failure. It is never Unhealthy, and it is tagged `monitoring`: a broker outage affects every instance
+alike, so it must not take instances out of rotation, and Degraded keeps a default health endpoint
+answering 200. A host shows it on a monitoring endpoint and leaves it out of a readiness probe that
+filters by tag. A consumer counts as receiving once its subscription is in place: on RabbitMQ when its
 consumer is registered, on Azure Service Bus when a peek on its subscription or queue succeeds, and
 in memory at once. The check names subscriptions and queues, never the broker or an error's text:
 the probe answers without a credential, and those belong in the log.

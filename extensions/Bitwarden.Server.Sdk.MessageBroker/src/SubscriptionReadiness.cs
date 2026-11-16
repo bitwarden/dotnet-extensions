@@ -10,8 +10,12 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <remarks>
 /// <para>
 /// A service starts whether or not its consumers can subscribe, because most of what it does
-/// doesn't wait on them. What it must not do is look healthy meanwhile, so the readiness probe
-/// fails, naming each one, until every consumer is receiving.
+/// doesn't wait on them, and its consumers catch up once the broker is back. So the check reports
+/// <see cref="HealthStatus.Degraded"/>, naming each consumer not receiving, never Unhealthy: a broker
+/// every instance reads is shared, and taking instances out of rotation can't fix it, but would turn
+/// a delay in the background into an outage in the foreground. Degraded keeps a default health
+/// endpoint answering 200, and the check is tagged <c>monitoring</c>, as Bitwarden.Server.Sdk.HealthChecks
+/// tags checks of shared state, so a host can show it without letting it gate readiness.
 /// </para>
 /// <para>
 /// A consumer counts as receiving on a positive signal from its backend that the subscription is in
@@ -39,11 +43,11 @@ internal sealed class SubscriptionReadiness
     public HealthCheckResult Check()
     {
         var reasons = _sources.Values.Where(reason => reason is not null).Order(StringComparer.Ordinal).ToList();
-        return reasons.Count == 0 ? HealthCheckResult.Healthy() : HealthCheckResult.Unhealthy(string.Join(" ", reasons));
+        return reasons.Count == 0 ? HealthCheckResult.Healthy() : HealthCheckResult.Degraded(string.Join(" ", reasons));
     }
 }
 
-/// <summary>Puts the consumers' state in front of the readiness probe.</summary>
+/// <summary>Reports the consumers' state to the host's health checks.</summary>
 internal sealed class SubscriptionHealthCheck(SubscriptionReadiness readiness) : IHealthCheck
 {
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default) =>
@@ -58,10 +62,13 @@ internal sealed class SubscriptionHealthCheckRegistration : IConfigureOptions<He
 {
     public const string Name = "Message broker subscriptions";
 
+    /// <summary>The tag for shared state, as <c>HealthCheckTags.Monitoring</c> in Bitwarden.Server.Sdk.HealthChecks.</summary>
+    public const string MonitoringTag = "monitoring";
+
     public void Configure(HealthCheckServiceOptions options) =>
         options.Registrations.Add(new HealthCheckRegistration(
             Name,
             provider => new SubscriptionHealthCheck(provider.GetRequiredService<SubscriptionReadiness>()),
-            failureStatus: null,
-            tags: null));
+            failureStatus: HealthStatus.Degraded,
+            tags: [MonitoringTag]));
 }

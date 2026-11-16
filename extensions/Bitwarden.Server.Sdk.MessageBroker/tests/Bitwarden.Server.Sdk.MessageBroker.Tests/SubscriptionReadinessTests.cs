@@ -37,6 +37,26 @@ public class SubscriptionReadinessTests
         Assert.Contains(SubscriptionHealthCheckRegistration.Name, report.Entries.Keys);
     }
 
+    /// <summary>
+    /// A broker every instance reads is shared state: the check reports Degraded, which a default health
+    /// endpoint answers with 200, and is tagged monitoring, so it can't take instances out of rotation.
+    /// </summary>
+    [Fact]
+    public void TheCheckIsDegradedAndTaggedMonitoringNeverUnhealthy()
+    {
+        var services = new ServiceCollection();
+        services.AddHealthChecks();
+        services.AddMessageConsumer<MyItemPayload, MyItem, RecordingItemConsumer>("ready", "ready");
+        using var provider = services.BuildServiceProvider();
+
+        var registration = Assert.Single(
+            provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<HealthCheckServiceOptions>>().Value.Registrations,
+            each => each.Name == SubscriptionHealthCheckRegistration.Name);
+
+        Assert.Equal(HealthStatus.Degraded, registration.FailureStatus);
+        Assert.Equal(["monitoring"], registration.Tags);
+    }
+
     [Fact]
     public void ACheckNamesEveryConsumerNotYetReceiving()
     {
@@ -48,7 +68,7 @@ public class SubscriptionReadinessTests
 
         var result = readiness.Check();
 
-        Assert.Equal(HealthStatus.Unhealthy, result.Status);
+        Assert.Equal(HealthStatus.Degraded, result.Status);
         Assert.Contains("notification.commands", result.Description);
         Assert.DoesNotContain("orders/billing", result.Description);
     }

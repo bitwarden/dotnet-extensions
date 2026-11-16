@@ -223,7 +223,7 @@ public sealed class RabbitOutageTests : IAsyncLifetime
     }
 
     [Fact(Timeout = 120 * 1000)]
-    public async Task AConsumerThatCannotReachItsBrokerNeverLooksReady()
+    public async Task AConsumerThatCannotReachItsBrokerIsReportedDegraded()
     {
         // An address that doesn't answer: each attempt to connect runs until its five-second
         // timeout. Across several attempts the readiness probe must never report healthy.
@@ -246,7 +246,7 @@ public sealed class RabbitOutageTests : IAsyncLifetime
         while (DateTime.UtcNow < until)
         {
             var report = await health.CheckHealthAsync(TestContext.Current.CancellationToken);
-            Assert.Equal(HealthStatus.Unhealthy, report.Status);
+            Assert.Equal(HealthStatus.Degraded, report.Status);
             await Task.Delay(250, TestContext.Current.CancellationToken);
         }
     }
@@ -264,7 +264,7 @@ public sealed class RabbitOutageTests : IAsyncLifetime
 
         // The readiness probe says which consumers can't receive, and nothing about the broker.
         var health = host.Services.GetRequiredService<HealthCheckService>();
-        var down = await WaitForHealthAsync(health, HealthStatus.Unhealthy);
+        var down = await WaitForHealthAsync(health, HealthStatus.Degraded);
         var reason = down.Entries.Single().Value.Description!;
         Assert.Contains($"{_topic}/outage", reason);
         Assert.Contains(Queue, reason);
