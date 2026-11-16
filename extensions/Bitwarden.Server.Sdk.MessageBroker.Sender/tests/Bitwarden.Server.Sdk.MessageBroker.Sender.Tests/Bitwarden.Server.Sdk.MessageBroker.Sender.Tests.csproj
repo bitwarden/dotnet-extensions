@@ -28,6 +28,10 @@
     <!-- Microsoft.Data.SqlClient brings System.Security.Cryptography.Pkcs 9.0.x; pinned to the patched version
          until it moves. -->
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="[10.0.13]" />
+    <!-- Microsoft.Data.SqlClient brings System.IdentityModel.Tokens.Jwt 7.7.1, which AIKIDO-2026-11109 affects; pinned with its
+         OpenIdConnect companion, so every Microsoft.IdentityModel package resolves alike, until it moves. -->
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="[8.16.0]" />
+    <PackageReference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="[8.16.0]" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="[10.0.14]" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="[10.0.14]" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="[10.0.14]" />

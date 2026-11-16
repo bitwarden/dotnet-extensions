@@ -25,6 +25,12 @@ internal sealed class OutboxDispatcher<TContext> : BackgroundService
     /// </summary>
     private static readonly TimeSpan ReleaseDelay = TimeSpan.FromSeconds(2);
 
+    /// <summary>
+    /// How long, once the host is stopping, the dispatcher may still spend deleting the rows it sent
+    /// and giving back the rest, well inside the host's default shutdown timeout of 30 seconds.
+    /// </summary>
+    private static readonly TimeSpan SettleTimeout = TimeSpan.FromSeconds(10);
+
     private readonly IServiceProvider _services;
     private readonly IOptions<MessageOutboxOptions> _options;
     private readonly TimeProvider _time;
@@ -184,8 +190,16 @@ internal sealed class OutboxDispatcher<TContext> : BackgroundService
 
         var token = Guid.NewGuid();
         var (claimed, leaseUntil) = await ClaimAsync(outbox, token, cancellationToken);
+
+        // What the batch does to rows it has already claimed (deferring, releasing, deleting) isn't
+        // cut short by a stop: a row sent but not deleted would be sent again by another instance
+        // once its lease ran out. A stop only bounds how long that may take.
+        using var settling = new CancellationTokenSource();
+        using var stopping = cancellationToken.Register(() => settling.CancelAfter(SettleTimeout));
+
         var routed = 0;
         var sent = new List<string>();
+        var stoppedAt = -1;
         for (var i = 0; i < claimed.Count; i++)
         {
             var row = claimed[i];
@@ -194,19 +208,17 @@ internal sealed class OutboxDispatcher<TContext> : BackgroundService
                 // The claim's filter takes only routed rows, so this is a fallback. Another build,
                 // older or newer during a deploy, may send it: leave it for that one, a little later,
                 // so it doesn't head every claim here.
-                await PostponeAsync(outbox, row.MessageId, token, cancellationToken);
+                await PostponeAsync(outbox, row.MessageId, token, settling.Token);
                 continue;
             }
             routed++;
 
-            // Too little of the lease is left to start another send: leave the rest of the batch for
-            // the next claim, this instance's or another's, rather than send a row another instance
-            // may already be able to claim.
-            if (_time.GetUtcNow() >= leaseUntil - LeaseMargin)
+            // Stopping, or too little of the lease left to start another send: leave the rest of the
+            // batch for the next claim, this instance's or another's, rather than send a row another
+            // instance may already be able to claim.
+            if (cancellationToken.IsCancellationRequested || _time.GetUtcNow() >= leaseUntil - LeaseMargin)
             {
-                var rest = claimed.Skip(i).Select(each => each.MessageId).ToList();
-                await ReleaseAsync(outbox, rest, token, cancellationToken);
-                routed += claimed.Skip(i + 1).Count(each => _routes.ContainsKey((each.Destination, each.MessageType)));
+                stoppedAt = i;
                 break;
             }
 
@@ -223,9 +235,16 @@ internal sealed class OutboxDispatcher<TContext> : BackgroundService
                 sent.Add(row.MessageId);
                 _metrics.Sent(_database, row, _time.GetUtcNow() - DateTimeOffset.FromUnixTimeMilliseconds(row.DueAt));
             }
-            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            catch (Exception) when (cancellationToken.IsCancellationRequested)
             {
-                await DeferAsync(outbox, row, token, ex, cancellationToken);
+                // Stopped during the send, which may or may not have reached the broker: this row and
+                // the rest go back for the next claim, and at least once still holds.
+                stoppedAt = i;
+                break;
+            }
+            catch (Exception ex)
+            {
+                await DeferAsync(outbox, row, token, ex, settling.Token);
             }
         }
 
@@ -234,7 +253,13 @@ internal sealed class OutboxDispatcher<TContext> : BackgroundService
             // Only rows this batch still holds: a send slower than the lease lets another instance
             // claim a row, and that instance's claim is now the one that settles it.
             await outbox.Where(row => sent.Contains(row.MessageId) && row.LeaseToken == token)
-                .ExecuteDeleteAsync(cancellationToken);
+                .ExecuteDeleteAsync(settling.Token);
+        }
+        if (stoppedAt >= 0)
+        {
+            var rest = claimed.Skip(stoppedAt).Select(each => each.MessageId).ToList();
+            await ReleaseAsync(outbox, rest, token, settling.Token);
+            routed += claimed.Skip(stoppedAt + 1).Count(each => _routes.ContainsKey((each.Destination, each.MessageType)));
         }
         return routed;
     }
@@ -260,7 +285,9 @@ internal sealed class OutboxDispatcher<TContext> : BackgroundService
         // deploy a newer build writes types an older one doesn't know; the older one must leave
         // them for the newer.
         var candidates = await outbox.AsNoTracking()
-            .Where(row => row.SetAsideAt == null && row.AvailableAt <= now && (row.LeaseUntil == null || row.LeaseUntil < now))
+            .Where(row => row.SetAsideAt == null)
+            .Where(row => row.AvailableAt <= now)
+            .Where(row => row.LeaseUntil == null || row.LeaseUntil < now)
             .Where(_routed)
             .OrderBy(row => row.AvailableAt).ThenBy(row => row.MessageId)
             .Select(row => row.MessageId)
@@ -271,7 +298,9 @@ internal sealed class OutboxDispatcher<TContext> : BackgroundService
 
         // Repeats the test, so a row another instance claimed since it was read is left alone.
         await outbox
-            .Where(row => candidates.Contains(row.MessageId) && row.SetAsideAt == null && (row.LeaseUntil == null || row.LeaseUntil < now))
+            .Where(row => candidates.Contains(row.MessageId))
+            .Where(row => row.SetAsideAt == null)
+            .Where(row => row.LeaseUntil == null || row.LeaseUntil < now)
             .ExecuteUpdateAsync(set => set
                 .SetProperty(row => row.LeaseToken, token)
                 .SetProperty(row => row.LeaseUntil, until), cancellationToken);

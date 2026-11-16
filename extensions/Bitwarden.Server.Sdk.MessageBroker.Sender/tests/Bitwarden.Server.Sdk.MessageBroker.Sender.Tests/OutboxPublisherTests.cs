@@ -36,6 +36,20 @@ public sealed class OutboxPublisherTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task ACancelledSendAddsNothing()
+    {
+        var host = await _outbox.BuildAsync();
+        await using (var scope = host.Services.CreateAsyncScope())
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Sender<OrderPlacedPayload, OrderPlaced>(scope.ServiceProvider, Topic)
+                .Publish(new OrderPlaced(1)).SendAsync(new CancellationToken(canceled: true)));
+            await scope.ServiceProvider.GetRequiredService<ShopContext>().SaveChangesAsync(Token);
+        }
+
+        Assert.Empty(await RowsAsync(host));
+    }
+
+    [Fact]
     public async Task SendingWithoutSavingWritesNothing()
     {
         var host = await _outbox.BuildAsync();

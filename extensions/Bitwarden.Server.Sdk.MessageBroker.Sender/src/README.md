@@ -40,6 +40,9 @@ commit) is in [PACKAGE.md](PACKAGE.md).
   Before each send it checks the time against the lease less a margin (`LeaseMargin`, a quarter of
   the lease) and releases the rest of the batch once past it. A claimed row with no route, which the
   filter shouldn't let through, is released with its `AvailableAt` pushed two seconds on.
+  When the host stops mid-batch, the dispatcher starts no more sends, deletes the rows it sent and
+  releases the rest; those writes use their own token, which the stop only limits to
+  `SettleTimeout` (ten seconds), so a sent row isn't left to be sent again.
   `DispatchAsync` returns the number of routed rows, which decides whether the next poll waits.
 - **Failures.** `OutboxFailures.IsPermanent` decides between deferring and setting aside: it is true
   for MessageBroker's internal `SendFailures.IsPermanent` and for an

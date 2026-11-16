@@ -230,6 +230,45 @@ public sealed class OutboxDispatcherTests : IAsyncDisposable
         }
     }
 
+    [Fact]
+    public async Task AStopDuringABatchStillDeletesWhatWasSentAndGivesBackTheRest()
+    {
+        // The host stops (the dispatcher's token is cancelled) once the first row has gone. That row
+        // must not be left to be sent again; the others go back unclaimed and untried.
+        using var stopping = new CancellationTokenSource();
+        var host = await _outbox.BuildAsync(services => services.AddSingleton(sp => new OutboxRegistration(typeof(ShopContext), new StoppingRoute(stopping))));
+        foreach (var id in new[] { "a", "b", "c" })
+        {
+            await InsertAsync(host, new OutboxMessage
+            {
+                MessageId = id,
+                Destination = StoppingRoute.Name,
+                MessageType = StoppingRoute.Name,
+                Body = [],
+            });
+        }
+
+        await Dispatcher(host).DispatchAsync(stopping.Token);
+
+        var rows = await RowsAsync(host);
+        Assert.Equal(["b", "c"], rows.Select(row => row.MessageId));
+        Assert.All(rows, row => Assert.Equal((0, (Guid?)null, (long?)null), (row.Attempts, row.LeaseToken, row.SetAsideAt)));
+    }
+
+    private sealed class StoppingRoute(CancellationTokenSource stopping) : OutboxRoute
+    {
+        public const string Name = "stopping";
+        public override string Destination => Name;
+        public override string MessageType => Name;
+
+        public override Task SendAsync(OutboxMessage message, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            stopping.Cancel();
+            return Task.CompletedTask;
+        }
+    }
+
     // The seam a test harness watches the broker through (IOutboxSendObserver)
 
     [Fact]

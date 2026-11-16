@@ -40,6 +40,7 @@ internal sealed class OutboxPublisher<TPayload, TCeiling, TContext> : Publisher<
         DateTimeOffset? notBefore,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         _database.Set<OutboxMessage>().Add(
             OutboxRows.Create<TPayload>(_serializer, _destination, variants, messageId, notBefore, _time, _maxMessageSize));
         return Task.CompletedTask;
