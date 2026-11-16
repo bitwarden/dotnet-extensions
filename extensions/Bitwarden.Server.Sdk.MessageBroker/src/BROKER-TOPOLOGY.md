@@ -57,6 +57,12 @@ If the queue's routing-key binding is wrong, `RabbitSubscriber` falls back to th
 check — it reads the `x-bw-payload-family` header and dead-letters mismatches. The routing-key
 binding is still the right production configuration because it moves the filter into the broker.
 
+The delivery limit is what ends retries. A consumer that returns a message for redelivery does so
+with `basic.reject`, which RabbitMQ counts toward the limit and in the `x-delivery-count` header
+that becomes `Envelope.DeliveryCount`. Since RabbitMQ 4.3, a `basic.nack` with requeue is an
+explicit return that is counted toward neither, so the message would be redelivered without
+limit.
+
 Policies must be used rather than queue arguments because quorum queue arguments cannot be
 changed on an existing queue. See the RabbitMQ documentation on
 [quorum queue poison-message handling](https://www.rabbitmq.com/docs/quorum-queues#poison-message-handling)
