@@ -176,8 +176,15 @@ where `UserCreatedPayload.WireName` is `"user.created"` and `UserDeletedPayload.
 - one policy per subscription queue, matching its name exactly. A `delivery-limit` of 9 dead-letters
   a message after its tenth delivery.
 
+The file declares the virtual host it uses, because RabbitMQ creates neither its default virtual host
+nor its default user when definitions are imported at startup. It declares no users or permissions:
+see [Users and permissions](#users-and-permissions).
+
 ```json
 {
+  "vhosts": [
+    { "name": "/" }
+  ],
   "exchanges": [
     { "name": "user-events", "vhost": "/", "type": "topic", "durable": true, "auto_delete": false, "internal": false, "arguments": {} },
     { "name": "dead-letter.user-events", "vhost": "/", "type": "fanout", "durable": true, "auto_delete": false, "internal": false, "arguments": {} }
@@ -204,6 +211,27 @@ where `UserCreatedPayload.WireName` is `"user.created"` and `UserDeletedPayload.
   ]
 }
 ```
+
+### Users and permissions
+
+Give each service its own broker user, with only the rights its registrations declare (see
+[Collecting a service's topology](#collecting-a-services-topology)):
+
+- **configure:** none (`^$`). Services declare nothing; provisioning does.
+- **write:** its own topic exchanges, and the exchanges of the command queues it sends to.
+- **read:** its own subscription queues and its own command queue.
+
+Both brokers check these as regular expressions over resource names, so anchor them and escape the
+dots in names (`^user-events$`, `^notification\.commands$`).
+
+Remove the default `guest` user, or at least change its password and limit it, on both brokers. Don't
+rely on RabbitMQ's rule that `guest` connects only from the local host: the official container image
+turns it off, and the LavinMQ image accepts `guest` from outside the container too. A service sharing one administrator login can publish to
+any queue and read any other service's messages, whatever the rules above say.
+
+Keep users and their credentials out of the topology file that ships with a release or sits in a
+repository: create them from a secret store, or through the management API when deploying. A
+`password_hash` in a definitions file is a credential, and so is the `RabbitUri` a service is given.
 
 ### Command queues
 
@@ -238,5 +266,5 @@ broker and `SendAsync` throws `BrokerUnavailableException` instead of the comman
 - **Permissions.** Both check `configure`, `write` and `read` against regular expressions over
   resource names, so the rights described under command queues apply to both.
 
-The library's RabbitMQ tests run against both brokers (`MESSAGING_TESTS_AMQP_IMAGE`; CI runs them on
-LavinMQ 2.10.4 as well as RabbitMQ 4.3.6).
+The library's broker tests for this backend (behaviour, command queues and outages) run against both
+brokers (`MESSAGING_TESTS_AMQP_IMAGE`): CI runs them on RabbitMQ 4.3.6 and LavinMQ 2.10.4.

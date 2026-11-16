@@ -208,9 +208,9 @@ The test suite covers all three backends via the shared `BehaviorTests` base cla
 queues via `CommandBehaviorTests`.
 Channel-specific tests (drain on shutdown, queue depth gauge) live in `ChannelBehaviorTests`.
 
-The RabbitMQ tests run against the `rabbitmq` image unless `MESSAGING_TESTS_AMQP_IMAGE` names
+The RabbitMQ tests run against `rabbitmq:4.3.6`, the version the self-hosted install ships, unless `MESSAGING_TESTS_AMQP_IMAGE` names
 another AMQP 0-9-1 broker's image. CI runs them on LavinMQ as well:
 
 ```bash
-MESSAGING_TESTS_AMQP_IMAGE=cloudamqp/lavinmq:2.10.4 dotnet run -- --filter-class "*.RabbitBehaviorTests" --filter-class "*.RabbitCommandBehaviorTests"
+MESSAGING_TESTS_AMQP_IMAGE=cloudamqp/lavinmq:2.10.4 dotnet run -- --filter-class "*.RabbitBehaviorTests" --filter-class "*.RabbitCommandBehaviorTests" --filter-class "*.RabbitOutageTests"
 ```
