@@ -22,7 +22,7 @@ internal sealed class ChannelConsumerValidationService(
     public Task StartAsync(CancellationToken cancellationToken)
     {
         var opts = options.Value;
-        if (!string.IsNullOrEmpty(opts.AzureServiceBusConnectionString) ||
+        if (opts.UsesAzureServiceBus ||
             !string.IsNullOrEmpty(opts.RabbitUri))
             return Task.CompletedTask;
 

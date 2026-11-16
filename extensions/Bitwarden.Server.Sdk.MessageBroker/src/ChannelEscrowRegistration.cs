@@ -205,6 +205,6 @@ internal sealed class ChannelEscrowRegistration<TPayload, TCeiling>
     private bool IsExternalBackend()
     {
         var opts = _messagingOptions.Value;
-        return !string.IsNullOrEmpty(opts.AzureServiceBusConnectionString) || !string.IsNullOrEmpty(opts.RabbitUri);
+        return opts.UsesAzureServiceBus || !string.IsNullOrEmpty(opts.RabbitUri);
     }
 }

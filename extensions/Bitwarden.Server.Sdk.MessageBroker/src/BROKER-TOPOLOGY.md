@@ -33,7 +33,7 @@ and dead-letters anything that does not match `TPayload.WireName` before attempt
 deserialization. The filter is still the right production configuration because it moves routing
 off the subscriber and into the broker.
 
-The library creates and owns its own `ServiceBusClient` from the configured connection string
+The library creates and owns its own `ServiceBusClient` from the configured connection string or namespace
 and does not consume any `ServiceBusClient` the app registers separately. An app that also uses
 `ServiceBusClient` against the same namespace will have two AMQP connections to the broker.
 
@@ -47,6 +47,14 @@ For each unique `queue` passed to `AddCommandConsumer<TPayload, TCeiling, TConsu
 
 Senders (`AddCommandSender`) need only send rights on the queue. Sending to a queue that doesn't
 exist throws `BrokerUnavailableException`.
+
+### Access with a managed identity
+
+A service configured with `AzureServiceBusFullyQualifiedNamespace` authenticates as its managed
+identity (or as the credential it registers under `MessageBrokerKeys.Credential`). Grant it Azure's data roles at the narrowest scope that works: **Azure Service Bus Data
+Sender** on each topic it publishes to and each command queue it sends to, and **Azure Service Bus
+Data Receiver** on each of its own subscriptions and on its own command queue. No other service
+needs receive rights on them.
 
 ## RabbitMQ
 

@@ -1,3 +1,5 @@
+using Azure.Core;
+using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Options;
 
@@ -29,10 +31,28 @@ internal sealed class AzureServiceBusConnection : IAsyncDisposable
     /// </summary>
     public CancellationToken Closed => _closed.Token;
 
-    public AzureServiceBusConnection(IOptions<MessagingOptions> options)
+    /// <param name="options">The connection string, or the namespace to reach with a token credential.</param>
+    /// <param name="credential">
+    /// The credential for a namespace, if the app registered one under
+    /// <see cref="MessageBrokerKeys.Credential"/>; otherwise <see cref="DefaultAzureCredential"/> is
+    /// used. Not used with a connection string.
+    /// </param>
+    public AzureServiceBusConnection(
+        IOptions<MessagingOptions> options,
+        [FromKeyedServices(MessageBrokerKeys.Credential)] TokenCredential? credential = null)
     {
-        Client = new ServiceBusClient(options.Value.AzureServiceBusConnectionString);
+        var value = options.Value;
+        if (!string.IsNullOrEmpty(value.AzureServiceBusConnectionString))
+        {
+            Client = new ServiceBusClient(value.AzureServiceBusConnectionString);
+            return;
+        }
+        Credential = credential ?? new DefaultAzureCredential();
+        Client = new ServiceBusClient(value.AzureServiceBusFullyQualifiedNamespace, Credential);
     }
+
+    /// <summary>The credential the client was built with, or null when it uses a connection string.</summary>
+    internal TokenCredential? Credential { get; }
 
     public async ValueTask DisposeAsync()
     {

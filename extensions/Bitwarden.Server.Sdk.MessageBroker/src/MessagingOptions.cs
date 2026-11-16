@@ -3,10 +3,27 @@ namespace Bitwarden.Server.Sdk.MessageBroker;
 /// <summary>Options for configuring the message broker.</summary>
 public class MessagingOptions
 {
-    /// <summary>The Azure Service Bus connection string. When set, Azure Service Bus is used (takes priority over Rabbit).</summary>
+    /// <summary>
+    /// The Azure Service Bus connection string, with a shared access key. When set, Azure Service
+    /// Bus is used. Set this or <see cref="AzureServiceBusFullyQualifiedNamespace"/>, not both.
+    /// </summary>
     public string? AzureServiceBusConnectionString { get; set; }
 
-    /// <summary>The Rabbit connection URI. When set and <see cref="AzureServiceBusConnectionString"/> is not set, Rabbit is used; otherwise an in-memory channel is used.</summary>
+    /// <summary>
+    /// The Azure Service Bus namespace's host name, such as <c>bitwarden.servicebus.windows.net</c>.
+    /// When set, Azure Service Bus is used with a token credential instead of a shared access key:
+    /// the <see cref="Azure.Core.TokenCredential"/> registered under
+    /// <see cref="Microsoft.Extensions.DependencyInjection.MessageBrokerKeys.Credential"/> if there is
+    /// one, otherwise <see cref="Azure.Identity.DefaultAzureCredential"/> (a managed identity in Azure).
+    /// Set this or <see cref="AzureServiceBusConnectionString"/>, not both.
+    /// </summary>
+    public string? AzureServiceBusFullyQualifiedNamespace { get; set; }
+
+    /// <summary>Whether Azure Service Bus is configured, by connection string or by namespace.</summary>
+    internal bool UsesAzureServiceBus =>
+        !string.IsNullOrEmpty(AzureServiceBusConnectionString) || !string.IsNullOrEmpty(AzureServiceBusFullyQualifiedNamespace);
+
+    /// <summary>The Rabbit connection URI. When set and Azure Service Bus is not, Rabbit is used; when neither is set, an in-memory channel is used.</summary>
     public string? RabbitUri { get; set; }
 
     /// <summary>

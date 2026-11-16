@@ -74,9 +74,27 @@ services.AddOptions<MessagingOptions>().BindConfiguration("");
 }
 ```
 
-If neither connection string is set the package falls back to an in-memory channel, which is useful
-for local development and testing but loses all messages on process restart. Only one backend may be
-configured at a time; setting both raises a validation error at startup.
+To reach Azure Service Bus without a shared access key, set its namespace instead of a connection
+string. The client then authenticates with a token credential: `DefaultAzureCredential`, which uses
+the service's managed identity in Azure, unless you register one for the broker under
+`MessageBrokerKeys.Credential`:
+
+```csharp
+services.AddKeyedSingleton<TokenCredential>(MessageBrokerKeys.Credential, new ManagedIdentityCredential(clientId));
+```
+
+The key keeps a credential you register for something else from being taken for the broker.
+
+```json
+{
+    "AzureServiceBusFullyQualifiedNamespace": "bitwarden.servicebus.windows.net"
+}
+```
+
+If no backend is set the package falls back to an in-memory channel, which is useful for local
+development and testing but loses all messages on process restart. Only one backend may be
+configured at a time, and Azure Service Bus by connection string or by namespace, not both; anything
+else raises a validation error at startup.
 
 ## Broker setup
 
