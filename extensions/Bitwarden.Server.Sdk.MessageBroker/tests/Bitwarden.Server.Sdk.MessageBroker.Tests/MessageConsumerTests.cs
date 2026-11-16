@@ -365,6 +365,44 @@ public class MessageConsumerTests
         Assert.Equal(1, envelope.DeadLetterCalls);
     }
 
+    /// <summary>
+    /// A handler that gives up because the host is stopping hasn't failed: its message is returned,
+    /// not dead-lettered, even though by default a failure isn't retried.
+    /// </summary>
+    [Fact(Timeout = 60 * 1000)]
+    public async Task AHandlerCancelledByTheHostStoppingReturnsItsMessage()
+    {
+        var ch = Channel.CreateUnbounded<Envelope<MyItemPayload, MyItem>>();
+        var envelope = new TrackingEnvelope(new MyItem(9));
+        var handling = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var host = new HostBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/test",
+                    (_, _) => new ChannelBackedSubscriber(ch.Reader));
+                services.AddMessageConsumer<MyItemPayload, MyItem, ActionConsumer>("test", "test");
+                services.AddSingleton<Func<Envelope<MyItemPayload, MyItem>, CancellationToken, Task>>(
+                    async (_, token) =>
+                    {
+                        handling.SetResult();
+                        await Task.Delay(Timeout.Infinite, token);
+                    });
+                services.AddOptions<MessagingOptions>().BindConfiguration("");
+            })
+            .Build();
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        await ch.Writer.WriteAsync(envelope, TestContext.Current.CancellationToken);
+        await handling.Task.WaitAsync(TestContext.Current.CancellationToken);
+        await host.StopAsync(TestContext.Current.CancellationToken);
+        await envelope.Settled.WaitAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, envelope.CompleteCalls);
+        Assert.Equal(1, envelope.RequeueCalls);
+        Assert.Equal(0, envelope.DeadLetterCalls);
+    }
+
     private sealed class ConsumerState
     {
         public bool FailFirstDelivery { get; init; }

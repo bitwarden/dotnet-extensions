@@ -384,7 +384,9 @@ A raw `ISubscriber` stream (registered with `AddSubscriber` and enumerated yours
 ### Stopping gracefully
 
 For Azure Service Bus and RabbitMQ, unacknowledged messages are automatically requeued by the
-broker when the host shuts down.
+broker when the host shuts down. A hosted consumer whose handler gives up because the host is
+stopping (it throws `OperationCanceledException` on the token it was given) returns its message at
+once: stopping isn't a failure, so the message is neither dead-lettered nor delayed.
 
 For the in-memory channel backend, consumers registered with `AddMessageConsumer` are protected by
 an escrow mechanism: any messages left in the channel when the host stops are written to an

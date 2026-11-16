@@ -101,7 +101,7 @@ public class AzureServiceBusLockRenewalTests : IAsyncLifetime
         {
             services.AddCommandSender<SendMailPayload, SendMail>("commands");
             services.AddCommandConsumer<SendMailPayload, SendMail, SlowMailConsumer>("commands");
-        }, new() { ["MaxRetryDelay"] = "00:00:01", ["MaxLockRenewalDuration"] = "00:00:02" });
+        }, new() { ["MaxLockRenewalDuration"] = "00:00:02" });
         var id = Random.Shared.Next();
         var handling = host.Services.GetRequiredService<SlowHandling>();
 

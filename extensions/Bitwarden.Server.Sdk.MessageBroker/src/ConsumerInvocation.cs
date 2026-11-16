@@ -31,10 +31,16 @@ internal static class ConsumerInvocation
         try
         {
             Exception? failure = null;
+            var stopped = false;
             try
             {
                 var consumer = scope.ServiceProvider.GetRequiredService<TConsumer>();
                 await consumer.HandleAsync(envelope, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // The host is stopping and the handler gave up because of it: not a failure.
+                stopped = true;
             }
             catch (Exception ex)
             {
@@ -43,7 +49,14 @@ internal static class ConsumerInvocation
 
             try
             {
-                if (failure is null)
+                if (stopped)
+                {
+                    // Return the message at once, for the next instance (or, in memory, escrow),
+                    // without the retry delay or the dead-letter decision.
+                    if (!envelope.IsSettled)
+                        await envelope.RequeueAsync("The consumer stopped.", CancellationToken.None);
+                }
+                else if (failure is null)
                 {
                     // Settle with CancellationToken.None: passing along a stopped token after a
                     // successful handler would leave the message un-acked and unsettled.

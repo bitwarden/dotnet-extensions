@@ -23,7 +23,8 @@ For each `AddSubscriber<TPayload, TCeiling>(topic, subscription)`:
 
 - A subscription named `{subscription}` on that topic with a Correlation filter on
   `x-bw-payload-family = '{WireName}'` so only `TPayload`'s family reaches this subscription.
-  Set `MaxDeliveryCount` on the subscription to cap redelivery attempts; the subscription's
+  Set `MaxDeliveryCount` on the subscription as a backstop on redelivery, at least the largest
+  `ConsumerRetryOptions.MaxDeliveries` its consumer is configured with; the subscription's
   built-in dead-letter queue handles exhausted or explicitly dead-lettered messages automatically.
 
 If the Correlation filter is missing or wrong, the subscriber still falls back safely —
@@ -70,9 +71,13 @@ If the queue's routing-key binding is wrong, `RabbitSubscriber` falls back to th
 check — it reads the `x-bw-payload-family` header and dead-letters mismatches. The routing-key
 binding is still the right production configuration because it moves the filter into the broker.
 
-The delivery limit is what ends retries. A consumer that returns a message for redelivery does so
-with `basic.reject`, which RabbitMQ counts toward the limit and in the `x-delivery-count` header
-that becomes `Envelope.DeliveryCount`.
+A hosted consumer ends its own retries: it dead-letters a failed message once it has been delivered
+`ConsumerRetryOptions.MaxDeliveries` times, by default on its first failure (see PACKAGE.md). The
+delivery limit is the backstop, for a consumer that returns messages itself or a message that keeps
+coming back for another reason, so set it at least as high as the largest `MaxDeliveries` configured
+for the queue. A consumer that returns a message for redelivery does so with `basic.reject`, which
+RabbitMQ counts toward the limit and in the `x-delivery-count` header that becomes
+`Envelope.DeliveryCount`.
 
 Policies must be used rather than queue arguments because quorum queue arguments cannot be
 changed on an existing queue. See the RabbitMQ documentation on
