@@ -11,6 +11,10 @@ example, a user service might publish `user.created` and `user.deleted` through 
 `user-events` topic). Each message is tagged with its family wire name so subscriptions bind or
 filter down to the event types they care about.
 
+A command queue is the inbound side: one queue per receiving service, `{service}.commands`, carrying
+every command family that service accepts. Senders address it by name, and one receiver per queue
+reads each message's family wire name and hands it to that family's consumer.
+
 ## Architecture
 
 ### Core abstractions
@@ -34,7 +38,8 @@ uniquely names the receiver.
 ### Backend selection
 
 `MessageBrokerServiceCollectionExtensions` (`AddPublisher<TPayload, TCeiling>` /
-`AddSubscriber<TPayload, TCeiling>`) registers the appropriate backend at service-resolution time
+`AddSubscriber<TPayload, TCeiling>`, and for command queues `AddCommandSender<TPayload, TCeiling>` /
+`AddCommandConsumer<TPayload, TCeiling, TConsumer>`) registers the appropriate backend at service-resolution time
 based on `MessagingOptions`:
 
 1. `AzureServiceBusConnectionString` set → Azure Service Bus
@@ -52,15 +57,22 @@ Setting both raises `OptionsValidationException` at startup via `MessagingOption
 | `Envelope.cs`                                                  | Abstract base class for received messages                                        |
 | `IMessageConsumer.cs`                                          | Public interface for consumers registered via `AddMessageConsumer`               |
 | `ConsumerBackgroundService.cs`                                 | Hosted service that drives the consumer loop; auto-settles envelopes             |
+| `ConsumerInvocation.cs`                                        | Runs a hosted consumer on one message, for topics and command queues alike       |
+| `CommandQueueService.cs`                                       | Hosted receive loop for one command queue; dispatches each message by family     |
+| `CommandFamilyHandler.cs`                                      | Decodes one command family's messages into envelopes; dead-letters what it can't |
+| `CommandQueueMessage.cs`                                       | A command before its family is known, and `ICommandQueueReceiver`                |
 | `ResubscribeLoop.cs`                                           | Keeps a hosted consumer subscribing again, with backoff, through broker outages  |
 | `IMessageEscrowStore.cs`                                       | Public interface for durable message escrow on shutdown                          |
 | `ChannelPublisher.cs` / `ChannelSubscriber.cs`                 | In-memory backend                                                                |
 | `ChannelEnvelope.cs`                                           | In-memory envelope; handles `RequeueAsync` requeue logic                         |
 | `ChannelTopic.cs`                                              | Fan-out channel; one `Channel<T>` per subscription; drains to escrow on shutdown |
 | `ChannelEscrowRegistration.cs`                                 | Registers startup recovery and shutdown drain callbacks with `ChannelTopic`      |
-| `RabbitPublisher.cs` / `RabbitSubscriber.cs`                   | RabbitMQ backend                                                                 |
+| `ChannelCommandQueue.cs`                                       | In-memory command queue; no escrow                                               |
+| `RabbitPublisher.cs` / `RabbitSubscriber.cs`                   | RabbitMQ backend; the publisher also sends commands to a queue                   |
+| `RabbitCommandQueueReceiver.cs`                                | RabbitMQ command queue receiver                                                  |
 | `RabbitConnection.cs`                                          | The shared RabbitMQ connection; opened again on demand after an outage           |
 | `AzureServiceBusPublisher.cs` / `AzureServiceBusSubscriber.cs` | Azure Service Bus backend                                                        |
+| `AzureServiceBusCommandQueueReceiver.cs`                       | Azure Service Bus command queue receiver                                         |
 | `MessageBrokerActivitySource.cs`                               | Shared `ActivitySource` for publish and consume spans                            |
 | `MessageBrokerMetrics.cs`                                      | Shared metrics (publish counter, consume counter, channel depth gauge)           |
 | `SystemTextJsonMessageSerializer.cs`                           | Default JSON serializer                                                          |
@@ -82,6 +94,9 @@ expected shape is driven by two design choices:
   family's messages; several subscriptions on the same exchange with different routing keys split
   the outbound stream by family. Multiple instances sharing a subscription name act as competing
   consumers against that subscription's queue.
+- **Command queues** are durable quorum queues addressed through the default exchange, with the
+  queue's name as the routing key and `mandatory` set, so a command no queue receives is returned
+  and the send fails. The family travels in the `x-bw-payload-family` header.
 
 ## Shutdown and escrow
 
@@ -180,12 +195,13 @@ containers. Use `dotnet run` rather than `dotnet test`; this is an xUnit v3 proj
    dotnet run
    ```
 
-The test suite covers all three backends via the shared `BehaviorTests` base class.
+The test suite covers all three backends via the shared `BehaviorTests` base class, and command
+queues via `CommandBehaviorTests`.
 Channel-specific tests (drain on shutdown, queue depth gauge) live in `ChannelBehaviorTests`.
 
 The RabbitMQ tests run against the `rabbitmq` image unless `MESSAGING_TESTS_AMQP_IMAGE` names
 another AMQP 0-9-1 broker's image. CI runs them on LavinMQ as well:
 
 ```bash
-MESSAGING_TESTS_AMQP_IMAGE=cloudamqp/lavinmq:2.10.4 dotnet run -- --filter-class "*.RabbitBehaviorTests"
+MESSAGING_TESTS_AMQP_IMAGE=cloudamqp/lavinmq:2.10.4 dotnet run -- --filter-class "*.RabbitBehaviorTests" --filter-class "*.RabbitCommandBehaviorTests"
 ```

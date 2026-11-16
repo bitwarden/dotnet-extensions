@@ -22,19 +22,10 @@ public static class MessageBrokerServiceCollectionExtensions
         // DI time enforcement of valid payload variant chain.
         ChainValidator<TPayload, TCeiling>.ThrowIfInvalid();
         ClaimTopicFamily<TPayload>(services, name);
-        services.AddOptions();
-        services.TryAddSingleton<MessageBrokerMetrics>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MessagingOptions>, MessagingOptionsValidator>());
-        services.AddOptions<MessagingOptions>().ValidateOnStart();
-        AddRabbitInfrastructure(services);
-        AddAzureServiceBusInfrastructure(services);
+        AddBrokerInfrastructure(services);
 
         var publisherKey = MessageBrokerKeys.Publisher<TPayload>(name);
-        // MessageBrokerSerializerOptions is user-facing and stays scoped by topic name — one JSON
-        // pipeline per topic, shared across every family that publishes on it.
-        services.TryAddKeyedSingleton<IMessageSerializer>(publisherKey, (sp, _) =>
-            new SystemTextJsonMessageSerializer(
-                sp.GetRequiredService<IOptionsMonitor<MessageBrokerSerializerOptions>>(), name));
+        AddFamilySerializer<TPayload>(services, name);
         services.TryAddKeyedSingleton<ChannelTopic<TPayload, TCeiling>>(publisherKey, (sp, _) =>
             new ChannelTopic<TPayload, TCeiling>(
                 sp.GetRequiredService<IOptionsMonitor<MessageTopicOptions<TPayload>>>().Get(name).SubscriptionNames,
@@ -84,19 +75,9 @@ public static class MessageBrokerServiceCollectionExtensions
         var subscriptionKey = $"{name}/{subscriptionName}";
         var publisherKey = MessageBrokerKeys.Publisher<TPayload>(name);
 
-        services.AddOptions();
-        services.TryAddSingleton<MessageBrokerMetrics>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MessagingOptions>, MessagingOptionsValidator>());
-        services.AddOptions<MessagingOptions>().ValidateOnStart();
-        AddRabbitInfrastructure(services);
-        AddAzureServiceBusInfrastructure(services);
+        AddBrokerInfrastructure(services);
 
-        // Keyed on the composite publisher key so a publisher and subscriber of the same
-        // (topic, family) share one serializer, while a second family on the same topic gets
-        // its own. User-facing MessageBrokerSerializerOptions stays scoped by topic name.
-        services.TryAddKeyedSingleton<IMessageSerializer>(publisherKey, (sp, _) =>
-            new SystemTextJsonMessageSerializer(
-                sp.GetRequiredService<IOptionsMonitor<MessageBrokerSerializerOptions>>(), name));
+        AddFamilySerializer<TPayload>(services, name);
         services.Configure<MessageTopicOptions<TPayload>>(name, opts => opts.SubscriptionNames.Add(subscriptionName));
         services.TryAddKeyedSingleton<ChannelTopic<TPayload, TCeiling>>(publisherKey, (sp, _) =>
             new ChannelTopic<TPayload, TCeiling>(
@@ -244,7 +225,7 @@ public static class MessageBrokerServiceCollectionExtensions
         ChainValidator<TPayload, TCeiling>.ThrowIfInvalid();
         ClaimTopicFamily<TPayload>(services, queueName);
         AddBrokerInfrastructure(services);
-        AddCommandQueueSerializer<TPayload>(services, queueName);
+        AddFamilySerializer<TPayload>(services, queueName);
         AddChannelCommandQueue(services, queueName);
 
         var key = MessageBrokerKeys.Publisher<TPayload>(queueName);
@@ -300,7 +281,7 @@ public static class MessageBrokerServiceCollectionExtensions
         if (!ClaimCommandConsumer<TPayload, TConsumer>(services, queueName))
             return services;
         AddBrokerInfrastructure(services);
-        AddCommandQueueSerializer<TPayload>(services, queueName);
+        AddFamilySerializer<TPayload>(services, queueName);
         AddChannelCommandQueue(services, queueName);
 
         services.TryAddScoped<TConsumer>();
@@ -370,15 +351,16 @@ public static class MessageBrokerServiceCollectionExtensions
         AddAzureServiceBusInfrastructure(services);
     }
 
-    // Keyed on the composite "{queue}#{WireName}" key, as for topics, so a sender and a consumer
-    // of the same command family in one process share one serializer. MessageBrokerSerializerOptions
-    // stays scoped by the queue's name.
-    private static void AddCommandQueueSerializer<TPayload>(IServiceCollection services, string queueName)
+    // Keyed on the composite "{destination}#{WireName}" key, so a publisher and a consumer of the same
+    // family on a topic or command queue share one serializer, while a second family on the same
+    // destination gets its own. User-facing MessageBrokerSerializerOptions stays scoped by the
+    // destination's name: one JSON pipeline per topic or queue, shared by every family on it.
+    private static void AddFamilySerializer<TPayload>(IServiceCollection services, string destinationName)
         where TPayload : IPayloadWireName<TPayload>
     {
-        services.TryAddKeyedSingleton<IMessageSerializer>(MessageBrokerKeys.Publisher<TPayload>(queueName), (sp, _) =>
+        services.TryAddKeyedSingleton<IMessageSerializer>(MessageBrokerKeys.Publisher<TPayload>(destinationName), (sp, _) =>
             new SystemTextJsonMessageSerializer(
-                sp.GetRequiredService<IOptionsMonitor<MessageBrokerSerializerOptions>>(), queueName));
+                sp.GetRequiredService<IOptionsMonitor<MessageBrokerSerializerOptions>>(), destinationName));
     }
 
     private static void AddChannelCommandQueue(IServiceCollection services, string queueName)

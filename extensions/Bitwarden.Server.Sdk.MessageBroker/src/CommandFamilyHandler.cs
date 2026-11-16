@@ -73,33 +73,7 @@ internal sealed class CommandFamilyHandler<TPayload, TCeiling, TConsumer> : Comm
 
         _metrics.RecordConsume(QueueName, TPayload.WireName, envelope.ConsumedVariantWireName);
 
-        // As ConsumerBackgroundService does: make the receive span current for the handler, give
-        // it a scope of its own, complete on success and requeue on failure.
-        var previousActivity = Activity.Current;
-        Activity.Current = envelope.Activity;
-        await using var scope = _scopeFactory.CreateAsyncScope();
-        try
-        {
-            var consumer = scope.ServiceProvider.GetRequiredService<TConsumer>();
-            await consumer.HandleAsync(envelope, stoppingToken);
-            await envelope.CompleteAsync(CancellationToken.None);
-        }
-        catch (Exception ex)
-        {
-            try
-            {
-                await envelope.RequeueAsync(ex.Message, CancellationToken.None);
-            }
-            catch (Exception)
-            {
-                // Settlement failed (broker disconnected, lock expired). The broker redelivers
-                // the message when the lock times out.
-            }
-        }
-        finally
-        {
-            Activity.Current = previousActivity;
-        }
+        await ConsumerInvocation.RunAsync<TPayload, TCeiling, TConsumer>(_scopeFactory, envelope, stoppingToken);
     }
 
     private static async Task DeadLetterAsync(CommandQueueMessage message, string reason)
