@@ -8,16 +8,23 @@ internal static class RabbitDeliveryCount
     /// sends the header as a 64-bit integer and LavinMQ as a 32-bit one. Classic queues send none and only say
     /// whether the message was delivered before, so their count is 1 or 2.
     /// </summary>
-    public static int Read(IDictionary<string, object?>? headers, bool redelivered) =>
-        headers?.TryGetValue("x-delivery-count", out var header) == true && header switch
+    public static int Read(IDictionary<string, object?>? headers, bool redelivered)
+    {
+        if (headers?.TryGetValue("x-delivery-count", out var header) == true)
         {
-            long value => (int?)value,
-            int value => value,
-            short value => value,
-            byte value => value,
-            sbyte value => value,
-            _ => null,
-        } is { } count
-            ? count + 1
-            : redelivered ? 2 : 1;
+            int? count = header switch
+            {
+                long value => (int)value,
+                int value => value,
+                short value => value,
+                byte value => value,
+                sbyte value => value,
+                _ => null,
+            };
+            if (count is { } failed)
+                return failed + 1;
+        }
+
+        return redelivered ? 2 : 1;
+    }
 }
