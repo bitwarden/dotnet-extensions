@@ -99,6 +99,34 @@ public class RetryDelayTests
             $"Redelivered after {deliveries[1] - deliveries[0]}.");
     }
 
+    [Fact(Timeout = 60 * 1000)]
+    public async Task AHandlerThatSettlesItsMessageBeforeThrowing_DoesNotDelayTheNextOne()
+    {
+        // A long delay, which the next message must not wait for: the first is dead-lettered by its
+        // handler, so it will never come back and there is nothing to delay.
+        var host = new HostBuilder()
+            .ConfigureAppConfiguration(c => c.AddInMemoryCollection(new Dictionary<string, string?> { ["RetryDelay"] = "00:00:10" }))
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<DeliveryClock>();
+                services.AddPublisher<MyItemPayload, MyItem>("settled");
+                services.AddMessageConsumer<MyItemPayload, MyItem, DeadLettersThenThrowsItemConsumer>("settled", "settled");
+                services.AddOptions<MessagingOptions>().BindConfiguration("");
+            })
+            .Build();
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>("settled"));
+
+        await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
+        await publisher.Publish(new MyItem(2)).SendAsync(TestContext.Current.CancellationToken);
+
+        var deliveries = await host.Services.GetRequiredService<DeliveryClock>().WaitForAsync(2);
+        await host.StopAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(deliveries[1] - deliveries[0] < TimeSpan.FromSeconds(5),
+            $"The next message waited {deliveries[1] - deliveries[0]}.");
+    }
+
     public sealed class DeliveryClock
     {
         private readonly ConcurrentQueue<DateTime> _deliveries = new();
@@ -121,6 +149,19 @@ public class RetryDelayTests
     {
         public Task HandleAsync(Envelope<MyItemPayload, MyItem> envelope, CancellationToken cancellationToken) =>
             clock.Record() == 1 ? throw new InvalidOperationException("First delivery fails on purpose.") : Task.CompletedTask;
+    }
+
+    public sealed class DeadLettersThenThrowsItemConsumer(DeliveryClock clock) : IMessageConsumer<MyItemPayload, MyItem>
+    {
+        public async Task HandleAsync(Envelope<MyItemPayload, MyItem> envelope, CancellationToken cancellationToken)
+        {
+            clock.Record();
+            if (envelope.Payload.Id == 1)
+            {
+                await envelope.DeadLetterAsync("Set aside on purpose.", cancellationToken);
+                throw new InvalidOperationException("Throws after setting the message aside.");
+            }
+        }
     }
 
     public sealed class FailsOnceMailConsumer(DeliveryClock clock) : IMessageConsumer<SendMailPayload, SendMail>

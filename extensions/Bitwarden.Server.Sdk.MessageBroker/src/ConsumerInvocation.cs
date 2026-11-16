@@ -29,24 +29,40 @@ internal static class ConsumerInvocation
         await using var scope = scopeFactory.CreateAsyncScope();
         try
         {
-            var consumer = scope.ServiceProvider.GetRequiredService<TConsumer>();
-            await consumer.HandleAsync(envelope, stoppingToken);
-            // Settle with CancellationToken.None: passing along a stopped token after a
-            // successful handler would leave the message un-acked and unsettled.
-            await envelope.CompleteAsync(CancellationToken.None);
-        }
-        catch (Exception ex)
-        {
-            await RetryDelay.WaitAsync(options, envelope.DeliveryCount, stoppingToken);
+            Exception? failure = null;
             try
             {
-                await envelope.RequeueAsync(ex.Message, CancellationToken.None);
+                var consumer = scope.ServiceProvider.GetRequiredService<TConsumer>();
+                await consumer.HandleAsync(envelope, stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                failure = ex;
+            }
+
+            try
+            {
+                if (failure is null)
+                {
+                    // Settle with CancellationToken.None: passing along a stopped token after a
+                    // successful handler would leave the message un-acked and unsettled.
+                    await envelope.CompleteAsync(CancellationToken.None);
+                }
+                else if (!envelope.IsSettled)
+                {
+                    // Only a message that will come back is worth waiting for. A handler that
+                    // settled the message itself (dead-lettered it, say) before throwing has
+                    // nothing to delay.
+                    await RetryDelay.WaitAsync(options, envelope.DeliveryCount, stoppingToken);
+                    await envelope.RequeueAsync(failure.Message, CancellationToken.None);
+                }
             }
             catch (Exception)
             {
                 // Settlement failed (broker disconnected, lock expired, etc.). The broker
                 // will redeliver the message when the lock times out. Swallow so a transient
-                // settlement error doesn't kill the consumer permanently.
+                // settlement error doesn't kill the consumer permanently, and don't wait: the
+                // handler succeeded, or the message is already on its way back.
             }
         }
         finally
