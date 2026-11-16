@@ -52,7 +52,8 @@ public static class MessageBrokerServiceCollectionExtensions
             }
             if (!string.IsNullOrEmpty(options.RabbitUri))
             {
-                return new RabbitPublisher<TPayload, TCeiling>(sp.GetRequiredService<RabbitConnection>(), name, serializer, metrics);
+                return new RabbitPublisher<TPayload, TCeiling>(sp.GetRequiredService<RabbitConnection>(), name,
+                    exchangeName: name, routingKey: TPayload.WireName, mandatory: false, serializer, metrics);
             }
             return new ChannelPublisher<TPayload, TCeiling>(sp.GetRequiredKeyedService<ChannelTopic<TPayload, TCeiling>>(publisherKey), name, metrics,
                 options.MaxDeliveryCount, sp.GetRequiredService<ILogger<ChannelPublisher<TPayload, TCeiling>>>());
@@ -221,6 +222,172 @@ public static class MessageBrokerServiceCollectionExtensions
         // consumers on ASB/Rabbit) is not subject to this enforcement.
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ChannelConsumerValidationService>());
         return services;
+    }
+
+    /// <summary>
+    /// Registers a keyed <see cref="Publisher{TPayload, TCeiling}"/> that sends commands of family
+    /// <typeparamref name="TPayload"/> to the command queue <paramref name="queueName"/>, which the
+    /// receiving service owns. Send exactly as with a topic publisher:
+    /// <c>Publish(...).SendAsync(...)</c>. The service key is <c>"{queue}#{WireName}"</c>, from
+    /// <see cref="MessageBrokerKeys.Publisher{TPayload}(string)"/>.
+    /// </summary>
+    /// <remarks>
+    /// Unlike an event, a command no queue receives is an error: on Azure Service Bus a missing
+    /// queue fails the send, and on RabbitMQ the command is published with <c>mandatory</c> so the
+    /// broker returns it. Either way <c>SendAsync</c> throws <see cref="BrokerUnavailableException"/>,
+    /// so an outbox keeps the command until the receiver's queue exists.
+    /// </remarks>
+    public static IServiceCollection AddCommandSender<TPayload, TCeiling>(this IServiceCollection services, string queueName)
+        where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
+        where TCeiling : Payload<TPayload>.ICeiling
+    {
+        ChainValidator<TPayload, TCeiling>.ThrowIfInvalid();
+        ClaimTopicFamily<TPayload>(services, queueName);
+        AddBrokerInfrastructure(services);
+        AddCommandQueueSerializer<TPayload>(services, queueName);
+        AddChannelCommandQueue(services, queueName);
+
+        var key = MessageBrokerKeys.Publisher<TPayload>(queueName);
+        services.TryAddKeyedSingleton<Publisher<TPayload, TCeiling>>(key, (sp, _) =>
+        {
+            var options = sp.GetRequiredService<IOptions<MessagingOptions>>().Value;
+            var serializer = sp.GetRequiredKeyedService<IMessageSerializer>(key);
+            var metrics = sp.GetRequiredService<MessageBrokerMetrics>();
+            if (!string.IsNullOrEmpty(options.AzureServiceBusConnectionString))
+            {
+                // A ServiceBusSender sends to a queue exactly as to a topic.
+                return new AzureServiceBusPublisher<TPayload, TCeiling>(sp.GetRequiredService<AzureServiceBusConnection>().Client, queueName, serializer, metrics);
+            }
+            if (!string.IsNullOrEmpty(options.RabbitUri))
+            {
+                return new RabbitPublisher<TPayload, TCeiling>(sp.GetRequiredService<RabbitConnection>(), queueName,
+                    exchangeName: "", routingKey: queueName, mandatory: true, serializer, metrics);
+            }
+            return new ChannelCommandSender<TPayload, TCeiling>(sp.GetRequiredKeyedService<ChannelCommandQueue>(queueName), queueName, serializer, metrics);
+        });
+
+        services.AddSingleton(new CommandQueueDeclaration(queueName, TPayload.WireName, IsConsumer: false));
+        return services;
+    }
+
+    /// <summary>
+    /// Registers <typeparamref name="TConsumer"/> to handle commands of family
+    /// <typeparamref name="TPayload"/> arriving on this service's command queue
+    /// <paramref name="queueName"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A command queue carries every command family its owner accepts. Register one consumer per
+    /// family; the service runs one receiver for the queue and hands each command to the consumer
+    /// for its family. A command whose family has no consumer here is dead-lettered.
+    /// </para>
+    /// <para>
+    /// As with <see cref="AddMessageConsumer{TPayload, TCeiling, TConsumer}"/>,
+    /// <typeparamref name="TConsumer"/> is scoped and resolved from a fresh scope per command, and
+    /// the framework settles the envelope: completed when the consumer returns, requeued when it
+    /// throws.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddCommandConsumer<TPayload, TCeiling, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TConsumer>(
+        this IServiceCollection services,
+        string queueName)
+        where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
+        where TCeiling : Payload<TPayload>.ICeiling
+        where TConsumer : class, IMessageConsumer<TPayload, TCeiling>
+    {
+        ChainValidator<TPayload, TCeiling>.ThrowIfInvalid();
+        ClaimTopicFamily<TPayload>(services, queueName);
+        if (!ClaimCommandConsumer<TPayload, TConsumer>(services, queueName))
+            return services;
+        AddBrokerInfrastructure(services);
+        AddCommandQueueSerializer<TPayload>(services, queueName);
+        AddChannelCommandQueue(services, queueName);
+
+        services.TryAddScoped<TConsumer>();
+        var key = MessageBrokerKeys.Publisher<TPayload>(queueName);
+        services.AddSingleton<CommandFamilyHandler>(sp => new CommandFamilyHandler<TPayload, TCeiling, TConsumer>(
+            queueName,
+            sp.GetRequiredKeyedService<IMessageSerializer>(key),
+            sp.GetRequiredService<IServiceScopeFactory>(),
+            sp.GetRequiredService<MessageBrokerMetrics>()));
+
+        var marker = new CommandQueueServiceMarker(queueName);
+        if (!services.Any(d => d.ServiceType == typeof(CommandQueueServiceMarker) && marker.Equals(d.ImplementationInstance)))
+        {
+            services.AddSingleton(marker);
+            services.AddKeyedSingleton<CommandQueueService>(queueName, (sp, _) =>
+            {
+                var options = sp.GetRequiredService<IOptions<MessagingOptions>>().Value;
+                ICommandQueueReceiver receiver;
+                if (!string.IsNullOrEmpty(options.AzureServiceBusConnectionString))
+                    receiver = new AzureServiceBusCommandQueueReceiver(sp.GetRequiredService<AzureServiceBusConnection>(), queueName);
+                else if (!string.IsNullOrEmpty(options.RabbitUri))
+                    receiver = new RabbitCommandQueueReceiver(sp.GetRequiredService<RabbitConnection>(), queueName);
+                else
+                    receiver = sp.GetRequiredKeyedService<ChannelCommandQueue>(queueName);
+                return new CommandQueueService(queueName, receiver, sp.GetServices<CommandFamilyHandler>(),
+                    sp.GetRequiredService<ILogger<CommandQueueService>>());
+            });
+            services.AddSingleton<IHostedService>(sp => sp.GetRequiredKeyedService<CommandQueueService>(queueName));
+        }
+
+        services.AddSingleton(new CommandQueueDeclaration(queueName, TPayload.WireName, IsConsumer: true));
+        return services;
+    }
+
+    // Sentinel registered in DI so each command queue gets one CommandQueueService.
+    private sealed record CommandQueueServiceMarker(string QueueName);
+
+    // Sentinel binding a (queue, family) pair to the one consumer type that handles it.
+    private sealed record CommandConsumerClaim(string QueueName, string FamilyWireName, Type ConsumerType);
+
+    // Returns false when the same consumer is already registered for this family on this queue (a
+    // repeat registration, which is a no-op), and throws when a different consumer already is.
+    private static bool ClaimCommandConsumer<TPayload, TConsumer>(IServiceCollection services, string queueName)
+        where TPayload : IPayloadWireName<TPayload>
+    {
+        foreach (var descriptor in services)
+        {
+            if (descriptor.ImplementationInstance is not CommandConsumerClaim claim) continue;
+            if (claim.QueueName != queueName || claim.FamilyWireName != TPayload.WireName) continue;
+            if (claim.ConsumerType == typeof(TConsumer)) return false;
+            throw new InvalidOperationException(
+                $"Command family '{TPayload.WireName}' on queue '{queueName}' is already consumed by " +
+                $"'{claim.ConsumerType.Name}'. Cannot also register '{typeof(TConsumer).Name}'. " +
+                "Each command family on a queue has exactly one consumer.");
+        }
+        services.AddSingleton(new CommandConsumerClaim(queueName, TPayload.WireName, typeof(TConsumer)));
+        return true;
+    }
+
+    private static void AddBrokerInfrastructure(IServiceCollection services)
+    {
+        services.AddOptions();
+        services.TryAddSingleton<MessageBrokerMetrics>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MessagingOptions>, MessagingOptionsValidator>());
+        services.AddOptions<MessagingOptions>().ValidateOnStart();
+        AddRabbitInfrastructure(services);
+        AddAzureServiceBusInfrastructure(services);
+    }
+
+    // Keyed on the composite "{queue}#{WireName}" key, as for topics, so a sender and a consumer
+    // of the same command family in one process share one serializer. MessageBrokerSerializerOptions
+    // stays scoped by the queue's name.
+    private static void AddCommandQueueSerializer<TPayload>(IServiceCollection services, string queueName)
+        where TPayload : IPayloadWireName<TPayload>
+    {
+        services.TryAddKeyedSingleton<IMessageSerializer>(MessageBrokerKeys.Publisher<TPayload>(queueName), (sp, _) =>
+            new SystemTextJsonMessageSerializer(
+                sp.GetRequiredService<IOptionsMonitor<MessageBrokerSerializerOptions>>(), queueName));
+    }
+
+    private static void AddChannelCommandQueue(IServiceCollection services, string queueName)
+    {
+        services.TryAddKeyedSingleton<ChannelCommandQueue>(queueName, (sp, _) =>
+            new ChannelCommandQueue(
+                queueName,
+                sp.GetRequiredService<IOptions<MessagingOptions>>().Value.MaxDeliveryCount,
+                sp.GetRequiredService<ILogger<ChannelCommandQueue>>()));
     }
 
     // Sentinel registered in DI to prevent duplicate IHostedService entries for the same ChannelTopic.

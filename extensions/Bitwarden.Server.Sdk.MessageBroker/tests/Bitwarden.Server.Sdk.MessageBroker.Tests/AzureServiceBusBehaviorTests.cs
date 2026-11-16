@@ -7,7 +7,8 @@ using Microsoft.Extensions.Hosting;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 
-public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureServiceBusFixture>
+[Collection(AzureServiceBusCollection.Name)]
+public class AzureServiceBusBehaviorTests : BehaviorTests
 {
     private readonly AzureServiceBusFixture _fixture;
 
@@ -199,6 +200,17 @@ public class OversizedPayload : Payload<OversizedPayload, OversizedVariant, Over
     public static IReadOnlyList<(Type, string)> Variants => [(typeof(OversizedVariant), nameof(OversizedVariant))];
 }
 
+/// <summary>
+/// Shares one Azure Service Bus emulator (and its SQL Edge container) across every test class
+/// that needs it, rather than starting one per class. Classes in the collection run one after
+/// another.
+/// </summary>
+[CollectionDefinition(Name)]
+public class AzureServiceBusCollection : ICollectionFixture<AzureServiceBusFixture>
+{
+    public const string Name = "AzureServiceBus";
+}
+
 public class AzureServiceBusFixture : IAsyncLifetime
 {
     private INetwork? _network;
@@ -251,7 +263,22 @@ public class AzureServiceBusFixture : IAsyncLifetime
                     "Properties": {
                       "MaxAllowedConnections": 100
                     },
-                    "Queues": [],
+                    "Queues": [
+                      {
+                        "Name": "commands",
+                        "Properties": {
+                          "DeadLetteringOnMessageExpiration": false,
+                          "DefaultMessageTimeToLive": "PT1H",
+                          "DuplicateDetectionHistoryTimeWindow": "PT20S",
+                          "ForwardDeadLetteredMessagesTo": "",
+                          "ForwardTo": "",
+                          "LockDuration": "PT30S",
+                          "MaxDeliveryCount": 10,
+                          "RequiresDuplicateDetection": false,
+                          "RequiresSession": false
+                        }
+                      }
+                    ],
                     "Topics": [
                       {
                         "Name": "behavior",

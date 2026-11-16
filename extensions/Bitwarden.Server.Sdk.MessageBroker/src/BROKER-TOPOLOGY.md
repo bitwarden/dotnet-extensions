@@ -36,6 +36,17 @@ The library creates and owns its own `ServiceBusClient` from the configured conn
 and does not consume any `ServiceBusClient` the app registers separately. An app that also uses
 `ServiceBusClient` against the same namespace will have two AMQP connections to the broker.
 
+### Command queues
+
+For each unique `queue` passed to `AddCommandConsumer<TPayload, TCeiling, TConsumer>(queue)`:
+
+- A queue named `{queue}`, owned by the receiving service. It carries every command family the
+  service accepts, so it has no filter: the receiver reads `x-bw-payload-family` and dead-letters a
+  family it has no consumer for. Set `MaxDeliveryCount` as for a subscription.
+
+Senders (`AddCommandSender`) need only send rights on the queue. Sending to a queue that doesn't
+exist throws `BrokerUnavailableException`.
+
 ## RabbitMQ
 
 For each unique `topic` passed to `AddPublisher<TPayload, TCeiling>(topic)`:
@@ -113,3 +124,15 @@ rabbitmqctl set_policy user-events-subscriptions "^user-events\." \
   '{"delivery-limit":10,"dead-letter-exchange":"dead-letter.user-events","dead-letter-strategy":"at-least-once","overflow":"reject-publish"}' \
   --apply-to quorum_queues
 ```
+
+### Command queues (RabbitMQ)
+
+For each unique `queue` passed to `AddCommandConsumer<TPayload, TCeiling, TConsumer>(queue)`:
+
+- A durable quorum queue named `{queue}`. Senders publish to it through the default exchange (`""`)
+  with the queue's name as routing key, so it needs no exchange or binding of its own.
+- Apply the same `delivery-limit` and dead-letter policy as subscription queues.
+
+Senders publish with `mandatory`, so a command sent before the queue exists is returned by the
+broker and `SendAsync` throws `BrokerUnavailableException` instead of the command being dropped.
+

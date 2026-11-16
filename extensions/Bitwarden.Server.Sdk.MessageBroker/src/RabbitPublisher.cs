@@ -8,16 +8,34 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
 {
+    private readonly string _destinationName;
     private readonly string _exchangeName;
+    private readonly string _routingKey;
+    private readonly bool _mandatory;
     private readonly IMessageSerializer _serializer;
     private readonly MessageBrokerMetrics _metrics;
     private readonly RabbitConnection _connection;
     private readonly SemaphoreSlim _channelGate = new(1, 1);
     private IChannel? _channel;
 
-    public RabbitPublisher(RabbitConnection connection, string exchangeName, IMessageSerializer serializer, MessageBrokerMetrics metrics)
+    /// <param name="connection">The shared broker connection.</param>
+    /// <param name="destinationName">The topic or command queue, as spans, metrics and errors name it.</param>
+    /// <param name="exchangeName">The exchange to publish to: the topic's exchange, or <c>""</c> (the default exchange) for a command queue.</param>
+    /// <param name="routingKey">The family wire name for a topic, or the queue's name for a command queue.</param>
+    /// <param name="mandatory">
+    /// Whether a message no queue receives is refused. False for a topic, whose publisher doesn't
+    /// depend on who is listening; true for a command queue, whose command would otherwise be lost.
+    /// </param>
+    /// <param name="serializer">Serializes the variants.</param>
+    /// <param name="metrics">Records the publish.</param>
+    public RabbitPublisher(
+        RabbitConnection connection, string destinationName, string exchangeName, string routingKey, bool mandatory,
+        IMessageSerializer serializer, MessageBrokerMetrics metrics)
     {
+        _destinationName = destinationName;
         _exchangeName = exchangeName;
+        _routingKey = routingKey;
+        _mandatory = mandatory;
         _serializer = serializer;
         _metrics = metrics;
         _connection = connection;
@@ -72,8 +90,8 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
         string messageId,
         CancellationToken cancellationToken)
     {
-        using var activity = MessageBrokerActivitySource.StartProducerActivity(_exchangeName, TPayload.WireName);
-        _metrics.RecordPublish(_exchangeName, TPayload.WireName);
+        using var activity = MessageBrokerActivitySource.StartProducerActivity(_destinationName, TPayload.WireName);
+        _metrics.RecordPublish(_destinationName, TPayload.WireName);
         try
         {
             var channel = await GetChannelAsync(cancellationToken);
@@ -88,23 +106,24 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
                     [BrokerProperties.PayloadFamily] = TPayload.WireName,
                 },
             };
-            await channel.BasicPublishAsync(_exchangeName, routingKey: TPayload.WireName, mandatory: false,
+            await channel.BasicPublishAsync(_exchangeName, _routingKey, _mandatory,
                 props, buffer.WrittenMemory, cancellationToken);
         }
         catch (BrokerUnreachableException ex)
         {
-            throw new BrokerUnavailableException(_exchangeName, ex);
+            throw new BrokerUnavailableException(_destinationName, ex);
         }
         catch (OperationInterruptedException ex)
         {
-            throw new BrokerUnavailableException(_exchangeName, ex);
+            throw new BrokerUnavailableException(_destinationName, ex);
         }
         catch (PublishException ex)
         {
-            // The broker refused the message (a nack), for instance a full queue that rejects publishes.
-            // mandatory is false, so an unroutable message is not a refusal: an event topic
-            // with no subscriptions accepts and drops it, as on Azure Service Bus.
-            throw new BrokerUnavailableException(_exchangeName, ex);
+            // A nack: the broker refused the message, for instance a full queue that rejects publishes. Or a
+            // return (IsReturn), only possible when mandatory: no queue would receive a command,
+            // because the receiver's queue doesn't exist yet. A retry can succeed once it does,
+            // as on Azure Service Bus, where sending to a missing queue fails the same way.
+            throw new BrokerUnavailableException(_destinationName, ex);
         }
     }
 

@@ -317,7 +317,7 @@ broker metadata:
 
 ### When the broker goes away
 
-Consumers registered with `AddMessageConsumer` keep running through a
+Consumers registered with `AddMessageConsumer` or `AddCommandConsumer` keep running through a
 broker outage. When their subscription fails, they log a warning and subscribe again, waiting one
 second after the first failure and doubling the wait up to thirty seconds. The wait goes back to
 one second once messages flow again. A host whose broker is down when it starts still starts, and
@@ -350,6 +350,47 @@ services.AddSingleton<IMessageEscrowStore, MyDatabaseEscrowStore>();
 Without a registered `IMessageEscrowStore`, undelivered messages are logged as errors and
 discarded. Consumers should be idempotent — escrow provides at-least-once delivery rather than
 exactly-once.
+
+## Commands
+
+A command asks one service to do something, such as `send.mail`. The receiving service owns one
+command queue, `{service}.commands`, carrying every command family it accepts. Senders send to it;
+only its owner reads it.
+
+Register a sender for each command family you send, and send exactly as you publish:
+
+```csharp
+services.AddCommandSender<SendMailPayload, SendMail>("notification.commands");
+
+public class InviteService(
+    [FromKeyedServices("notification.commands#send.mail")] Publisher<SendMailPayload, SendMail> mail)
+{
+    public Task InviteAsync(Invitation invitation, CancellationToken ct) =>
+        mail.Publish(new SendMail(invitation.Email, "invite")).SendAsync(ct);
+}
+```
+
+The receiving service registers one consumer per command family it accepts:
+
+```csharp
+services.AddCommandConsumer<SendMailPayload, SendMail, SendMailConsumer>("notification.commands");
+services.AddCommandConsumer<SendPushPayload, SendPush, SendPushConsumer>("notification.commands");
+```
+
+Consumers implement `IMessageConsumer<TPayload, TCeiling>` and are hosted like those registered
+with `AddMessageConsumer`: a scope per command, completed when the consumer returns and requeued
+when it throws. The service runs one receiver for the queue and hands each command to the
+consumer for its family. A command whose family has no consumer is dead-lettered, so it doesn't
+block the queue.
+
+Commands differ from events in one way: a command nobody will receive is an error. If the queue
+doesn't exist, `SendAsync` throws `BrokerUnavailableException` (on RabbitMQ the command is published
+with `mandatory`, so the broker returns it). An outbox keeps the command and retries until the
+receiver's queue exists.
+
+Commands are versioned the same way as events: every version the sender knows travels in one
+message, and the consumer reads the newest it understands. The in-memory backend keeps its command
+queues in the process and doesn't escrow them, so commands still queued at shutdown are lost.
 
 ## Observability
 
