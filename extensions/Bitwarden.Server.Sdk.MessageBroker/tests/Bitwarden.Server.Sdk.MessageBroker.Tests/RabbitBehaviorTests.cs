@@ -173,7 +173,11 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
 
         Assert.NotNull(ex);
         Assert.Equal(TopicName, ex.TopicName);
-        Assert.IsAssignableFrom<OperationInterruptedException>(ex.InnerException);
+        // The send fails on the dead channel (OperationInterruptedException), or, once the
+        // publisher has noticed the channel is closed, on its attempt to connect again
+        // (BrokerUnreachableException).
+        Assert.True(ex.InnerException is OperationInterruptedException or BrokerUnreachableException,
+            $"Unexpected inner exception: {ex.InnerException?.GetType().Name}");
     }
 
     /// <summary>

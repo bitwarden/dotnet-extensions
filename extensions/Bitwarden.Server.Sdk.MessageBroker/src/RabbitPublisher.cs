@@ -11,29 +11,60 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
     private readonly string _exchangeName;
     private readonly IMessageSerializer _serializer;
     private readonly MessageBrokerMetrics _metrics;
-    private readonly Task<IChannel> _channel;
+    private readonly RabbitConnection _connection;
+    private readonly SemaphoreSlim _channelGate = new(1, 1);
+    private IChannel? _channel;
 
     public RabbitPublisher(RabbitConnection connection, string exchangeName, IMessageSerializer serializer, MessageBrokerMetrics metrics)
     {
         _exchangeName = exchangeName;
         _serializer = serializer;
         _metrics = metrics;
-        // Begin creating the channel as soon as the connection is available.
-        // By the time any traffic arrives the hosted service will have completed StartAsync,
-        // so this task is almost always already finished.
-        _channel = OpenChannelAsync(connection);
+        _connection = connection;
     }
 
-    private static async Task<IChannel> OpenChannelAsync(RabbitConnection connection)
+    // Opens the channel on first use, and again whenever it isn't open: the broker closed it, or
+    // the connection under it was lost and has to be opened again.
+    private async Task<IChannel> GetChannelAsync(CancellationToken cancellationToken)
     {
-        var conn = await connection.GetConnectionAsync();
-        // Publisher confirms with tracking: BasicPublishAsync completes only once the broker has
-        // taken responsibility for the message, and throws PublishException if it refuses it. A
-        // send that returns has been accepted, which is what lets a caller such as an outbox
-        // treat it as delivered to the broker.
-        return await conn.CreateChannelAsync(new CreateChannelOptions(
-            publisherConfirmationsEnabled: true,
-            publisherConfirmationTrackingEnabled: true));
+        if (_channel is { IsOpen: true } open)
+            return open;
+
+        // Wait for the connection before taking the gate: concurrent sends then share one attempt
+        // to connect (see RabbitConnection) instead of queueing behind each other's attempts.
+        var conn = await _connection.GetConnectionAsync(cancellationToken);
+
+        await _channelGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_channel is { IsOpen: true } opened)
+                return opened;
+            if (_channel is not null)
+            {
+                try
+                {
+                    await _channel.DisposeAsync();
+                }
+                catch (Exception)
+                {
+                    // A closed channel can fail to dispose; nothing on it is worth recovering.
+                }
+                _channel = null;
+            }
+
+            // Publisher confirms with tracking: BasicPublishAsync completes only once the broker
+            // has taken responsibility for the message, and throws PublishException if it refuses
+            // it. A send that returns has been accepted, which is what lets a caller such as an
+            // outbox treat it as delivered to the broker.
+            _channel = await conn.CreateChannelAsync(
+                new CreateChannelOptions(publisherConfirmationsEnabled: true, publisherConfirmationTrackingEnabled: true),
+                cancellationToken);
+            return _channel;
+        }
+        finally
+        {
+            _channelGate.Release();
+        }
     }
 
     protected internal override async Task SendAsync(
@@ -44,7 +75,7 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
         _metrics.RecordPublish(_exchangeName, TPayload.WireName);
         try
         {
-            var channel = await _channel;
+            var channel = await GetChannelAsync(cancellationToken);
             var buffer = new ArrayBufferWriter<byte>();
             _serializer.SerializeVariants<TPayload>(variants, buffer);
             var props = new BasicProperties
@@ -78,7 +109,7 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
 
     public async ValueTask DisposeAsync()
     {
-        if (_channel.IsCompletedSuccessfully)
-            await _channel.Result.DisposeAsync();
+        if (_channel is not null)
+            await _channel.DisposeAsync();
     }
 }

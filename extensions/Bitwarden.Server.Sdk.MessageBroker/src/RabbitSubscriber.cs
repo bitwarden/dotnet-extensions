@@ -28,7 +28,6 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
 
     public async IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var conn = await _connection.GetConnectionAsync(cancellationToken);
         // The host can close the connection while the stream is still being set up. That is a
         // shutdown, not a broker failure, so the stream ends as it does when the channel closes.
         // Setup calls also end when the connection has closed, rather than waiting for a reply.
@@ -36,6 +35,7 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
         IChannel rabbitChannel;
         try
         {
+            var conn = await _connection.GetConnectionAsync(setupCancellation.Token);
             rabbitChannel = await conn.CreateChannelAsync(cancellationToken: setupCancellation.Token);
         }
         catch (Exception) when (_connection.IsClosing && !cancellationToken.IsCancellationRequested)

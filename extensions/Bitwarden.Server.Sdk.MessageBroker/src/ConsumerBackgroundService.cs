@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -16,19 +17,32 @@ internal sealed class ConsumerBackgroundService<TPayload, TCeiling, TConsumer> :
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ISubscriber<TPayload, TCeiling> _subscriber;
+    private readonly ILogger _logger;
+    private readonly string _subscriptionKey;
 
     /// <param name="scopeFactory">Used to create a per-message DI scope.</param>
     /// <param name="subscriber">The subscriber to consume messages from.</param>
-    public ConsumerBackgroundService(IServiceScopeFactory scopeFactory, ISubscriber<TPayload, TCeiling> subscriber)
+    /// <param name="logger">Logs a failed subscription before it is opened again.</param>
+    /// <param name="subscriptionKey">The <c>{topic}/{subscription}</c> being consumed, for the log.</param>
+    public ConsumerBackgroundService(
+        IServiceScopeFactory scopeFactory, ISubscriber<TPayload, TCeiling> subscriber, ILogger logger, string subscriptionKey)
     {
         _scopeFactory = scopeFactory;
         _subscriber = subscriber;
+        _logger = logger;
+        _subscriptionKey = subscriptionKey;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    // A subscription that fails (a broker outage, or a broker down at startup) is opened again
+    // rather than faulting the service, which with .NET's defaults would stop the host.
+    protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
+        ResubscribeLoop.RunAsync(ReceiveAsync, _logger, _subscriptionKey, stoppingToken);
+
+    private async Task ReceiveAsync(Action onMessage, CancellationToken stoppingToken)
     {
         await foreach (var envelope in _subscriber.SubscribeAsync(stoppingToken))
         {
+            onMessage();
             // Make the consumer span current so telemetry emitted inside HandleAsync (nested
             // activities, HttpClient spans, EF Core command spans, scoped logs) is parented to
             // the receive span. The backends create the Activity on the subscriber iterator's
