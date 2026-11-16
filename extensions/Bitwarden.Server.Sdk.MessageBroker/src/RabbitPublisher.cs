@@ -20,7 +20,10 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
 
     /// <param name="connection">The shared broker connection.</param>
     /// <param name="destinationName">The topic or command queue, as spans, metrics and errors name it.</param>
-    /// <param name="exchangeName">The exchange to publish to: the topic's exchange, or <c>""</c> (the default exchange) for a command queue.</param>
+    /// <param name="exchangeName">
+    /// The exchange to publish to: the topic's exchange, or the command queue's own exchange, which shares
+    /// its name and is bound only to it.
+    /// </param>
     /// <param name="routingKey">The family wire name for a topic, or the queue's name for a command queue.</param>
     /// <param name="mandatory">
     /// Whether a message no queue receives is refused. False for a topic, whose publisher doesn't
@@ -115,13 +118,15 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
         }
         catch (OperationInterruptedException ex)
         {
+            // Includes a command queue whose exchange doesn't exist yet: the broker closes the
+            // channel, and the next send opens a new one.
             throw new BrokerUnavailableException(_destinationName, ex);
         }
         catch (PublishException ex)
         {
             // A nack: the broker refused the message, for instance a full queue that rejects publishes. Or a
             // return (IsReturn), only possible when mandatory: no queue would receive a command,
-            // because the receiver's queue doesn't exist yet. A retry can succeed once it does,
+            // because the receiver's queue isn't bound to its exchange yet. A retry can succeed once it is,
             // as on Azure Service Bus, where sending to a missing queue fails the same way.
             throw new BrokerUnavailableException(_destinationName, ex);
         }

@@ -129,9 +129,17 @@ rabbitmqctl set_policy user-events-subscriptions "^user-events\." \
 
 For each unique `queue` passed to `AddCommandConsumer<TPayload, TCeiling, TConsumer>(queue)`:
 
-- A durable quorum queue named `{queue}`. Senders publish to it through the default exchange (`""`)
-  with the queue's name as routing key, so it needs no exchange or binding of its own.
+- A durable **direct** exchange named `{queue}`.
+- A durable quorum queue named `{queue}`, bound to that exchange with the queue's name as its
+  routing key. Senders publish to the exchange with the same routing key.
 - Apply the same `delivery-limit` and dead-letter policy as subscription queues.
+
+Each command queue has an exchange of its own, rather than senders using RabbitMQ's default
+exchange, so that sending can be granted one queue at a time. RabbitMQ checks a publish against
+`write` on the exchange: a sender's user needs `write` on `^{queue}$` for each queue it sends to,
+and the receiver's user `read` on its own queue. Write on the default exchange (`amq.default`)
+would let a user publish to every queue in the virtual host, event subscription queues included,
+so don't grant it to service users.
 
 Senders publish with `mandatory`, so a command sent before the queue exists is returned by the
 broker and `SendAsync` throws `BrokerUnavailableException` instead of the command being dropped.

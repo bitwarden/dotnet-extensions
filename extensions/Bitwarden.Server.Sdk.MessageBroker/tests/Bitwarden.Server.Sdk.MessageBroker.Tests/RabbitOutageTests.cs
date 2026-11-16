@@ -102,8 +102,10 @@ public sealed class RabbitOutageTests : IAsyncLifetime
             cancellationToken: TestContext.Current.CancellationToken);
         await channel.QueueBindAsync($"{_topic}.outage", _topic, routingKey: MyItemPayload.WireName,
             cancellationToken: TestContext.Current.CancellationToken);
+        await channel.ExchangeDeclareAsync(Queue, ExchangeType.Direct, durable: true, cancellationToken: TestContext.Current.CancellationToken);
         await channel.QueueDeclareAsync(Queue, durable: true, exclusive: false, autoDelete: false, arguments: quorum,
             cancellationToken: TestContext.Current.CancellationToken);
+        await channel.QueueBindAsync(Queue, Queue, routingKey: Queue, cancellationToken: TestContext.Current.CancellationToken);
     }
 
     // After a restart the container's wait strategy finds the first start's "Server startup

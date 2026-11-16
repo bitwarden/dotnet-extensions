@@ -94,9 +94,12 @@ expected shape is driven by two design choices:
   family's messages; several subscriptions on the same exchange with different routing keys split
   the outbound stream by family. Multiple instances sharing a subscription name act as competing
   consumers against that subscription's queue.
-- **Command queues** are durable quorum queues addressed through the default exchange, with the
-  queue's name as the routing key and `mandatory` set, so a command no queue receives is returned
-  and the send fails. The family travels in the `x-bw-payload-family` header.
+- **Command queues** are durable quorum queues, each bound to a direct exchange of the same name
+  with the queue's name as the routing key. Senders publish to that exchange with `mandatory` set,
+  so a command no queue receives is returned and the send fails. A queue gets its own exchange,
+  rather than senders using the default exchange, because RabbitMQ grants publishing per exchange:
+  write on the default exchange reaches every queue. The family travels in the
+  `x-bw-payload-family` header.
 
 ## Shutdown and escrow
 

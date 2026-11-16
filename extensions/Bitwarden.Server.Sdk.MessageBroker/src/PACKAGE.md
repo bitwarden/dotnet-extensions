@@ -384,9 +384,10 @@ consumer for its family. A command whose family has no consumer is dead-lettered
 block the queue.
 
 Commands differ from events in one way: a command nobody will receive is an error. If the queue
-doesn't exist, `SendAsync` throws `BrokerUnavailableException` (on RabbitMQ the command is published
-with `mandatory`, so the broker returns it). An outbox keeps the command and retries until the
-receiver's queue exists.
+doesn't exist, `SendAsync` throws `BrokerUnavailableException`. On RabbitMQ that is either the queue's
+exchange missing, or the exchange with no queue bound to it: the command is published with
+`mandatory`, so the broker returns it. An outbox keeps the command and retries until the receiver's
+queue exists.
 
 Commands are versioned the same way as events: every version the sender knows travels in one
 message, and the consumer reads the newest it understands. The in-memory backend keeps its command

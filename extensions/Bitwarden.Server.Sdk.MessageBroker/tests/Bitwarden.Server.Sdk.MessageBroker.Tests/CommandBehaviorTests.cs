@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Exceptions;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 
@@ -272,7 +273,7 @@ public class RabbitCommandBehaviorTests : CommandBehaviorTests, IClassFixture<Ra
 
     protected override Dictionary<string, string?> CreateConfig() => new() { ["RabbitUri"] = _fixture.GetUri() };
 
-    // Declares each queue a command consumer reads, as the receiver's provisioning would.
+    // Declares each queue a command consumer reads, and its exchange, as the receiver's provisioning would.
     protected override async Task PreStartAsync(IHost host)
     {
         var uri = host.Services.GetRequiredService<IOptions<MessagingOptions>>().Value.RabbitUri!;
@@ -283,9 +284,66 @@ public class RabbitCommandBehaviorTests : CommandBehaviorTests, IClassFixture<Ra
         {
             // With a delivery limit, as BROKER-TOPOLOGY.md's policy gives every command queue: LavinMQ
             // counts deliveries in x-delivery-count only on a queue that has one.
+            await channel.ExchangeDeclareAsync(queue, ExchangeType.Direct, durable: true,
+                cancellationToken: TestContext.Current.CancellationToken);
             await channel.QueueDeclareAsync(queue, durable: true, exclusive: false, autoDelete: false,
                 arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum", ["x-delivery-limit"] = 10 },
                 cancellationToken: TestContext.Current.CancellationToken);
+            await channel.QueueBindAsync(queue, queue, routingKey: queue,
+                cancellationToken: TestContext.Current.CancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// A command sent before its queue is provisioned fails, whichever part is missing, and the same
+    /// sender succeeds once the queue is bound to its exchange: what an outbox retrying the command sees.
+    /// </summary>
+    [Fact(Timeout = 60 * 1000)]
+    public async Task ACommandFailsUntilItsQueueIsBoundToItsExchange()
+    {
+        var queue = $"late-{Guid.NewGuid():N}";
+        var host = new HostBuilder()
+            .ConfigureAppConfiguration(b => b.AddInMemoryCollection(CreateConfig()))
+            .ConfigureServices(services =>
+            {
+                services.AddMetrics();
+                services.AddCommandSender<SendMailPayload, SendMail>(queue);
+                services.AddOptions<MessagingOptions>().BindConfiguration("");
+            })
+            .Build();
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            var sender = host.Services.GetRequiredKeyedService<Publisher<SendMailPayload, SendMail>>(
+                MessageBrokerKeys.Publisher<SendMailPayload>(queue));
+            Task Send() => sender.Publish(new SendMail(1)).SendAsync(TestContext.Current.CancellationToken);
+
+            // No exchange: the broker closes the channel.
+            await Assert.ThrowsAsync<BrokerUnavailableException>(Send);
+
+            var factory = new ConnectionFactory { Uri = new Uri(_fixture.GetUri()) };
+            await using var conn = await factory.CreateConnectionAsync(TestContext.Current.CancellationToken);
+            await using var channel = await conn.CreateChannelAsync(cancellationToken: TestContext.Current.CancellationToken);
+            await channel.ExchangeDeclareAsync(queue, ExchangeType.Direct, durable: true,
+                cancellationToken: TestContext.Current.CancellationToken);
+
+            // An exchange with no queue bound: the broker returns the command.
+            var returned = await Assert.ThrowsAsync<BrokerUnavailableException>(Send);
+            Assert.True(returned.InnerException is PublishException { IsReturn: true },
+                $"Expected a returned message; got {returned.InnerException?.GetType().Name}.");
+
+            await channel.QueueDeclareAsync(queue, durable: true, exclusive: false, autoDelete: false,
+                arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum" },
+                cancellationToken: TestContext.Current.CancellationToken);
+            await channel.QueueBindAsync(queue, queue, routingKey: queue, cancellationToken: TestContext.Current.CancellationToken);
+
+            await Send();
+            Assert.NotNull(await channel.BasicGetAsync(queue, autoAck: true, TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            await host.StopAsync(TestContext.Current.CancellationToken);
+            host.Dispose();
         }
     }
 }

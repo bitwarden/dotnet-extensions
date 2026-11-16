@@ -242,7 +242,7 @@ public static class MessageBrokerServiceCollectionExtensions
             if (!string.IsNullOrEmpty(options.RabbitUri))
             {
                 return new RabbitPublisher<TPayload, TCeiling>(sp.GetRequiredService<RabbitConnection>(), queueName,
-                    exchangeName: "", routingKey: queueName, mandatory: true, serializer, metrics);
+                    exchangeName: queueName, routingKey: queueName, mandatory: true, serializer, metrics);
             }
             return new ChannelCommandSender<TPayload, TCeiling>(sp.GetRequiredKeyedService<ChannelCommandQueue>(queueName), queueName, serializer, metrics);
         });
