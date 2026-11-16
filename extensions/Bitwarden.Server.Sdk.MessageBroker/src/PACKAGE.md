@@ -243,14 +243,19 @@ public class UserService(
 ### Message identifiers
 
 Every message carries an identifier, which subscribers see as `Envelope.MessageId`. `SendAsync(ct)`
-assigns a new version 7 GUID. To send the same message again under the same identifier, as an
-outbox does when it retries, pass it yourself:
+assigns a new version 7 GUID. To send the same message again under the same identifier, pass it
+yourself:
 
 ```csharp
 await publisher
     .Publish(new OrderPayload.V2(order.Id, order.CustomerId))
-    .SendAsync(outboxRow.MessageId, ct);
+    .SendAsync(orderMessageId, ct);
 ```
+
+A service that must send a message with the change it belongs to, and resend it under its first
+identifier, uses
+[Bitwarden.Server.Sdk.MessageBroker.Sender](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker.Sender/src/PACKAGE.md),
+which does this for it.
 
 A subscriber that receives the message twice then sees the same identifier both times, and can use
 it to recognize the repeat. Identifiers must be ASCII, must not be blank, and can be at most 128

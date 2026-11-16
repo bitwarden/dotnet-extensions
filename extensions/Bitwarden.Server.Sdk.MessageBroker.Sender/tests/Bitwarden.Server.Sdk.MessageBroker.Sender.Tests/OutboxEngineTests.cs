@@ -34,7 +34,7 @@ public abstract class OutboxEngineTests(OutboxEngineFixture fixture) : IAsyncLif
     }
 
     // An instance of the service: its own container, its own connections, the in-memory broker.
-    private IHost Instance()
+    private IHost Instance(Action<MessageOutboxOptions>? options = null)
     {
         var host = new HostBuilder()
             .ConfigureServices(services =>
@@ -45,7 +45,11 @@ public abstract class OutboxEngineTests(OutboxEngineFixture fixture) : IAsyncLif
                 services.AddOutboxPublisher<OrderPlacedPayload, OrderPlaced, ShopContext>(Topic);
                 services.AddOutboxLocalHandler<ReserveStockPayload, ReserveStock, ShopContext, ReserveStockHandler>();
                 services.AddSingleton<StockReservations>();
-                services.Configure<MessageOutboxOptions>(o => o.BatchSize = 10);
+                services.Configure<MessageOutboxOptions>(o =>
+                {
+                    o.BatchSize = 10;
+                    options?.Invoke(o);
+                });
             })
             .Build();
         _hosts.Add(host);
@@ -206,6 +210,67 @@ public abstract class OutboxEngineTests(OutboxEngineFixture fixture) : IAsyncLif
         Assert.Equal(2, sample.Due);
         Assert.InRange(sample.OldestLateness!.Value.TotalMinutes, 6.9, 8);
         Assert.Equal(0, sample.SetAside);
+    }
+
+    // Both are registered on their own: the topic with OrderPlaced, and the service's own handler
+    // with ReserveStock. Paired the other way round, they are no route of this build's.
+    [Fact]
+    public async Task OnlyARegisteredPairingOfDestinationAndTypeIsClaimed()
+    {
+        var host = Instance();
+        await using (var database = fixture.Database())
+        {
+            for (var i = 0; i < 10; i++)
+            {
+                database.Set<OutboxMessage>().Add(new OutboxMessage
+                {
+                    MessageId = $"unpaired-{i:D2}",
+                    Destination = i % 2 == 0 ? Topic : MessageOutbox.Local,
+                    MessageType = i % 2 == 0 ? ReserveStockPayload.WireName : OrderPlacedPayload.WireName,
+                    Body = "[]"u8.ToArray(),
+                });
+            }
+            await database.SaveChangesAsync(Token);
+        }
+        await SendAsync(host, 1);
+
+        Assert.Equal(1, await Dispatcher(host).DispatchAsync(Token));
+
+        Assert.Equal(["order-000"], _sent);
+        var rows = await RowsAsync();
+        Assert.Equal(10, rows.Count);
+        Assert.All(rows, row => Assert.Equal((0, (Guid?)null, 0L), (row.Attempts, row.LeaseToken, row.AvailableAt)));
+    }
+
+    [Fact(Timeout = 120 * 1000)]
+    public async Task ABatchThatOutlastsItsLeaseHandlesEachMessageOnce()
+    {
+        // Eight handlers of 600 ms are longer than the four-second lease. The first instance stops
+        // starting them with a quarter of the lease left; the second claims what it left, and nothing
+        // either of them is still handling.
+        var instances = Enumerable.Range(0, 2).Select(_ => Instance(o => o.Lease = TimeSpan.FromSeconds(4))).ToList();
+        foreach (var instance in instances)
+            instance.Services.GetRequiredService<StockReservations>().Next = _ => Task.Delay(600, Token);
+        await using (var scope = instances[0].Services.CreateAsyncScope())
+        {
+            var outbox = scope.ServiceProvider.GetRequiredService<IOutboxSender>();
+            for (var i = 0; i < 8; i++)
+                await outbox.SendAsync<ReserveStockPayload, ReserveStock>(new ReserveStock(i), $"reserve-{i}", cancellationToken: Token);
+            await scope.ServiceProvider.GetRequiredService<ShopContext>().SaveChangesAsync(Token);
+        }
+
+        await Task.WhenAll(instances.Select(instance => Task.Run(async () =>
+        {
+            while ((await RowsAsync()).Count > 0)
+            {
+                if (await Dispatcher(instance).DispatchAsync(Token) == 0)
+                    await Task.Delay(100, Token);
+            }
+        }, Token)));
+
+        var handled = instances.SelectMany(instance => instance.Services.GetRequiredService<StockReservations>().Handled)
+            .Select(each => each.OrderId).Order();
+        Assert.Equal(Enumerable.Range(0, 8), handled);
     }
 
     private sealed class Recorder(ConcurrentQueue<string> sent) : IOutboxSendObserver

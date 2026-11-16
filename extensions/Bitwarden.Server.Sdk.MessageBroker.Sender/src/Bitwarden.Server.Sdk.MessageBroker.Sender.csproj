@@ -15,8 +15,6 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Bitwarden.Server.Sdk.MessageBroker.Sender.Tests" />
-    <!-- The test harness records what the dispatcher hands to the broker (IOutboxSendObserver). -->
-    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Service.Testing" />
   </ItemGroup>
 
   <ItemGroup>

@@ -15,7 +15,9 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Bitwarden.Server.Sdk.MessageBroker.Tests" />
-    <!-- The outbox sends through the direct publishers (AddDirectPublisher, Publisher.SendAsync with a stored identifier). -->
+    <!-- The outbox sender uses these internals: Publisher.SendRawAsync; AddDirectPublisher, AddDirectCommandSender
+         and MessageBrokerKeys.Direct; PublisherExtensions.ThrowIfInvalidMessageId; SendFailures.IsPermanent;
+         PublishBuilder's Accumulated, Current and Publisher; ChainValidator.ThrowIfInvalid; and AddFamilySerializer. -->
     <InternalsVisibleTo Include="Bitwarden.Server.Sdk.MessageBroker.Sender" />
     <InternalsVisibleTo Include="Bitwarden.Server.Sdk.MessageBroker.Sender.Tests" />
   </ItemGroup>

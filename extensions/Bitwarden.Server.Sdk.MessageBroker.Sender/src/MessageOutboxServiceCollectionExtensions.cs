@@ -67,9 +67,7 @@ public static class MessageOutboxServiceCollectionExtensions
         where THandler : class, IMessageConsumer<TPayload, TCeiling>
     {
         ChainValidator<TPayload, TCeiling>.ThrowIfInvalid();
-        var key = MessageBrokerKeys.Publisher<TPayload>(MessageOutbox.Local);
-        services.TryAddKeyedSingleton<IMessageSerializer>(key, (sp, _) =>
-            new SystemTextJsonMessageSerializer(sp.GetRequiredService<IOptionsMonitor<MessageBrokerSerializerOptions>>(), MessageOutbox.Local));
+        MessageBrokerServiceCollectionExtensions.AddFamilySerializer<TPayload>(services, MessageOutbox.Local);
         services.TryAddScoped<THandler>();
         return AddOutboxSender<TPayload, TCeiling, TContext>(services, MessageOutbox.Local,
             sp => new OutboxLocalRoute<TPayload, TCeiling, THandler>(sp));

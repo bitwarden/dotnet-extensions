@@ -436,7 +436,12 @@ public static class MessageBrokerServiceCollectionExtensions
     // family on a topic or command queue share one serializer, while a second family on the same
     // destination gets its own. User-facing MessageBrokerSerializerOptions stays scoped by the
     // destination's name: one JSON pipeline per topic or queue, shared by every family on it.
-    private static void AddFamilySerializer<TPayload>(IServiceCollection services, string destinationName)
+    /// <summary>
+    /// Registers the serializer for <typeparamref name="TPayload"/> on <paramref name="destinationName"/>,
+    /// keyed as its publisher is. Internal so the outbox sender registers its local destination's
+    /// serializer the same way.
+    /// </summary>
+    internal static void AddFamilySerializer<TPayload>(IServiceCollection services, string destinationName)
         where TPayload : IPayloadWireName<TPayload>
     {
         services.TryAddKeyedSingleton<IMessageSerializer>(MessageBrokerKeys.Publisher<TPayload>(destinationName), (sp, _) =>

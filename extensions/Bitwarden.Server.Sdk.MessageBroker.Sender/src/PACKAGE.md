@@ -23,11 +23,12 @@ dotnet add package Bitwarden.Server.Sdk.MessageBroker.Sender
   accepted it.
 - **Nothing is sent without a save.** `SendAsync` neither sends nor saves. A change that rolls back
   takes its messages with it.
-- **At least once.** A crash between the send and the delete sends the message again, under the
-  same identifier, so a receiver must treat a repeat as harmless.
+- **At least once.** A message can be sent more than once, always under the same identifier: after
+  a crash between the send and the delete, or when one send or local handler runs longer than the
+  claim on its row (`Lease`) and another instance claims the row. A receiver must treat a repeat as
+  harmless.
 - **A destination** is a topic, another service's command queue, or `MessageOutbox.Local`, a
-  handler in the sending service itself. A message type is registered through the outbox, never
-  straight to the broker as well.
+  handler in the sending service itself.
 - **Set aside.** A failure that sending again can never fix leaves the row in the table with
   `SetAsideAt` set, for someone to look at. Every other failure is retried until it clears.
 - **What a row holds** is the message, serialized: Data at Rest in the sending service's database.
@@ -88,8 +89,9 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
 ### Register what the service sends
 
 Register each message type with the topic or command queue it goes to. These take the place of
-MessageBroker's `AddPublisher` and `AddCommandSender`; a message type registered both ways is
-refused at startup.
+MessageBroker's `AddPublisher` and `AddCommandSender`. Registering a type through the outbox after
+`AddPublisher` or `AddCommandSender` registered it for the same destination throws, since a send
+straight to the broker could be lost.
 
 In `Program.cs`:
 
@@ -326,3 +328,6 @@ Every instance counts the same table, so aggregate the gauges with `max`, not `s
   instance that does.
 - With `Dispatch` off, an instance writes to the outbox but sends nothing; another instance must
   dispatch.
+- Keep each send and local handler well inside `Lease`. The dispatcher stops starting sends from a
+  batch once a quarter of the lease is left and leaves the rest for the next claim, but one that
+  runs past the lease can be sent again by another instance.

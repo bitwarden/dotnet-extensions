@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using static Bitwarden.Server.Sdk.MessageBroker.Sender.Tests.OutboxTestHost;
 
@@ -111,6 +113,57 @@ public sealed class OutboxDispatcherTests : IAsyncDisposable
 
         var row = Assert.Single(await RowsAsync(host));
         Assert.Equal((0, (long?)null, (Guid?)null), (row.Attempts, row.SetAsideAt, row.LeaseToken));
+    }
+
+    [Fact(Timeout = 60 * 1000)]
+    public async Task RowsOfAnUnregisteredPairingAreNotClaimedAndDoNotKeepTheDispatcherPolling()
+    {
+        // Each row's destination and type are both registered, but not together: a command's type on
+        // the topic. A full batch of them, older than the routable row, mustn't hold it back or keep
+        // the dispatcher polling without a pause.
+        var commands = new CommandCounter();
+        var host = await _outbox.BuildAsync(services =>
+        {
+            services.Configure<MessageOutboxOptions>(o => o.BatchSize = 5);
+            services.PostConfigure<MessageOutboxOptions>(o => o.PollInterval = TimeSpan.FromMinutes(1));
+            services.ConfigureDbContext<ShopContext>(o => o.AddInterceptors(commands));
+        });
+        for (var i = 0; i < 5; i++)
+        {
+            await InsertAsync(host, new OutboxMessage
+            {
+                MessageId = $"unpaired-{i}",
+                Destination = Topic,
+                MessageType = SendReceiptPayload.WireName,
+                Body = "[]"u8.ToArray(),
+            });
+        }
+        await SendOrderAsync(host, 12, "routable");
+
+        await host.StartAsync(Token);
+        await host.Services.GetRequiredService<Received>().WaitForAsync(12);
+        await WaitUntilAsync(async () => (await RowsAsync(host)).All(row => row.MessageId != "routable"));
+        await Task.Delay(300, Token);
+        var settled = commands.Count;
+        await Task.Delay(TimeSpan.FromSeconds(1), Token);
+
+        Assert.Equal(settled, commands.Count);
+        var rows = await RowsAsync(host);
+        Assert.Equal(5, rows.Count);
+        Assert.All(rows, row => Assert.Equal((0, (Guid?)null, 0L), (row.Attempts, row.LeaseToken, row.AvailableAt)));
+    }
+
+    private sealed class CommandCounter : DbCommandInterceptor
+    {
+        private int _count;
+
+        public int Count => Volatile.Read(ref _count);
+
+        public override DbCommand CommandCreated(CommandEndEventData eventData, DbCommand result)
+        {
+            Interlocked.Increment(ref _count);
+            return result;
+        }
     }
 
     [Fact]
