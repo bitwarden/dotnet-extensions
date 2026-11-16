@@ -107,6 +107,9 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.MessageBroker.Topology/src/">
     <Project Path="extensions/Bitwarden.Server.Sdk.MessageBroker.Topology/src/Bitwarden.Server.Sdk.MessageBroker.Topology.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.MessageBroker.Topology/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.MessageBroker.Topology/tests/Bitwarden.Server.Sdk.MessageBroker.Topology.Tests/Bitwarden.Server.Sdk.MessageBroker.Topology.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.PasswordHashing/">
     <Project Path="extensions/Bitwarden.Server.Sdk.PasswordHashing/src/Bitwarden.Server.Sdk.PasswordHashing.csproj" />
   </Folder>
