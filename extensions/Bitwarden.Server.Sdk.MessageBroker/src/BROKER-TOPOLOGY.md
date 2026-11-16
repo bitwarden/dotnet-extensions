@@ -16,7 +16,8 @@ LavinMQ. Services don't depend on which one is in use.
 | Lite       | LavinMQ 2.10.4    | Azure Service Bus, RabbitMQ 4.3.6      |
 
 Topics, queues and subscriptions must exist before the services start. With a broker other than the
-default, the operator sets them up from the release's broker topology before each upgrade.
+default, the operator sets them up from the release's broker topology before each upgrade. A service
+that finds them missing stops at startup and names what is missing.
 
 RabbitMQ and LavinMQ share one backend in the library (the `Rabbit*` types, configured with
 `RabbitUri`): it relies on what both brokers provide, quorum queues, policies, `delivery-limit`,
@@ -32,6 +33,31 @@ typically as part of the broker container's bootstrap or via infrastructure-as-c
 A broker topic carries messages from many payload families. Publishers stamp every outgoing message with
 their family wire name (`IPayloadWireName<TPayload>.WireName`) so subscriptions can bind or filter
 down to the family they consume.
+
+## Checking the topology at startup
+
+Once a service first reaches its broker, it checks that the topology its registrations need exists,
+from the same requirements listed under
+[Collecting a service's topology](#collecting-a-services-topology). If anything is missing, it logs
+one critical message naming each missing object and stops with exit code 1, so a deployment with
+incomplete topology fails at once instead of running without, say, the queue its commands arrive on.
+A broker that can't be reached doesn't stop it: it logs a warning and checks again, waiting one second
+and doubling the wait up to thirty, until the broker answers. Set `VerifyTopologyAtStartup` to
+`false` to turn the check off.
+
+The check needs no rights beyond those the service already has (see
+[Users and permissions](#users-and-permissions) and
+[Access with a managed identity](#access-with-a-managed-identity)):
+
+- **RabbitMQ and LavinMQ:** a passive declare of each of its topic exchanges, its subscription queues
+  (`{topic}.{subscription}`), its command queue and the exchange of each command queue it sends to.
+  A passive declare needs only the read or write right on the object, not configure. RabbitMQ also
+  refuses one on an object the user has no rights to, whether or not it exists, so the check reports
+  such an object as missing or not permitted. It doesn't check bindings or policies.
+- **Azure Service Bus:** a peek at each of its subscriptions and its command queue, which needs only
+  the receive rights it has. Its topics and the queues it only sends to can't be checked without the
+  Manage right, which no service should have; a missing one shows up as sends that fail with
+  `BrokerUnavailableException`.
 
 ## Collecting a service's topology
 
@@ -264,7 +290,10 @@ broker and `SendAsync` throws `BrokerUnavailableException` instead of the comman
 - **Dead-lettering.** Both set the `x-death` header on a dead-lettered message, naming the queue it
   came from, which is what replaying it relies on.
 - **Permissions.** Both check `configure`, `write` and `read` against regular expressions over
-  resource names, so the rights described under command queues apply to both.
+  resource names, so the rights described under command queues apply to both. They differ on a
+  passive declare of an object the user has no rights to: RabbitMQ refuses it (`403`) whether or not
+  the object exists, and LavinMQ answers as it would for anyone (`404` when it is missing). The
+  startup check reports a refusal as an object that is missing or not permitted.
 
-The library's broker tests for this backend (behaviour, command queues and outages) run against both
+The library's broker tests for this backend (behaviour, command queues, outages and the startup check) run against both
 brokers (`MESSAGING_TESTS_AMQP_IMAGE`): CI runs them on RabbitMQ 4.3.6 and LavinMQ 2.10.4.

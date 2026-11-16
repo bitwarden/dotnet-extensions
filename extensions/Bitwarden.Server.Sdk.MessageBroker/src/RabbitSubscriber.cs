@@ -7,6 +7,12 @@ using RabbitMQ.Client.Events;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
+internal static class RabbitSubscriber
+{
+    /// <summary>The queue a subscription reads on RabbitMQ and LavinMQ, bound to its topic's exchange.</summary>
+    internal static string QueueName(string topic, string subscription) => $"{topic}.{subscription}";
+}
+
 internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>, ISignalsSubscribed<TPayload, TCeiling>
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
@@ -20,7 +26,7 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
     public RabbitSubscriber(RabbitConnection connection, string exchangeName, string subscriptionName, IMessageSerializer serializer, MessageBrokerMetrics metrics)
     {
         _exchangeName = exchangeName;
-        _queueName = $"{exchangeName}.{subscriptionName}";
+        _queueName = RabbitSubscriber.QueueName(exchangeName, subscriptionName);
         _connection = connection;
         _serializer = serializer;
         _metrics = metrics;

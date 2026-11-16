@@ -72,7 +72,7 @@ public class ChannelConsumerValidatorTests
         // is used elsewhere (the broker check short-circuits first).
         var host = new HostBuilder()
             .ConfigureAppConfiguration(c => c.AddInMemoryCollection(
-                new Dictionary<string, string?> { { "RabbitUri", "amqp://guest:guest@localhost/" } }))
+                new Dictionary<string, string?> { { "RabbitUri", "amqp://guest:guest@localhost/" }, { "VerifyTopologyAtStartup", "false" } }))
             .ConfigureServices(services =>
             {
                 services.AddSubscriber<MyItemPayload, MyItem>("test", "test");

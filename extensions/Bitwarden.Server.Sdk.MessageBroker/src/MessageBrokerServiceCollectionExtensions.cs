@@ -395,6 +395,7 @@ public static class MessageBrokerServiceCollectionExtensions
         services.AddOptions<MessagingOptions>().ValidateOnStart();
         AddRabbitInfrastructure(services);
         AddAzureServiceBusInfrastructure(services);
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TopologyCheckService>());
     }
 
     // Keyed on the composite "{destination}#{WireName}" key, so a publisher and a consumer of the same

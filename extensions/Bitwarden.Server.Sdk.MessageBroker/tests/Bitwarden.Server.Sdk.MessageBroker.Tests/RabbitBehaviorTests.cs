@@ -27,7 +27,7 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
     }
 
     protected override Dictionary<string, string?> CreateConfig() =>
-        new() { { "RabbitUri", _fixture.GetUri() } };
+        new() { { "RabbitUri", _fixture.GetUri() }, { "VerifyTopologyAtStartup", "false" } };
 
     // Declares the exchanges, queues and bindings that AddPublisher / AddSubscriber register in
     // DI as BrokerTopologyDeclaration records. Connection failures are swallowed so the
@@ -124,7 +124,7 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
     // throw (the host still starts), and every send tries to connect again, surfacing
     // BrokerUnavailableException wrapping the underlying BrokerUnreachableException.
     protected override Dictionary<string, string?> CreateBrokerDownConfig() =>
-        new() { { "RabbitUri", "amqp://guest:guest@localhost:1/" } };
+        new() { { "RabbitUri", "amqp://guest:guest@localhost:1/" }, { "VerifyTopologyAtStartup", "false" } };
 
     // Start a fresh, isolated container so stopping it does not disrupt the shared fixture
     // that the regular behavior tests depend on.
@@ -137,7 +137,7 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
             .WithWaitStrategy(AmqpTestBroker.Ready)
             .Build();
         await _droppableContainer.StartAsync(TestContext.Current.CancellationToken);
-        var config = new Dictionary<string, string?> { { "RabbitUri", GetContainerUri(_droppableContainer) } };
+        var config = new Dictionary<string, string?> { { "RabbitUri", GetContainerUri(_droppableContainer) }, { "VerifyTopologyAtStartup", "false" } };
         var container = _droppableContainer;
         return (config, () => container.StopAsync(CancellationToken.None));
     }
@@ -156,7 +156,7 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
             .Build();
         await container.StartAsync(TestContext.Current.CancellationToken);
 
-        var config = new Dictionary<string, string?> { { "RabbitUri", GetContainerUri(container) } };
+        var config = new Dictionary<string, string?> { { "RabbitUri", GetContainerUri(container) }, { "VerifyTopologyAtStartup", "false" } };
         var host = await BuildHostAsync(config, services => services.AddPublisher<MyItemPayload, MyItem>(TopicName));
         var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
 
@@ -473,8 +473,26 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
     {
         private IContainer? _container;
 
-        public string GetUri() =>
-            $"amqp://guest:guest@{_container!.Hostname}:{_container.GetMappedPublicPort(5672)}/";
+        public string GetUri(string user = "guest", string password = "guest") =>
+            $"amqp://{user}:{password}@{_container!.Hostname}:{_container.GetMappedPublicPort(5672)}/";
+
+        /// <summary>
+        /// Adds a broker user with the given rights on the default virtual host, through the broker's own
+        /// command-line tool (<c>rabbitmqctl</c>, or <c>lavinmqctl</c> on LavinMQ).
+        /// </summary>
+        public async Task AddUserAsync(string user, string password, string configure, string write, string read)
+        {
+            var tool = AmqpTestBroker.Image.Contains("lavinmq", StringComparison.OrdinalIgnoreCase) ? "lavinmqctl" : "rabbitmqctl";
+            foreach (var command in new[]
+            {
+                new[] { tool, "add_user", user, password },
+                new[] { tool, "set_permissions", "-p", "/", user, configure, write, read },
+            })
+            {
+                var result = await _container!.ExecAsync(command, TestContext.Current.CancellationToken);
+                Assert.True(result.ExitCode == 0, $"{string.Join(' ', command)} failed: {result.Stderr}{result.Stdout}");
+            }
+        }
 
         public async ValueTask InitializeAsync()
         {

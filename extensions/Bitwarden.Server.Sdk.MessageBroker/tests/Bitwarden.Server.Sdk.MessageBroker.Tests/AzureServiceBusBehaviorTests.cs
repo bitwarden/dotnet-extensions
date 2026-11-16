@@ -26,7 +26,7 @@ public class AzureServiceBusBehaviorTests : BehaviorTests
     protected override string MultiFamilyTopicName => "user-events";
 
     protected override Dictionary<string, string?> CreateConfig() =>
-        new() { { "AzureServiceBusConnectionString", _fixture.GetConnectionString() } };
+        new() { { "AzureServiceBusConnectionString", _fixture.GetConnectionString() }, { "VerifyTopologyAtStartup", "false" } };
 
     // All subscriptions are pre-declared on the shared host so CreateSecondaryInstanceAsync
     // can return the same host. Each SubscribeAsync() call creates an independent receiver,
@@ -93,7 +93,7 @@ public class AzureServiceBusBehaviorTests : BehaviorTests
         "Endpoint=sb://localhost:1;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;";
 
     protected override Dictionary<string, string?> CreateBrokerDownConfig() =>
-        new() { { "AzureServiceBusConnectionString", UnreachableConnectionString } };
+        new() { { "AzureServiceBusConnectionString", UnreachableConnectionString }, { "VerifyTopologyAtStartup", "false" } };
 
     // ASB connects lazily: ReceiveMessagesAsync fails with ServiceBusException when the
     // endpoint is unreachable, which is mapped to BrokerDisconnectedException. No separate

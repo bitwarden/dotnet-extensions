@@ -111,7 +111,8 @@ LavinMQ. Services don't depend on which one is in use.
 | Lite       | LavinMQ 2.10.4    | Azure Service Bus, RabbitMQ 4.3.6      |
 
 Topics, queues and subscriptions must exist before the services start. With a broker other than the
-default, the operator sets them up from the release's broker topology before each upgrade.
+default, the operator sets them up from the release's broker topology before each upgrade. A service
+that finds them missing stops at startup and names what is missing.
 
 The library does not provision broker topology. For the Azure Service Bus, RabbitMQ and LavinMQ backends,
 the exchanges, queues, topics, subscriptions, and related filters / policies must be declared on
@@ -123,6 +124,14 @@ for the required shapes, defensive behavior when topology is misconfigured, and 
 Every registration also declares the topology it needs as infrastructure requirements (kinds on
 `MessagingRequirements`), so provisioning can be generated from a service's startup; see
 [BROKER-TOPOLOGY.md](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/BROKER-TOPOLOGY.md#collecting-a-services-topology).
+
+Those requirements are also what a service checks once it first reaches its broker. If any topic,
+subscription or queue it needs is missing, it logs one critical message naming each and stops with
+exit code 1. An unreachable broker doesn't stop it; the check waits until the broker answers. On Azure
+Service Bus only subscriptions and the service's own command queue can be checked. Set
+`VerifyTopologyAtStartup` to `false` to turn the check off, for example in tests that declare their
+topology after the host starts. See
+[BROKER-TOPOLOGY.md](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/BROKER-TOPOLOGY.md#checking-the-topology-at-startup).
 
 ## Defining a payload
 

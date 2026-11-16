@@ -271,7 +271,7 @@ public class RabbitCommandBehaviorTests : CommandBehaviorTests, IClassFixture<Ra
 
     protected override string QueueName => _queueName;
 
-    protected override Dictionary<string, string?> CreateConfig() => new() { ["RabbitUri"] = _fixture.GetUri() };
+    protected override Dictionary<string, string?> CreateConfig() => new() { ["RabbitUri"] = _fixture.GetUri(), ["VerifyTopologyAtStartup"] = "false" };
 
     // Declares each queue a command consumer reads, and its exchange, as the receiver's provisioning would.
     protected override async Task PreStartAsync(IHost host)
@@ -359,7 +359,7 @@ public class AzureServiceBusCommandBehaviorTests : CommandBehaviorTests
     protected override string QueueName => "commands";
 
     protected override Dictionary<string, string?> CreateConfig() =>
-        new() { ["AzureServiceBusConnectionString"] = _fixture.GetConnectionString() };
+        new() { ["AzureServiceBusConnectionString"] = _fixture.GetConnectionString(), ["VerifyTopologyAtStartup"] = "false" };
 
     // The queue is shared by every test in the class: start each one with it, and its dead-letter
     // queue, empty.
