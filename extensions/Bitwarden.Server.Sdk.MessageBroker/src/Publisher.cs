@@ -30,6 +30,14 @@ public abstract class Publisher<TPayload, TCeiling>
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Sends <paramref name="body"/>, versions already serialized, exactly as given, under
+    /// <paramref name="messageId"/>. For an outbox sending what it stored: decoding and re-encoding
+    /// would drop any version the sending build doesn't know. The built-in publishers implement it.
+    /// </summary>
+    internal virtual Task SendRawAsync(ReadOnlyMemory<byte> body, string messageId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException($"{GetType().Name} can't send a serialized body.");
+
+    /// <summary>
     /// Begins a publish from <paramref name="ceiling"/>. Chain
     /// <see cref="PublisherExtensions.With"/> once per assisted downcast and finish with one of
     /// the <see cref="PublisherExtensions"/> <c>SendAsync</c> overloads.
@@ -129,6 +137,13 @@ public static class PublisherExtensions
         where TCeiling : Payload<TPayload>.ICeiling
         where TCurrent : Payload<TPayload>.IReachesFloor
     {
+        ThrowIfInvalidMessageId(messageId);
+        builder.Current.DescendToFloor(builder.Accumulated);
+        return builder.Publisher.SendAsync(builder.Accumulated, messageId, cancellationToken);
+    }
+
+    internal static void ThrowIfInvalidMessageId(string messageId)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
         if (messageId.Length > MaxMessageIdLength)
             throw new ArgumentException(
@@ -137,7 +152,5 @@ public static class PublisherExtensions
         // carries message-id as a short string of at most 255 UTF-8 bytes.
         if (!System.Text.Ascii.IsValid(messageId))
             throw new ArgumentException("A message identifier must be ASCII.", nameof(messageId));
-        builder.Current.DescendToFloor(builder.Accumulated);
-        return builder.Publisher.SendAsync(builder.Accumulated, messageId, cancellationToken);
     }
 }

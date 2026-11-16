@@ -90,10 +90,15 @@ internal sealed class ChannelCommandSender<TPayload, TCeiling> : Publisher<TPayl
         string messageId,
         CancellationToken cancellationToken)
     {
-        using var activity = MessageBrokerActivitySource.StartProducerActivity(_queueName, TPayload.WireName);
-        _metrics.RecordPublish(_queueName, TPayload.WireName);
         var buffer = new ArrayBufferWriter<byte>();
         _serializer.SerializeVariants<TPayload>(variants, buffer);
-        await _queue.WriteAsync(buffer.WrittenMemory.ToArray(), TPayload.WireName, messageId, activity?.Id, cancellationToken);
+        await SendRawAsync(buffer.WrittenMemory, messageId, cancellationToken);
+    }
+
+    internal override async Task SendRawAsync(ReadOnlyMemory<byte> body, string messageId, CancellationToken cancellationToken)
+    {
+        using var activity = MessageBrokerActivitySource.StartProducerActivity(_queueName, TPayload.WireName);
+        _metrics.RecordPublish(_queueName, TPayload.WireName);
+        await _queue.WriteAsync(body.ToArray(), TPayload.WireName, messageId, activity?.Id, cancellationToken);
     }
 }

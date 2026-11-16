@@ -15,6 +15,9 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Bitwarden.Server.Sdk.MessageBroker.Tests" />
+    <!-- The outbox sends through the direct publishers (AddDirectPublisher, Publisher.SendAsync with a stored identifier). -->
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.MessageBroker.Sender" />
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.MessageBroker.Sender.Tests" />
   </ItemGroup>
 
   <ItemGroup>

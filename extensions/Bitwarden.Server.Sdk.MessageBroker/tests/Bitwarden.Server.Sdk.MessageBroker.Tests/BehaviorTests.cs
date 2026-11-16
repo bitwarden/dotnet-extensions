@@ -341,6 +341,30 @@ public abstract class BehaviorTests : IAsyncLifetime
         Assert.All(ids, id => Assert.Equal(7, Guid.Parse(id).Version));
     }
 
+    [Fact(Timeout = 60 * 1000)]
+    public async Task ARawSendDeliversTheBodyUnderItsIdentifier()
+    {
+        // What an outbox does: send versions it serialized earlier, exactly as stored.
+        var host = await CreateInstanceAsync();
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+        var serializer = host.Services.GetRequiredKeyedService<IMessageSerializer>(PublisherKey);
+        var marker = Random.Shared.Next();
+        var buffer = new System.Buffers.ArrayBufferWriter<byte>();
+        serializer.SerializeVariants<MyItemPayload>([new MyItem(marker)], buffer);
+        var messageId = Guid.CreateVersion7().ToString();
+
+        await publisher.SendRawAsync(buffer.WrittenMemory, messageId, TestContext.Current.CancellationToken);
+
+        await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
+        {
+            await envelope.CompleteAsync(TestContext.Current.CancellationToken);
+            if (envelope.Payload.Id != marker) continue;
+            Assert.Equal(messageId, envelope.MessageId);
+            break;
+        }
+    }
+
     [Theory(Timeout = 60 * 1000)]
     [InlineData("")]
     [InlineData("   ")]

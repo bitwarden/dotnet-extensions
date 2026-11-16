@@ -93,13 +93,18 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
         string messageId,
         CancellationToken cancellationToken)
     {
+        var buffer = new ArrayBufferWriter<byte>();
+        _serializer.SerializeVariants<TPayload>(variants, buffer);
+        await SendRawAsync(buffer.WrittenMemory, messageId, cancellationToken);
+    }
+
+    internal override async Task SendRawAsync(ReadOnlyMemory<byte> body, string messageId, CancellationToken cancellationToken)
+    {
         using var activity = MessageBrokerActivitySource.StartProducerActivity(_destinationName, TPayload.WireName);
         _metrics.RecordPublish(_destinationName, TPayload.WireName);
         try
         {
             var channel = await GetChannelAsync(cancellationToken);
-            var buffer = new ArrayBufferWriter<byte>();
-            _serializer.SerializeVariants<TPayload>(variants, buffer);
             var props = new BasicProperties
             {
                 MessageId = messageId,
@@ -110,7 +115,7 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
                 },
             };
             await channel.BasicPublishAsync(_exchangeName, _routingKey, _mandatory,
-                props, buffer.WrittenMemory, cancellationToken);
+                props, body, cancellationToken);
         }
         catch (BrokerUnreachableException ex)
         {
