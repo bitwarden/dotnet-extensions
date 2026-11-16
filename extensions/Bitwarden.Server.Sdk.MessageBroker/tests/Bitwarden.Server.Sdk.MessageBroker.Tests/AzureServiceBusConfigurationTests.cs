@@ -26,6 +26,22 @@ public class AzureServiceBusConfigurationTests
     }
 
     [Fact]
+    public void TheDefaultCredentialTriesOnlyWorkloadAndManagedIdentity()
+    {
+        var options = AzureServiceBusConnection.DefaultCredentialOptions();
+
+        Assert.False(options.ExcludeWorkloadIdentityCredential);
+        Assert.False(options.ExcludeManagedIdentityCredential);
+        Assert.True(options.ExcludeEnvironmentCredential);
+        Assert.True(options.ExcludeVisualStudioCredential);
+        Assert.True(options.ExcludeVisualStudioCodeCredential);
+        Assert.True(options.ExcludeAzureCliCredential);
+        Assert.True(options.ExcludeAzurePowerShellCredential);
+        Assert.True(options.ExcludeAzureDeveloperCliCredential);
+        Assert.True(options.ExcludeInteractiveBrowserCredential);
+    }
+
+    [Fact]
     public async Task ANamespaceSelectsAzureServiceBusWithATokenCredential()
     {
         await using var provider = BuildProvider(new() { ["AzureServiceBusFullyQualifiedNamespace"] = Namespace });

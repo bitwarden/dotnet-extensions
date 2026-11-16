@@ -75,8 +75,12 @@ services.AddOptions<MessagingOptions>().BindConfiguration("");
 ```
 
 To reach Azure Service Bus without a shared access key, set its namespace instead of a connection
-string. The client then authenticates with a token credential: `DefaultAzureCredential`, which uses
-the service's managed identity in Azure, unless you register one for the broker under
+string. The client then authenticates with a token credential: by default the service's workload
+identity or managed identity in Azure (for a user-assigned identity, set `AZURE_CLIENT_ID` to its
+client ID). Nothing else is tried: not a service principal's secret in the environment, which may be
+there for another purpose, and not a developer's sign-in such as the Azure CLI's, so a host without
+its identity fails rather than running as someone else. To use another credential, a developer's
+when working against a real namespace for example, register it for the broker under
 `MessageBrokerKeys.Credential`:
 
 ```csharp
