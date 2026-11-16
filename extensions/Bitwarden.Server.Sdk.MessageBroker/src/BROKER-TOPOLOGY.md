@@ -137,7 +137,8 @@ For each unique `queue` passed to `AddCommandConsumer<TPayload, TCeiling, TConsu
 Each command queue has an exchange of its own, rather than senders using RabbitMQ's default
 exchange, so that sending can be granted one queue at a time. RabbitMQ checks a publish against
 `write` on the exchange: a sender's user needs `write` on `^{queue}$` for each queue it sends to,
-and the receiver's user `read` on its own queue. Write on the default exchange (`amq.default`)
+and the receiver's user `read` on its own queue. The permissions are regular expressions, so escape
+the dots in a queue's name (`^notification\.commands$`); an unescaped dot matches any character. Write on the default exchange (`amq.default`)
 would let a user publish to every queue in the virtual host, event subscription queues included,
 so don't grant it to service users.
 
