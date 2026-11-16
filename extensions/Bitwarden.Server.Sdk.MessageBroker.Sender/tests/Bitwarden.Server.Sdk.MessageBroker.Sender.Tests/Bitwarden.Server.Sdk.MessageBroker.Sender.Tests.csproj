@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Bitwarden.Server.Sdk.MessageBroker.Sender.Tests</RootNamespace>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Bitwarden.Server.Sdk.MessageBroker" />
+    <Using Include="Bitwarden.Server.Sdk.MessageBroker.Sender" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="[10.0.13]" />
+    <!-- The engines a service runs on, each a real database in a container (OutboxEngineTests), with the
+         providers services open them with, and an AMQP broker (BrokerDeliveryTests). -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="[10.0.13]" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[10.0.3]" />
+    <PackageReference Include="Microting.EntityFrameworkCore.MySql" Version="[10.0.13]" />
+    <PackageReference Include="Testcontainers.MsSql" Version="[4.16.0]" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="[4.16.0]" />
+    <PackageReference Include="Testcontainers.MySql" Version="[4.16.0]" />
+    <PackageReference Include="Testcontainers.MariaDb" Version="[4.16.0]" />
+    <!-- Microsoft.Data.SqlClient brings System.Security.Cryptography.Pkcs 9.0.x; pinned to the patched version
+         until it moves. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="[10.0.13]" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="[10.0.14]" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="[10.0.14]" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="[10.0.14]" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="[10.0.14]" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="[18.12.0]" />
+    <PackageReference Include="xunit.v3.mtp-v2" Version="[3.2.2]" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.MessageBroker.Sender.csproj" />
+  </ItemGroup>
+
+</Project>

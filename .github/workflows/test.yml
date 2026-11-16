@@ -42,6 +42,14 @@ jobs:
           --filter-class "*.RabbitCommandBehaviorTests" --filter-class "*.RabbitOutageTests"
           --filter-class "*.RabbitTopologyCheckTests" --filter-class "*.RabbitProvisioningTests"
 
+      - name: Test the MessageBroker outbox sender's delivery on LavinMQ
+        if: ${{ !cancelled() }}
+        env:
+          MESSAGING_TESTS_AMQP_IMAGE: cloudamqp/lavinmq:2.10.4
+        run: >
+          dotnet test --project extensions/Bitwarden.Server.Sdk.MessageBroker.Sender/tests/Bitwarden.Server.Sdk.MessageBroker.Sender.Tests
+          --configuration Debug --no-build -- --filter-class "*.BrokerDeliveryTests"
+
       - name: Report test results
         uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
         if: ${{ github.event.pull_request.head.repo.full_name == github.repository && !cancelled() }}

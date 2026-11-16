@@ -100,6 +100,9 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.MessageBroker.Sender/src/">
     <Project Path="extensions/Bitwarden.Server.Sdk.MessageBroker.Sender/src/Bitwarden.Server.Sdk.MessageBroker.Sender.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.MessageBroker.Sender/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.MessageBroker.Sender/tests/Bitwarden.Server.Sdk.MessageBroker.Sender.Tests/Bitwarden.Server.Sdk.MessageBroker.Sender.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.PasswordHashing/">
     <Project Path="extensions/Bitwarden.Server.Sdk.PasswordHashing/src/Bitwarden.Server.Sdk.PasswordHashing.csproj" />
   </Folder>
