@@ -13,18 +13,9 @@ internal sealed class MessagingOptionsValidator : IValidateOptions<MessagingOpti
                 $"{nameof(MessagingOptions.RabbitUri)} are configured; " +
                 "only one messaging backend can be active at a time.");
 
-        if (options.RetryDelay < TimeSpan.Zero || options.MaxRetryDelay < TimeSpan.Zero)
+        if (options.MaxLockRenewalDuration < TimeSpan.Zero)
             return ValidateOptionsResult.Fail(
-                $"{nameof(MessagingOptions.RetryDelay)} and {nameof(MessagingOptions.MaxRetryDelay)} cannot be negative.");
-
-        if (options.MaxLockRenewalDuration < options.MaxRetryDelay)
-            return ValidateOptionsResult.Fail(
-                $"{nameof(MessagingOptions.MaxLockRenewalDuration)} cannot be shorter than {nameof(MessagingOptions.MaxRetryDelay)}: " +
-                "a message waiting to be retried would lose its lock.");
-
-        if (options.MaxRetryDelay < options.RetryDelay)
-            return ValidateOptionsResult.Fail(
-                $"{nameof(MessagingOptions.MaxRetryDelay)} cannot be shorter than {nameof(MessagingOptions.RetryDelay)}.");
+                $"{nameof(MessagingOptions.MaxLockRenewalDuration)} cannot be negative.");
 
         return ValidateOptionsResult.Success;
     }

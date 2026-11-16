@@ -63,6 +63,7 @@ Setting both raises `OptionsValidationException` at startup via `MessagingOption
 | `CommandQueueMessage.cs`                                       | A command before its family is known, and `ICommandQueueReceiver`                |
 | `ResubscribeLoop.cs`                                           | Keeps a hosted consumer subscribing again, with backoff, through broker outages  |
 | `RetryDelay.cs`                                                | The wait after a consumer throws, before the message is redelivered              |
+| `ConsumerRetryOptions.cs`                                      | Per-subscription and per-queue retry settings; by default a failure isn't retried |
 | `IMessageEscrowStore.cs`                                       | Public interface for durable message escrow on shutdown                          |
 | `ChannelPublisher.cs` / `ChannelSubscriber.cs`                 | In-memory backend                                                                |
 | `ChannelEnvelope.cs`                                           | In-memory envelope; handles `RequeueAsync` requeue logic                         |

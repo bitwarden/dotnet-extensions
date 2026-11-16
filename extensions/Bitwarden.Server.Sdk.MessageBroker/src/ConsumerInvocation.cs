@@ -6,15 +6,16 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// Runs a hosted consumer on one received message, the same way for a topic subscription
 /// (<see cref="ConsumerBackgroundService{TPayload, TCeiling, TConsumer}"/>) and a command queue
 /// (<see cref="CommandFamilyHandler{TPayload, TCeiling, TConsumer}"/>): the receive span is current
-/// while it runs, it gets a scope of its own, and the message is completed when it returns and
-/// requeued when it throws, after the retry delay (<see cref="RetryDelay"/>).
+/// while it runs, it gets a scope of its own, and the message is completed when it returns. When it
+/// throws, the message is dead-lettered, or, if its <see cref="ConsumerRetryOptions"/> allow another
+/// delivery, returned after the retry delay (<see cref="RetryDelay"/>).
 /// </summary>
 internal static class ConsumerInvocation
 {
     public static async Task RunAsync<TPayload, TCeiling, TConsumer>(
         IServiceScopeFactory scopeFactory,
         Envelope<TPayload, TCeiling> envelope,
-        MessagingOptions options,
+        ConsumerRetryOptions retry,
         CancellationToken stoppingToken)
         where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
         where TCeiling : Payload<TPayload>.ICeiling
@@ -50,11 +51,20 @@ internal static class ConsumerInvocation
                 }
                 else if (!envelope.IsSettled)
                 {
-                    // Only a message that will come back is worth waiting for. A handler that
-                    // settled the message itself (dead-lettered it, say) before throwing has
-                    // nothing to delay.
-                    await RetryDelay.WaitAsync(options, envelope.DeliveryCount, stoppingToken);
-                    await envelope.RequeueAsync(failure.Message, CancellationToken.None);
+                    // A handler that settled the message itself (dead-lettered it, say) before
+                    // throwing has decided its fate. Otherwise retry it if its options allow
+                    // another delivery, and dead-letter it if not. The reason names the exception's
+                    // type only: its message can carry data from the payload.
+                    var reason = $"The consumer threw {failure.GetType().Name} on delivery {envelope.DeliveryCount}.";
+                    if (envelope.DeliveryCount >= retry.MaxDeliveries)
+                    {
+                        await envelope.DeadLetterAsync(reason, CancellationToken.None);
+                    }
+                    else
+                    {
+                        await RetryDelay.WaitAsync(retry, envelope.DeliveryCount, stoppingToken);
+                        await envelope.RequeueAsync(reason, CancellationToken.None);
+                    }
                 }
             }
             catch (Exception)

@@ -129,7 +129,7 @@ public abstract class CommandBehaviorTests : IAsyncLifetime
                 services.AddCommandSender<SendMailPayload, SendMail>(QueueName);
                 services.AddCommandSender<SendPushPayload, SendPush>(QueueName);
                 services.AddCommandSender<SendSmsPayload, SendSms>(QueueName);
-                services.AddCommandConsumer<SendMailPayload, SendMail, SendMailConsumer>(QueueName);
+                services.AddCommandConsumer<SendMailPayload, SendMail, SendMailConsumer>(QueueName, retry => retry.MaxDeliveries = 5);
                 services.AddCommandConsumer<SendPushPayload, SendPush, SendPushConsumer>(QueueName);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })

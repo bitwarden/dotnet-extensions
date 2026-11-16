@@ -145,11 +145,21 @@ public static class MessageBrokerServiceCollectionExtensions
     /// and invokes <see cref="IMessageConsumer{TPayload, TCeiling}.HandleAsync"/> for each delivered
     /// message.
     /// </para>
+    /// <para>
+    /// When the consumer throws, the message is dead-lettered, unless
+    /// <paramref name="configureRetry"/>, or <see cref="ConsumerRetryOptions"/> named
+    /// <c>{name}/{subscriptionName}</c>, allows it more deliveries.
+    /// </para>
     /// </remarks>
+    /// <param name="services">The service collection.</param>
+    /// <param name="name">The topic.</param>
+    /// <param name="subscriptionName">The subscription.</param>
+    /// <param name="configureRetry">Whether and how to retry a message the consumer throws on. By default it isn't retried.</param>
     public static IServiceCollection AddMessageConsumer<TPayload, TCeiling, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TConsumer>(
         this IServiceCollection services,
         string name,
-        string subscriptionName)
+        string subscriptionName,
+        Action<ConsumerRetryOptions>? configureRetry = null)
         where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
         where TCeiling : Payload<TPayload>.ICeiling
         where TConsumer : class, IMessageConsumer<TPayload, TCeiling>
@@ -158,6 +168,7 @@ public static class MessageBrokerServiceCollectionExtensions
         var publisherKey = MessageBrokerKeys.Publisher<TPayload>(name);
 
         services.AddSubscriber<TPayload, TCeiling>(name, subscriptionName);
+        AddConsumerRetry(services, subscriptionKey, configureRetry);
 
         // Register ChannelEscrowRegistration so ChannelTopic resolves it via
         // IEnumerable<ChannelEscrowRegistration<T>> and wires up startup recovery and shutdown
@@ -194,7 +205,7 @@ public static class MessageBrokerServiceCollectionExtensions
                 sp.GetRequiredKeyedService<ISubscriber<TPayload, TCeiling>>(subscriptionKey),
                 sp.GetRequiredService<ILogger<ConsumerBackgroundService<TPayload, TCeiling, TConsumer>>>(),
                 subscriptionKey,
-                sp.GetRequiredService<IOptions<MessagingOptions>>()));
+                sp.GetRequiredService<IOptionsMonitor<ConsumerRetryOptions>>()));
         if (consumerIsNew)
             services.AddSingleton<IHostedService>(sp =>
                 sp.GetRequiredKeyedService<ConsumerBackgroundService<TPayload, TCeiling, TConsumer>>(subscriptionKey));
@@ -267,13 +278,18 @@ public static class MessageBrokerServiceCollectionExtensions
     /// <para>
     /// As with <see cref="AddMessageConsumer{TPayload, TCeiling, TConsumer}"/>,
     /// <typeparamref name="TConsumer"/> is scoped and resolved from a fresh scope per command, and
-    /// the framework settles the envelope: completed when the consumer returns, requeued when it
-    /// throws.
+    /// the framework settles the envelope: completed when the consumer returns, and dead-lettered when it
+    /// throws, unless <paramref name="configureRetry"/>, or <see cref="ConsumerRetryOptions"/> named after
+    /// the queue, allows it more deliveries. Retry settings belong to the queue, shared by every family on it.
     /// </para>
     /// </remarks>
+    /// <param name="services">The service collection.</param>
+    /// <param name="queueName">The command queue.</param>
+    /// <param name="configureRetry">Whether and how to retry a command the consumer throws on. By default it isn't retried.</param>
     public static IServiceCollection AddCommandConsumer<TPayload, TCeiling, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TConsumer>(
         this IServiceCollection services,
-        string queueName)
+        string queueName,
+        Action<ConsumerRetryOptions>? configureRetry = null)
         where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
         where TCeiling : Payload<TPayload>.ICeiling
         where TConsumer : class, IMessageConsumer<TPayload, TCeiling>
@@ -285,6 +301,7 @@ public static class MessageBrokerServiceCollectionExtensions
         AddBrokerInfrastructure(services);
         AddFamilySerializer<TPayload>(services, queueName);
         AddChannelCommandQueue(services, queueName);
+        AddConsumerRetry(services, queueName, configureRetry);
 
         services.TryAddScoped<TConsumer>();
         var key = MessageBrokerKeys.Publisher<TPayload>(queueName);
@@ -293,7 +310,7 @@ public static class MessageBrokerServiceCollectionExtensions
             sp.GetRequiredKeyedService<IMessageSerializer>(key),
             sp.GetRequiredService<IServiceScopeFactory>(),
             sp.GetRequiredService<MessageBrokerMetrics>(),
-            sp.GetRequiredService<IOptions<MessagingOptions>>()));
+            sp.GetRequiredService<IOptionsMonitor<ConsumerRetryOptions>>()));
 
         var marker = new CommandQueueServiceMarker(queueName);
         if (!services.Any(d => d.ServiceType == typeof(CommandQueueServiceMarker) && marker.Equals(d.ImplementationInstance)))
@@ -342,6 +359,16 @@ public static class MessageBrokerServiceCollectionExtensions
         }
         services.AddSingleton(new CommandConsumerClaim(queueName, TPayload.WireName, typeof(TConsumer)));
         return true;
+    }
+
+    // Retry settings, named after the subscription or queue: validated at startup, and configurable
+    // here, by the caller with services.Configure, or from configuration.
+    private static void AddConsumerRetry(IServiceCollection services, string name, Action<ConsumerRetryOptions>? configure)
+    {
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ConsumerRetryOptions>, ConsumerRetryOptionsValidator>());
+        var options = services.AddOptions<ConsumerRetryOptions>(name).ValidateOnStart();
+        if (configure is not null)
+            options.Configure(configure);
     }
 
     private static void AddBrokerInfrastructure(IServiceCollection services)

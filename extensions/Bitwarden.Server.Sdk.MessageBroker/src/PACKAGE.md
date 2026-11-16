@@ -229,7 +229,8 @@ for the full walkthrough.
 
 Implement `IMessageConsumer<TPayload, TCeiling>` and register with `AddMessageConsumer`. This
 registers both the subscriber and a hosted service in one call, and handles settlement
-automatically — `CompleteAsync` on success, `RequeueAsync` when `HandleAsync` throws:
+automatically — `CompleteAsync` on success, and `DeadLetterAsync` when `HandleAsync` throws, unless
+retries are configured (see [When a consumer throws](#when-a-consumer-throws)):
 
 ```csharp
 // Registration
@@ -317,17 +318,49 @@ broker metadata:
 
 ### When a consumer throws
 
-When a consumer registered with `AddMessageConsumer` or `AddCommandConsumer` throws, the message is
-returned to the broker after a wait: `MessagingOptions.RetryDelay` (one second by default) after the
-first delivery, doubling with each delivery up to `MaxRetryDelay` (thirty seconds). While it waits,
-the consumer takes no other message from that subscription or queue, so a failing dependency slows
-the consumer instead of using up the message's delivery limit in a moment. Set `RetryDelay` to zero
-to redeliver at once.
+By default a consumer registered with `AddMessageConsumer` or `AddCommandConsumer` doesn't retry: when
+it throws, the message is dead-lettered at once. To retry, configure `ConsumerRetryOptions` for the
+subscription or command queue, either when registering it:
+
+```csharp
+services.AddMessageConsumer<OrderPayload, OrderPayload.V2, OrderNotificationService>(
+    "orders", "notifications",
+    retry =>
+    {
+        retry.MaxDeliveries = 5;
+        retry.RetryDelay = TimeSpan.FromSeconds(1);
+        retry.MaxRetryDelay = TimeSpan.FromSeconds(10);
+    });
+```
+
+or from configuration, as named options: `{topic}/{subscription}` for a subscription, the queue's
+name for a command queue.
+
+```csharp
+services.AddOptions<ConsumerRetryOptions>("orders/notifications").BindConfiguration("Messaging:Retry:Orders");
+```
+
+- `MaxDeliveries`: how many times the message is delivered before a failure dead-letters it.
+  Default 1, which is no retry. The broker's own delivery limit still applies, so set this no
+  higher than it.
+- `RetryDelay`: how long the consumer waits after a failure before returning the message, doubling
+  with each delivery up to `MaxRetryDelay` (default thirty seconds). Default is no wait.
+
+While it waits, the consumer takes no other message from that subscription or queue. On a command
+queue the settings belong to the queue, and a command waiting to be retried holds up every command
+family on it: with five deliveries and a one-second delay capped at ten, a command that always
+fails holds the queue for about fifteen seconds of waiting (1 + 2 + 4 + 8) before it is
+dead-lettered. Keep the settings small
+for a queue that must keep moving, or run more instances.
+
+A consumer that settles the message itself before throwing (dead-letters it, say) has decided: the
+message isn't retried and there is no wait. The dead-letter reason names the exception's type,
+never its message, which can carry data from the payload.
 
 On Azure Service Bus the message's lock is renewed while the consumer handles it and while it waits,
 so a handler that runs longer than the lock duration keeps its message rather than the broker
 giving it to another receiver. Renewal stops after `MaxLockRenewalDuration` (five minutes by
-default, and no shorter than `MaxRetryDelay`): a handler that hangs then loses the lock, and the
+default; set it no shorter than the longest `MaxRetryDelay`): a handler that hangs then loses the lock, and the
 message is delivered again, counting toward its delivery limit.
 
 ### When the broker goes away
@@ -393,8 +426,8 @@ services.AddCommandConsumer<SendPushPayload, SendPush, SendPushConsumer>("notifi
 ```
 
 Consumers implement `IMessageConsumer<TPayload, TCeiling>` and are hosted like those registered
-with `AddMessageConsumer`: a scope per command, completed when the consumer returns and requeued
-when it throws. The service runs one receiver for the queue and hands each command to the
+with `AddMessageConsumer`: a scope per command, completed when the consumer returns, and
+dead-lettered when it throws unless the queue's `ConsumerRetryOptions` allow another delivery. The service runs one receiver for the queue and hands each command to the
 consumer for its family. A command whose family has no consumer is dead-lettered, so it doesn't
 block the queue.
 

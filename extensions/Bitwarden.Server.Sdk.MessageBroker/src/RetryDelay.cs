@@ -4,11 +4,11 @@ namespace Microsoft.Extensions.DependencyInjection;
 internal static class RetryDelay
 {
     /// <summary>
-    /// Waits <see cref="MessagingOptions.RetryDelayAfter"/> for a message on its
+    /// Waits <see cref="ConsumerRetryOptions.RetryDelayAfter"/> for a message on its
     /// <paramref name="deliveryCount"/>-th delivery. A host that stops during the wait cuts it
     /// short; the caller still returns the message, so the next consumer gets it at once.
     /// </summary>
-    internal static async Task WaitAsync(MessagingOptions options, int deliveryCount, CancellationToken stoppingToken)
+    internal static async Task WaitAsync(ConsumerRetryOptions options, int deliveryCount, CancellationToken stoppingToken)
     {
         var delay = options.RetryDelayAfter(deliveryCount);
         if (delay <= TimeSpan.Zero)
