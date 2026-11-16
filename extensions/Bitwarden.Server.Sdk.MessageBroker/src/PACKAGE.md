@@ -1,28 +1,67 @@
 # Bitwarden.Server.Sdk.MessageBroker
 
+**Audience:** Application developers integrating publish/subscribe messaging into a Bitwarden
+service.
+
 ## About
 
 This package provides a transport-agnostic publish/subscribe API for sending and receiving messages
 between Bitwarden services. A single programming model works across three backends — Azure Service
-Bus, RabbitMQ, and an in-memory channel — selected at runtime through configuration.
+Bus, RabbitMQ, and an in-memory channel — selected at runtime through configuration. Messages are
+modeled as versioned **payload families**: publishers send every known variant of a payload in a
+single message, and each subscriber picks the highest variant it can decode.
+
+## Getting started
+
+The minimal end-to-end is a single-variant payload, a publisher, and a consumer:
+
+```csharp
+// 1. Define a payload family. ISole is a payload with only one variant.
+public sealed record Ping(string Text) : PingPayload.ISole;
+
+public sealed class PingPayload
+    : Payload<PingPayload, Ping, Ping>, IPayloadVariants<PingPayload>, IPayloadWireName<PingPayload>
+{
+    // WireName identifies the family on the broker (routing key on RabbitMQ, application
+    // property on Azure Service Bus) so subscriptions bind or filter down to it.
+    public static string WireName => "ping";
+    public static IReadOnlyList<(Type, string)> Variants => [(typeof(Ping), "v1")];
+}
+
+// AOT / trimmed builds only
+[JsonSerializable(typeof(Ping))]
+public partial class PingJsonContext : JsonSerializerContext;
+
+// 2. Register at startup.
+services.AddOptions<MessagingOptions>().BindConfiguration("");
+// AOT / trimmed builds only
+services.Configure<MessageBrokerSerializerOptions>("pings", o =>
+    o.JsonSerializerOptions.TypeInfoResolverChain.Add(PingJsonContext.Default)); // AOT only
+services.AddPublisher<PingPayload, Ping>("pings");
+services.AddMessageConsumer<PingPayload, Ping, PingHandler>("pings", subscriptionName: "workers");
+
+// 3. Publish and consume. The publisher key is "{topic}#{WireName}" — spell it literally at the
+//    injection site; use MessageBrokerKeys.Publisher<PingPayload>("pings") for programmatic
+//    resolution. Subscriber keys stay "{topic}/{subscription}".
+public class Pinger([FromKeyedServices("pings#ping")] Publisher<PingPayload, Ping> publisher)
+{
+    public Task PingAsync(string text, CancellationToken ct) =>
+        publisher.Publish(new Ping(text)).SendAsync(ct);
+}
+
+public class PingHandler : IMessageConsumer<PingPayload, Ping>
+{
+    public Task HandleAsync(Envelope<PingPayload, Ping> envelope, CancellationToken ct)
+    {
+        Console.WriteLine(envelope.Payload.Text);
+        return Task.CompletedTask;
+    }
+}
+```
 
 ## Setup
 
-Register publishers and subscribers in `Program.cs` or your `IServiceCollection` setup:
-
-```csharp
-// Publish to a topic
-services.AddPublisher<OrderCreated>("orders");
-
-// Subscribe to a topic (work-queue: all "workers" instances compete for each message)
-services.AddSubscriber<OrderCreated>("orders", subscriptionName: "workers");
-
-// Subscribe with a unique subscription name (pub/sub: each group receives every message independently)
-services.AddSubscriber<OrderCreated>("orders", subscriptionName: "notifications");
-services.AddSubscriber<OrderCreated>("orders", subscriptionName: "analytics");
-```
-
-Then bind the transport from configuration:
+Bind the transport from configuration:
 
 ```csharp
 services.AddOptions<MessagingOptions>().BindConfiguration("");
@@ -42,128 +81,146 @@ configured at a time; setting both raises a validation error at startup.
 ## Broker setup
 
 The library does not provision broker topology. For the RabbitMQ and Azure Service Bus backends,
-the exchanges, queues, topics, subscriptions, and related policies must be declared on the broker
-before the application starts — typically as part of the broker container's bootstrap or via
-infrastructure-as-code (Terraform, Pulumi, broker-specific CLIs).
+the exchanges, queues, topics, subscriptions, and related filters / policies must be declared on
+the broker before the application starts. See
+[BROKER-TOPOLOGY.md](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/BROKER-TOPOLOGY.md)
+for the required shapes, defensive behavior when topology is misconfigured, and a worked
+`rabbitmqadmin` example.
 
-For each publisher and subscriber registered with `AddPublisher<T>(topic)` /
-`AddSubscriber<T>(topic, subscription)`, declare the following on the broker:
+## Defining a payload
 
-### Azure Service Bus
-
-For each unique `topic` across all publishers and subscribers:
-
-- A topic named `{topic}`.
-
-For each `AddSubscriber<T>(topic, subscription)`:
-
-- A subscription named `{subscription}` on that topic. Set `MaxDeliveryCount` on the
-  subscription to cap redelivery attempts; the subscription's built-in dead-letter queue
-  handles exhausted or explicitly dead-lettered messages automatically.
-
-The library creates and owns its own `ServiceBusClient` from the configured connection string
-and does not consume any `ServiceBusClient` the app registers separately. An app that also uses
-`ServiceBusClient` against the same namespace will have two AMQP connections to the broker.
-
-### RabbitMQ
-
-For each unique `topic` across all publishers and subscribers:
-
-- A durable fanout exchange named `{topic}`.
-
-For each `AddSubscriber<T>(topic, subscription)`:
-
-- A durable quorum queue named `{topic}.{subscription}`, bound to the topic exchange with
-  an empty routing key.
-- A server-side policy applying `delivery-limit` to the queue, capping the number of
-  redelivery attempts before a message is dead-lettered.
-- A server-side policy applying `dead-letter-exchange`, `dead-letter-strategy: at-least-once`,
-  and `overflow: reject-publish` to the queue, plus the target dead-letter exchange and a
-  quorum queue bound to it. Without `dead-letter-exchange`, messages that call
-  `Envelope<T>.DeadLetterAsync` or exceed `delivery-limit` are silently dropped by RabbitMQ.
-  Without `at-least-once` (quorum queues default to `at-most-once`), the broker acknowledges
-  the source queue before confirming the dead-letter publish, so a failover or unavailable
-  dead-letter exchange can still drop the message; `at-least-once` requires
-  `overflow: reject-publish` on the same queue.
-
-Policies must be used rather than queue arguments because quorum queue arguments cannot be
-changed on an existing queue. See the RabbitMQ documentation on
-[quorum queue poison-message handling](https://www.rabbitmq.com/docs/quorum-queues#poison-message-handling)
-and [policies](https://www.rabbitmq.com/docs/policies) for the full command reference, and
-`management.load_definitions` for declarative bootstrap via a `definitions.json` file loaded
-at broker startup.
-
-#### Example
-
-Using `rabbitmqadmin` and `rabbitmqctl` for an application that registers
-`AddPublisher<OrderCreated>("orders")` and `AddSubscriber<OrderCreated>("orders", "workers")`:
-
-```bash
-# Topic exchange, subscription queue, binding.
-rabbitmqadmin exchanges declare --name "orders" --type "fanout" --durable true
-rabbitmqadmin queues declare --name "orders.workers" --type "quorum" --durable true
-rabbitmqadmin bindings declare --source "orders" \
-  --destination-type "queue" --destination "orders.workers"
-
-# Dead-letter exchange and queue. The names must not match the policy pattern
-# below, which would otherwise re-apply the dead-letter policy to the dead-letter
-# queue and cycle its messages back through itself.
-rabbitmqadmin exchanges declare --name "dead-letter.orders" --type "fanout" --durable true
-rabbitmqadmin queues declare --name "dead-letter.orders" --type "quorum" --durable true
-rabbitmqadmin bindings declare --source "dead-letter.orders" \
-  --destination-type "queue" --destination "dead-letter.orders"
-
-# Policy applying delivery-limit, dead-letter-exchange, dead-letter-strategy, and
-# overflow to the orders.* subscription queues.
-rabbitmqctl set_policy orders-subscriptions "^orders\." \
-  '{"delivery-limit":10,"dead-letter-exchange":"dead-letter.orders","dead-letter-strategy":"at-least-once","overflow":"reject-publish"}' \
-  --apply-to quorum_queues
-```
-
-## Publishing
-
-Inject `IPublisher<T>` as a keyed service using the topic name:
+A payload is a family of variants forming a chain from the oldest known shape (**floor**) to the
+newest (**ceiling**). Derive from `Payload<TSelf, TFloor, TCeiling>` and implement two static
+contracts: `IPayloadVariants<TSelf>` (the variant list) and `IPayloadWireName<TSelf>` (the family
+name the broker sees).
 
 ```csharp
-public class OrderService(
-    [FromKeyedServices("orders")] IPublisher<OrderCreated> publisher)
+public sealed class OrderPayload
+    : Payload<OrderPayload, OrderPayload.V1, OrderPayload.V2>,
+      IPayloadVariants<OrderPayload>,
+      IPayloadWireName<OrderPayload>
 {
-    public async Task PlaceOrderAsync(Order order, CancellationToken ct)
+    // Family name. Rides as the RabbitMQ routing key and the Azure Service Bus
+    // x-bw-payload-family application property on every outgoing message, so subscriptions
+    // on the shared topic can bind / filter down to this family.
+    public static string WireName => "order";
+
+    public static IReadOnlyList<(Type Type, string WireName)> Variants =>
+    [
+        (typeof(V1), "v1"),
+        (typeof(V2), "v2"),
+    ];
+
+    // Floor: the oldest shape. Declares a pure upcast to V2.
+    public sealed record V1(Guid OrderId) : Payload<OrderPayload>.IFloor<V2>
     {
-        // ... create order ...
-        await publisher.PublishAsync(new OrderCreated(order.Id), ct);
+        public V2 Upcast() => new(OrderId, CustomerId: null);
+    }
+
+    // Ceiling: the current shape. Declares a pure downcast to V1.
+    public sealed record V2(Guid OrderId, Guid? CustomerId)
+        : Payload<OrderPayload>.IPureCeiling<V1>
+    {
+        public V1 Downcast() => new(OrderId);
     }
 }
 ```
 
-To publish multiple messages efficiently use `PublishBatchAsync`:
+Both dimensions are decoupled from CLR type names so authors can rename or move the C# types
+without breaking messages already on the wire. Families are scoped by `(topic, WireName)` —
+different families with different wire names coexist on one topic. Variant wire names only need
+to be unique within one family's own `Variants` list.
+
+## Evolving a payload
+
+Payload variants let publishers and subscribers deploy on independent schedules. A publisher that
+adds a new ceiling keeps sending the old floor alongside, so a subscriber built against the older
+ceiling still finds a variant it can decode. The chain of variants — floor to ceiling — is the
+contract between publishing and consuming services.
+
+See
+[EVOLVING-PAYLOADS.md](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/EVOLVING-PAYLOADS.md)
+for the variant interface catalog, worked examples of adding a variant with a pure downcast and
+with an assisted downcast (the `.With(assist)` chain), and the retirement playbook using
+`messaging.variant.name` to confirm a variant is safe to remove.
+
+## Publishing
+
+Register a publisher with `AddPublisher<TPayload, TCeiling>`:
 
 ```csharp
-await publisher.PublishBatchAsync(events, ct);
+services.AddPublisher<OrderPayload, OrderPayload.V2>("orders");
 ```
+
+Inject `Publisher<TPayload, TCeiling>` as a keyed service using the composite
+`"{topic}#{WireName}"` key and call `Publish` followed by `SendAsync`:
+
+```csharp
+public class OrderService(
+    [FromKeyedServices("orders#order")] Publisher<OrderPayload, OrderPayload.V2> publisher)
+{
+    public async Task PlaceOrderAsync(Order order, CancellationToken ct)
+    {
+        await publisher
+            .Publish(new OrderPayload.V2(order.Id, order.CustomerId))
+            .SendAsync(ct);
+    }
+}
+```
+
+For programmatic resolution, use `MessageBrokerKeys.Publisher<OrderPayload>("orders")` to build
+the key instead of spelling it out:
+
+```csharp
+var publisher = provider.GetRequiredKeyedService<Publisher<OrderPayload, OrderPayload.V2>>(
+    MessageBrokerKeys.Publisher<OrderPayload>("orders"));
+```
+
+A single service that publishes several families to the same topic injects one publisher per
+family — the composite key disambiguates:
+
+```csharp
+public class UserService(
+    [FromKeyedServices("user-events#user.created")] Publisher<UserCreatedPayload, UserCreated> created,
+    [FromKeyedServices("user-events#user.deleted")] Publisher<UserDeletedPayload, UserDeleted> deleted);
+```
+
+If a downcast between the ceiling and the floor needs caller-supplied data (an "assisted"
+downcast), chain a `.With(assist)` call for each such crossing before `SendAsync`. The compiler
+refuses `SendAsync` until every assisted downcast has been crossed, so a publisher cannot omit data
+an older subscriber needs. See
+[EVOLVING-PAYLOADS.md](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/EVOLVING-PAYLOADS.md#adding-a-variant-whose-downcast-needs-new-data-assisted)
+for the full walkthrough.
 
 ## Consuming
 
-### With `IMessageConsumer<T>` (recommended)
+### With `IMessageConsumer<TPayload, TCeiling>` (recommended)
 
-Implement `IMessageConsumer<T>` and register with `AddMessageConsumer`. This registers both the
-subscriber and a hosted service in one call, and handles settlement automatically — `CompleteAsync`
-on success, `RequeueAsync` when `HandleAsync` throws:
+Implement `IMessageConsumer<TPayload, TCeiling>` and register with `AddMessageConsumer`. This
+registers both the subscriber and a hosted service in one call, and handles settlement
+automatically — `CompleteAsync` on success, `RequeueAsync` when `HandleAsync` throws:
 
 ```csharp
 // Registration
-services.AddMessageConsumer<OrderCreated, OrderNotificationService>("orders", subscriptionName: "notifications");
+services.AddMessageConsumer<OrderPayload, OrderPayload.V2, OrderNotificationService>(
+    "orders", subscriptionName: "notifications");
 
 // Implementation
-public class OrderNotificationService(IEmailService email) : IMessageConsumer<OrderCreated>
+public class OrderNotificationService(IEmailService email)
+    : IMessageConsumer<OrderPayload, OrderPayload.V2>
 {
-    public async Task HandleAsync(Envelope<OrderCreated> envelope, CancellationToken cancellationToken)
+    public async Task HandleAsync(
+        Envelope<OrderPayload, OrderPayload.V2> envelope,
+        CancellationToken cancellationToken)
     {
-        await email.SendAsync(envelope.Message, cancellationToken);
+        await email.SendAsync(envelope.Payload, cancellationToken);
         // No need to call CompleteAsync/RequeueAsync — the framework settles the envelope.
     }
 }
 ```
+
+`envelope.Payload` is always the consumer's declared ceiling: a direct match if the publisher sent
+that variant, otherwise upcast from the highest lower variant that arrived on the wire.
 
 The consumer is registered as scoped and resolved from a fresh scope per message, so handlers
 can inject scoped dependencies (e.g. a `DbContext`) the same way a controller action would.
@@ -179,17 +236,16 @@ var consumer = scope.ServiceProvider.GetRequiredService<OrderNotificationService
 Apps that genuinely need a singleton consumer can pre-register `TConsumer` themselves before
 `AddMessageConsumer`; the library's registration respects any prior lifetime.
 
-### With `ISubscriber<T>` directly
+### With `ISubscriber<TPayload, TCeiling>` directly
 
 For more control — custom retry logic, dead-lettering after N deliveries, or consuming outside a
-`BackgroundService` — inject `ISubscriber<T>` as a keyed service and iterate it yourself. Each message
-must be either completed or requeued before the next is requested.
-
-This pattern is supported only on the RabbitMQ and Azure Service Bus backends.
+`BackgroundService` — inject `ISubscriber<TPayload, TCeiling>` as a keyed service and iterate it
+yourself. Each message must be either completed or requeued before the next is requested:
 
 ```csharp
 public class OrderNotificationService(
-    [FromKeyedServices("orders/notifications")] ISubscriber<OrderCreated> subscriber) : BackgroundService
+    [FromKeyedServices("orders/notifications")]
+    ISubscriber<OrderPayload, OrderPayload.V2> subscriber) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -197,7 +253,7 @@ public class OrderNotificationService(
         {
             try
             {
-                await SendEmailAsync(envelope.Message, stoppingToken);
+                await SendEmailAsync(envelope.Payload, stoppingToken);
                 await envelope.CompleteAsync(stoppingToken);
             }
             catch (Exception ex)
@@ -209,16 +265,21 @@ public class OrderNotificationService(
 }
 ```
 
+Register the subscription with `AddSubscriber<TPayload, TCeiling>("orders", subscriptionName: "notifications")`.
+
 If the handler needs scoped dependencies, inject `IServiceScopeFactory` and create a scope per
 message.
 
+This pattern is supported only on the RabbitMQ and Azure Service Bus backends.
+
 ### Envelope properties
 
-Each message is wrapped in an `Envelope<T>` that carries broker metadata:
+Each message is wrapped in an `Envelope<TPayload, TCeiling>` that carries the resolved payload and
+broker metadata:
 
 | Property        | Description                                                                                                   |
 | --------------- | ------------------------------------------------------------------------------------------------------------- |
-| `Message`       | The deserialized message.                                                                                     |
+| `Payload`       | The resolved variant at `TCeiling` (see above).                                                               |
 | `MessageId`     | Unique identifier assigned by the publisher.                                                                  |
 | `TraceId`       | W3C traceparent of the publish span, for linking consumer traces to producer traces.                          |
 | `DeliveryCount` | Number of times this message has been delivered. `1` on the first attempt, incrementing with each redelivery. |
@@ -250,24 +311,50 @@ integrate with any OpenTelemetry-compatible pipeline.
 
 | Operation         | Kind     | Description                                                                |
 | ----------------- | -------- | -------------------------------------------------------------------------- |
-| `{topic} publish` | Producer | One span per publish call, or one per batch.                               |
+| `{topic} publish` | Producer | One span per publish call.                                                 |
 | `{topic} receive` | Consumer | One span per message delivered, linked to the producer span via `TraceId`. |
 
 **Metrics** — meter name `Bitwarden.Server.Sdk.MessageBroker`:
 
-| Instrument                            | Type    | Description                                                                                             |
-| ------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
-| `messaging.client.published.messages` | Counter | Messages published, tagged with `messaging.destination.name`.                                           |
-| `messaging.client.consumed.messages`  | Counter | Messages delivered to a consumer, tagged with `messaging.destination.name`.                             |
-| `messaging.channel.queued.messages`   | Gauge   | Current number of messages buffered in the in-memory channel, tagged with `messaging.destination.name`. |
+| Instrument                            | Type    | Description                                                                                                                                                                               |
+| ------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `messaging.client.published.messages` | Counter | Messages published, tagged with `messaging.destination.name` and `messaging.payload.family`.                                                                                                                                                       |
+| `messaging.client.consumed.messages`  | Counter | Messages delivered to a consumer, tagged with `messaging.destination.name`, `messaging.payload.family`, and `messaging.variant.name` (wire name of the highest received variant at or below the subscriber's ceiling).                             |
+| `messaging.channel.queued.messages`   | Gauge   | Current number of messages buffered in the in-memory channel, tagged with `messaging.destination.name` and `messaging.payload.family` (one series per family on a topic that carries several).                                                     |
 
 ## Serialization
 
-Messages are serialized as JSON using `System.Text.Json`. Customize serializer options per topic:
+Messages are serialized as JSON using `System.Text.Json`. Each variant is written as one element of
+a JSON array, tagged with a `$type` discriminator holding the wire name from
+`IPayloadVariants.Variants`. Unknown discriminators are skipped on read so a subscriber survives a
+publisher with variants it was not built against.
+
+JIT builds with reflection enabled work out of the box — `MessageBrokerSerializerOptions` seeds a
+`DefaultJsonTypeInfoResolver` by default, so `System.Text.Json` picks up types via reflection with
+no further configuration. AOT and trimmed builds must attach a source-generated
+`JsonSerializerContext` instead; the serializer throws at startup if no resolver is present when
+reflection is disabled.
+
+```csharp
+// AOT / trimmed builds: declare one JsonSerializable per variant type on a partial context.
+[JsonSerializable(typeof(OrderPayload.V1))]
+[JsonSerializable(typeof(OrderPayload.V2))]
+public partial class OrderJsonContext : JsonSerializerContext;
+
+// AOT / trimmed builds: attach the context to the topic's serializer options.
+services.Configure<MessageBrokerSerializerOptions>("orders", options =>
+{
+    options.JsonSerializerOptions.TypeInfoResolverChain.Add(OrderJsonContext.Default);
+});
+```
+
+Other `JsonSerializerOptions` (naming policy, converters, etc.) can be set on the same options
+instance and apply in both JIT and AOT modes:
 
 ```csharp
 services.Configure<MessageBrokerSerializerOptions>("orders", options =>
 {
     options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
+    options.JsonSerializerOptions.TypeInfoResolverChain.Add(OrderJsonContext.Default); // AOT only
 });
 ```

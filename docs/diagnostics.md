@@ -501,3 +501,181 @@ var options = compilation.Options.WithSpecificDiagnosticOptions(
 Both halves are required to enter observe mode, and the analyzer enforces nothing once in it, because it cannot treat the baseline it is rebuilding as the authority. A seed list with the channel left off is not a baseline tool: that build stays enforcing and reports BW0015. Only compiler options can reach `SpecificDiagnosticOptions`, so the seed key alone — which an `.editorconfig` can set — cannot stand a project down. A project file can, by also naming BW0017 in `WarningsAsErrors` or a ruleset; see the note under [BW0016](#bw0016).
 
 Each diagnostic carries one row in `Diagnostic.Properties`, discriminated by `row`: a `usage`, a `declared-member`, an `exception`, or a `restricted-type`. The property names are constants on `ObservationConstants` in the `Bitwarden.Server.Sdk.RestrictedDependencies` namespace, so a tool does not spell them twice.
+
+## BW0018
+
+**Title:** Previous script prefix overlaps the current one
+**Severity:** Error
+**Category:** Bitwarden.Database
+**Package:** `Bitwarden.Server.Sdk.Database`
+**Code fix available:** No
+
+### Summary
+
+Reported when `BitPreviousSqlServerScriptPrefix` and `BitSqlServerScriptPrefix` overlap, meaning one is a prefix of the other. The journal rewrite adopts a journal recorded under an unrelated name, renaming rows that start with the previous prefix. It is anchored to the start of the recorded name, so it is only idempotent when neither prefix contains the other; with overlapping prefixes a second run would rename rows it had already renamed. Both values are build properties, so the overlap is rejected at compile time rather than against a production journal.
+
+### Example
+
+```xml
+<!-- BW0018: the new prefix extends the old one -->
+<BitPreviousSqlServerScriptPrefix>Bit.Migrator.DbScripts</BitPreviousSqlServerScriptPrefix>
+<BitSqlServerScriptPrefix>Bit.Migrator.DbScripts.SqlServer</BitSqlServerScriptPrefix>
+```
+
+**Fix:** Set `BitPreviousSqlServerScriptPrefix` to the name the journal actually records, or remove it if the journal already matches this build.
+
+## BW0019
+
+**Title:** More than one package is referenced for the same database provider
+**Severity:** Error
+**Category:** Bitwarden.Database
+**Package:** `Bitwarden.Server.Sdk.Database`
+**Code fix available:** No
+
+### Summary
+
+Reported when a declared provider is served by more than one referenced package. MySQL can come from `Pomelo.EntityFrameworkCore.MySql` or from Microting's fork, `Microting.EntityFrameworkCore.MySql`. The two define the same types in the same namespaces, so the generated code couldn't bind to either, and the runtime dispatch could only ever match one of them.
+
+### Example
+
+```xml
+<!-- BW0019 when DatabaseProvider.MySql is declared -->
+<PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="9.0.0" />
+<PackageReference Include="Microting.EntityFrameworkCore.MySql" Version="9.0.8" />
+```
+
+**Fix:** Reference only one of the two packages.
+
+## BW0020
+
+**Title:** A declared database provider's package is not referenced
+**Severity:** Error
+**Category:** Bitwarden.Database
+**Package:** `Bitwarden.Server.Sdk.Database`
+**Code fix available:** No
+
+### Summary
+
+Reported when a provider is declared on `[DatabaseSetup]` but none of its EF Core provider packages is referenced. Code is generated for exactly the declared providers, so without the package the generated calls (such as `UseNpgsql`) wouldn't resolve. A provider package that is referenced but not declared is ignored.
+
+### Example
+
+```csharp
+// BW0020 when Npgsql.EntityFrameworkCore.PostgreSQL isn't referenced
+[assembly: DatabaseSetup<OrderDatabaseContext>([DatabaseProvider.SqlServer, DatabaseProvider.PostgreSql])]
+```
+
+**Fix:** Reference the provider's package, or remove the provider from the attribute.
+
+## BW0021
+
+**Title:** The DatabaseSetup context is sealed
+**Severity:** Error
+**Category:** Bitwarden.Database
+**Package:** `Bitwarden.Server.Sdk.Database`
+**Code fix available:** No
+
+### Summary
+
+Reported when the `DatabaseSetup` context is `sealed` while any declared engine is migrated by EF Core. Each EF Core engine gets a generated subcontext derived from the context, which can't derive from a sealed type.
+
+### Example
+
+```csharp
+[assembly: DatabaseSetup<OrderDatabaseContext>([DatabaseProvider.PostgreSql])]
+
+// BW0021
+public sealed class OrderDatabaseContext(DbContextOptions options) : DbContext(options);
+```
+
+**Fix:** Remove `sealed` from the context.
+
+## BW0022
+
+**Title:** The DatabaseSetup context has no constructor taking its options
+**Severity:** Error
+**Category:** Bitwarden.Database
+**Package:** `Bitwarden.Server.Sdk.Database`
+**Code fix available:** No
+
+### Summary
+
+Reported when the context has no non-private constructor that takes exactly one `DbContextOptions` or `DbContextOptions<TContext>` parameter, with no `ref`, `out`, `in` or `params` parameters. The generated subcontexts forward to such a constructor, so without one there is nothing to derive the provider contexts from.
+
+### Example
+
+```csharp
+// BW0022: no constructor takes the options
+public class OrderDatabaseContext : DbContext
+{
+    public OrderDatabaseContext(string connectionString) { }
+}
+```
+
+**Fix:** Add a constructor that takes `DbContextOptions` or `DbContextOptions<TContext>` and passes it to the base class.
+
+## BW0023
+
+**Title:** DesignTimeServices can't be used
+**Severity:** Error
+**Category:** Bitwarden.Database
+**Package:** `Bitwarden.Server.Sdk.Database`
+**Code fix available:** No
+
+### Summary
+
+Reported when `DesignTimeServices` on `[DatabaseSetup]` names a type that doesn't implement `IDatabaseDesignTimeServices`. The generated design-time factories call it to register what the context's constructor needs beyond its options.
+
+### Example
+
+```csharp
+// BW0023: TenantServices doesn't implement IDatabaseDesignTimeServices
+[assembly: DatabaseSetup<OrderDatabaseContext>([DatabaseProvider.PostgreSql], DesignTimeServices = typeof(TenantServices))]
+```
+
+**Fix:** Implement `IDatabaseDesignTimeServices` on the type.
+
+## BW0024
+
+**Title:** SqlServerMigrations is set but SQL Server isn't declared
+**Severity:** Warning
+**Category:** Bitwarden.Database
+**Package:** `Bitwarden.Server.Sdk.Database`
+**Code fix available:** No
+
+### Summary
+
+Reported when `SqlServerMigrations = SqlServerMigrations.EfCore` is set but `DatabaseProvider.SqlServer` isn't among the declared providers. The setting only chooses how SQL Server is migrated, so it has no effect.
+
+### Example
+
+```csharp
+// BW0024
+[assembly: DatabaseSetup<OrderDatabaseContext>([DatabaseProvider.PostgreSql], SqlServerMigrations = SqlServerMigrations.EfCore)]
+```
+
+**Fix:** Declare `DatabaseProvider.SqlServer`, or remove the setting.
+
+## BW0025
+
+**Title:** The DatabaseSetup context needs DesignTimeServices
+**Severity:** Error
+**Category:** Bitwarden.Database
+**Package:** `Bitwarden.Server.Sdk.Database`
+**Code fix available:** No
+
+### Summary
+
+Reported when the constructor the subcontexts forward to takes a parameter beyond its options that has no default, and `DesignTimeServices` isn't set. EF Core tooling constructs the context through the generated design-time factories, which would have nothing to supply that parameter from.
+
+### Example
+
+```csharp
+[assembly: DatabaseSetup<OrderDatabaseContext>([DatabaseProvider.PostgreSql])]
+
+// BW0025: nothing supplies ITenantFilter at design time
+public class OrderDatabaseContext(DbContextOptions<OrderDatabaseContext> options, ITenantFilter tenants)
+    : DbContext(options);
+```
+
+**Fix:** Set `DesignTimeServices` to a type implementing `IDatabaseDesignTimeServices` that registers the constructor's dependencies.

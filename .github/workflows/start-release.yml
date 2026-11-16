@@ -15,13 +15,19 @@ on:
           - Bitwarden.Server.Sdk.Caching
           - Bitwarden.Server.Sdk.Common
           - Bitwarden.Server.Sdk.Crypto
+          - Bitwarden.Server.Sdk.CryptoPrimitives
+          - Bitwarden.Server.Sdk.Database
           - Bitwarden.Server.Sdk.Environment
+          - Bitwarden.Server.Sdk.Errors
           - Bitwarden.Server.Sdk.Features
           - Bitwarden.Server.Sdk.HealthChecks
           - Bitwarden.Server.Sdk.Infrastructure
           - Bitwarden.Server.Sdk.Infrastructure.Testing
           - Bitwarden.Server.Sdk.MessageBroker
+          - Bitwarden.Server.Sdk.PasswordHashing
           - Bitwarden.Server.Sdk.RestrictedDependencies
+          - Bitwarden.Server.Sdk.Sagas
+          - Bitwarden.Server.Sdk.Service.Abstractions
           - Bitwarden.Server.Sdk.WebEssentials
 
 permissions: {}
