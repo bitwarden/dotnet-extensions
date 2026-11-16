@@ -185,6 +185,23 @@ public class UserService(
     [FromKeyedServices("user-events#user.deleted")] Publisher<UserDeletedPayload, UserDeleted> deleted);
 ```
 
+### Message identifiers
+
+Every message carries an identifier, which subscribers see as `Envelope.MessageId`. `SendAsync(ct)`
+assigns a new version 7 GUID. To send the same message again under the same identifier, as an
+outbox does when it retries, pass it yourself:
+
+```csharp
+await publisher
+    .Publish(new OrderPayload.V2(order.Id, order.CustomerId))
+    .SendAsync(outboxRow.MessageId, ct);
+```
+
+A subscriber that receives the message twice then sees the same identifier both times, and can use
+it to recognize the repeat. Identifiers must be ASCII, must not be blank, and can be at most 128
+characters (`PublisherExtensions.MaxMessageIdLength`, Azure Service Bus's limit; ASCII keeps them
+within RabbitMQ's 255 bytes too).
+
 ### When a send completes
 
 `SendAsync` completes once the broker has accepted the message: Azure Service Bus acknowledges every
@@ -294,7 +311,7 @@ broker metadata:
 | Property        | Description                                                                                                   |
 | --------------- | ------------------------------------------------------------------------------------------------------------- |
 | `Payload`       | The resolved variant at `TCeiling` (see above).                                                               |
-| `MessageId`     | Unique identifier assigned by the publisher.                                                                  |
+| `MessageId`     | The identifier the publisher sent the message under. The same on every redelivery, and on a re-send that passes it again. |
 | `TraceId`       | W3C traceparent of the publish span, for linking consumer traces to producer traces.                          |
 | `DeliveryCount` | Number of times this message has been delivered. `1` on the first attempt, incrementing with each redelivery. |
 

@@ -69,6 +69,7 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
 
     protected internal override async Task SendAsync(
         IReadOnlyList<Payload<TPayload>.IVariant> variants,
+        string messageId,
         CancellationToken cancellationToken)
     {
         using var activity = MessageBrokerActivitySource.StartProducerActivity(_exchangeName, TPayload.WireName);
@@ -80,7 +81,7 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
             _serializer.SerializeVariants<TPayload>(variants, buffer);
             var props = new BasicProperties
             {
-                MessageId = Guid.NewGuid().ToString(),
+                MessageId = messageId,
                 Headers = new Dictionary<string, object?>
                 {
                     [BrokerProperties.TraceParent] = activity?.Id,

@@ -14,25 +14,33 @@ public abstract class Publisher<TPayload, TCeiling>
 {
     /// <summary>
     /// Sends <paramref name="variants"/> — the complete ceiling-to-floor sequence — as one
-    /// message. The framework's fluent chain is the only in-assembly caller; derivations
-    /// (custom transports, test doubles) override to implement wire transport but should not
-    /// call this from their own user-facing surface.
+    /// message identified by <paramref name="messageId"/>. The framework's fluent chain is the
+    /// only in-assembly caller; derivations (custom transports, test doubles) override to
+    /// implement wire transport but should not call this from their own user-facing surface.
     /// </summary>
+    /// <param name="variants">The variants to send, ceiling first.</param>
+    /// <param name="messageId">
+    /// The message's identifier, carried to every subscriber as <see cref="Envelope{TPayload, TCeiling}.MessageId"/>.
+    /// Already validated by <see cref="PublisherExtensions"/>.
+    /// </param>
+    /// <param name="cancellationToken">Cancels the send.</param>
     protected internal abstract Task SendAsync(
         IReadOnlyList<Payload<TPayload>.IVariant> variants,
+        string messageId,
         CancellationToken cancellationToken);
 
     /// <summary>
     /// Begins a publish from <paramref name="ceiling"/>. Chain
-    /// <see cref="PublisherExtensions.With"/> once per assisted downcast and finish with
-    /// <see cref="PublisherExtensions.SendAsync"/>.
+    /// <see cref="PublisherExtensions.With"/> once per assisted downcast and finish with one of
+    /// the <see cref="PublisherExtensions"/> <c>SendAsync</c> overloads.
     /// </summary>
     public PublishBuilder<TCeiling> Publish(TCeiling ceiling)
         => new([ceiling], ceiling, this);
 
     /// <summary>
     /// In-progress state of a publish. Constructed by <see cref="Publisher{TPayload, TCeiling}.Publish"/>
-    /// and consumed by <see cref="PublisherExtensions.With"/> / <see cref="PublisherExtensions.SendAsync"/>.
+    /// and consumed by <see cref="PublisherExtensions.With"/> and the <see cref="PublisherExtensions"/>
+    /// <c>SendAsync</c> overloads.
     /// </summary>
     public readonly struct PublishBuilder<TCurrent>
         where TCurrent : Payload<TPayload>.IVariant
@@ -85,8 +93,15 @@ public static class PublisherExtensions
     }
 
     /// <summary>
-    /// Finalizes the chain and hands it to the publisher. Only compiles once every assisted downcast
-    /// has been crossed — until then the current position cannot reach the floor.
+    /// The longest message identifier accepted. Azure Service Bus limits <c>MessageId</c> to 128
+    /// characters, so every transport holds to the same limit.
+    /// </summary>
+    public const int MaxMessageIdLength = 128;
+
+    /// <summary>
+    /// Finalizes the chain and hands it to the publisher under a new message identifier (a
+    /// version 7 GUID). Only compiles once every assisted downcast has been crossed — until then
+    /// the current position cannot reach the floor.
     /// </summary>
     public static Task SendAsync<TPayload, TCeiling, TCurrent>(
         this Publisher<TPayload, TCeiling>.PublishBuilder<TCurrent> builder,
@@ -94,8 +109,35 @@ public static class PublisherExtensions
         where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
         where TCeiling : Payload<TPayload>.ICeiling
         where TCurrent : Payload<TPayload>.IReachesFloor
+        => builder.SendAsync(Guid.CreateVersion7().ToString(), cancellationToken);
+
+    /// <summary>
+    /// Finalizes the chain and hands it to the publisher under <paramref name="messageId"/>. Pass
+    /// the same identifier every time the same message is sent again, as an outbox does on a
+    /// retry, so subscribers can recognize the repeat. Only compiles once every assisted downcast
+    /// has been crossed.
+    /// </summary>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="messageId"/> is empty, whitespace, longer than <see cref="MaxMessageIdLength"/>,
+    /// or not ASCII.
+    /// </exception>
+    public static Task SendAsync<TPayload, TCeiling, TCurrent>(
+        this Publisher<TPayload, TCeiling>.PublishBuilder<TCurrent> builder,
+        string messageId,
+        CancellationToken cancellationToken = default)
+        where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
+        where TCeiling : Payload<TPayload>.ICeiling
+        where TCurrent : Payload<TPayload>.IReachesFloor
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+        if (messageId.Length > MaxMessageIdLength)
+            throw new ArgumentException(
+                $"A message identifier can be at most {MaxMessageIdLength} characters.", nameof(messageId));
+        // ASCII keeps one character to one byte, so the length limit also holds RabbitMQ's: AMQP
+        // carries message-id as a short string of at most 255 UTF-8 bytes.
+        if (!System.Text.Ascii.IsValid(messageId))
+            throw new ArgumentException("A message identifier must be ASCII.", nameof(messageId));
         builder.Current.DescendToFloor(builder.Accumulated);
-        return builder.Publisher.SendAsync(builder.Accumulated, cancellationToken);
+        return builder.Publisher.SendAsync(builder.Accumulated, messageId, cancellationToken);
     }
 }
