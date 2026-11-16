@@ -23,6 +23,7 @@ on:
           - Bitwarden.Server.Sdk.Infrastructure
           - Bitwarden.Server.Sdk.Infrastructure.Testing
           - Bitwarden.Server.Sdk.MessageBroker
+          - Bitwarden.Server.Sdk.MessageBroker.Sender
           - Bitwarden.Server.Sdk.PasswordHashing
           - Bitwarden.Server.Sdk.RestrictedDependencies
           - Bitwarden.Server.Sdk.Sagas
