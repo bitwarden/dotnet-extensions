@@ -7,13 +7,14 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// (<see cref="ConsumerBackgroundService{TPayload, TCeiling, TConsumer}"/>) and a command queue
 /// (<see cref="CommandFamilyHandler{TPayload, TCeiling, TConsumer}"/>): the receive span is current
 /// while it runs, it gets a scope of its own, and the message is completed when it returns and
-/// requeued when it throws.
+/// requeued when it throws, after the retry delay (<see cref="RetryDelay"/>).
 /// </summary>
 internal static class ConsumerInvocation
 {
     public static async Task RunAsync<TPayload, TCeiling, TConsumer>(
         IServiceScopeFactory scopeFactory,
         Envelope<TPayload, TCeiling> envelope,
+        MessagingOptions options,
         CancellationToken stoppingToken)
         where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
         where TCeiling : Payload<TPayload>.ICeiling
@@ -36,6 +37,7 @@ internal static class ConsumerInvocation
         }
         catch (Exception ex)
         {
+            await RetryDelay.WaitAsync(options, envelope.DeliveryCount, stoppingToken);
             try
             {
                 await envelope.RequeueAsync(ex.Message, CancellationToken.None);

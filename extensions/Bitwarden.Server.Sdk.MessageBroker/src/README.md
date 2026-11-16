@@ -62,6 +62,7 @@ Setting both raises `OptionsValidationException` at startup via `MessagingOption
 | `CommandFamilyHandler.cs`                                      | Decodes one command family's messages into envelopes; dead-letters what it can't |
 | `CommandQueueMessage.cs`                                       | A command before its family is known, and `ICommandQueueReceiver`                |
 | `ResubscribeLoop.cs`                                           | Keeps a hosted consumer subscribing again, with backoff, through broker outages  |
+| `RetryDelay.cs`                                                | The wait after a consumer throws, before the message is redelivered              |
 | `IMessageEscrowStore.cs`                                       | Public interface for durable message escrow on shutdown                          |
 | `ChannelPublisher.cs` / `ChannelSubscriber.cs`                 | In-memory backend                                                                |
 | `ChannelEnvelope.cs`                                           | In-memory envelope; handles `RequeueAsync` requeue logic                         |
@@ -72,6 +73,7 @@ Setting both raises `OptionsValidationException` at startup via `MessagingOption
 | `RabbitCommandQueueReceiver.cs`                                | RabbitMQ command queue receiver                                                  |
 | `RabbitConnection.cs`                                          | The shared RabbitMQ connection; opened again on demand after an outage           |
 | `AzureServiceBusPublisher.cs` / `AzureServiceBusSubscriber.cs` | Azure Service Bus backend                                                        |
+| `AzureServiceBusLockRenewal.cs`                                | Renews a message's lock while it is handled and while its retry waits            |
 | `AzureServiceBusCommandQueueReceiver.cs`                       | Azure Service Bus command queue receiver                                         |
 | `MessageBrokerActivitySource.cs`                               | Shared `ActivitySource` for publish and consume spans                            |
 | `MessageBrokerMetrics.cs`                                      | Shared metrics (publish counter, consume counter, channel depth gauge)           |

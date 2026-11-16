@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -18,14 +19,18 @@ internal sealed class ConsumerBackgroundService<TPayload, TCeiling, TConsumer> :
     private readonly ISubscriber<TPayload, TCeiling> _subscriber;
     private readonly ILogger _logger;
     private readonly string _subscriptionKey;
+    private readonly IOptions<MessagingOptions> _options;
 
     /// <param name="scopeFactory">Used to create a per-message DI scope.</param>
     /// <param name="subscriber">The subscriber to consume messages from.</param>
     /// <param name="logger">Logs a failed subscription before it is opened again.</param>
     /// <param name="subscriptionKey">The <c>{topic}/{subscription}</c> being consumed, for the log.</param>
+    /// <param name="options">The retry delay after a handler throws.</param>
     public ConsumerBackgroundService(
-        IServiceScopeFactory scopeFactory, ISubscriber<TPayload, TCeiling> subscriber, ILogger logger, string subscriptionKey)
+        IServiceScopeFactory scopeFactory, ISubscriber<TPayload, TCeiling> subscriber, ILogger logger, string subscriptionKey,
+        IOptions<MessagingOptions> options)
     {
+        _options = options;
         _scopeFactory = scopeFactory;
         _subscriber = subscriber;
         _logger = logger;
@@ -42,7 +47,7 @@ internal sealed class ConsumerBackgroundService<TPayload, TCeiling, TConsumer> :
         await foreach (var envelope in _subscriber.SubscribeAsync(stoppingToken))
         {
             onMessage();
-            await ConsumerInvocation.RunAsync<TPayload, TCeiling, TConsumer>(_scopeFactory, envelope, stoppingToken);
+            await ConsumerInvocation.RunAsync<TPayload, TCeiling, TConsumer>(_scopeFactory, envelope, _options.Value, stoppingToken);
         }
     }
 }

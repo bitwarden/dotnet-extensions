@@ -315,6 +315,21 @@ broker metadata:
 | `TraceId`       | W3C traceparent of the publish span, for linking consumer traces to producer traces.                          |
 | `DeliveryCount` | Number of times this message has been delivered. `1` on the first attempt, incrementing with each redelivery. |
 
+### When a consumer throws
+
+When a consumer registered with `AddMessageConsumer` or `AddCommandConsumer` throws, the message is
+returned to the broker after a wait: `MessagingOptions.RetryDelay` (one second by default) after the
+first delivery, doubling with each delivery up to `MaxRetryDelay` (thirty seconds). While it waits,
+the consumer takes no other message from that subscription or queue, so a failing dependency slows
+the consumer instead of using up the message's delivery limit in a moment. Set `RetryDelay` to zero
+to redeliver at once.
+
+On Azure Service Bus the message's lock is renewed while the consumer handles it and while it waits,
+so a handler that runs longer than the lock duration keeps its message rather than the broker
+giving it to another receiver. Renewal stops after `MaxLockRenewalDuration` (five minutes by
+default, and no shorter than `MaxRetryDelay`): a handler that hangs then loses the lock, and the
+message is delivered again, counting toward its delivery limit.
+
 ### When the broker goes away
 
 Consumers registered with `AddMessageConsumer` or `AddCommandConsumer` keep running through a
