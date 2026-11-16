@@ -311,13 +311,12 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
         }
     }
 
-    /// <summary>
-    /// Verifies that a message returned on every delivery reaches the dead-letter queue once the queue's
-    /// delivery limit is spent, as BROKER-TOPOLOGY.md's policy expects. RabbitMQ 4.3+ counts a requeue
-    /// toward the limit only when it is a <c>basic.reject</c>; a <c>basic.nack</c> was redelivered forever.
-    /// </summary>
-    [Fact(Timeout = 60 * 1000)]
-    public async Task MessageReturnedOnEveryDeliveryIsDeadLetteredAtTheDeliveryLimit()
+    private readonly List<IHost> _limitedHosts = [];
+
+    // A subscription queue declared with a delivery limit of 2 and a dead-letter exchange, as
+    // BROKER-TOPOLOGY.md's policy gives every subscription queue: a message returned on every
+    // delivery is delivered three times, then routed to the dead-letter queue.
+    protected override async Task<DeliveryLimitedSubscription> CreateDeliveryLimitedSubscriptionAsync()
     {
         const int DeliveryLimit = 2;
         var topic = Guid.NewGuid().ToString("N")[..8];
@@ -365,53 +364,37 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
             })
             .Build();
         await host.StartAsync(TestContext.Current.CancellationToken);
-        try
-        {
-            var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(
-                MessageBrokerKeys.Publisher<MyItemPayload>(topic));
-            var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>($"{topic}/{Subscription}");
+        _limitedHosts.Add(host);
 
-            await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
-
-            // Return every delivery until none comes for a few seconds.
-            var deliveries = new List<int>();
-            using var receiveCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-            receiveCts.CancelAfter(TimeSpan.FromSeconds(5));
-            try
+        return new DeliveryLimitedSubscription(
+            host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>(topic)),
+            host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>($"{topic}/{Subscription}"),
+            Deliveries: DeliveryLimit + 1,
+            async messageId =>
             {
-                await foreach (var envelope in subscriber.SubscribeAsync(receiveCts.Token))
-                {
-                    deliveries.Add(envelope.DeliveryCount);
-                    await envelope.RequeueAsync(cancellationToken: TestContext.Current.CancellationToken);
-                    Assert.True(deliveries.Count <= DeliveryLimit + 1, $"Delivered {deliveries.Count} times past a delivery limit of {DeliveryLimit}.");
-                }
-            }
-            catch (OperationCanceledException) { /* expected: nothing more to deliver */ }
-            catch (BrokerDisconnectedException) { /* expected: channel closed on iterator dispose */ }
+                await using var conn = await new ConnectionFactory { Uri = new Uri(_fixture.GetUri()) }
+                    .CreateConnectionAsync(TestContext.Current.CancellationToken);
+                await using var channel = await conn.CreateChannelAsync(cancellationToken: TestContext.Current.CancellationToken);
+                var deadLettered = await channel.BasicGetAsync(deadLetterQueue, autoAck: true, TestContext.Current.CancellationToken);
+                Assert.NotNull(deadLettered);
+                Assert.Equal(messageId, deadLettered.BasicProperties.MessageId);
 
-            Assert.Equal([1, 2, 3], deliveries);
-            await using var inspectConn = await new ConnectionFactory { Uri = new Uri(_fixture.GetUri()) }
-                .CreateConnectionAsync(TestContext.Current.CancellationToken);
-            await using var inspectChannel = await inspectConn.CreateChannelAsync(cancellationToken: TestContext.Current.CancellationToken);
-            var deadLettered = await inspectChannel.BasicGetAsync(deadLetterQueue, autoAck: true, TestContext.Current.CancellationToken);
-            Assert.NotNull(deadLettered);
-
-            // One dead-letter queue can serve every subscription to a topic, so replaying a message means sending it
-            // back to the queue its x-death header names: the subscription's.
-            var deaths = Assert.IsType<List<object>>(deadLettered.BasicProperties.Headers?["x-death"], exactMatch: false);
-            var death = Assert.IsType<Dictionary<string, object?>>(deaths[0], exactMatch: false);
-            Assert.Equal($"{topic}.{Subscription}", System.Text.Encoding.UTF8.GetString(Assert.IsType<byte[]>(death["queue"])));
-        }
-        finally
-        {
-            await host.StopAsync(TestContext.Current.CancellationToken);
-            host.Dispose();
-        }
+                // One dead-letter queue can serve every subscription to a topic, so replaying a message means
+                // sending it back to the queue its x-death header names: the subscription's.
+                var deaths = Assert.IsType<List<object>>(deadLettered.BasicProperties.Headers?["x-death"], exactMatch: false);
+                var death = Assert.IsType<Dictionary<string, object?>>(deaths[0], exactMatch: false);
+                Assert.Equal($"{topic}.{Subscription}", System.Text.Encoding.UTF8.GetString(Assert.IsType<byte[]>(death["queue"])));
+            });
     }
 
     public override async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
+        foreach (var host in _limitedHosts)
+        {
+            await host.StopAsync();
+            host.Dispose();
+        }
         if (_droppableContainer is not null)
             await _droppableContainer.DisposeAsync();
     }
