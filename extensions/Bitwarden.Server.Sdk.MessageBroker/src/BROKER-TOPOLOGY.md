@@ -72,9 +72,7 @@ binding is still the right production configuration because it moves the filter 
 
 The delivery limit is what ends retries. A consumer that returns a message for redelivery does so
 with `basic.reject`, which RabbitMQ counts toward the limit and in the `x-delivery-count` header
-that becomes `Envelope.DeliveryCount`. Since RabbitMQ 4.3, a `basic.nack` with requeue is an
-explicit return that is counted toward neither, so the message would be redelivered without
-limit.
+that becomes `Envelope.DeliveryCount`.
 
 Policies must be used rather than queue arguments because quorum queue arguments cannot be
 changed on an existing queue. See the RabbitMQ documentation on
