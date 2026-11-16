@@ -27,6 +27,9 @@ internal static class ResubscribeLoop
     /// Told when the consumer is receiving and when it is failing. The consumer said it was expected
     /// when it was created.
     /// </param>
+    /// <param name="topology">
+    /// Waited for before the first attempt: open once the service has provisioned its topology, when it does.
+    /// </param>
     /// <param name="timeProvider">Times the wait between attempts.</param>
     /// <param name="stoppingToken">Cancelled when the host stops.</param>
     internal static async Task RunAsync(
@@ -34,9 +37,22 @@ internal static class ResubscribeLoop
         ILogger logger,
         string source,
         SubscriptionReadiness readiness,
+        TopologyGate? topology,
         TimeProvider timeProvider,
         CancellationToken stoppingToken)
     {
+        if (topology is not null)
+        {
+            try
+            {
+                await topology.WaitAsync(stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
+
         var delay = InitialDelay;
         while (!stoppingToken.IsCancellationRequested)
         {

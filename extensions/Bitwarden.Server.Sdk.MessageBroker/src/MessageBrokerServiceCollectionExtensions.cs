@@ -209,7 +209,8 @@ public static class MessageBrokerServiceCollectionExtensions
                 sp.GetRequiredService<ILogger<ConsumerBackgroundService<TPayload, TCeiling, TConsumer>>>(),
                 subscriptionKey,
                 sp.GetRequiredService<IOptionsMonitor<ConsumerRetryOptions>>(),
-                sp.GetRequiredService<SubscriptionReadiness>()));
+                sp.GetRequiredService<SubscriptionReadiness>(),
+                sp.GetRequiredService<TopologyGate>()));
         AddSubscriptionHealthCheck(services);
         if (consumerIsNew)
             services.AddSingleton<IHostedService>(sp =>
@@ -333,7 +334,8 @@ public static class MessageBrokerServiceCollectionExtensions
                 else
                     receiver = sp.GetRequiredKeyedService<ChannelCommandQueue>(queueName);
                 return new CommandQueueService(queueName, receiver, sp.GetServices<CommandFamilyHandler>(),
-                    sp.GetRequiredService<ILogger<CommandQueueService>>(), sp.GetRequiredService<SubscriptionReadiness>());
+                    sp.GetRequiredService<ILogger<CommandQueueService>>(), sp.GetRequiredService<SubscriptionReadiness>(),
+                    sp.GetRequiredService<TopologyGate>());
             });
             services.AddSingleton<IHostedService>(sp => sp.GetRequiredKeyedService<CommandQueueService>(queueName));
             AddSubscriptionHealthCheck(services);
@@ -395,7 +397,9 @@ public static class MessageBrokerServiceCollectionExtensions
         services.AddOptions<MessagingOptions>().ValidateOnStart();
         AddRabbitInfrastructure(services);
         AddAzureServiceBusInfrastructure(services);
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TopologyCheckService>());
+        services.AddBitwardenEnvironment();
+        services.TryAddSingleton<TopologyGate>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TopologyStartupService>());
     }
 
     // Keyed on the composite "{destination}#{WireName}" key, so a publisher and a consumer of the same

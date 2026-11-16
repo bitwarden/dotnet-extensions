@@ -16,14 +16,17 @@ internal sealed class CommandQueueService : BackgroundService
     private readonly Dictionary<string, CommandFamilyHandler> _handlers;
     private readonly ILogger<CommandQueueService> _logger;
     private readonly SubscriptionReadiness _readiness;
+    private readonly TopologyGate _topology;
 
     public CommandQueueService(
         string queueName,
         ICommandQueueReceiver receiver,
         IEnumerable<CommandFamilyHandler> handlers,
         ILogger<CommandQueueService> logger,
-        SubscriptionReadiness readiness)
+        SubscriptionReadiness readiness,
+        TopologyGate topology)
     {
+        _topology = topology;
         _readiness = readiness;
         // As ConsumerBackgroundService does: expected from the moment it exists.
         readiness.Expect(queueName);
@@ -36,7 +39,7 @@ internal sealed class CommandQueueService : BackgroundService
     // As ConsumerBackgroundService does: a receive that fails is opened again rather than
     // faulting the service.
     protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
-        ResubscribeLoop.RunAsync(ReceiveAsync, _logger, _queueName, _readiness, TimeProvider.System, stoppingToken);
+        ResubscribeLoop.RunAsync(ReceiveAsync, _logger, _queueName, _readiness, _topology, TimeProvider.System, stoppingToken);
 
     private async Task ReceiveAsync(Action onSubscribed, Action onMessage, CancellationToken stoppingToken)
     {

@@ -15,6 +15,7 @@ internal sealed class ConsumerBackgroundService<TPayload, TCeiling, TConsumer> :
     where TCeiling : Payload<TPayload>.ICeiling
     where TConsumer : class, IMessageConsumer<TPayload, TCeiling>
 {
+    private readonly TopologyGate _topology;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ISubscriber<TPayload, TCeiling> _subscriber;
     private readonly ILogger _logger;
@@ -28,10 +29,12 @@ internal sealed class ConsumerBackgroundService<TPayload, TCeiling, TConsumer> :
     /// <param name="subscriptionKey">The <c>{topic}/{subscription}</c> being consumed, for the log.</param>
     /// <param name="readiness">Where the subscription reports whether it is receiving.</param>
     /// <param name="retry">Whether and how to retry a message the handler threw on, named by <paramref name="subscriptionKey"/>.</param>
+    /// <param name="topology">Opens once the service has provisioned its topology, when it does.</param>
     public ConsumerBackgroundService(
         IServiceScopeFactory scopeFactory, ISubscriber<TPayload, TCeiling> subscriber, ILogger logger, string subscriptionKey,
-        IOptionsMonitor<ConsumerRetryOptions> retry, SubscriptionReadiness readiness)
+        IOptionsMonitor<ConsumerRetryOptions> retry, SubscriptionReadiness readiness, TopologyGate topology)
     {
+        _topology = topology;
         _readiness = readiness;
         // Said here, before the service runs, so the readiness check never reports healthy in the
         // moment before it starts.
@@ -46,7 +49,7 @@ internal sealed class ConsumerBackgroundService<TPayload, TCeiling, TConsumer> :
     // A subscription that fails (a broker outage, or a broker down at startup) is opened again
     // rather than faulting the service, which with .NET's defaults would stop the host.
     protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
-        ResubscribeLoop.RunAsync(ReceiveAsync, _logger, _subscriptionKey, _readiness, TimeProvider.System, stoppingToken);
+        ResubscribeLoop.RunAsync(ReceiveAsync, _logger, _subscriptionKey, _readiness, _topology, TimeProvider.System, stoppingToken);
 
     private async Task ReceiveAsync(Action onSubscribed, Action onMessage, CancellationToken stoppingToken)
     {

@@ -28,8 +28,10 @@ public class MessagingOptions
 
     /// <summary>
     /// The maximum number of times a message is delivered before being routed to a dead-letter
-    /// destination. Only the in-memory channel backend reads this value; the RabbitMQ and Azure
-    /// Service Bus backends rely on broker-side configuration for delivery limits. Default is 10.
+    /// destination. The in-memory channel backend enforces it. On RabbitMQ, LavinMQ and Azure Service
+    /// Bus the broker enforces its own limit; a service that provisions its topology
+    /// (<see cref="AutoProvisionTopology"/>) gives the queues and subscriptions it creates this one, and
+    /// leaves existing ones as they are. Default is 10.
     /// </summary>
     public int MaxDeliveryCount { get; set; } = 10;
 
@@ -44,11 +46,23 @@ public class MessagingOptions
     public TimeSpan MaxLockRenewalDuration { get; set; } = TimeSpan.FromMinutes(5);
 
     /// <summary>
-    /// Whether the service checks, once it first reaches its broker, that the topics, subscriptions and
-    /// queues its registrations need exist, and stops, naming what is missing, if they don't. A broker
+    /// Whether a service that doesn't provision its topology (<see cref="AutoProvisionTopology"/>) checks,
+    /// once it first reaches its broker, that the topics, subscriptions and queues its registrations need
+    /// exist, and stops, naming what is missing, if they don't. A broker
     /// that can't be reached doesn't stop the service; the check waits until it can. Default is
     /// <see langword="true"/>; turn it off for a broker whose topology is declared after the service
     /// starts, such as in tests.
     /// </summary>
     public bool VerifyTopologyAtStartup { get; set; } = true;
+
+    /// <summary>
+    /// Whether the service creates the topics, subscriptions and queues its registrations need, once it
+    /// first reaches its broker, as a self-hosted service migrates its database schema. It creates only
+    /// what is missing, with the settings BROKER-TOPOLOGY.md gives them, and needs the rights to create
+    /// them: configure on RabbitMQ and LavinMQ, the Manage right on Azure Service Bus. Its hosted
+    /// consumers wait until it is done. When it doesn't provision,
+    /// <see cref="VerifyTopologyAtStartup"/> decides whether it checks instead. Unset, a self-hosted
+    /// service provisions and one Bitwarden runs doesn't, leaving it to infrastructure-as-code.
+    /// </summary>
+    public bool? AutoProvisionTopology { get; set; }
 }
