@@ -20,6 +20,11 @@
           "Microsoft.AspNetCore.Authentication.JwtBearer": "8.0.20"
         }
       },
+      "Bitwarden.Server.Sdk.CryptoPrimitives": {
+        "type": "Transitive",
+        "resolved": "0.1.0",
+        "contentHash": "g67cxy1PRAWWqEbTFxTP+hnttXZWHUPgBKtTHc9g8rlylDhtyisbRnX6Omixvpmj8bUujCUjrRO3Oterq5O/Kw=="
+      },
       "Microsoft.AspNetCore.Authentication.JwtBearer": {
         "type": "Transitive",
         "resolved": "8.0.20",
@@ -116,7 +121,10 @@
         "type": "Project"
       },
       "bitwarden.server.sdk.idempotency.abstractions": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "Bitwarden.Server.Sdk.CryptoPrimitives": "[0.1.0, )"
+        }
       }
     }
   }
