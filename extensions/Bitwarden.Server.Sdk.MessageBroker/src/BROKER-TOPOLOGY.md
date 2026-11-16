@@ -39,6 +39,17 @@ Provisioning collects every service's list and checks it before granting anythin
   one: granting send rights on a topic to a service that isn't its owner would let it publish
   another service's events, and granting receive rights on a queue would let it read another
   service's commands.
+- **One owner per subscription.** Each topic and subscription pair appears under
+  `messaging-subscription` for exactly one service, and its topic has an owner under
+  `messaging-topic`. Fail otherwise: two services on one subscription would each get receive rights
+  on it and take each other's messages.
+- **No two declarations make the same broker object.** Work out every name each declaration becomes
+  on the broker, and fail if two declarations of any kinds produce the same one. On RabbitMQ
+  everything shares one name space: a topic's exchange is `{topic}`, a subscription's queue is
+  `{topic}.{subscription}`, and a command queue and its exchange are both `{queue}`, so the
+  subscription `vault` on the topic `notification` and the command queue `notification.vault` would
+  be the same queue, and so would the subscription `b.c` on the topic `a` and the subscription `c`
+  on the topic `a.b`. The dead-letter exchanges and queues each of these needs count too.
 - **Send rights only where declared.** Grant send rights on a topic only to its owner, and on a
   queue only to the services that declare `messaging-command-send` for it.
 - **Senders match consumers.** Each `messaging-command-send` should name a family the queue's owner

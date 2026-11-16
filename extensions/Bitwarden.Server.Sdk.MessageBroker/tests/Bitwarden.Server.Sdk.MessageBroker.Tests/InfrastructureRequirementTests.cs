@@ -33,6 +33,37 @@ public class InfrastructureRequirementTests
             Values(requirements, MessagingRequirements.CommandConsume, "queue", "family"));
     }
 
+    /// <summary>
+    /// The test harnesses provision brokers from the internal declaration records, and tooling reads the
+    /// requirements: both must describe the same topology.
+    /// </summary>
+    [Fact]
+    public void TheRequirementsAgreeWithTheDeclarationsTheTestHarnessesProvisionFrom()
+    {
+        var services = new ServiceCollection();
+        services.AddPublisher<UserCreatedPayload, UserCreated>("user.events");
+        services.AddSubscriber<UserDeletedPayload, UserDeleted>("user.events", "vault");
+        services.AddCommandSender<SendMailPayload, SendMail>("notification.commands");
+        services.AddCommandConsumer<SendPushPayload, SendPush, SendPushConsumer>("vault.commands");
+        using var provider = services.BuildServiceProvider();
+        var requirements = provider.GetRequiredService<IOptions<InfrastructureOptions>>().Value.Requirements;
+        var topology = provider.GetServices<BrokerTopologyDeclaration>().ToList();
+        var commands = provider.GetServices<CommandQueueDeclaration>().ToList();
+
+        Assert.Equal(
+            topology.Where(d => d.SubscriptionName is null).Select(d => $"{d.TopicName} {d.FamilyWireName}").Distinct().Order(StringComparer.Ordinal),
+            Values(requirements, MessagingRequirements.Publish, "topic", "family"));
+        Assert.Equal(
+            topology.Where(d => d.SubscriptionName is not null).Select(d => $"{d.TopicName} {d.SubscriptionName} {d.FamilyWireName}").Distinct().Order(StringComparer.Ordinal),
+            Values(requirements, MessagingRequirements.Subscription, "topic", "subscription", "family"));
+        Assert.Equal(
+            commands.Where(d => !d.IsConsumer).Select(d => $"{d.QueueName} {d.FamilyWireName}").Distinct().Order(StringComparer.Ordinal),
+            Values(requirements, MessagingRequirements.CommandSend, "queue", "family"));
+        Assert.Equal(
+            commands.Where(d => d.IsConsumer).Select(d => $"{d.QueueName} {d.FamilyWireName}").Distinct().Order(StringComparer.Ordinal),
+            Values(requirements, MessagingRequirements.CommandConsume, "queue", "family"));
+    }
+
     private static List<string> Values(IReadOnlyDictionary<string, IReadOnlyList<JsonObject>> requirements, string kind, params string[] keys) =>
         requirements.TryGetValue(kind, out var list)
             ? [.. list.Select(r => string.Join(' ', keys.Select(k => (string)r[k]!))).Order(StringComparer.Ordinal)]
