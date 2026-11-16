@@ -264,23 +264,25 @@ public abstract class BehaviorTests : IAsyncLifetime
 
         await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
 
-        // Receive and explicitly return the message (abandon it for redelivery).
+        // Explicitly return the message (abandon it for redelivery) twice, then complete it. Each return
+        // must be counted, not just flagged as delivered before. One subscription throughout: closing one
+        // returns whatever it holds, which a broker may count as a failed delivery of its own.
+        var deliveries = new List<int>();
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {
             Assert.Equal(1, envelope.Payload.Id);
-            Assert.Equal(1, envelope.DeliveryCount);
-            await envelope.RequeueAsync(cancellationToken: TestContext.Current.CancellationToken);
-            break;
-        }
+            deliveries.Add(envelope.DeliveryCount);
+            if (deliveries.Count < 3)
+            {
+                await envelope.RequeueAsync(cancellationToken: TestContext.Current.CancellationToken);
+                continue;
+            }
 
-        // The returned message must be redelivered with an incremented DeliveryCount.
-        await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
-        {
-            Assert.Equal(1, envelope.Payload.Id);
-            Assert.Equal(2, envelope.DeliveryCount);
             await envelope.CompleteAsync(TestContext.Current.CancellationToken);
             break;
         }
+
+        Assert.Equal([1, 2, 3], deliveries);
     }
 
     /// <summary>
