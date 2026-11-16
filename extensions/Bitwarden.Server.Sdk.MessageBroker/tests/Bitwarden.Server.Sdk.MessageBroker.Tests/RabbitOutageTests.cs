@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Exceptions;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 
@@ -87,7 +88,7 @@ public sealed class RabbitOutageTests : IAsyncLifetime
     private async Task DeclareTopologyAsync()
     {
         var factory = new ConnectionFactory { Uri = new Uri($"amqp://guest:guest@localhost:{_port}/") };
-        await using var conn = await factory.CreateConnectionAsync(TestContext.Current.CancellationToken);
+        await using var conn = await ConnectAsync(factory);
         await using var channel = await conn.CreateChannelAsync(cancellationToken: TestContext.Current.CancellationToken);
         var quorum = new Dictionary<string, object?> { ["x-queue-type"] = "quorum" };
         await channel.ExchangeDeclareAsync(_topic, ExchangeType.Topic, durable: true, cancellationToken: TestContext.Current.CancellationToken);
@@ -95,6 +96,24 @@ public sealed class RabbitOutageTests : IAsyncLifetime
             cancellationToken: TestContext.Current.CancellationToken);
         await channel.QueueBindAsync($"{_topic}.outage", _topic, routingKey: MyItemPayload.WireName,
             cancellationToken: TestContext.Current.CancellationToken);
+    }
+
+    // After a restart the container's wait strategy finds the first start's "Server startup
+    // complete" line in the log and returns at once, before the broker accepts connections.
+    private static async Task<IConnection> ConnectAsync(ConnectionFactory factory)
+    {
+        var deadline = DateTime.UtcNow + RecoveryTimeout;
+        while (true)
+        {
+            try
+            {
+                return await factory.CreateConnectionAsync(TestContext.Current.CancellationToken);
+            }
+            catch (BrokerUnreachableException) when (DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(500, TestContext.Current.CancellationToken);
+            }
+        }
     }
 
     // Sends an item, retrying while the broker is still coming back.
