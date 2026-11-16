@@ -56,9 +56,11 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
                 if (decl.SubscriptionName is not null)
                 {
                     var queueName = $"{decl.TopicName}.{decl.SubscriptionName}";
+                    // With a delivery limit, as BROKER-TOPOLOGY.md's policy gives every subscription queue:
+                    // LavinMQ counts deliveries in x-delivery-count only on a queue that has one.
                     await channel.QueueDeclareAsync(queueName, durable: true, exclusive: false,
                         autoDelete: false,
-                        arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum" },
+                        arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum", ["x-delivery-limit"] = 10 },
                         cancellationToken: cancellationToken);
                     await channel.QueueBindAsync(queueName, decl.TopicName, routingKey: decl.FamilyWireName,
                         cancellationToken: cancellationToken);
@@ -130,9 +132,9 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
         TrySetupDroppableBrokerAsync()
     {
         _droppableContainer = new ContainerBuilder()
-            .WithImage("rabbitmq")
+            .WithImage(AmqpTestBroker.Image)
             .WithPortBinding(5672, true)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Server startup complete"))
+            .WithWaitStrategy(AmqpTestBroker.Ready)
             .Build();
         await _droppableContainer.StartAsync(TestContext.Current.CancellationToken);
         var config = new Dictionary<string, string?> { { "RabbitUri", GetContainerUri(_droppableContainer) } };
@@ -148,9 +150,9 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
     public async Task PublishThrowsBrokerUnavailableExceptionWhenBrokerGoesDown()
     {
         await using var container = new ContainerBuilder()
-            .WithImage("rabbitmq")
+            .WithImage(AmqpTestBroker.Image)
             .WithPortBinding(5672, true)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Server startup complete"))
+            .WithWaitStrategy(AmqpTestBroker.Ready)
             .Build();
         await container.StartAsync(TestContext.Current.CancellationToken);
 
@@ -331,9 +333,9 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
         public async ValueTask InitializeAsync()
         {
             _container = new ContainerBuilder()
-                .WithImage("rabbitmq")
+                .WithImage(AmqpTestBroker.Image)
                 .WithPortBinding(5672, true)
-                .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Server startup complete"))
+                .WithWaitStrategy(AmqpTestBroker.Ready)
                 .Build();
 
             await _container.StartAsync(TestContext.Current.CancellationToken);
