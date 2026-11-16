@@ -44,13 +44,13 @@ and nothing writes a credential: users, passwords, keys and connection strings a
 
 ## Known limitations
 
-- **The emulator configuration isn't the template's.** The emulator caps duplicate detection at five
-  minutes (`ServiceBusTopology.EmulatorDuplicateWindow`), names the family rule `family` rather than
-  replacing `$Default`, and doesn't set dead-lettering on filter evaluation exceptions
-  (`ServiceBusTopology.EmulatorConfig`).
+- **The emulator configuration isn't the template's.** Besides the limits
+  [PACKAGE.md](PACKAGE.md#configure-the-service-bus-emulator) names, `ServiceBusTopology.EmulatorConfig`
+  names the family rule `family` rather than replacing `$Default`, and doesn't set dead-lettering on
+  filter evaluation exceptions.
 - **Nothing here deploys the template.** The tests check that its parameters are the ones
-  `BicepParameters` writes and that its example parameters file is current; compile it with
-  `az bicep build --file infra/messaging/message-broker.bicep` after changing it.
+  `BicepParameters` writes, that its example parameters file is current, and that its settings are
+  MessageBroker's; CI compiles it (see [its README](../../../infra/messaging/README.md)).
 
 ## Testing
 

@@ -20,6 +20,11 @@
          PublishBuilder's Accumulated, Current and Publisher; ChainValidator.ThrowIfInvalid; and AddFamilySerializer. -->
     <InternalsVisibleTo Include="Bitwarden.Server.Sdk.MessageBroker.Sender" />
     <InternalsVisibleTo Include="Bitwarden.Server.Sdk.MessageBroker.Sender.Tests" />
+    <!-- The broker topology package writes the names and properties these give: RabbitSubscriber.QueueName and
+         RabbitSubscriber.DeadLetterPrefix, and BrokerProperties.PayloadFamily. Its tests compare its Service Bus
+         settings with TopologyStartupService.TopicOptions, SubscriptionOptions and QueueOptions. -->
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.MessageBroker.Topology" />
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.MessageBroker.Topology.Tests" />
   </ItemGroup>
 
   <ItemGroup>

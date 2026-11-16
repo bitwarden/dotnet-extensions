@@ -25,12 +25,17 @@ public class BrokerTopologyTests
     [Fact]
     public void ATopicOrQueueHasOneOwner()
     {
+        // Vault's subscription and command are reported through their topic's and queue's owners alone, not as having none.
         var problems = Problems(
             Sample.Manifest("identity", s => { Sample.Identity(s); Sample.Notification(s); }),
-            Sample.Manifest("impostor", s => { Sample.Identity(s); Sample.Notification(s); }));
+            Sample.Manifest("impostor", s => { Sample.Identity(s); Sample.Notification(s); }),
+            Sample.Manifest("vault", Sample.Vault));
 
-        Assert.Contains("The topic identity.events is claimed by identity and impostor; it has one owner.", problems);
-        Assert.Contains("The command queue notification.commands is claimed by identity and impostor; it has one owner.", problems);
+        Assert.Equal(
+        [
+            "The topic identity.events is claimed by identity and impostor; it has one owner.",
+            "The command queue notification.commands is claimed by identity and impostor; it has one owner.",
+        ], problems);
     }
 
     [Fact]

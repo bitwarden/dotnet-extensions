@@ -117,7 +117,7 @@ public class ServiceBusTopologyTests
         Assert.Equal("user.deleted", (string)subscription["Rules"]![0]!["Properties"]!["CorrelationFilter"]!["Properties"]![ServiceBusTopology.FamilyProperty]!);
     }
 
-    private static string Infra(string file)
+    internal static string Infra(string file)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {

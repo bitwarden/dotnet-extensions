@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Topology;
 
@@ -14,7 +15,7 @@ public static partial class ServiceBusTopology
     /// <summary>
     /// The application property publishers stamp each message's payload family in, which subscriptions filter on.
     /// </summary>
-    public const string FamilyProperty = "x-bw-payload-family";
+    public const string FamilyProperty = BrokerProperties.PayloadFamily;
 
     /// <summary>
     /// The emulator's one namespace, which its connection string doesn't name.

@@ -390,7 +390,7 @@ internal sealed class TopologyStartupService(
             var passive = await PassiveAsync(queue, true);
             if (passive is null)
                 return false;
-            var deadLetter = $"dead-letter.{queue}";
+            var deadLetter = RabbitSubscriber.DeadLetterPrefix + queue;
             if (passive == 404)
             {
                 if (!await EnsureExchangeAsync("dead-letter exchange", deadLetter, ExchangeType.Fanout))

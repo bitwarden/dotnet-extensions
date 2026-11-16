@@ -45,11 +45,11 @@ public sealed class BrokerTopology
         }
 
         // One owner per topic and per queue: the owner alone may publish to a topic, and read a queue.
-        var topicOwners = Owners(manifests, MessagingRequirements.Topic, "topic", "topic", problems);
-        var queueOwners = Owners(manifests, MessagingRequirements.CommandQueue, "queue", "command queue", problems);
+        var topicOwners = Owners(manifests, MessagingRequirements.Topic, "topic", "topic", problems, out var contestedTopics);
+        var queueOwners = Owners(manifests, MessagingRequirements.CommandQueue, "queue", "command queue", problems, out var contestedQueues);
 
-        var published = OwnedPairs(manifests, MessagingRequirements.Publish, "topic", topicOwners, "publishes", "topic", problems);
-        var consumed = OwnedPairs(manifests, MessagingRequirements.CommandConsume, "queue", queueOwners, "consumes", "command queue", problems);
+        var published = OwnedPairs(manifests, MessagingRequirements.Publish, "topic", topicOwners, contestedTopics, "publishes", "topic", problems);
+        var consumed = OwnedPairs(manifests, MessagingRequirements.CommandConsume, "queue", queueOwners, contestedQueues, "consumes", "command queue", problems);
 
         var subscriptions = new Dictionary<(string Topic, string Subscription), List<(string Service, string Family)>>();
         foreach (var manifest in manifests)
@@ -87,7 +87,12 @@ public sealed class BrokerTopology
 
             if (!topicOwners.TryGetValue(topic, out var owner))
             {
-                problems.Add($"{readerServices[0]} subscribes to {topic}, which no service publishes.");
+                // Unless it's claimed by two, in which case that's the problem already reported.
+                if (!contestedTopics.Contains(topic))
+                {
+                    problems.Add($"{readerServices[0]} subscribes to {topic}, which no service publishes.");
+                }
+
                 continue;
             }
 
@@ -113,7 +118,12 @@ public sealed class BrokerTopology
                 var (queue, family) = (requirement["queue"], requirement["family"]);
                 if (!queueOwners.TryGetValue(queue, out var owner))
                 {
-                    problems.Add($"{manifest.Service} sends {family} to {queue}, which no service reads.");
+                    // Unless it's claimed by two, in which case that's the problem already reported.
+                    if (!contestedQueues.Contains(queue))
+                    {
+                        problems.Add($"{manifest.Service} sends {family} to {queue}, which no service reads.");
+                    }
+
                     continue;
                 }
 
@@ -152,9 +162,12 @@ public sealed class BrokerTopology
                     .OrderBy(s => s.Service, StringComparer.Ordinal).ThenBy(s => s.Family, StringComparer.Ordinal)]))]);
     }
 
+    // Each name's one owner. A name claimed by more than one service is reported here and goes in contested, so the
+    // declarations that depend on it aren't reported again as having no owner.
     private static Dictionary<string, string> Owners(
-        List<ServiceManifest> manifests, string kind, string property, string what, List<string> problems)
+        List<ServiceManifest> manifests, string kind, string property, string what, List<string> problems, out HashSet<string> contested)
     {
+        contested = new HashSet<string>(StringComparer.Ordinal);
         var claims = manifests
             .SelectMany(m => m.Of(kind, property).Select(r => (Name: r[property], m.Service)))
             .GroupBy(c => c.Name, StringComparer.Ordinal);
@@ -165,6 +178,7 @@ public sealed class BrokerTopology
             if (services.Count > 1)
             {
                 problems.Add($"The {what} {claim.Key} is claimed by {string.Join(" and ", services)}; it has one owner.");
+                contested.Add(claim.Key);
                 continue;
             }
 
@@ -177,8 +191,8 @@ public sealed class BrokerTopology
     // What is published on each topic (or consumed from each queue): only its owner may declare it, as MessageBroker's
     // registrations do, so another service's declaration is a problem rather than a family the owner seems to have.
     private static HashSet<(string Destination, string Family)> OwnedPairs(
-        List<ServiceManifest> manifests, string kind, string destination, Dictionary<string, string> owners, string verb, string what,
-        List<string> problems)
+        List<ServiceManifest> manifests, string kind, string destination, Dictionary<string, string> owners, HashSet<string> contested,
+        string verb, string what, List<string> problems)
     {
         var pairs = new HashSet<(string Destination, string Family)>();
         foreach (var manifest in manifests)
@@ -189,7 +203,7 @@ public sealed class BrokerTopology
                 if (!owners.TryGetValue(name, out var owner))
                 {
                     // Unless it's claimed by two, in which case that's the problem already reported.
-                    if (!manifests.Any(m => m.Of(OwnerKind(kind), destination).Any(r => r[destination] == name)))
+                    if (!contested.Contains(name))
                     {
                         problems.Add($"{manifest.Service} {verb} {family} on the {what} {name}, which it doesn't declare as its own.");
                     }
@@ -209,7 +223,4 @@ public sealed class BrokerTopology
 
         return pairs;
     }
-
-    private static string OwnerKind(string kind) =>
-        kind == MessagingRequirements.Publish ? MessagingRequirements.Topic : MessagingRequirements.CommandQueue;
 }

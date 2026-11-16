@@ -38,8 +38,12 @@ dotnet add package Bitwarden.Server.Sdk.MessageBroker.Topology
   credentials, so the output can sit in a repository or ship with a release.
 - **Rights follow ownership.** Only a topic's owner may send to it, only a subscription's reader
   and a queue's owner may receive, and only the services that declare a command for a queue may send
-  to it. The Azure Service Bus parameters grant exactly those. On RabbitMQ and LavinMQ, an install
-  grants them to each service's user, as BROKER-TOPOLOGY.md's "Users and permissions" says.
+  to it. The Azure Service Bus template grants exactly those, as long as it is deployed as a
+  deployment stack that deletes what it no longer manages, as
+  [its README](https://github.com/bitwarden/dotnet-extensions/blob/main/infra/messaging/README.md)
+  says: a plain deployment only adds, so a right a service no longer needs would stay. On RabbitMQ
+  and LavinMQ, an install grants them to each service's user, as BROKER-TOPOLOGY.md's "Users and
+  permissions" says.
 
 ## Usage
 
@@ -144,7 +148,11 @@ template sets ten.
   and reader in the output, and the key of `principalIds` in the deployment.
 - **Collect for the hosting mode you provision.** A service can declare different requirements when
   self-hosted, so collect its manifest the way it will run.
-- **Importing adds and updates.** Neither broker deletes an exchange, queue or policy that a later
-  definitions file leaves out; remove it by hand.
+- **Importing adds and updates.** Neither RabbitMQ nor LavinMQ deletes an exchange, queue or policy
+  that a later definitions file leaves out; remove it by hand.
+- **A deployment stack deletes what the parameters leave out.** On Azure Service Bus, a topic,
+  subscription or queue that a later parameters file leaves out is deleted with its role
+  assignments, and with it every message it holds, its dead-letter queue's included. Drain or move
+  the messages of a subscription or queue before a release stops declaring it.
 - **The emulator isn't Azure.** It checks entities, filters and delivery limits, not rights; only a
   deployment exercises the template's role assignments.
