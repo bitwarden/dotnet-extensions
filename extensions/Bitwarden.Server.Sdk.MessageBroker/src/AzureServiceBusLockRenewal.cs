@@ -7,7 +7,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// waits before redelivering it after a failure. Without renewal a handler that outlasts the
 /// lock duration loses the message: the broker hands it to another receiver while this one is
 /// still working on it, and this one's settlement then fails. The lock is renewed when half of
-/// it remains, until <see cref="Stop"/> is called at settlement or the renewal has run for
+/// it remains, until <see cref="StopAsync"/> is called at settlement or the renewal has run for
 /// <see cref="MessagingOptions.MaxLockRenewalDuration"/>. The bound keeps the broker's backstop
 /// for a handler that hangs: its lock then expires and the message is delivered again.
 /// </summary>
@@ -16,14 +16,24 @@ internal sealed class AzureServiceBusLockRenewal
     private static readonly TimeSpan MinimumWait = TimeSpan.FromSeconds(1);
 
     private readonly CancellationTokenSource _stop = new();
+    private readonly Task _renewing;
 
     public AzureServiceBusLockRenewal(ServiceBusReceiver receiver, ServiceBusReceivedMessage message, TimeSpan maxDuration)
     {
-        _ = RenewAsync(receiver, message, DateTimeOffset.UtcNow + maxDuration, _stop.Token);
+        _renewing = RenewAsync(receiver, message, DateTimeOffset.UtcNow + maxDuration, _stop.Token);
     }
 
-    /// <summary>Stops renewing. Call before settling the message.</summary>
-    public void Stop() => _stop.Cancel();
+    /// <summary>
+    /// Stops renewing, and waits for a renewal already under way to finish, so that it never overlaps
+    /// the settlement that follows. Call before settling the message. Safe to call more than once.
+    /// </summary>
+    public async Task StopAsync()
+    {
+        if (!_stop.IsCancellationRequested)
+            await _stop.CancelAsync();
+        await _renewing;
+        _stop.Dispose();
+    }
 
     private static async Task RenewAsync(
         ServiceBusReceiver receiver, ServiceBusReceivedMessage message, DateTimeOffset renewUntil, CancellationToken stop)

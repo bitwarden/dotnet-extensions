@@ -78,23 +78,23 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
                         ? tp as string
                         : null,
                     DeliveryCount = sbMessage.DeliveryCount,
-                    CompleteAsync = ct =>
+                    CompleteAsync = async ct =>
                     {
-                        lockRenewal.Stop();
-                        return receiver.CompleteMessageAsync(sbMessage, ct);
+                        await lockRenewal.StopAsync();
+                        await receiver.CompleteMessageAsync(sbMessage, ct);
                     },
                     // A closed receiver released its locks, which is the same as abandoning.
-                    RequeueAsync = ct =>
+                    RequeueAsync = async ct =>
                     {
-                        lockRenewal.Stop();
-                        return receiver.IsClosed ? Task.CompletedTask : receiver.AbandonMessageAsync(sbMessage, cancellationToken: ct);
+                        await lockRenewal.StopAsync();
+                        if (!receiver.IsClosed)
+                            await receiver.AbandonMessageAsync(sbMessage, cancellationToken: ct);
                     },
-                    DeadLetterAsync = (reason, ct) =>
+                    DeadLetterAsync = async (reason, ct) =>
                     {
-                        lockRenewal.Stop();
-                        return receiver.IsClosed
-                            ? Task.CompletedTask
-                            : receiver.DeadLetterMessageAsync(sbMessage, deadLetterReason: reason, cancellationToken: ct);
+                        await lockRenewal.StopAsync();
+                        if (!receiver.IsClosed)
+                            await receiver.DeadLetterMessageAsync(sbMessage, deadLetterReason: reason, cancellationToken: ct);
                     },
                 };
             }
