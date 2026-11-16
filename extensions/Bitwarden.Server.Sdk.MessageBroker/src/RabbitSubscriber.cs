@@ -87,12 +87,7 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
             var traceId = ea.BasicProperties.Headers?.TryGetValue(BrokerProperties.TraceParent, out var tp) == true && tp is byte[] tpBytes
                 ? Encoding.UTF8.GetString(tpBytes)
                 : null;
-            // Quorum queues (Rabbit 3.12+) set x-delivery-count starting at 0; add 1 to
-            // match the 1-based DeliveryCount convention (first delivery = 1).
-            // Classic queues only expose a boolean redelivered flag, so we fall back to 1/2.
-            var deliveryCount = ea.BasicProperties.Headers?.TryGetValue("x-delivery-count", out var dc) == true && dc is long count
-                ? (int)count + 1
-                : ea.Redelivered ? 2 : 1;
+            var deliveryCount = RabbitDeliveryCount.Read(ea.BasicProperties.Headers, ea.Redelivered);
             var activity = MessageBrokerActivitySource.StartConsumerActivity(_exchangeName, TPayload.WireName, traceId);
 
             RabbitEnvelope envelope;
