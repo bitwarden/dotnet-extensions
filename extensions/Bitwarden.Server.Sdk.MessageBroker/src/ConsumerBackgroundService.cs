@@ -36,7 +36,7 @@ internal sealed class ConsumerBackgroundService<TPayload, TCeiling, TConsumer> :
     // A subscription that fails (a broker outage, or a broker down at startup) is opened again
     // rather than faulting the service, which with .NET's defaults would stop the host.
     protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
-        ResubscribeLoop.RunAsync(ReceiveAsync, _logger, _subscriptionKey, stoppingToken);
+        ResubscribeLoop.RunAsync(ReceiveAsync, _logger, _subscriptionKey, TimeProvider.System, stoppingToken);
 
     private async Task ReceiveAsync(Action onMessage, CancellationToken stoppingToken)
     {

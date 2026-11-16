@@ -19,11 +19,13 @@ internal static class ResubscribeLoop
     /// </param>
     /// <param name="logger">Logs each failure and the delay before the next attempt.</param>
     /// <param name="source">The topic subscription, for the log.</param>
+    /// <param name="timeProvider">Times the wait between attempts.</param>
     /// <param name="stoppingToken">Cancelled when the host stops.</param>
     internal static async Task RunAsync(
         Func<Action, CancellationToken, Task> receiveAsync,
         ILogger logger,
         string source,
+        TimeProvider timeProvider,
         CancellationToken stoppingToken)
     {
         var delay = InitialDelay;
@@ -46,7 +48,7 @@ internal static class ResubscribeLoop
 
             try
             {
-                await Task.Delay(delay, stoppingToken);
+                await Task.Delay(delay, timeProvider, stoppingToken);
             }
             catch (OperationCanceledException)
             {

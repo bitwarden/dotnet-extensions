@@ -118,8 +118,8 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
             cancellationToken: TestContext.Current.CancellationToken);
     }
 
-    // Use an invalid host/port so the connection attempt fails immediately, faulting the TCS
-    // without throwing from StartAsync (resilient startup). The first publish then surfaces
+    // Use an invalid host/port so each connection attempt is refused at once. StartAsync doesn't
+    // throw (the host still starts), and every send tries to connect again, surfacing
     // BrokerUnavailableException wrapping the underlying BrokerUnreachableException.
     protected override Dictionary<string, string?> CreateBrokerDownConfig() =>
         new() { { "RabbitUri", "amqp://guest:guest@localhost:1/" } };

@@ -77,6 +77,10 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
 
     private async Task<IConnection> ConnectAsync(IConnection? dead)
     {
+        // Called under _sync: return to the caller first, so that disposing the dead connection and
+        // connecting again run off the lock rather than holding up every other caller.
+        await Task.Yield();
+
         if (dead is not null)
         {
             // Its channels are gone with it; publishers and subscribers open new ones on the new
