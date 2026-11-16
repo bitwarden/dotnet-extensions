@@ -1,5 +1,4 @@
 using Azure.Core;
-using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Options;
 
@@ -33,10 +32,9 @@ internal sealed class AzureServiceBusConnection : IAsyncDisposable
 
     /// <param name="options">The connection string, or the namespace to reach with a token credential.</param>
     /// <param name="credential">
-    /// The credential for a namespace, if the app registered one under
-    /// <see cref="MessageBrokerKeys.Credential"/>; otherwise a <see cref="DefaultAzureCredential"/> limited
-    /// to workload identity and managed identity (<see cref="DefaultCredentialOptions"/>). Not used with a
-    /// connection string.
+    /// The credential for a namespace, which the app registers under <see cref="MessageBrokerKeys.Credential"/>.
+    /// Required with a namespace (<see cref="MessagingCredentialValidator"/> refuses to start without one);
+    /// not used with a connection string.
     /// </param>
     public AzureServiceBusConnection(
         IOptions<MessagingOptions> options,
@@ -48,26 +46,9 @@ internal sealed class AzureServiceBusConnection : IAsyncDisposable
             Client = new ServiceBusClient(value.AzureServiceBusConnectionString);
             return;
         }
-        Credential = credential ?? new DefaultAzureCredential(DefaultCredentialOptions());
+        Credential = credential ?? throw new InvalidOperationException(MessagingCredentialValidator.Missing);
         Client = new ServiceBusClient(value.AzureServiceBusFullyQualifiedNamespace, Credential);
     }
-
-    /// <summary>
-    /// The default credential's options: only the identities a service runs as in Azure, workload identity
-    /// and managed identity (which honours <c>AZURE_CLIENT_ID</c> for a user-assigned one). Not a service
-    /// principal's secret from the environment, which may be there for another purpose, and not a
-    /// developer's sign-in, which would let a host run as a person rather than fail.
-    /// </summary>
-    internal static DefaultAzureCredentialOptions DefaultCredentialOptions() => new()
-    {
-        ExcludeEnvironmentCredential = true,
-        ExcludeVisualStudioCredential = true,
-        ExcludeVisualStudioCodeCredential = true,
-        ExcludeAzureCliCredential = true,
-        ExcludeAzurePowerShellCredential = true,
-        ExcludeAzureDeveloperCliCredential = true,
-        ExcludeInteractiveBrowserCredential = true,
-    };
 
     /// <summary>The credential the client was built with, or null when it uses a connection string.</summary>
     internal TokenCredential? Credential { get; }

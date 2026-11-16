@@ -50,8 +50,8 @@ exist throws `BrokerUnavailableException`.
 
 ### Access with a managed identity
 
-A service configured with `AzureServiceBusFullyQualifiedNamespace` authenticates as its managed
-identity (or as the credential it registers under `MessageBrokerKeys.Credential`). Grant it Azure's data roles at the narrowest scope that works: **Azure Service Bus Data
+A service configured with `AzureServiceBusFullyQualifiedNamespace` authenticates as the credential it
+registers under `MessageBrokerKeys.Credential`, typically its managed identity. Grant it Azure's data roles at the narrowest scope that works: **Azure Service Bus Data
 Sender** on each topic it publishes to and each command queue it sends to, and **Azure Service Bus
 Data Receiver** on each of its own subscriptions and on its own command queue. No other service
 needs receive rights on them.

@@ -1,12 +1,13 @@
 using Azure.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 
 /// <summary>
 /// Azure Service Bus by connection string (a shared access key) or by namespace (a token
-/// credential, a managed identity in Azure). Nothing here connects: building a client is enough
+/// credential the app registers, typically its managed identity). Nothing here connects: building a client is enough
 /// to check which way it was configured.
 /// </summary>
 public class AzureServiceBusConfigurationTests
@@ -26,36 +27,7 @@ public class AzureServiceBusConfigurationTests
     }
 
     [Fact]
-    public void TheDefaultCredentialTriesOnlyWorkloadAndManagedIdentity()
-    {
-        var options = AzureServiceBusConnection.DefaultCredentialOptions();
-
-        Assert.False(options.ExcludeWorkloadIdentityCredential);
-        Assert.False(options.ExcludeManagedIdentityCredential);
-        Assert.True(options.ExcludeEnvironmentCredential);
-        Assert.True(options.ExcludeVisualStudioCredential);
-        Assert.True(options.ExcludeVisualStudioCodeCredential);
-        Assert.True(options.ExcludeAzureCliCredential);
-        Assert.True(options.ExcludeAzurePowerShellCredential);
-        Assert.True(options.ExcludeAzureDeveloperCliCredential);
-        Assert.True(options.ExcludeInteractiveBrowserCredential);
-    }
-
-    [Fact]
-    public async Task ANamespaceSelectsAzureServiceBusWithATokenCredential()
-    {
-        await using var provider = BuildProvider(new() { ["AzureServiceBusFullyQualifiedNamespace"] = Namespace });
-
-        var connection = provider.GetRequiredService<AzureServiceBusConnection>();
-        var publisher = provider.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>("test"));
-
-        Assert.Equal(Namespace, connection.Client.FullyQualifiedNamespace);
-        Assert.IsType<Azure.Identity.DefaultAzureCredential>(connection.Credential);
-        Assert.StartsWith("AzureServiceBusPublisher", publisher.GetType().Name);
-    }
-
-    [Fact]
-    public async Task ARegisteredCredentialIsUsedForTheNamespace()
+    public async Task ANamespaceSelectsAzureServiceBusWithTheRegisteredCredential()
     {
         var credential = new RecordingCredential();
         await using var provider = BuildProvider(
@@ -63,9 +35,20 @@ public class AzureServiceBusConfigurationTests
             services => services.AddKeyedSingleton<TokenCredential>(MessageBrokerKeys.Credential, credential));
 
         var connection = provider.GetRequiredService<AzureServiceBusConnection>();
+        var publisher = provider.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>("test"));
 
         Assert.Equal(Namespace, connection.Client.FullyQualifiedNamespace);
         Assert.Same(credential, connection.Credential);
+        Assert.StartsWith("AzureServiceBusPublisher", publisher.GetType().Name);
+    }
+
+    [Fact]
+    public async Task ANamespaceWithNoRegisteredCredentialIsRefused()
+    {
+        await using var provider = BuildProvider(new() { ["AzureServiceBusFullyQualifiedNamespace"] = Namespace });
+
+        var refused = Assert.Throws<OptionsValidationException>(() => provider.GetRequiredService<IOptions<MessagingOptions>>().Value);
+        Assert.Contains(nameof(MessageBrokerKeys.Credential), refused.Message);
     }
 
     [Fact]
@@ -76,7 +59,7 @@ public class AzureServiceBusConfigurationTests
             new() { ["AzureServiceBusFullyQualifiedNamespace"] = Namespace },
             services => services.AddSingleton<TokenCredential>(credential));
 
-        Assert.IsType<Azure.Identity.DefaultAzureCredential>(provider.GetRequiredService<AzureServiceBusConnection>().Credential);
+        Assert.Throws<OptionsValidationException>(() => provider.GetRequiredService<IOptions<MessagingOptions>>().Value);
     }
 
     [Fact]

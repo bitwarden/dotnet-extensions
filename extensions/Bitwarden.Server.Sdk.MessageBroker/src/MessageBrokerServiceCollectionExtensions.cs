@@ -463,5 +463,6 @@ public static class MessageBrokerServiceCollectionExtensions
     private static void AddAzureServiceBusInfrastructure(IServiceCollection services)
     {
         services.TryAddSingleton<AzureServiceBusConnection>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MessagingOptions>, MessagingCredentialValidator>());
     }
 }
