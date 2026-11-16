@@ -75,8 +75,7 @@ expected shape is driven by two design choices:
   (RabbitMQ 3.12+, and LavinMQ, which sends it as a 32-bit integer where RabbitMQ sends a 64-bit one)
   is what `RabbitSubscriber` reads into `Envelope<TPayload, TCeiling>.DeliveryCount`. Classic
   queues only expose a boolean `redelivered` flag, which is not enough to drive delivery-limit
-  behavior. A requeue is a `basic.reject`, which RabbitMQ 4.3+ counts toward the delivery limit
-  where a `basic.nack` isn't (see [BROKER-TOPOLOGY.md](BROKER-TOPOLOGY.md)).
+  behavior.
 - **Topic exchanges** per topic, with one durable queue per subscription bound to the exchange
   with the payload family wire name as its routing key. Each subscription receives only its
   family's messages; several subscriptions on the same exchange with different routing keys split

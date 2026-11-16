@@ -2,6 +2,9 @@ using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
+using Microsoft.Extensions.Options;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 
@@ -37,6 +40,31 @@ public class ChannelBehaviorTests : BehaviorTests
         services.AddSubscriber<MyItemPayload, MyItem>(TopicName, "pm");
         services.AddSubscriber<MyItemPayload, MyItem>(TopicName, "sm");
     });
+
+    // The in-memory backend counts deliveries against MessagingOptions.MaxDeliveryCount, then logs
+    // the message and discards it: it has no dead-letter queue.
+    protected override async Task<DeliveryLimitedSubscription> CreateDeliveryLimitedSubscriptionAsync()
+    {
+        var host = await BuildHostAsync(services =>
+        {
+            services.AddFakeLogging();
+            services.AddPublisher<MyItemPayload, MyItem>(TopicName);
+            services.AddSubscriber<MyItemPayload, MyItem>(TopicName, SubscriptionName);
+        });
+        var logs = host.Services.GetFakeLogCollector();
+        return new DeliveryLimitedSubscription(
+            host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey),
+            host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey),
+            host.Services.GetRequiredService<IOptions<MessagingOptions>>().Value.MaxDeliveryCount,
+            messageId =>
+            {
+                Assert.Contains(logs.GetSnapshot(), record =>
+                    record.Level == LogLevel.Warning
+                    && record.Message.Contains(messageId)
+                    && record.Message.Contains("exceeded the maximum delivery count"));
+                return Task.CompletedTask;
+            });
+    }
 
     // Channel does not support out-of-process communication; all participants share one host.
     protected override Task<IHost> CreateSecondaryInstanceAsync(IHost originalHost, string? subscriptionName = null) =>
