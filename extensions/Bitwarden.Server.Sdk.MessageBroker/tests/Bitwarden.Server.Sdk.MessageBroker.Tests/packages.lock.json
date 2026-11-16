@@ -675,10 +675,18 @@
           "xunit.v3.runner.common": "[3.2.2]"
         }
       },
+      "bitwarden.server.sdk.infrastructure": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.14, )",
+          "Microsoft.Extensions.Options": "[10.0.14, )"
+        }
+      },
       "bitwarden.server.sdk.messagebroker": {
         "type": "Project",
         "dependencies": {
           "Azure.Messaging.ServiceBus": "[7.21.0, )",
+          "Bitwarden.Server.Sdk.Infrastructure": "[0.2.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.14, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.14, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.14, )",

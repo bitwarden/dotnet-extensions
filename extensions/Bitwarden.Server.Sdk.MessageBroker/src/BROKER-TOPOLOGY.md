@@ -13,6 +13,37 @@ A broker topic carries messages from many payload families. Publishers stamp eve
 their family wire name (`IPayloadWireName<TPayload>.WireName`) so subscriptions can bind or filter
 down to the family they consume.
 
+## Collecting a service's topology
+
+Each registration declares what it needs through `Bitwarden.Server.Sdk.Infrastructure`, so the
+topology can be collected from a service's startup (with `Bitwarden.Server.Sdk.Infrastructure.Testing`)
+and provisioned from that list rather than written by hand. The kinds are constants on
+`MessagingRequirements`:
+
+| Kind                      | Declared by                | Properties                         | Provision                                                       |
+| ------------------------- | -------------------------- | ---------------------------------- | --------------------------------------------------------------- |
+| `messaging-topic`         | `AddPublisher`             | `topic`                            | The topic, owned by this service                                |
+| `messaging-publish`       | `AddPublisher`             | `topic`, `family`                  | Send rights on the topic                                        |
+| `messaging-subscription`  | `AddSubscriber` and the consumers built on it | `topic`, `subscription`, `family` | The subscription, filtered or bound to the family, and receive rights on it |
+| `messaging-command-queue` | `AddCommandConsumer`       | `queue`                            | The queue, owned by this service, and receive rights on it      |
+| `messaging-command-consume` | `AddCommandConsumer`     | `queue`, `family`                  | Nothing; lets provisioning check senders against what the queue accepts |
+| `messaging-command-send`  | `AddCommandSender`         | `queue`, `family`                  | Send rights on the receiving service's queue (on RabbitMQ, write on the queue's own exchange) |
+
+None of them carries a connection string or key. The sections below say what each becomes on each
+broker.
+
+Provisioning collects every service's list and checks it before granting anything:
+
+- **One owner per topic and per queue.** Each topic appears under `messaging-topic`, and each queue
+  under `messaging-command-queue`, for exactly one service. Fail if two services claim the same
+  one: granting send rights on a topic to a service that isn't its owner would let it publish
+  another service's events, and granting receive rights on a queue would let it read another
+  service's commands.
+- **Send rights only where declared.** Grant send rights on a topic only to its owner, and on a
+  queue only to the services that declare `messaging-command-send` for it.
+- **Senders match consumers.** Each `messaging-command-send` should name a family the queue's owner
+  declares under `messaging-command-consume`; a command nobody consumes is dead-lettered at runtime.
+
 ## Azure Service Bus
 
 For each unique `topic` passed to `AddPublisher<TPayload, TCeiling>(topic)`:
