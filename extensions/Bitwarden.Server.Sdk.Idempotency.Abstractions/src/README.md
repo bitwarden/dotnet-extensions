@@ -11,8 +11,9 @@ Only what both the side that sends a write and the side that receives it need. N
 `HttpClient`, and nothing here sends or honors the header. It depends on Bitwarden.Server.Sdk.CryptoPrimitives, whose
 `CacheKey` derives every key and identifier, and on Microsoft.Extensions.Hosting.Abstractions, for the environment that
 decides whether the secret is required. Derive with `CacheKey` alone: compose no digest of your own from
-`System.Security.Cryptography`. The plain SHA-256 in `IdempotentOperation` only counts identical bodies and shortens a
-long name in `ForMessage` and `ForJob`; neither is a key.
+`System.Security.Cryptography`. The plain SHA-256 in `IdempotentOperation` stands for a write's body in its
+derivation, so a large body is hashed once rather than encoded, and shortens a long name in `ForMessage` and `ForJob`;
+neither is a key.
 
 ## How it works
 
@@ -27,10 +28,10 @@ body and no context value. Keys and identifiers are `CacheKey.DeriveCacheKey(sec
 the secret over each parameter length-prefixed, so no parameter can pass for two. The first parameter names the use, so
 a key and an identifier never share an input:
 
-| Derived       | Parameters, in order                                                                             | Result                                       |
-| ------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------- |
-| `KeyForWrite` | `idempotency-key`, operation key, method, address, body base64, count, each `{name}:{value}`     | Lower-case hex of the 32 bytes               |
-| `DeriveId`    | `derived-id`, operation key, purpose, count, subject if any                                      | First 16 bytes, with RFC 9562 version 8 bits |
+| Derived       | Parameters, in order                                                                              | Result                                       |
+| ------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `KeyForWrite` | `idempotency-key`, operation key, method, address, body SHA-256 hex, count, each `{name}:{value}` | Lower-case hex of the 32 bytes               |
+| `DeriveId`    | `derived-id`, operation key, purpose, count, subject if any                                       | First 16 bytes, with RFC 9562 version 8 bits |
 
 A write's context headers come last, one parameter each, named in lower case and in order of name. A header's name has
 no colon, so `{name}:{value}` reads back one way.

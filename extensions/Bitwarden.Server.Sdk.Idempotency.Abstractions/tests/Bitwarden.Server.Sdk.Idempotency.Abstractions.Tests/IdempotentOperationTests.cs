@@ -372,18 +372,19 @@ public sealed class IdempotentOperationTests
     // run after an upgrade that derives other keys does its writes twice. CacheKey is HMAC-SHA-256 over each parameter
     // length-prefixed; computed with Python's hmac:
     //
-    //   import base64, hashlib, hmac, struct, uuid
+    //   import hashlib, hmac, struct, uuid
     //
     //   def derive(secret, *params):
     //       data = b"".join(struct.pack(">Q", len(p.encode())) + p.encode() for p in params)
     //       return hmac.new(secret, data, hashlib.sha256).digest()
     //
-    //   def write_key(secret, op, method, address, body, ordinal):
-    //       return derive(secret, "idempotency-key", op, method, address, base64.b64encode(body).decode(),
-    //                     str(ordinal)).hex()
+    //   def write_key(secret, op, method, address, body, ordinal, context=()):
+    //       headers = [f"{k}:{v}" for k, v in sorted((k.lower(), v) for k, v in context)]
+    //       return derive(secret, "idempotency-key", op, method, address, hashlib.sha256(body).hexdigest(),
+    //                     str(ordinal), *headers).hex()
     //
-    //   def derive_id(secret, op, purpose, ordinal):
-    //       b = bytearray(derive(secret, "derived-id", op, purpose, str(ordinal))[:16])
+    //   def derive_id(secret, op, purpose, ordinal, subject=None):
+    //       b = bytearray(derive(secret, "derived-id", op, purpose, str(ordinal), *([subject] if subject else []))[:16])
     //       b[6] = (b[6] & 0x0F) | 0x80
     //       b[8] = (b[8] & 0x3F) | 0x80
     //       return uuid.UUID(bytes=bytes(b))
@@ -395,13 +396,13 @@ public sealed class IdempotentOperationTests
         using var operation = IdempotentOperation.Begin("operation-1", Secret);
 
         Assert.Equal(
-            "09d3c98cc4a66200112729e26948214a5f43541e7b215891d4f382524fe2e371",
+            "7eb1514a054cf10960359e56f28b028e601849e4778a255c3324a10acaa8653f",
             IdempotentOperation.KeyForWrite("POST", Address, "{\"a\":1}"u8, NoContext));
         Assert.Equal(
-            "d6aaa92d20bfc83545490d84a04866ba50819e3ed7d3e635489c6c7ad2a81257",
+            "b03a4ca9bb23912cdccf6039992158ecc2772ffbb8f8f1f8c9225edf4eca90d1",
             IdempotentOperation.KeyForWrite("POST", Address, "{\"a\":1}"u8, NoContext));
         Assert.Equal(
-            "e8a1c8020e4a51c1b5806bc57e6d702b790595062692961c0b47bc30e8b7bc47",
+            "0995300560a3a69d79355d5be8d68a6358c7584836a4c8d2293e4f051de84799",
             IdempotentOperation.KeyForWrite("DELETE", Address, [], NoContext));
     }
 
@@ -475,15 +476,14 @@ public sealed class IdempotentOperationTests
             "POST", Address, [], [new("Bitwarden-User", "a"), new("bitwarden-user", "b")]));
     }
 
-    // Computed with write_key above, each context header added after the ordinal as "{name}:{value}", its name in lower
-    // case, in order of name.
+    // Computed with write_key above and the context given.
     [Fact]
     public void KeyForWrite_WithAContext_MatchesTheGoldenVector()
     {
         using var operation = IdempotentOperation.Begin("operation-1", Secret);
 
         Assert.Equal(
-            "a4e4359c4ede17b6db28eb264d781e2d44cdc27be6164be61c123312989252c5",
+            "f0d2ce7c793a2766942886e95fe5b3aa7ab237f363e6b2e97cae7e8302687f5b",
             IdempotentOperation.KeyForWrite("POST", Address, "{\"a\":1}"u8, UserA));
     }
 
@@ -494,13 +494,13 @@ public sealed class IdempotentOperationTests
         using var operation = IdempotentOperation.Begin("operation-1", Development);
 
         Assert.Equal(
-            "348129896b11e0c49df43fb09bfedc69e5497733728841064e4297067818a157",
+            "0ad369d72880940f3355ea98e0dca99bcdddbba9ddad2aad46f8eb2459df98d5",
             IdempotentOperation.KeyForWrite("POST", Address, "{\"a\":1}"u8, NoContext));
         Assert.Equal(
-            "e89e083351cf1733e683dbed192780931f9a81c3342b6399f80e2892aa45ca78",
+            "947c4bbe00cbc07e0191ebe79b5db731b87f9275e48b0638c05d8d8441133575",
             IdempotentOperation.KeyForWrite("POST", Address, "{\"a\":1}"u8, NoContext));
         Assert.Equal(
-            "c798a9ea483104db7cb531e2b7cfe8bca02d2eb56201136013b0417e0c7eac4c",
+            "0afcb6cf8864eb5420b105f7817cd6003ba70237a6118d2282e2bbe4797111be",
             IdempotentOperation.KeyForWrite("DELETE", Address, [], NoContext));
     }
 
@@ -540,7 +540,7 @@ public sealed class IdempotentOperationTests
         Assert.Equal(first, Run(aFirst: false));
     }
 
-    // Computed with derive_id above, the subject added after the ordinal.
+    // Computed with derive_id above and the subject given.
     [Fact]
     public void DeriveId_WithASubject_MatchesTheGoldenVector()
     {

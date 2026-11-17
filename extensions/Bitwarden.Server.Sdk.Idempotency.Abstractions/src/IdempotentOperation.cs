@@ -196,7 +196,7 @@ public static class IdempotentOperation
     /// </exception>
     /// <remarks>
     /// The key is <see cref="CacheKey.DeriveCacheKey(CacheSecret, ReadOnlySpan{string})"/> with the operation's secret
-    /// over <c>idempotency-key</c>, the operation's key, the method, the address, the body in base64, the ordinal in
+    /// over <c>idempotency-key</c>, the operation's key, the method, the address, the body's SHA-256 in lower-case hex, the ordinal in
     /// decimal (how many identical writes the operation has made before), and each context header as
     /// <c>{name}:{value}</c>, its name in lower case, in order of name. Only a holder of the secret can compute it.
     /// Writes for different users or organizations get different keys whatever order they are made in.
@@ -216,7 +216,7 @@ public static class IdempotentOperation
         }
 
         const string invalidText = "The method, the address or a context value is not valid UTF-16 text.";
-        string[] write = [scope.Key, method, address, Convert.ToBase64String(body)];
+        string[] write = [scope.Key, method, address, Convert.ToHexStringLower(SHA256.HashData(body))];
 
         // Counted by everything but the ordinal, derived, so the scope holds no body and no context value.
         var ordinal = scope.Next(Derive(scope.Secret, invalidText, nameof(address), [WriteKeyPurpose, .. write, .. headers]));
