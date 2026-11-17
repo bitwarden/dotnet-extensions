@@ -1,9 +1,10 @@
 namespace Bitwarden.Server.Sdk.MessageBroker;
 
 /// <summary>
-/// Thrown from <see cref="IPublisher{T}.PublishAsync"/> or
-/// <see cref="IPublisher{T}.PublishBatchAsync"/> when the message broker cannot be reached.
-/// The original broker-specific exception is preserved as <see cref="Exception.InnerException"/>.
+/// Thrown from concrete <see cref="Publisher{TPayload,TCeiling}"/> implementations when the message broker cannot
+/// be reached to send a message, or refuses it for a reason a retry could fix, such as a RabbitMQ queue that is full
+/// and rejects publishes. The original broker-specific exception is preserved as
+/// <see cref="Exception.InnerException"/>.
 /// </summary>
 public sealed class BrokerUnavailableException : Exception
 {
