@@ -27,10 +27,6 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
     private static async Task<IChannel> OpenChannelAsync(RabbitConnection connection)
     {
         var conn = await connection.GetConnectionAsync();
-        // Publisher confirms with tracking: BasicPublishAsync completes only once the broker has
-        // taken responsibility for the message, and throws PublishException if it refuses it. A
-        // send that returns has been accepted, which is what lets a caller such as an outbox
-        // treat it as delivered to the broker.
         return await conn.CreateChannelAsync(new CreateChannelOptions(
             publisherConfirmationsEnabled: true,
             publisherConfirmationTrackingEnabled: true));
