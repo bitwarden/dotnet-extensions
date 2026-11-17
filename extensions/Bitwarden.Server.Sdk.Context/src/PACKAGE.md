@@ -25,7 +25,8 @@ dotnet add package Bitwarden.Server.Sdk.Context
   `ContextScope` otherwise, and a client writes the headers on a service's outgoing calls. Any member may be absent.
 - **A scope flows on the execution context,** so everything the work calls, however deep, sees it, and nothing outside
   it does. Disposing it restores the scope that was current before. Work started inside it and not awaited keeps the
-  context it started with.
+  context it started with, so start long-lived background work (a timer, a loop, a worker) with
+  `ExecutionContext.SuppressFlow()`, or it keeps the context of whatever first started it.
 
 ## Usage
 
