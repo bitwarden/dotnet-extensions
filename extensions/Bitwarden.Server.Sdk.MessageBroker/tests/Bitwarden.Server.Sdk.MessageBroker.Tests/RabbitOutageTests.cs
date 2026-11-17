@@ -26,11 +26,6 @@ public sealed class RecordingItemConsumer(ItemRecorder recorder) : IMessageConsu
     }
 }
 
-/// <summary>
-/// A RabbitMQ broker that goes away and comes back. Hosted consumers subscribe again and senders
-/// reconnect, whether the broker restarts under a running host or is down when the host starts.
-/// The broker keeps one host port across restarts, as a real broker keeps its address.
-/// </summary>
 public sealed class RabbitOutageTests : IAsyncLifetime
 {
     private static readonly TimeSpan RecoveryTimeout = TimeSpan.FromSeconds(60);
@@ -90,9 +85,7 @@ public sealed class RabbitOutageTests : IAsyncLifetime
         })
         .Build();
 
-    // The topology a provisioning step would declare: the topic, its subscription queue and
-    // binding, and the command queue. Durable, so it survives a broker restart; declaring it
-    // again is harmless.
+    // Durable, so it survives a broker restart.
     private async Task DeclareTopologyAsync()
     {
         var factory = new ConnectionFactory { Uri = new Uri($"amqp://guest:guest@localhost:{_port}/") };
@@ -110,8 +103,7 @@ public sealed class RabbitOutageTests : IAsyncLifetime
         await channel.QueueBindAsync(Queue, Queue, routingKey: Queue, cancellationToken: TestContext.Current.CancellationToken);
     }
 
-    // After a restart the container's wait strategy finds the first start's "Server startup
-    // complete" line in the log and returns at once, before the broker accepts connections.
+    // After a restart the container's wait strategy returns before the broker accepts connections.
     private static async Task<IConnection> ConnectAsync(ConnectionFactory factory)
     {
         var deadline = DateTime.UtcNow + RecoveryTimeout;
@@ -128,7 +120,6 @@ public sealed class RabbitOutageTests : IAsyncLifetime
         }
     }
 
-    // Sends an item and a command, retrying while the broker is still coming back.
     private static async Task SendBothAsync(IHost host, string topic, string queue, int id)
     {
         var item = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>(topic));
@@ -192,9 +183,7 @@ public sealed class RabbitOutageTests : IAsyncLifetime
     [Fact(Timeout = 120 * 1000)]
     public async Task SendsDuringAnOutageShareOneAttemptToConnect()
     {
-        // An address that doesn't answer, as in a network partition: each attempt to connect runs
-        // until its timeout rather than being refused. Concurrent sends must wait for one shared
-        // attempt, not one each in turn.
+        // An address that doesn't answer, so each attempt to connect runs until its timeout.
         var host = new HostBuilder()
             .ConfigureAppConfiguration(b => b.AddInMemoryCollection(
                 new Dictionary<string, string?> { ["RabbitUri"] = "amqp://guest:guest@10.255.255.1:5672/", ["VerifyTopologyAtStartup"] = "false" }))
@@ -254,7 +243,6 @@ public sealed class RabbitOutageTests : IAsyncLifetime
     [Fact(Timeout = 180 * 1000)]
     public async Task HostThatStartsWhileTheBrokerIsDownCatchesUpWhenItComesBack()
     {
-        // No broker yet: the host still starts, and a send fails at once rather than waiting.
         var host = await StartHostAsync();
         var item = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(
             MessageBrokerKeys.Publisher<MyItemPayload>(_topic));
