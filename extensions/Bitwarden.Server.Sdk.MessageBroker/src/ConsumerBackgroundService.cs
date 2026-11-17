@@ -23,7 +23,7 @@ internal sealed class ConsumerBackgroundService<TPayload, TCeiling, TConsumer> :
     /// <param name="scopeFactory">The factory for dependency-injection scopes.</param>
     /// <param name="subscriber">The subscriber to consume messages from.</param>
     /// <param name="logger">The logger for the consumer.</param>
-    /// <param name="subscriptionKey">The <c>{topic}/{subscription}</c> being consumed, for the log.</param>
+    /// <param name="subscriptionKey">The <c>{topic}/{subscription}</c> being consumed.</param>
     public ConsumerBackgroundService(
         IServiceScopeFactory scopeFactory, ISubscriber<TPayload, TCeiling> subscriber, ILogger logger, string subscriptionKey)
     {
