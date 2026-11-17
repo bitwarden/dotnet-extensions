@@ -149,6 +149,15 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
+    /// <summary>
+    /// Closes the connection.
+    /// </summary>
+    /// <remarks>
+    /// Cancels <see cref="Closed"/> first, so a connection attempt still under way, or a call waiting
+    /// for the broker's reply, ends at once rather than holding up shutdown. <see cref="Closed"/>
+    /// stays readable afterwards, so a subscriber that starts after the connection closed still sees it
+    /// cancelled.
+    /// </remarks>
     public async ValueTask DisposeAsync()
     {
         IConnection? connection;
@@ -159,9 +168,6 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
             _connection = null;
         }
 
-        // Cancel first: an attempt to connect still under way ends now rather than holding up
-        // shutdown, and so do calls waiting for the broker's reply. _closed is never disposed: a
-        // subscriber that starts after the connection closed still reads Closed.
         _closed.Cancel();
 
         if (connection is not null)
