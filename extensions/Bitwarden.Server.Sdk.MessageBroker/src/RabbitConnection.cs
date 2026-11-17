@@ -125,6 +125,14 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
         throw new ObjectDisposedException(nameof(RabbitConnection));
     }
 
+    /// <summary>
+    /// Opens the connection if a RabbitMQ URI is configured.
+    /// </summary>
+    /// <remarks>
+    /// The host still starts if the broker can't be reached. Until it can, publishers throw
+    /// <see cref="Bitwarden.Server.Sdk.MessageBroker.BrokerUnavailableException"/> and hosted consumers keep trying
+    /// to subscribe, because each <see cref="GetConnectionAsync"/> call tries to connect again.
+    /// </remarks>
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(_options.Value.RabbitUri))
@@ -136,9 +144,6 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
-            // Let the host start while the broker is down. Publishers throw
-            // BrokerUnavailableException until it is back, and hosted consumers keep trying to
-            // subscribe; each GetConnectionAsync call tries to connect again.
         }
     }
 
