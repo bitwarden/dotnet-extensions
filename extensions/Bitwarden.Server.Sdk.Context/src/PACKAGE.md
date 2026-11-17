@@ -143,9 +143,11 @@ skip a lock or a check.
   passes. Checking each name against the services it knows, before writing a chain that arrived from another
   service to a span, a metric tag or a log, is the host's responsibility; this package checks the shape only. The
   chain is not signed and grants nothing.
-- **Keeping the context trustworthy is the service's job.** What a service must do, such as stripping the headers at
-  its proxy, is in Bitwarden.Server.Sdk.Authorization's
-  [Gotchas and constraints](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Authorization/src/PACKAGE.md#gotchas-and-constraints).
+- **Keeping the context trustworthy is the service's job.** The headers are only as good as these three rules:
+  - The edge strips every header in `BitwardenHeaders.ServiceOnly` from requests arriving from outside.
+  - A product service, which people call, refuses those headers.
+  - A domain service, which other services call, trusts what the calling service says, as the signed
+    `Bitwarden-Delegation` token carries it.
 
 ## Types
 
