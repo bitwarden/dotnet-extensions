@@ -5,16 +5,13 @@ using RabbitMQ.Client;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Manages the shared Rabbit <see cref="IConnection"/> for the lifetime of the host. The connection
-/// is opened at startup if the broker is reachable, and opened again on demand whenever it is not
-/// open: after a broker outage, or when the broker was down at startup.
+/// Manages the shared Rabbit <see cref="IConnection"/> for the lifetime of the host, opening it
+/// again on demand whenever it is not open.
 /// </summary>
 internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
 {
     /// <summary>
-    /// How long one attempt to connect may take. Shorter than the client's 30-second default, so a
-    /// broker whose address doesn't answer at all (a network partition rather than a refusal)
-    /// fails a send within seconds.
+    /// How long one attempt to connect may take; shorter than the client's 30-second default.
     /// </summary>
     internal static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(5);
 
@@ -38,18 +35,13 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
     public bool IsClosing => _isClosing;
 
     /// <summary>
-    /// Cancelled when the connection starts to close. A call still waiting for the broker's reply,
-    /// or for a connection attempt, would otherwise wait out the client's own timeout.
+    /// Cancelled when the connection starts to close.
     /// </summary>
     public CancellationToken Closed => _closed.Token;
 
     /// <summary>
-    /// Returns the shared connection, opening it first if it isn't open. Every caller that arrives
-    /// while an attempt to connect is under way waits for that one attempt and gets its result, so
-    /// an outage costs each caller at most one attempt (<see cref="ConnectTimeout"/>). A failed
-    /// attempt throws the client's own exception (such as
-    /// <see cref="RabbitMQ.Client.Exceptions.BrokerUnreachableException"/>), and the next call
-    /// tries again.
+    /// Returns the shared connection, opening it first if it isn't open. Concurrent callers share one
+    /// attempt to connect; a failed attempt throws the client's exception and the next call tries again.
     /// </summary>
     /// <exception cref="ObjectDisposedException">The connection has been closed with the host.</exception>
     public Task<IConnection> GetConnectionAsync(CancellationToken cancellationToken = default)
@@ -132,14 +124,12 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
 
     private async Task<IConnection> ConnectAsync(IConnection? dead)
     {
-        // Called under _sync: return to the caller first, so that disposing the dead connection and
-        // connecting again run off the lock rather than holding up every other caller.
+        // Called under _sync: yield so the work below runs off the lock.
         await Task.Yield();
 
         if (dead is not null)
         {
-            // Its channels are gone with it; publishers and subscribers open new ones on the new
-            // connection. Disposing a dead connection can fail, and it holds nothing to recover.
+            // Disposing a dead connection can fail, and it holds nothing to recover.
             try
             {
                 await dead.DisposeAsync();
@@ -153,9 +143,7 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
         {
             Uri = new Uri(_options.Value.RabbitUri!),
             RequestedConnectionTimeout = ConnectTimeout,
-            // This class reconnects on demand, and publishers and subscribers reopen their
-            // channels. The client's own recovery would restore the same connection behind their
-            // backs, with channels they have already given up on.
+            // This class reconnects on demand; the client's recovery would restore stale channels.
             AutomaticRecoveryEnabled = false,
             TopologyRecoveryEnabled = false,
         };
@@ -169,7 +157,6 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
                 return connection;
             }
         }
-        // The host closed while this attempt was finishing.
         await connection.DisposeAsync();
         throw new ObjectDisposedException(nameof(RabbitConnection));
     }

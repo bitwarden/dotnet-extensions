@@ -3,10 +3,8 @@ using Microsoft.Extensions.Logging;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Keeps a hosted consumer's receive loop running through broker outages. A stream that fails
-/// (the broker went away, refused the subscription, or could not be reached at all) is opened
-/// again after a delay that doubles with each failure in a row, from one second up to thirty.
-/// A stream that ends without failing ends the loop: that only happens when the host is closing.
+/// Keeps a hosted consumer's receive loop running through broker outages. A stream that fails is
+/// opened again after a delay that doubles with each failure in a row, from one second up to thirty.
 /// </summary>
 internal static class ResubscribeLoop
 {
