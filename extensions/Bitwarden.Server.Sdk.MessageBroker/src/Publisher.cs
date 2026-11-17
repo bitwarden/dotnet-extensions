@@ -136,8 +136,6 @@ public static class PublisherExtensions
                 $"A message identifier can be at most {MaxMessageIdLength} characters.", nameof(messageId));
         }
 
-        // ASCII keeps one character to one byte, so the length limit also holds RabbitMQ's: AMQP
-        // carries message-id as a short string of at most 255 UTF-8 bytes.
         if (!System.Text.Ascii.IsValid(messageId))
         {
             throw new ArgumentException("A message identifier must be ASCII.", nameof(messageId));
