@@ -3,9 +3,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Records a (topic, payload-family) pair and an optional subscription name associated with an
 /// <c>AddPublisher</c> or <c>AddSubscriber</c> registration. Enumerated from DI by this package's test
-/// harnesses, which declare the broker topology a test needs; not consumed by the library at runtime.
-/// Tooling outside the package reads the same facts from the infrastructure requirements each
-/// registration declares (<see cref="MessagingRequirements"/>); a test keeps the two in step.
+/// harnesses; not consumed by the library at runtime.
 /// Each backend maps these names to its own vocabulary (RabbitMQ: topic → topic exchange, family
 /// → routing key, subscription → queue bound to that exchange with the family routing key; Azure
 /// Service Bus: topic → topic, family → Correlation filter value, subscription → subscription).
