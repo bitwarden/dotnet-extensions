@@ -36,10 +36,13 @@ public sealed class IdempotencySecret
         Value = value;
     }
 
+    // Internal, so nothing outside the package can read the secret back out and log it.
+    internal CacheSecret Value { get; }
+
     /// <summary>
-    /// The secret itself.
+    /// A fixed marker, never the secret, so writing one to a log, an exception message or a debugger gives nothing away.
     /// </summary>
-    public CacheSecret Value { get; }
+    public override string ToString() => "[idempotency secret]";
 
     /// <summary>
     /// Reads the configured secret, and refuses to go without one outside the <c>Development</c> environment.

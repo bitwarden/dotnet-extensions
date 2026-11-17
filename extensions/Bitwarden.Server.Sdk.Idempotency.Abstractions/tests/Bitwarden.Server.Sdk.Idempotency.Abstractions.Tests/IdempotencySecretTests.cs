@@ -90,6 +90,22 @@ public sealed class IdempotencySecretTests
     }
 
     [Fact]
+    public void ToString_NeverWritesTheSecret()
+    {
+        var secret = new IdempotencySecret(Secret);
+
+        Assert.Equal("[idempotency secret]", secret.ToString());
+        Assert.Equal("[idempotency secret]", $"{secret}");
+        Assert.DoesNotContain(Base64(Secret), secret.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Value_IsNotPublic()
+    {
+        Assert.Null(typeof(IdempotencySecret).GetProperty(nameof(IdempotencySecret.Value)));
+    }
+
+    [Fact]
     public void Value_IsTheSecretGiven()
     {
         Assert.Equal(Secret, new IdempotencySecret(Secret).Value);
