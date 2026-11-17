@@ -21,11 +21,11 @@ internal sealed class ConsumerBackgroundService<TPayload, TCeiling, TConsumer> :
     private readonly string _subscriptionKey;
     private readonly IOptionsMonitor<ConsumerRetryOptions> _retry;
 
-    /// <param name="scopeFactory">Used to create a per-message DI scope.</param>
+    /// <param name="scopeFactory">The factory for dependency-injection scopes.</param>
     /// <param name="subscriber">The subscriber to consume messages from.</param>
-    /// <param name="logger">Logs a failed subscription before it is opened again.</param>
-    /// <param name="subscriptionKey">The <c>{topic}/{subscription}</c> being consumed, for the log.</param>
-    /// <param name="retry">Whether and how to retry a message the handler threw on, named by <paramref name="subscriptionKey"/>.</param>
+    /// <param name="logger">The logger for the consumer.</param>
+    /// <param name="subscriptionKey">The <c>{topic}/{subscription}</c> being consumed.</param>
+    /// <param name="retry">The retry options, named by <paramref name="subscriptionKey"/>.</param>
     public ConsumerBackgroundService(
         IServiceScopeFactory scopeFactory, ISubscriber<TPayload, TCeiling> subscriber, ILogger logger, string subscriptionKey,
         IOptionsMonitor<ConsumerRetryOptions> retry)
@@ -37,8 +37,6 @@ internal sealed class ConsumerBackgroundService<TPayload, TCeiling, TConsumer> :
         _subscriptionKey = subscriptionKey;
     }
 
-    // A subscription that fails (a broker outage, or a broker down at startup) is opened again
-    // rather than faulting the service, which with .NET's defaults would stop the host.
     protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
         ResubscribeLoop.RunAsync(ReceiveAsync, _logger, _subscriptionKey, TimeProvider.System, stoppingToken);
 
