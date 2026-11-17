@@ -311,6 +311,62 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
         }
     }
 
+    [Fact(Timeout = 60 * 1000)]
+    public async Task MessageTheBrokerRefusesFailsTheSend()
+    {
+        var topic = Guid.NewGuid().ToString("N")[..8];
+        const string Subscription = "full";
+
+        await using (var conn = await new ConnectionFactory { Uri = new Uri(_fixture.GetUri()) }
+            .CreateConnectionAsync(TestContext.Current.CancellationToken))
+        await using (var channel = await conn.CreateChannelAsync(cancellationToken: TestContext.Current.CancellationToken))
+        {
+            await channel.ExchangeDeclareAsync(topic, ExchangeType.Topic, durable: true,
+                cancellationToken: TestContext.Current.CancellationToken);
+            await channel.QueueDeclareAsync($"{topic}.{Subscription}", durable: true, exclusive: false, autoDelete: false,
+                // A classic queue: it refuses at exactly its length limit, where a quorum queue refuses only once
+                // it is over the limit.
+                arguments: new Dictionary<string, object?>
+                {
+                    ["x-queue-type"] = "classic",
+                    ["x-max-length"] = 1,
+                    ["x-overflow"] = "reject-publish",
+                },
+                cancellationToken: TestContext.Current.CancellationToken);
+            await channel.QueueBindAsync($"{topic}.{Subscription}", topic, routingKey: MyItemPayload.WireName,
+                cancellationToken: TestContext.Current.CancellationToken);
+        }
+
+        // Built directly, as in MismatchedFamilyIsDeadLetteredByDefensiveCheck: PreStartAsync would
+        // redeclare the queue without its length limit and fail with "inequivalent arg".
+        var host = new HostBuilder()
+            .ConfigureAppConfiguration(b => b.AddInMemoryCollection(CreateConfig()))
+            .ConfigureServices(services =>
+            {
+                services.AddMetrics();
+                services.AddPublisher<MyItemPayload, MyItem>(topic);
+                services.AddOptions<MessagingOptions>().BindConfiguration("");
+            })
+            .Build();
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(
+                MessageBrokerKeys.Publisher<MyItemPayload>(topic));
+
+            await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
+
+            var refused = await Assert.ThrowsAsync<BrokerUnavailableException>(
+                () => publisher.Publish(new MyItem(2)).SendAsync(TestContext.Current.CancellationToken));
+            Assert.IsType<PublishException>(refused.InnerException);
+        }
+        finally
+        {
+            await host.StopAsync(TestContext.Current.CancellationToken);
+            host.Dispose();
+        }
+    }
+
     private readonly List<IHost> _limitedHosts = [];
 
     // A subscription queue declared with a delivery limit of 2 and a dead-letter exchange, as
