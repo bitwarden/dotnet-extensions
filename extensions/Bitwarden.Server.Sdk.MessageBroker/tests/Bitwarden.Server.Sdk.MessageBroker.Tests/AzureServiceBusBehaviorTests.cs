@@ -33,6 +33,35 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
     protected override Task<IHost> CreateSecondaryInstanceAsync(IHost originalHost, string? subscriptionName = null) =>
         Task.FromResult(originalHost);
 
+    // The emulator's configuration gives the subscription a MaxDeliveryCount of 10; a message
+    // abandoned on its tenth delivery moves to the subscription's dead-letter subqueue.
+    protected override async Task<DeliveryLimitedSubscription> CreateDeliveryLimitedSubscriptionAsync()
+    {
+        var host = await CreateInstanceAsync();
+        return new DeliveryLimitedSubscription(
+            host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey),
+            host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey),
+            Deliveries: 10,
+            async messageId =>
+            {
+                await using var client = new ServiceBusClient(_fixture.GetConnectionString());
+                await using var deadLetters = client.CreateReceiver(TopicName, SubscriptionName,
+                    new ServiceBusReceiverOptions { SubQueue = SubQueue.DeadLetter });
+                // Other tests can leave dead-lettered messages on the shared subscription.
+                var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(15);
+                while (DateTime.UtcNow < deadline)
+                {
+                    var message = await deadLetters.ReceiveMessageAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+                    if (message is null)
+                        continue;
+                    await deadLetters.CompleteMessageAsync(message, TestContext.Current.CancellationToken);
+                    if (message.MessageId == messageId)
+                        return;
+                }
+                Assert.Fail($"Message {messageId} wasn't in the subscription's dead-letter queue.");
+            });
+    }
+
     protected override async Task<bool> TryInjectInvalidMessageAsync(string topicName)
     {
         // Publish a JSON null body directly to the topic so the subscriber receives a message
