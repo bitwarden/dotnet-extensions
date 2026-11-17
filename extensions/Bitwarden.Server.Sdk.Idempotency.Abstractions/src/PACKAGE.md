@@ -154,7 +154,9 @@ honors the header for a service built on the SDK.
   request header, and the callee sees every key a caller sends. Keyed by caller, one caller can't receive the answer recorded for another, or block another's
   write by sending the same key.
 - **The operation key must be stable for the logical operation and unique to it:** a message's identifier, a job
-  occurrence, or one minted before the first attempt. Never a person's data: no email address, no name.
+  occurrence, or one minted before the first attempt. Never a person's data: no email address, no name. Never an
+  incoming `Idempotency-Key` as it is: a caller chooses it, so another caller can send the same one. Scope it to the
+  caller, such as `{caller}:{key}`.
 - **An operation key is 1 to 200 visible ASCII characters** (`IdempotentOperation.MaximumKeyLength`); `Begin` throws
   `ArgumentException` otherwise. A method, address or purpose that is not valid UTF-16 (a lone surrogate) throws
   `ArgumentException` too, without quoting it.

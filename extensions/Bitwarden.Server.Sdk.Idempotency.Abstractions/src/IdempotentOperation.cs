@@ -63,7 +63,11 @@ public static class IdempotentOperation
     /// Begins an operation: the writes made until the result is disposed carry keys derived from
     /// <paramref name="key"/> with <paramref name="secret"/>, and <see cref="DeriveId"/> answers from them.
     /// </summary>
-    /// <param name="key">Stable for the logical operation, and unique to it.</param>
+    /// <param name="key">
+    /// Stable for the logical operation, and unique to it. Never an incoming <c>Idempotency-Key</c> as it is: a caller
+    /// chooses it, so another caller can send the same one. A service that repeats an incoming request's writes scopes
+    /// the key to the caller, such as <c>{caller}:{key}</c>.
+    /// </param>
     /// <param name="secret">
     /// The service's secret (<see cref="IdempotencySecret"/>). A run again must begin with the same one, or its writes
     /// carry new keys and are done again.
