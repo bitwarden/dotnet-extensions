@@ -28,11 +28,11 @@ internal sealed class ChannelPublisher<TPayload, TCeiling> : Publisher<TPayload,
 
     protected internal override async Task SendAsync(
         IReadOnlyList<Payload<TPayload>.IVariant> variants,
+        string messageId,
         CancellationToken cancellationToken)
     {
         using var activity = MessageBrokerActivitySource.StartProducerActivity(_topicName, TPayload.WireName);
         _metrics.RecordPublish(_topicName, TPayload.WireName);
-        var messageId = Guid.NewGuid().ToString();
         var traceId = activity?.Id;
         await _topic.WriteAsync(
             (writer, escrowFallback) =>

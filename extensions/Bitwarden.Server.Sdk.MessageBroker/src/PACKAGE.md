@@ -185,6 +185,12 @@ public class UserService(
     [FromKeyedServices("user-events#user.deleted")] Publisher<UserDeletedPayload, UserDeleted> deleted);
 ```
 
+### Message identifiers
+
+`SendAsync(ct)` gives each message a new version 7 GUID. To send a message again under the same
+identifier, pass it: `SendAsync(messageId, ct)`. An identifier must be ASCII, not blank, and at most
+128 characters.
+
 ### When a send completes
 
 `SendAsync` completes once the broker has accepted the message. If the broker can't be reached, or
@@ -287,7 +293,7 @@ broker metadata:
 | Property        | Description                                                                                                   |
 | --------------- | ------------------------------------------------------------------------------------------------------------- |
 | `Payload`       | The resolved variant at `TCeiling` (see above).                                                               |
-| `MessageId`     | Unique identifier assigned by the publisher.                                                                  |
+| `MessageId`     | The identifier the publisher sent the message under; the same on every redelivery and re-send.                |
 | `TraceId`       | W3C traceparent of the publish span, for linking consumer traces to producer traces.                          |
 | `DeliveryCount` | Number of times this message has been delivered. `1` on the first attempt, incrementing with each redelivery. |
 
