@@ -41,12 +41,10 @@ and does not consume any `ServiceBusClient` the app registers separately. An app
 
 For each unique `queue` passed to `AddCommandConsumer<TPayload, TCeiling, TConsumer>(queue)`:
 
-- A queue named `{queue}`, owned by the receiving service. It carries every command family the
-  service accepts, so it has no filter: the receiver reads `x-bw-payload-family` and dead-letters a
-  family it has no consumer for. Set `MaxDeliveryCount` as for a subscription.
+- A queue named `{queue}`, owned by the receiving service, with no filter. Set `MaxDeliveryCount`
+  as for a subscription.
 
-Senders (`AddCommandSender`) need only send rights on the queue. Sending to a queue that doesn't
-exist throws `BrokerUnavailableException`.
+Senders (`AddCommandSender`) need only send rights on the queue.
 
 ### Access with a managed identity
 
@@ -79,11 +77,9 @@ If the queue's routing-key binding is wrong, `RabbitSubscriber` falls back to th
 check — it reads the `x-bw-payload-family` header and dead-letters mismatches. The routing-key
 binding is still the right production configuration because it moves the filter into the broker.
 
-A hosted consumer ends its own retries: it dead-letters a failed message once it has been delivered
-`ConsumerRetryOptions.MaxDeliveries` times, by default on its first failure (see PACKAGE.md). The
-delivery limit is the backstop, for a consumer that returns messages itself or a message that keeps
-coming back for another reason, so set it at least as high as the largest `MaxDeliveries` configured
-for the queue. A consumer that returns a message for redelivery does so with `basic.reject`, which
+A hosted consumer ends its own retries after `ConsumerRetryOptions.MaxDeliveries` (see PACKAGE.md).
+The delivery limit is the backstop, so set it at least as high as the largest `MaxDeliveries`
+configured for the queue. A consumer that returns a message for redelivery does so with `basic.reject`, which
 RabbitMQ counts toward the limit and in the `x-delivery-count` header that becomes
 `Envelope.DeliveryCount`.
 
@@ -145,14 +141,9 @@ For each unique `queue` passed to `AddCommandConsumer<TPayload, TCeiling, TConsu
   routing key. Senders publish to the exchange with the same routing key.
 - Apply the same `delivery-limit` and dead-letter policy as subscription queues.
 
-Each command queue has an exchange of its own, rather than senders using RabbitMQ's default
-exchange, so that sending can be granted one queue at a time. RabbitMQ checks a publish against
-`write` on the exchange: a sender's user needs `write` on `^{queue}$` for each queue it sends to,
-and the receiver's user `read` on its own queue. The permissions are regular expressions, so escape
-the dots in a queue's name (`^notification\.commands$`); an unescaped dot matches any character. Write on the default exchange (`amq.default`)
-would let a user publish to every queue in the virtual host, event subscription queues included,
-so don't grant it to service users.
-
-Senders publish with `mandatory`, so a command sent before the queue exists is returned by the
-broker and `SendAsync` throws `BrokerUnavailableException` instead of the command being dropped.
+Each command queue has its own exchange so that sending can be granted one queue at a time: a
+sender's user needs `write` on `^{queue}$` for each queue it sends to, and the receiver's user
+`read` on its own queue. The permissions are regular expressions, so escape the dots in a queue's
+name (`^notification\.commands$`). Don't grant service users `write` on the default exchange
+(`amq.default`): it reaches every queue in the virtual host.
 

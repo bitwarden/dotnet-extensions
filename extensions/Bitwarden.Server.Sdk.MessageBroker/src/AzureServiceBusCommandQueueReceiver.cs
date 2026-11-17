@@ -27,14 +27,11 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
         }
         catch (ObjectDisposedException) when (_connection.IsClosing)
         {
-            // The connection closed before the stream started.
             yield break;
         }
 
         await using var receiverLifetime = receiver;
 
-        // Stop waiting for a receive once either the caller cancels (the host stopping this
-        // service, which comes before the connection closes) or the connection closes.
         using var stopWaiting = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _connection.Closed);
 
         // As AzureServiceBusSubscriber does: a receive on a quiet queue waits for a message, so say
@@ -62,14 +59,11 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
 
         while (!cancellationToken.IsCancellationRequested && !_connection.IsClosing)
         {
-            // One message at a time, as AzureServiceBusSubscriber does, so stopping leaves at most
-            // one message locked by this receiver.
+            // One message at a time, so stopping leaves at most one locked.
             IReadOnlyList<ServiceBusReceivedMessage> received;
             try
             {
-                // As AzureServiceBusSubscriber does: the Azure SDK neither cancels a receive still
-                // opening its link nor ends it when the client closes, so stop waiting for it, and
-                // observe the failure it ends with.
+                // The Azure SDK doesn't cancel a receive still opening its link: stop waiting, observe its failure.
                 var receive = receiver.ReceiveMessagesAsync(maxMessages: 1, cancellationToken: cancellationToken);
                 _ = receive.ContinueWith(static t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
                 received = await receive.WaitAsync(stopWaiting.Token);
@@ -78,8 +72,7 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
                                        && _connection.IsClosing
                                        && !cancellationToken.IsCancellationRequested)
             {
-                // The connection closed while the receive was opening its link or waiting for a
-                // message: a shutdown, whatever the Azure SDK surfaced. End the stream.
+                // A shutdown, whatever the Azure SDK surfaced.
                 break;
             }
             catch (ServiceBusException ex)

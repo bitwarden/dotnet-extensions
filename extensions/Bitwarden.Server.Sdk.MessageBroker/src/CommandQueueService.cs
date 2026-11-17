@@ -5,9 +5,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Receives everything on one command queue and hands each message to the
-/// <see cref="CommandFamilyHandler"/> registered for its payload family. One per queue, however
-/// many command families the owner accepts: a queue, unlike a subscription, can't be filtered by
-/// family, so one receiver has to see every message.
+/// <see cref="CommandFamilyHandler"/> registered for its payload family.
 /// </summary>
 internal sealed class CommandQueueService : BackgroundService
 {
@@ -33,8 +31,6 @@ internal sealed class CommandQueueService : BackgroundService
         _logger = logger;
     }
 
-    // As ConsumerBackgroundService does: a receive that fails is opened again rather than
-    // faulting the service.
     protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
         ResubscribeLoop.RunAsync(ReceiveAsync, _logger, _queueName, _readiness, TimeProvider.System, stoppingToken);
 
@@ -45,8 +41,6 @@ internal sealed class CommandQueueService : BackgroundService
             onMessage();
             if (message.FamilyWireName is null || !_handlers.TryGetValue(message.FamilyWireName, out var handler))
             {
-                // A command this service doesn't accept: a sender's mistake, or a family this
-                // service stopped accepting while a sender still sends it. Retrying can't help.
                 _logger.LogWarning(
                     "Command {MessageId} on queue {Queue} has family {Family}, which no consumer here accepts; dead-lettering it.",
                     message.MessageId, _queueName, message.FamilyWireName ?? "(none)");
