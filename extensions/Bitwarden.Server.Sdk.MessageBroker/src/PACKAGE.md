@@ -323,27 +323,19 @@ services.AddOptions<ConsumerRetryOptions>("orders/notifications").BindConfigurat
 ```
 
 - `MaxDeliveries`: how many times the message is delivered before a failure dead-letters it.
-  Default 1, which is no retry. The broker's own delivery limit still applies, so set this no
-  higher than it.
+  Default 1, which is no retry. Set it no higher than the broker's own delivery limit.
 - `RetryDelay`: how long the consumer waits after a failure before returning the message, doubling
   with each delivery up to `MaxRetryDelay` (default thirty seconds). Default is no wait.
 
-While it waits, the consumer takes no other message from that subscription or queue. On a command
-queue the settings belong to the queue, and a command waiting to be retried holds up every command
-family on it: with five deliveries and a one-second delay capped at ten, a command that always
-fails holds the queue for about fifteen seconds of waiting (1 + 2 + 4 + 8) before it is
-dead-lettered. Keep the settings small
-for a queue that must keep moving, or run more instances.
+While it waits, the consumer takes no other message from that subscription or queue; on a command
+queue that holds up every command family on it.
 
-A consumer that settles the message itself before throwing (dead-letters it, say) has decided: the
-message isn't retried and there is no wait. The dead-letter reason names the exception's type,
-never its message, which can carry data from the payload.
+A consumer that settles the message itself before throwing isn't retried. The dead-letter reason
+names the exception's type, never its message, which can carry data from the payload.
 
 On Azure Service Bus the message's lock is renewed while the consumer handles it and while it waits,
-so a handler that runs longer than the lock duration keeps its message rather than the broker
-giving it to another receiver. Renewal stops after `MaxLockRenewalDuration` (five minutes by
-default; set it no shorter than the longest `MaxRetryDelay`): a handler that hangs then loses the lock, and the
-message is delivered again, counting toward its delivery limit.
+for up to `MaxLockRenewalDuration` (five minutes by default; set it no shorter than the longest
+`MaxRetryDelay`).
 
 ### Broker outages
 
@@ -358,9 +350,8 @@ up. A raw `ISubscriber` stream (registered with `AddSubscriber`) ends with
 ### Stopping gracefully
 
 For Azure Service Bus and RabbitMQ, unacknowledged messages are automatically requeued by the
-broker when the host shuts down. A hosted consumer whose handler gives up because the host is
-stopping (it throws `OperationCanceledException` on the token it was given) returns its message at
-once: stopping isn't a failure, so the message is neither dead-lettered nor delayed.
+broker when the host shuts down. A hosted consumer whose handler throws `OperationCanceledException`
+because the host is stopping returns its message at once, neither dead-lettered nor delayed.
 
 For the in-memory channel backend, consumers registered with `AddMessageConsumer` are protected by
 an escrow mechanism: any messages left in the channel when the host stops are written to an

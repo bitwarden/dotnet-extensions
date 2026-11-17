@@ -6,11 +6,6 @@ using Microsoft.Extensions.Hosting;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 
-/// <summary>
-/// A handler that runs longer than the lock (30 seconds in the emulator's configuration) keeps its
-/// message: the lock is renewed, so the broker doesn't hand the message to another receiver and
-/// the handler's completion succeeds.
-/// </summary>
 [Collection(AzureServiceBusCollection.Name)]
 public class AzureServiceBusLockRenewalTests : IAsyncLifetime
 {
@@ -95,8 +90,7 @@ public class AzureServiceBusLockRenewalTests : IAsyncLifetime
     [Fact(Timeout = 120 * 1000)]
     public async Task AHandlerThatOutlastsTheRenewalBoundLosesItsCommand()
     {
-        // Renewal stops after two seconds, so the 40-second handler's 30-second lock expires and
-        // the broker delivers the command again: the backstop for a handler that hangs.
+        // Renewal stops after two seconds, so the 40-second handler's 30-second lock expires.
         var host = await StartHostAsync(services =>
         {
             services.AddCommandSender<SendMailPayload, SendMail>("commands");

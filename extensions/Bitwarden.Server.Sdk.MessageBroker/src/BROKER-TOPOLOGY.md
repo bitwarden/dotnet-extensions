@@ -69,11 +69,9 @@ If the queue's routing-key binding is wrong, `RabbitSubscriber` falls back to th
 check — it reads the `x-bw-payload-family` header and dead-letters mismatches. The routing-key
 binding is still the right production configuration because it moves the filter into the broker.
 
-A hosted consumer ends its own retries: it dead-letters a failed message once it has been delivered
-`ConsumerRetryOptions.MaxDeliveries` times, by default on its first failure (see PACKAGE.md). The
-delivery limit is the backstop, for a consumer that returns messages itself or a message that keeps
-coming back for another reason, so set it at least as high as the largest `MaxDeliveries` configured
-for the queue. A consumer that returns a message for redelivery does so with `basic.reject`, which
+A hosted consumer ends its own retries after `ConsumerRetryOptions.MaxDeliveries` (see PACKAGE.md).
+The delivery limit is the backstop, so set it at least as high as the largest `MaxDeliveries`
+configured for the queue. A consumer that returns a message for redelivery does so with `basic.reject`, which
 RabbitMQ counts toward the limit and in the `x-delivery-count` header that becomes
 `Envelope.DeliveryCount`.
 

@@ -353,8 +353,6 @@ public static class MessageBrokerServiceCollectionExtensions
         return true;
     }
 
-    // Retry settings, named after the subscription or queue: validated at startup, and configurable
-    // here, by the caller with services.Configure, or from configuration.
     private static void AddConsumerRetry(IServiceCollection services, string name, Action<ConsumerRetryOptions>? configure)
     {
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ConsumerRetryOptions>, ConsumerRetryOptionsValidator>());
