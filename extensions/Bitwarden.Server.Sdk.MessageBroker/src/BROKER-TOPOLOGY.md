@@ -19,9 +19,7 @@ Topics, queues and subscriptions must exist before the services start. With a br
 default, the operator sets them up from the release's broker topology before each upgrade.
 
 RabbitMQ and LavinMQ share one backend in the library (the `Rabbit*` types, configured with
-`RabbitUri`): it relies on what both brokers provide, quorum queues, policies, `delivery-limit`,
-`dead-letter-strategy`, `x-delivery-count` and importing `definitions.json`, and the differences
-between them are listed under [RabbitMQ and LavinMQ](#rabbitmq-and-lavinmq).
+`RabbitUri`); see [RabbitMQ and LavinMQ](#rabbitmq-and-lavinmq).
 
 ## Provisioning
 
@@ -143,8 +141,7 @@ changed on an existing queue. Declare the topology in a `definitions.json` file 
 the broker starts: both brokers import the same file, RabbitMQ with `load_definitions` (see the
 RabbitMQ documentation on [definitions](https://www.rabbitmq.com/docs/definitions) and
 [quorum queue poison-message handling](https://www.rabbitmq.com/docs/quorum-queues#poison-message-handling)),
-and LavinMQ with its definitions import. RabbitMQ's `rabbitmqadmin` and `rabbitmqctl` have no
-equivalents in `lavinmqctl`, so a definitions file is the one way that works for both.
+and LavinMQ with its definitions import.
 
 ### Example: a user service
 
@@ -215,10 +212,9 @@ Give each service its own broker user, with only the rights its registrations de
 Both brokers check these as regular expressions over resource names, so anchor them and escape the
 dots in names (`^user-events$`, `^notification\.commands$`).
 
-Remove the default `guest` user, or at least change its password and limit it, on both brokers. Don't
-rely on RabbitMQ's rule that `guest` connects only from the local host: the official container image
-turns it off, and the LavinMQ image accepts `guest` from outside the container too. A service sharing one administrator login can publish to
-any queue and read any other service's messages, whatever the rules above say.
+Remove the default `guest` user, or at least change its password and limit it, on both brokers:
+both official images accept `guest` from outside the container. A service sharing one administrator
+login can publish to any queue and read any other service's messages, whatever the rules above say.
 
 Keep users and their credentials out of the topology file that ships with a release or sits in a
 repository: create them from a secret store, or through the management API when deploying. A
@@ -241,10 +237,8 @@ name (`^notification\.commands$`). Don't grant service users `write` on the defa
 
 ### Where RabbitMQ and LavinMQ differ
 
-- **Delivery count.** Both count a `basic.reject` toward a quorum queue's `delivery-limit` and in
-  the `x-delivery-count` header that becomes `Envelope.DeliveryCount`. RabbitMQ sends the header as
-  a 64-bit integer and LavinMQ as a 32-bit one; the library reads either. LavinMQ sends it only on a
-  queue that has a delivery limit, so without the policy every redelivery reads as the second.
+- **Delivery count.** LavinMQ sends `x-delivery-count` only on a queue that has a delivery limit, so
+  without the policy every redelivery reads as the second.
 - **Provisioning.** Both import `definitions.json`. `rabbitmqadmin` and `rabbitmqctl` have no
   equivalents in `lavinmqctl`, so use a definitions file for either broker.
 - **Dead-lettering.** Both set the `x-death` header on a dead-lettered message, naming the queue it
@@ -252,5 +246,4 @@ name (`^notification\.commands$`). Don't grant service users `write` on the defa
 - **Permissions.** Both check `configure`, `write` and `read` against regular expressions over
   resource names, so the rights described under command queues apply to both.
 
-The library's broker tests for this backend (behaviour, command queues and outages) run against both
-brokers (`MESSAGING_TESTS_AMQP_IMAGE`): CI runs them on RabbitMQ 4.3.6 and LavinMQ 2.10.4.
+CI runs the library's broker tests on both RabbitMQ 4.3.6 and LavinMQ 2.10.4.
