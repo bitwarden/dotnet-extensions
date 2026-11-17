@@ -14,8 +14,6 @@ internal sealed record BrokerTopologyDeclaration(string TopicName, string Family
 /// Records a command family sent to, or consumed from, a command queue by an
 /// <c>AddCommandSender</c> or <c>AddCommandConsumer</c> registration. Like
 /// <see cref="BrokerTopologyDeclaration"/>, for test harnesses and external tooling; not consumed by
-/// the library at runtime. A command queue is one queue, owned by its receiver, carrying every
-/// command family the receiver accepts (RabbitMQ: a queue reached through an exchange of the same
-/// name bound only to it; Azure Service Bus: a queue).
+/// the library at runtime.
 /// </summary>
 internal sealed record CommandQueueDeclaration(string QueueName, string FamilyWireName, bool IsConsumer);

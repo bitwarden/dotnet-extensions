@@ -35,11 +35,8 @@ public class MessagingOptions
 
     /// <summary>
     /// How long, at most, an Azure Service Bus message's lock is renewed while a consumer handles it
-    /// and waits to retry it. After that the lock is left to expire, so a handler that hangs gives
-    /// the message back to the broker for another delivery rather than holding it until the host
-    /// stops. Set it no shorter than the longest <see cref="ConsumerRetryOptions.MaxRetryDelay"/>, or a
-    /// message waiting to be retried can lose its lock and be delivered again sooner. Default is five
-    /// minutes, as for the Azure SDK's own processor.
+    /// and waits to retry it. Set it no shorter than the longest
+    /// <see cref="ConsumerRetryOptions.MaxRetryDelay"/>. Default is five minutes.
     /// </summary>
     public TimeSpan MaxLockRenewalDuration { get; set; } = TimeSpan.FromMinutes(5);
 }

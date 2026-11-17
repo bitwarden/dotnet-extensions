@@ -229,11 +229,6 @@ public class OversizedPayload : Payload<OversizedPayload, OversizedVariant, Over
     public static IReadOnlyList<(Type, string)> Variants => [(typeof(OversizedVariant), nameof(OversizedVariant))];
 }
 
-/// <summary>
-/// Shares one Azure Service Bus emulator (and its SQL Edge container) across every test class
-/// that needs it, rather than starting one per class. Classes in the collection run one after
-/// another.
-/// </summary>
 [CollectionDefinition(Name)]
 public class AzureServiceBusCollection : ICollectionFixture<AzureServiceBusFixture>
 {

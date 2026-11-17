@@ -5,10 +5,8 @@ using Microsoft.Extensions.Logging;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// An in-memory command queue, shared by every sender and the receiver in one process. Commands
-/// are serialized on the way in, as on a broker, so the receive path is the same for every
-/// backend. Unlike the in-memory topic it keeps no escrow: commands still queued when the host
-/// stops are lost, which is acceptable for the development and test backend it is.
+/// An in-memory command queue, shared by every sender and the receiver in one process. It keeps no
+/// escrow: commands still queued when the host stops are lost.
 /// </summary>
 internal sealed class ChannelCommandQueue : ICommandQueueReceiver
 {
