@@ -9,7 +9,7 @@ namespace Bitwarden.Server.Sdk.Crypto;
 public static class CryptoServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers <see cref="ICryptoParsingClient"/> and <see cref="IKeyDataClient"/> as one singleton.
+    /// Registers <see cref="ICryptoParsingClient"/> as a singleton.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <returns>The service collection for chaining.</returns>
@@ -17,10 +17,7 @@ public static class CryptoServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        // One native client serves both interfaces.
-        services.TryAddSingleton<NativeServerSdk>();
-        services.TryAddSingleton<ICryptoParsingClient>(sp => sp.GetRequiredService<NativeServerSdk>());
-        services.TryAddSingleton<IKeyDataClient>(sp => sp.GetRequiredService<NativeServerSdk>());
+        services.TryAddSingleton<ICryptoParsingClient, NativeServerSdk>();
 
         return services;
     }
