@@ -44,15 +44,12 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
         _connection = connection;
     }
 
-    // Opens the channel on first use, and again whenever it isn't open: the broker closed it, or
-    // the connection under it was lost and has to be opened again.
     private async Task<IChannel> GetChannelAsync(CancellationToken cancellationToken)
     {
         if (_channel is { IsOpen: true } open)
             return open;
 
-        // Wait for the connection before taking the gate: concurrent sends then share one attempt
-        // to connect (see RabbitConnection) instead of queueing behind each other's attempts.
+        // Before the gate, so concurrent sends share one attempt to connect.
         var conn = await _connection.GetConnectionAsync(cancellationToken);
 
         await _channelGate.WaitAsync(cancellationToken);
