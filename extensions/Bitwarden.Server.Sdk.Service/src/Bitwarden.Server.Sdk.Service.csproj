@@ -1,0 +1,107 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- This package maps its own endpoints (the system endpoints, the config resource): their
+         delegate binding is source-generated, as a service compiles its own Map calls. -->
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
+    <!-- The resource documents' attributes envelope is applied by a reflection-based JsonConverterFactory,
+         which cannot be proven trim- or AOT-safe. Declared honestly rather than suppressed: this
+         package is not AOT-compatible, and native AOT is already ruled out for any service with a
+         database (EF Core has no AOT path). -->
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <PreReleaseVersionLabel>alpha</PreReleaseVersionLabel>
+    <PreReleaseVersionIteration>1</PreReleaseVersionIteration>
+    <VersionSuffix Condition="'$(VersionSuffix)' == '' AND '$(IsPreRelease)' == 'true'">$(PreReleaseVersionLabel).$(PreReleaseVersionIteration)</VersionSuffix>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Description>Bitwarden service base class and startup sequence.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The parts a service is composed of. A service references this package alone and gets them all. -->
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Authorization\src\Bitwarden.Server.Sdk.Authorization.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Context\src\Bitwarden.Server.Sdk.Context.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Data.Abstractions\src\Bitwarden.Server.Sdk.Data.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Errors\src\Bitwarden.Server.Sdk.Errors.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Http\src\Bitwarden.Server.Sdk.Http.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Idempotency\src\Bitwarden.Server.Sdk.Idempotency.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Idempotency.Abstractions\src\Bitwarden.Server.Sdk.Idempotency.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.RateLimiting\src\Bitwarden.Server.Sdk.RateLimiting.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Resources\src\Bitwarden.Server.Sdk.Resources.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Resources.Caching.Abstractions\src\Bitwarden.Server.Sdk.Resources.Caching.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Sagas\src\Bitwarden.Server.Sdk.Sagas.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Service.Abstractions\src\Bitwarden.Server.Sdk.Service.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.HealthChecks\src\Bitwarden.Server.Sdk.HealthChecks.csproj" />
+    <!-- Feature flags, so a product service can publish them in its config resource and every
+         service can ask one. A project reference, so the services that reference this package by
+         path see the same flag evaluation the package is tested with. -->
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Features\src\Bitwarden.Server.Sdk.Features.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The Bearer scheme and Bitwarden's token-validation rules. Consumed rather than
+         hand-rolled: registering AddJwtBearer here as well produces "Scheme already exists". -->
+    <PackageReference Include="Bitwarden.Server.Sdk.Authentication" Version="0.6.0" />
+    <!-- The bearer handler's IdentityModel packages, raised so the whole family resolves to one
+         version without AIKIDO-2026-11109 (fixed in 7.7.2) or AIKIDO-2026-11098 (fixed in 8.19.0);
+         the bearer handler brings 7.x. Every service references this package. -->
+    <PackageReference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="8.23.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.23.0" />
+    <!-- Every service documents its API. Referenced outright rather than switched on by an
+         MSBuild property: a service that does not describe itself is not one we want to ship. -->
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
+    <!-- Swagger UI only. The document itself comes from Microsoft.AspNetCore.OpenApi;
+         Swashbuckle here is the embedded static UI, so docs are served by the service
+         itself with no external asset fetch. -->
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.3.0" />
+
+    <!-- Traces, metrics and logs over OTLP (Observability/Telemetry.cs). No Entity
+         Framework instrumentation: it is a prerelease, which a stable package can't depend on
+         (NU5104). SqlClient's spans cover SQL Server's commands without it. -->
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.19.1" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.19.1" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.19.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.19.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.19.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.SqlClient" Version="1.19.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Branding for the documentation UI, served by the service from this assembly so no asset
+         is fetched from an external origin. -->
+    <EmbeddedResource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Service.Tests" />
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Service.MinimalApi.Tests" />
+    <!-- A service test host, which names the same guide as the undeclared-span refusal in its own. -->
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Service.Testing" />
+  </ItemGroup>
+
+  <!-- The OpenAPI document's descriptions come from XML documentation comments, which
+       Microsoft.AspNetCore.OpenApi's source generator reads while this package compiles, since this
+       package calls AddOpenApi. It reads a project reference's XML file by itself, but a package's only
+       when listed as AdditionalFiles; without this, the types a Bitwarden package referenced from NuGet
+       defines lose their descriptions: Authentication's today, and a sibling package's once it is
+       referenced by version. -->
+  <Target Name="AddBitwardenPackageXmlDocumentation" AfterTargets="ResolveReferences">
+    <ItemGroup>
+      <_BitwardenPackageReference Include="@(ReferencePath)"
+                                  Condition="'%(ReferencePath.NuGetSourceType)' == 'Package' AND $([System.String]::Copy('%(ReferencePath.NuGetPackageId)').StartsWith('Bitwarden.'))" />
+      <_BitwardenPackageXml Include="@(_BitwardenPackageReference->'%(RootDir)%(Directory)%(Filename).xml')" />
+      <AdditionalFiles Include="@(_BitwardenPackageXml)" Condition="Exists('%(_BitwardenPackageXml.FullPath)')" KeepMetadata="Identity" />
+    </ItemGroup>
+  </Target>
+
+</Project>

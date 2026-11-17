@@ -1,0 +1,91 @@
+using Bitwarden.Server.Sdk.Resources.Endpoints;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Patterns;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Bitwarden.Server.Sdk.Resources.Tests.Endpoints;
+
+/// <summary>
+/// <c>WithStandards</c> puts the standard endpoint filter on every endpoint a builder maps and,
+/// once each endpoint's own conventions have run, the standards' convention.
+/// </summary>
+public sealed class StandardEndpointExtensionsTests
+{
+    [Fact]
+    public void WithStandards_Builder_TheSameBuilder()
+    {
+        var builder = new Recording();
+
+        Assert.Same(builder, builder.WithStandards());
+    }
+
+    [Fact]
+    public void WithStandards_Endpoint_GetsTheFilterAndTheConvention()
+    {
+        var builder = new Recording().WithStandards();
+        var endpoint = Endpoint();
+
+        builder.Build(endpoint);
+
+        Assert.Single(endpoint.FilterFactories);
+        Assert.Contains(StandardEndpointMetadata.Instance, endpoint.Metadata);
+    }
+
+    // Added after WithStandards, as an endpoint's own conventions are, yet run before it: the
+    // standards' convention reads what the endpoint declared.
+    [Fact]
+    public void WithStandards_EndpointsOwnConventionAddedLater_RunsFirst()
+    {
+        var builder = new Recording().WithStandards();
+        var standardsHadRun = (bool?)null;
+        builder.Add(endpoint => standardsHadRun = endpoint.Metadata.Contains(StandardEndpointMetadata.Instance));
+        var endpoint = Endpoint();
+
+        builder.Build(endpoint);
+
+        Assert.False(standardsHadRun);
+        Assert.Contains(StandardEndpointMetadata.Instance, endpoint.Metadata);
+    }
+
+    [Fact]
+    public void WithStandards_NoBuilder_Refused()
+    {
+        Assert.Throws<ArgumentNullException>(() => ((Recording)null!).WithStandards());
+    }
+
+    private static string Handler() => string.Empty;
+
+    private static RouteEndpointBuilder Endpoint()
+    {
+        var endpoint = new RouteEndpointBuilder(_ => Task.CompletedTask, RoutePatternFactory.Parse("api/v1/widgets"), 0)
+        {
+            ApplicationServices = new ServiceCollection().AddOptions().AddSingleton<StandardEndpointProblems>().BuildServiceProvider(),
+        };
+        endpoint.Metadata.Add(typeof(StandardEndpointExtensionsTests).GetMethod(nameof(Handler), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!);
+
+        return endpoint;
+    }
+
+    /// <summary>
+    /// Records the conventions given to it, and applies them in the framework's order: the
+    /// conventions, then the final ones.
+    /// </summary>
+    private sealed class Recording : IEndpointConventionBuilder
+    {
+        private readonly List<Action<EndpointBuilder>> _conventions = [];
+        private readonly List<Action<EndpointBuilder>> _finally = [];
+
+        public void Add(Action<EndpointBuilder> convention) => _conventions.Add(convention);
+
+        public void Finally(Action<EndpointBuilder> finallyConvention) => _finally.Add(finallyConvention);
+
+        public void Build(EndpointBuilder endpoint)
+        {
+            foreach (var convention in _conventions.Concat(_finally))
+            {
+                convention(endpoint);
+            }
+        }
+    }
+}
