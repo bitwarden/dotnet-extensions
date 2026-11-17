@@ -15,9 +15,9 @@ LavinMQ. Services don't depend on which one is in use.
 | Self-host  | RabbitMQ 4.3.6    | Azure Service Bus, LavinMQ 2.10.4      |
 | Lite       | LavinMQ 2.10.4    | Azure Service Bus, RabbitMQ 4.3.6      |
 
-A self-hosted service creates the topics, queues and subscriptions it needs as it starts, as it
-migrates its database, so a self-hosted install's broker needs no setup, whichever broker it is. In the
-cloud, infrastructure-as-code creates them before release. An operator can switch either way with
+A self-hosted service creates the topics, queues and subscriptions it needs as it starts, so a
+self-hosted install's broker needs no setup. In the cloud, infrastructure-as-code creates them before
+release. An operator can switch either way with
 `AutoProvisionTopology`; a service that doesn't create its topology checks it at startup, and stops,
 naming what is missing.
 
@@ -40,13 +40,10 @@ down to the family they consume.
 Once a service first reaches its broker, it either creates the topology its registrations need or
 checks that it exists, from the same requirements listed under
 [Collecting a service's topology](#collecting-a-services-topology). Which one follows
-`AutoProvisionTopology`, the way a self-hosted service migrates its own database schema and one
-Bitwarden runs leaves that to a release step: unset, a self-hosted service
-(`IBitwardenEnvironment.SelfHosted`) creates its topology and any other checks it. If an object is missing, or the
-service can't create it, it logs one critical message naming each and stops with exit code 1, so a
-deployment with incomplete topology fails at once instead of running without, say, the queue its
-commands arrive on. A broker that can't be reached doesn't stop it: it logs a warning and tries again,
-waiting one second and doubling the wait up to thirty, until the broker answers.
+`AutoProvisionTopology`: unset, a self-hosted service (`IBitwardenEnvironment.SelfHosted`) creates its
+topology and any other checks it. If an object is missing, or the service can't create it, it logs one
+critical message naming each and stops with exit code 1. A broker that can't be reached doesn't stop
+it: it logs a warning and tries again until the broker answers.
 
 ### Creating it
 
@@ -58,13 +55,11 @@ operator provisioned keeps its own settings, dead-lettering included:
   each family no rule of the subscription admits yet;
 - its command queues, and on RabbitMQ and LavinMQ their exchanges.
 
-It doesn't create the topics it subscribes to or the queues it sends to; their owners do. A
-subscription whose topic doesn't exist yet waits for its owner to create it, logging a warning and
-trying again with the same wait as for an unreachable broker. Its hosted consumers wait until it is
-done. Bindings and rules are made again on every start, so a family a release adds reaches an
-existing subscription; one the service may not make on an object it didn't create (a queue it may
-only read, say) is left to whoever made the object, with a warning. `MaxDeliveryCount` (default 10) is
-the delivery limit of what it creates.
+It doesn't create the topics it subscribes to or the queues it sends to; their owners do, and a
+subscription whose topic doesn't exist yet waits for it. Its hosted consumers wait until it is done.
+Bindings and rules are made again on every start, so a family a release adds reaches an existing
+subscription; one the service may not make on an object it didn't create is left, with a warning.
+`MaxDeliveryCount` (default 10) is the delivery limit of what it creates.
 
 - **RabbitMQ and LavinMQ:** the shapes below, with one difference: each queue's delivery limit and
   dead-lettering are queue arguments (`x-delivery-limit`, `x-dead-letter-exchange`,

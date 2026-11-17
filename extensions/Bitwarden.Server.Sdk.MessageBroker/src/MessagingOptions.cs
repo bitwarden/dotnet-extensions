@@ -52,13 +52,10 @@ public class MessagingOptions
     public bool VerifyTopologyAtStartup { get; set; } = true;
 
     /// <summary>
-    /// Whether the service creates the topics, subscriptions and queues its registrations need, once it
-    /// first reaches its broker, as a self-hosted service migrates its database schema. It creates only
-    /// what is missing, with the settings BROKER-TOPOLOGY.md gives them, and needs the rights to create
-    /// them: configure on RabbitMQ and LavinMQ, the Manage right on Azure Service Bus. Its hosted
-    /// consumers wait until it is done. When it doesn't provision,
-    /// <see cref="VerifyTopologyAtStartup"/> decides whether it checks instead. Unset, a self-hosted
-    /// service provisions and one Bitwarden runs doesn't, leaving it to infrastructure-as-code.
+    /// Whether the service creates the missing topics, subscriptions and queues its registrations need,
+    /// once it first reaches its broker. It needs the rights to create them: configure on RabbitMQ and
+    /// LavinMQ, the Manage right on Azure Service Bus. Unset, a self-hosted service provisions and any
+    /// other doesn't.
     /// </summary>
     public bool? AutoProvisionTopology { get; set; }
 }

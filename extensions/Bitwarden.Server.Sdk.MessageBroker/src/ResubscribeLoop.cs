@@ -22,7 +22,7 @@ internal static class ResubscribeLoop
     /// <param name="logger">The logger for the consumer.</param>
     /// <param name="source">The topic subscription or command queue being consumed.</param>
     /// <param name="readiness">Told when the consumer is receiving and when it is failing.</param>
-    /// <param name="topology">Waited for before the first attempt: open once the service has provisioned its topology.</param>
+    /// <param name="topology">Waited for before the first attempt.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="stoppingToken">The token that stops the loop.</param>
     internal static async Task RunAsync(

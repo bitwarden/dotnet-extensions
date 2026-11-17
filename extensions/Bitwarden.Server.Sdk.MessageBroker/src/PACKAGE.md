@@ -103,11 +103,9 @@ else raises a validation error at startup.
 MessageBroker supports three brokers, chosen through configuration: Azure Service Bus, RabbitMQ and
 LavinMQ. Services don't depend on which one is in use.
 
-A self-hosted service creates the topics, queues and subscriptions it needs as it starts, as it
-migrates its database, so a self-hosted install's broker needs no setup, whichever broker it is. In the
-cloud, infrastructure-as-code creates them before release. An operator can switch either way with
-`AutoProvisionTopology`; a service that doesn't create its topology checks it at startup, and stops,
-naming what is missing.
+A self-hosted service creates the topics, queues and subscriptions it needs as it starts; in the
+cloud, infrastructure-as-code creates them before release. `AutoProvisionTopology` switches either
+way.
 
 See
 [BROKER-TOPOLOGY.md](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/BROKER-TOPOLOGY.md)
@@ -120,15 +118,13 @@ Every registration also declares the topology it needs as infrastructure require
 
 Those requirements are also what a service creates or checks once it first reaches its broker:
 
-- **`AutoProvisionTopology`:** whether the service creates what is missing: its own topics, its
-  subscriptions and its command queues, with the settings BROKER-TOPOLOGY.md gives them. A topic it
-  subscribes to is its owner's to create, and it waits for it. It needs the rights to create them, and
-  holds them while it runs (on Azure Service Bus, the Manage right over the whole namespace). Its
-  hosted consumers wait until it is done. Unset, a self-hosted service
-  (`IBitwardenEnvironment.SelfHosted`) provisions and any other doesn't.
+- **`AutoProvisionTopology`:** whether the service creates what is missing. It needs the rights to
+  create them, and holds them while it runs (on Azure Service Bus, the Manage right over the whole
+  namespace). Unset, a self-hosted service (`IBitwardenEnvironment.SelfHosted`) provisions and any
+  other doesn't.
 - **`VerifyTopologyAtStartup`:** whether a service that doesn't provision checks that its topology
   exists. On by default; turn it off, for example, in tests that declare their topology after the host
-  starts. On Azure Service Bus only subscriptions and the service's own command queue can be checked.
+  starts.
 
 If an object is missing, or the service can't create it, the service logs one critical message naming
 each and stops with exit code 1. An unreachable broker doesn't stop it; it waits until the broker

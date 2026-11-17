@@ -226,9 +226,7 @@ public class AzureServiceBusTopologyCheckTests
         _fixture = fixture;
     }
 
-    // The emulator doesn't report a missing entity as Azure Service Bus does (MessagingEntityNotFound when
-    // the receive link attaches): it closes the link after a timeout, which the check takes for an outage.
-    // So only a service whose topology exists can be tested against it.
+    // The emulator reports a missing entity as an outage, so only existing topology can be tested here.
     [Fact(Timeout = 60 * 1000)]
     public async Task ServiceWhoseSubscriptionsAndQueueExistKeepsRunning()
     {
@@ -236,9 +234,7 @@ public class AzureServiceBusTopologyCheckTests
             new() { ["AzureServiceBusConnectionString"] = _fixture.GetConnectionString() },
             services =>
             {
-                // The emulator declares topic "behavior" with subscriptions "behavior" and "pm", and queue
-                // "commands". The queue is declared as a requirement only: a consumer would take the other
-                // tests' commands.
+                // Requirement only for the queue: a consumer would take the other tests' commands.
                 services.AddSubscriber<UserCreatedPayload, UserCreated>("behavior", "pm");
                 services.AddSubscriber<UserDeletedPayload, UserDeleted>("behavior", "behavior");
                 MessagingRequirements.DeclareCommandConsumer(services, "commands", SendPushPayload.WireName);
@@ -379,8 +375,7 @@ public class RabbitProvisioningTests : IClassFixture<RabbitBehaviorTests.RabbitF
     public async Task ASecondStartFindsItAllAndLeavesWhatAnOperatorMadeAlone()
     {
         var token = TestContext.Current.CancellationToken;
-        // The subscription queue made as definitions.json makes it, without arguments: declaring it again
-        // with arguments would be refused, so provisioning must leave it alone.
+        // Made as definitions.json makes it, without arguments, so provisioning must leave it alone.
         var factory = new ConnectionFactory { Uri = new Uri(_fixture.GetUri()) };
         await using (var connection = await factory.CreateConnectionAsync(token))
         await using (var channel = await connection.CreateChannelAsync(cancellationToken: token))
@@ -424,9 +419,6 @@ public class RabbitProvisioningTests : IClassFixture<RabbitBehaviorTests.RabbitF
         Assert.Contains($"topic exchange '{Topic}' couldn't be created", critical.Message);
     }
 
-    // An install upgraded from topology an operator provisioned, its services given BROKER-TOPOLOGY.md's
-    // narrowest rights (no configure, read on its own queues, write on its own exchanges), keeps running:
-    // everything it needs is there, and what it may not see or bind is left to whoever made it.
     [Fact(Timeout = 90 * 1000)]
     public async Task ProvisionedTopologyWithTheNarrowestRightsIsLeftAsItIs()
     {
