@@ -65,9 +65,6 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
         }
         catch (PublishException ex)
         {
-            // The broker refused the message (a nack), for instance a full queue that rejects publishes.
-            // mandatory is false, so an unroutable message is not a refusal: an event topic
-            // with no subscriptions accepts and drops it, as on Azure Service Bus.
             throw new BrokerUnavailableException(_exchangeName, ex);
         }
     }
