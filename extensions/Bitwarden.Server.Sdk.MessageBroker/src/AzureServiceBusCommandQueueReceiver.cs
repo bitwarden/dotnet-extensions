@@ -34,8 +34,7 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
 
         using var stopWaiting = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _connection.Closed);
 
-        // As AzureServiceBusSubscriber does: a receive on a quiet queue waits for a message, so say
-        // the receiver is in place once a peek succeeds.
+        // A receive on a quiet queue waits for a message, so a successful peek signals subscribed.
         var subscribed = false;
         try
         {

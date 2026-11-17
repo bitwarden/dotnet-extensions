@@ -332,8 +332,6 @@ public static class MessageBrokerServiceCollectionExtensions
         return services;
     }
 
-    // The readiness check for every hosted consumer, registered once for any host that calls
-    // AddHealthChecks().
     private static void AddSubscriptionHealthCheck(IServiceCollection services)
     {
         services.TryAddSingleton<SubscriptionReadiness>();

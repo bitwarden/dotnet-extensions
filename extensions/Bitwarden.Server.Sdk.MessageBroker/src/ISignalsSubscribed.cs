@@ -1,10 +1,8 @@
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// A subscriber that says when its subscription is in place, so the readiness check can count a
-/// hosted consumer as receiving on a positive signal rather than on time passing. Implemented by
-/// the built-in backends; a subscriber that doesn't implement it counts as receiving once its
-/// consumer starts.
+/// A subscriber that says when its subscription is in place. A subscriber that doesn't implement it
+/// counts as receiving once its consumer starts.
 /// </summary>
 internal interface ISignalsSubscribed<TPayload, TCeiling>
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>

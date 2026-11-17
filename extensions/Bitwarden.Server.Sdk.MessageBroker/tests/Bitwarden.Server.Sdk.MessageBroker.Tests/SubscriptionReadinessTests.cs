@@ -37,10 +37,6 @@ public class SubscriptionReadinessTests
         Assert.Contains(SubscriptionHealthCheckRegistration.Name, report.Entries.Keys);
     }
 
-    /// <summary>
-    /// A broker every instance reads is shared state: the check reports Degraded, which a default health
-    /// endpoint answers with 200, and is tagged monitoring, so it can't take instances out of rotation.
-    /// </summary>
     [Fact]
     public void TheCheckIsDegradedAndTaggedMonitoringNeverUnhealthy()
     {

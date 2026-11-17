@@ -48,8 +48,7 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
 
         await using var receiverLifetime = receiver;
 
-        // A receive on a quiet subscription waits for a message, so say the subscription is in
-        // place once a peek succeeds: it opens the link and needs the same Listen right.
+        // A receive on a quiet subscription waits for a message, so a successful peek signals subscribed.
         var subscribed = false;
         try
         {

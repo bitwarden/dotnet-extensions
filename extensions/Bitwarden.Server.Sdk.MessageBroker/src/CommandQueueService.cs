@@ -23,7 +23,6 @@ internal sealed class CommandQueueService : BackgroundService
         SubscriptionReadiness readiness)
     {
         _readiness = readiness;
-        // As ConsumerBackgroundService does: expected from the moment it exists.
         readiness.Expect(queueName);
         _queueName = queueName;
         _receiver = receiver;

@@ -82,7 +82,6 @@ internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
             yield break;
         }
 
-        // Connection, channel and consumer are all in place.
         onSubscribed();
 
         await foreach (var message in innerChannel.Reader.ReadAllAsync(cancellationToken))
