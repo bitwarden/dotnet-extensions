@@ -40,11 +40,11 @@ dotnet add package Bitwarden.Server.Sdk.Idempotency.Abstractions
 | -------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `Idempotency:Secret` | None    | Base64 of 32 bytes: the secret the service's operations derive their keys and identifiers with. Required outside `Development`; see below. |
 
-`AddIdempotencySecret()` registers `IdempotencySecret`, read from configuration when first resolved by
-`IdempotencySecret.ReadSecret(configuration, environmentName)`. In `Development` an unset secret is
+`AddIdempotencySecret()` registers `IdempotencySecret`, read from configuration as the host starts by
+`IdempotencySecret.ReadSecret(configuration, environmentName)`, so a service deployed without its secret fails to start. In `Development` an unset secret is
 `CacheSecret.Development`. Outside it, an unset secret, or one equal to `CacheSecret.Development`, throws
 `InvalidOperationException`, naming the setting and never its value. A container with no `IHostEnvironment` is treated
-as not `Development`. A host resolves the secret as it begins an operation, so one that begins none needs none.
+as not `Development`. A service that runs no operations doesn't call `AddIdempotencySecret()` and needs no secret.
 
 ## Usage
 
