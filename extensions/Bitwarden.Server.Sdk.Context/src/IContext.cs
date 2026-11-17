@@ -31,8 +31,8 @@ public interface IContext
     /// The user this operation is made on behalf of, if any.
     /// </summary>
     /// <remarks>
-    /// When <see cref="IsEvent"/> is true, the event's actor instead: the person whose request published the event,
-    /// there for the record only. The work handling the event acts with its own authority, not on this person's behalf.
+    /// Null when <see cref="IsEvent"/> is true: the work handling an event acts with its own authority, and the person
+    /// whose request published the event is in <see cref="RecordedUserId"/>, for the record only.
     /// </remarks>
     Guid? UserId { get; }
 
@@ -147,7 +147,8 @@ public interface IContext
 
     /// <summary>
     /// Whether this is the context of an event being handled, as <see cref="ContextScope.BeginForEvent"/> establishes
-    /// it, so that <see cref="UserId"/> names the event's actor, for the record only.
+    /// it: its handler acts with its own authority, and the event's actor is in <see cref="RecordedUserId"/> and
+    /// <see cref="RecordedProviderId"/>, for the record only.
     /// </summary>
     /// <remarks>
     /// Never carried between services: no header says a request is an event's, so a request's context is never one.

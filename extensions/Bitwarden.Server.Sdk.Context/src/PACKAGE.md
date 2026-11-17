@@ -65,9 +65,10 @@ public sealed class WidgetJob(IWidgetBilling billing)
 ```
 
 A host handing an event to a service's handlers begins its scope with `ContextScope.BeginForEvent`. The context it
-establishes reports `IContext.IsEvent`, and so does `ContextScope.IsEvent`: the person in `UserId` is the event's
-actor, there for the record only, and a client can hold a handler's calls to that. A scope begun inside it with `Begin`
-and a `StatedContext` is not an event's. No header carries `IsEvent`, so a request's context is never an event's.
+establishes reports `IContext.IsEvent`, and so does `ContextScope.IsEvent`. The handler acts with its own authority:
+`UserId` and `ProviderId` are null, `Credential` is `System`, and the event's actor is in `RecordedUserId` and
+`RecordedProviderId`, for the record only. A scope begun inside it with `Begin` and a `StatedContext` is not an event's.
+No header carries `IsEvent`, so a request's context is never an event's.
 
 ### Write and read the `Bitwarden-Context` header
 
