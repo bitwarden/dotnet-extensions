@@ -84,9 +84,8 @@ services.AddKeyedSingleton<TokenCredential>(MessageBrokerKeys.Credential,
     new ManagedIdentityCredential(ManagedIdentityId.FromUserAssignedClientId(clientId)));
 ```
 
-The broker has no credential of its own, so the app always states which identity it uses; a host
-with a namespace and no registered credential refuses to start. The key keeps a credential you
-register for something else, such as Key Vault's, from being taken for the broker.
+The broker has no credential of its own: a host with a namespace and no registered credential
+refuses to start.
 
 ```json
 {
@@ -348,27 +347,19 @@ services.AddOptions<ConsumerRetryOptions>("orders/notifications").BindConfigurat
 ```
 
 - `MaxDeliveries`: how many times the message is delivered before a failure dead-letters it.
-  Default 1, which is no retry. The broker's own delivery limit still applies, so set this no
-  higher than it.
+  Default 1, which is no retry. Set it no higher than the broker's own delivery limit.
 - `RetryDelay`: how long the consumer waits after a failure before returning the message, doubling
   with each delivery up to `MaxRetryDelay` (default thirty seconds). Default is no wait.
 
-While it waits, the consumer takes no other message from that subscription or queue. On a command
-queue the settings belong to the queue, and a command waiting to be retried holds up every command
-family on it: with five deliveries and a one-second delay capped at ten, a command that always
-fails holds the queue for about fifteen seconds of waiting (1 + 2 + 4 + 8) before it is
-dead-lettered. Keep the settings small
-for a queue that must keep moving, or run more instances.
+While it waits, the consumer takes no other message from that subscription or queue; on a command
+queue that holds up every command family on it.
 
-A consumer that settles the message itself before throwing (dead-letters it, say) has decided: the
-message isn't retried and there is no wait. The dead-letter reason names the exception's type,
-never its message, which can carry data from the payload.
+A consumer that settles the message itself before throwing isn't retried. The dead-letter reason
+names the exception's type, never its message, which can carry data from the payload.
 
 On Azure Service Bus the message's lock is renewed while the consumer handles it and while it waits,
-so a handler that runs longer than the lock duration keeps its message rather than the broker
-giving it to another receiver. Renewal stops after `MaxLockRenewalDuration` (five minutes by
-default; set it no shorter than the longest `MaxRetryDelay`): a handler that hangs then loses the lock, and the
-message is delivered again, counting toward its delivery limit.
+for up to `MaxLockRenewalDuration` (five minutes by default; set it no shorter than the longest
+`MaxRetryDelay`).
 
 ### Broker outages
 
@@ -383,9 +374,8 @@ up. A raw `ISubscriber` stream (registered with `AddSubscriber`) ends with
 ### Stopping gracefully
 
 For Azure Service Bus and RabbitMQ, unacknowledged messages are automatically requeued by the
-broker when the host shuts down. A hosted consumer whose handler gives up because the host is
-stopping (it throws `OperationCanceledException` on the token it was given) returns its message at
-once: stopping isn't a failure, so the message is neither dead-lettered nor delayed.
+broker when the host shuts down. A hosted consumer whose handler throws `OperationCanceledException`
+because the host is stopping returns its message at once, neither dead-lettered nor delayed.
 
 For the in-memory channel backend, consumers registered with `AddMessageConsumer` are protected by
 an escrow mechanism: any messages left in the channel when the host stops are written to an
@@ -427,20 +417,13 @@ services.AddCommandConsumer<SendPushPayload, SendPush, SendPushConsumer>("notifi
 ```
 
 Consumers implement `IMessageConsumer<TPayload, TCeiling>` and are hosted like those registered
-with `AddMessageConsumer`: a scope per command, completed when the consumer returns, and
-dead-lettered when it throws unless the queue's `ConsumerRetryOptions` allow another delivery. The service runs one receiver for the queue and hands each command to the
-consumer for its family. A command whose family has no consumer is dead-lettered, so it doesn't
-block the queue.
+with `AddMessageConsumer`. A command whose family has no consumer is dead-lettered.
 
-Commands differ from events in one way: a command nobody will receive is an error. If the queue
-doesn't exist, `SendAsync` throws `BrokerUnavailableException`. On RabbitMQ that is either the queue's
-exchange missing, or the exchange with no queue bound to it: the command is published with
-`mandatory`, so the broker returns it. An outbox keeps the command and retries until the receiver's
-queue exists.
+Unlike an event, a command nobody will receive is an error: if the receiver's queue doesn't exist,
+or on RabbitMQ isn't bound to its exchange yet, `SendAsync` throws `BrokerUnavailableException`.
 
-Commands are versioned the same way as events: every version the sender knows travels in one
-message, and the consumer reads the newest it understands. The in-memory backend keeps its command
-queues in the process and doesn't escrow them, so commands still queued at shutdown are lost.
+Commands are versioned the same way as events. The in-memory backend doesn't escrow commands, so
+commands still queued at shutdown are lost.
 
 ## Observability
 
@@ -465,15 +448,10 @@ integrate with any OpenTelemetry-compatible pipeline.
 ### Readiness
 
 A host that calls `AddHealthChecks()` gets a check named `Message broker subscriptions`, added by
-`AddMessageConsumer` and `AddCommandConsumer`. It reports Degraded, naming each one, while any
-hosted consumer isn't receiving: before it has subscribed, and while it is subscribing again after a
-failure. It is never Unhealthy, and it is tagged `monitoring`: a broker outage affects every instance
-alike, so it must not take instances out of rotation, and Degraded keeps a default health endpoint
-answering 200. A host shows it on a monitoring endpoint and leaves it out of a readiness probe that
-filters by tag. A consumer counts as receiving once its subscription is in place: on RabbitMQ when its
-consumer is registered, on Azure Service Bus when a peek on its subscription or queue succeeds, and
-in memory at once. The check names subscriptions and queues, never the broker or an error's text:
-the probe answers without a credential, and those belong in the log.
+`AddMessageConsumer` and `AddCommandConsumer`. It reports Degraded, naming each hosted consumer that
+isn't receiving, and is never Unhealthy. It is tagged `monitoring`: a broker outage affects every
+instance alike, so leave it out of a readiness probe that filters by tag. The check never names the
+broker or an error's text, since the probe answers without a credential.
 
 ## Serialization
 

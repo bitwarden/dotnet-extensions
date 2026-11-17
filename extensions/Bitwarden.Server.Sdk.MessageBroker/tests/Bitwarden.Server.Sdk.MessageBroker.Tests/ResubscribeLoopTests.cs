@@ -25,7 +25,7 @@ public class ResubscribeLoopTests
         }
     }
 
-    // The tests here are about the wait between attempts, not readiness, so the subscribed signal is ignored.
+    // These tests ignore the subscribed signal.
     private Task RunAsync(Func<Action, CancellationToken, Task> receiveAsync, CancellationToken stoppingToken) =>
         ResubscribeLoop.RunAsync(
             (_, onMessage, token) => receiveAsync(onMessage, token), _logger, "topic/subscription",

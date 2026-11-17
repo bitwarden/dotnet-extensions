@@ -7,10 +7,6 @@ using Microsoft.Extensions.Options;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 
-/// <summary>
-/// A hosted consumer that throws dead-letters the message unless its subscription or queue has
-/// retries configured (<see cref="ConsumerRetryOptions"/>); with them it waits, then returns it.
-/// </summary>
 public class RetryDelayTests
 {
     [Theory]
@@ -200,8 +196,7 @@ public class RetryDelayTests
     [Fact(Timeout = 60 * 1000)]
     public async Task AHandlerThatSettlesItsMessageBeforeThrowing_DoesNotDelayTheNextOne()
     {
-        // A long delay, which the next message must not wait for: the first is dead-lettered by its
-        // handler, so it will never come back and there is nothing to delay.
+        // A long delay the next message must not wait for.
         var host = await StartTopicHostAsync<DeadLettersThenThrowsItemConsumer>(retry =>
         {
             retry.MaxDeliveries = 2;

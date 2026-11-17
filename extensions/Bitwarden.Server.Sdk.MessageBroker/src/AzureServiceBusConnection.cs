@@ -31,11 +31,7 @@ internal sealed class AzureServiceBusConnection : IAsyncDisposable
     public CancellationToken Closed => _closed.Token;
 
     /// <param name="options">The connection string, or the namespace to reach with a token credential.</param>
-    /// <param name="credential">
-    /// The credential for a namespace, which the app registers under <see cref="MessageBrokerKeys.Credential"/>.
-    /// Required with a namespace (<see cref="MessagingCredentialValidator"/> refuses to start without one);
-    /// not used with a connection string.
-    /// </param>
+    /// <param name="credential">The credential for a namespace; not used with a connection string.</param>
     public AzureServiceBusConnection(
         IOptions<MessagingOptions> options,
         [FromKeyedServices(MessageBrokerKeys.Credential)] TokenCredential? credential = null)

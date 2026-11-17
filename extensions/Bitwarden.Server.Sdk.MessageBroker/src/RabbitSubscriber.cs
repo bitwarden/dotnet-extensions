@@ -135,7 +135,6 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
             yield break;
         }
 
-        // Connection, channel and consumer are all in place.
         onSubscribed();
 
         await foreach (var envelope in innerChannel.Reader.ReadAllAsync(cancellationToken))

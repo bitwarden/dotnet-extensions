@@ -25,8 +25,8 @@ public static class MessageBrokerKeys
     /// the message broker uses for an Azure Service Bus namespace
     /// (<see cref="MessagingOptions.AzureServiceBusFullyQualifiedNamespace"/>):
     /// <c>services.AddKeyedSingleton&lt;TokenCredential&gt;(MessageBrokerKeys.Credential, credential)</c>.
-    /// Required with a namespace: the broker has no credential of its own. Keyed, so a credential the app
-    /// registers for something else is never taken for the broker.
+    /// Required with a namespace. Keyed, so a credential registered for something else is never used
+    /// for the broker.
     /// </summary>
     public const string Credential = "Bitwarden.Server.Sdk.MessageBroker";
 }
