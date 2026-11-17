@@ -17,10 +17,10 @@ internal static class ResubscribeLoop
     /// Opens the stream and handles messages until it ends. Calls <c>onMessage</c> after each
     /// message, which resets the delay: a failure after a working stream is a new outage.
     /// </param>
-    /// <param name="logger">Logs each failure and the delay before the next attempt.</param>
-    /// <param name="source">The topic subscription, for the log.</param>
-    /// <param name="timeProvider">Times the wait between attempts.</param>
-    /// <param name="stoppingToken">Cancelled when the host stops.</param>
+    /// <param name="logger">The logger for the consumer.</param>
+    /// <param name="source">The topic subscription being consumed.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="stoppingToken">The token that stops the loop.</param>
     internal static async Task RunAsync(
         Func<Action, CancellationToken, Task> receiveAsync,
         ILogger logger,
