@@ -214,8 +214,7 @@ public sealed class RabbitOutageTests : IAsyncLifetime
     [Fact(Timeout = 120 * 1000)]
     public async Task AConsumerThatCannotReachItsBrokerIsReportedDegraded()
     {
-        // An address that doesn't answer: each attempt to connect runs until its five-second
-        // timeout. Across several attempts the readiness probe must never report healthy.
+        // An address that doesn't answer, so each attempt to connect runs until its timeout.
         var host = new HostBuilder()
             .ConfigureAppConfiguration(b => b.AddInMemoryCollection(
                 new Dictionary<string, string?> { ["RabbitUri"] = "amqp://guest:guest@10.255.255.1:5672/", ["VerifyTopologyAtStartup"] = "false" }))

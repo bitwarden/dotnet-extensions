@@ -365,10 +365,6 @@ public class MessageConsumerTests
         Assert.Equal(1, envelope.DeadLetterCalls);
     }
 
-    /// <summary>
-    /// A handler that gives up because the host is stopping hasn't failed: its message is returned,
-    /// not dead-lettered, even though by default a failure isn't retried.
-    /// </summary>
     [Fact(Timeout = 60 * 1000)]
     public async Task AHandlerCancelledByTheHostStoppingReturnsItsMessage()
     {

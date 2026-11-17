@@ -4,9 +4,8 @@ namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// The infrastructure requirement kinds each registration declares through
-/// <c>Bitwarden.Server.Sdk.Infrastructure</c>, so the broker topology a service needs can be
-/// collected from its startup and provisioned outside it. They name topics, subscriptions, queues
-/// and payload families, never a connection string or key.
+/// <c>Bitwarden.Server.Sdk.Infrastructure</c>. They name topics, subscriptions, queues and payload
+/// families, never a connection string or key.
 /// </summary>
 public static class MessagingRequirements
 {

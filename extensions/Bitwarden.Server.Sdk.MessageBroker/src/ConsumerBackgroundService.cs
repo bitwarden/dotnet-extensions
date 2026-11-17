@@ -36,8 +36,7 @@ internal sealed class ConsumerBackgroundService<TPayload, TCeiling, TConsumer> :
     {
         _topology = topology;
         _readiness = readiness;
-        // Said here, before the service runs, so the readiness check never reports healthy in the
-        // moment before it starts.
+        // Before the service runs, so the check never reports healthy before it starts.
         readiness.Expect(subscriptionKey);
         _retry = retry;
         _scopeFactory = scopeFactory;
