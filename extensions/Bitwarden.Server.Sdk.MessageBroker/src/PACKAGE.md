@@ -187,20 +187,9 @@ public class UserService(
 
 ### Message identifiers
 
-Every message carries an identifier, which subscribers see as `Envelope.MessageId`. `SendAsync(ct)`
-assigns a new version 7 GUID. To send the same message again under the same identifier, as an
-outbox does when it retries, pass it yourself:
-
-```csharp
-await publisher
-    .Publish(new OrderPayload.V2(order.Id, order.CustomerId))
-    .SendAsync(outboxRow.MessageId, ct);
-```
-
-A subscriber that receives the message twice then sees the same identifier both times, and can use
-it to recognize the repeat. Identifiers must be ASCII, must not be blank, and can be at most 128
-characters (`PublisherExtensions.MaxMessageIdLength`, Azure Service Bus's limit; ASCII keeps them
-within RabbitMQ's 255 bytes too).
+`SendAsync(ct)` gives each message a new version 7 GUID. To send a message again under the same
+identifier, pass it: `SendAsync(messageId, ct)`. An identifier must be ASCII, not blank, and at most
+128 characters.
 
 ### When a send completes
 
@@ -304,27 +293,19 @@ broker metadata:
 | Property        | Description                                                                                                   |
 | --------------- | ------------------------------------------------------------------------------------------------------------- |
 | `Payload`       | The resolved variant at `TCeiling` (see above).                                                               |
-| `MessageId`     | The identifier the publisher sent the message under. The same on every redelivery, and on a re-send that passes it again. |
+| `MessageId`     | The identifier the publisher sent the message under; the same on every redelivery and re-send.                |
 | `TraceId`       | W3C traceparent of the publish span, for linking consumer traces to producer traces.                          |
 | `DeliveryCount` | Number of times this message has been delivered. `1` on the first attempt, incrementing with each redelivery. |
 
-### When the broker goes away
+### Broker outages
 
-Consumers registered with `AddMessageConsumer` keep running through a
-broker outage. When their subscription fails, they log a warning and subscribe again, waiting one
-second after the first failure and doubling the wait up to thirty seconds. The wait goes back to
-one second once messages flow again. A host whose broker is down when it starts still starts, and
-its consumers catch up once the broker is back.
-
-A send while the broker is unreachable throws `BrokerUnavailableException` rather than waiting for
-it: at once if the broker refuses the connection, and within five seconds if its address doesn't
-answer at all. Sends that arrive while an attempt to connect is under way share that attempt, and
-the next send after a failure tries again. On RabbitMQ the library reconnects itself (the
-client's automatic recovery is turned off so there is one mechanism); the Azure Service Bus client
-reconnects on its own.
-
-A raw `ISubscriber` stream (registered with `AddSubscriber` and enumerated yourself) still ends with
-`BrokerDisconnectedException` when the broker goes away; subscribing again is up to you.
+Consumers registered with `AddMessageConsumer` keep running through a broker outage: they subscribe
+again, waiting one second at first and up to thirty seconds between attempts. A host whose broker
+is down when it starts still starts. On RabbitMQ, a send while the broker is unreachable throws
+`BrokerUnavailableException` rather than waiting for it. On Azure Service Bus, the client retries
+first, and a send throws `BrokerUnavailableException` once its retry policy gives up. A raw
+`ISubscriber` stream (registered with `AddSubscriber`) ends with `BrokerDisconnectedException`
+instead; subscribing again is up to you.
 
 ### Stopping gracefully
 
