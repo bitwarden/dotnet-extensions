@@ -100,7 +100,9 @@ or one holding a colon, throws `ArgumentException`, and a long one is shortened 
 The key is only as unique as what it is made from. Take the envelope's identifier from the message broker, minted
 where the message was published, and the due time from the scheduler, never from a message's payload or a request's
 headers. A message published again under an identifier already used, or a run given a due time already run, repeats
-the operation's keys and derived identifiers, and its writes are answered from the first's.
+the operation's keys and derived identifiers, and its writes are answered from the first's. `ForMessage` takes any
+identifier a message broker allows, shortening one with a space or a control character to its hash. A message that
+arrives with no identifier, and is given a new one on each delivery, gets no deduplication across its redeliveries.
 
 A handler or job whose writes must be done again when it runs again, because each depends on what the callee has
 gained since, says so. In `UsageReportJob.cs`:

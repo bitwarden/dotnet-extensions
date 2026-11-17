@@ -276,11 +276,20 @@ public sealed class IdempotentOperationTests
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    [InlineData("a message")]
+    [InlineData(" ")]
     [InlineData("café")]
-    public void ForMessage_AnIdentifierThatIsNotVisibleAscii_IsRefused(string? messageId)
+    public void ForMessage_AnIdentifierBlankOrNotAscii_IsRefused(string? messageId)
     {
         Assert.ThrowsAny<ArgumentException>(() => IdempotentOperation.ForMessage("Some.Handler", messageId!));
+    }
+
+    // Any identifier a message broker allows is taken: one with a space or a control character is shortened to its hash.
+    [Theory]
+    [InlineData("a message", "msg:Some.Handler:f53c09ca39717a45c62d9aca8f8113eddbfd5f81dcab0b33b1c1834075225e68")]
+    public void ForMessage_AnIdentifierThatIsAsciiButNotVisible_IsShortenedToItsHash(string messageId, string expected)
+    {
+        Assert.Equal(expected, IdempotentOperation.ForMessage("Some.Handler", messageId));
+        Assert.NotEqual(expected, IdempotentOperation.ForMessage("Some.Handler", "a\tmessage"));
     }
 
     [Fact]

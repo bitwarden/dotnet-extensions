@@ -128,29 +128,35 @@ public static class IdempotentOperation
     /// </summary>
     /// <param name="handler">The handler's stable name, such as its type's full name.</param>
     /// <param name="messageId">
-    /// The message's identifier: 1 to <see cref="MaximumMessageIdLength"/> visible ASCII characters. A GUID's
+    /// The message's identifier: 1 to <see cref="MaximumMessageIdLength"/> ASCII characters, not blank, as a message
+    /// broker allows. One that isn't visible ASCII (a space, a control character) is shortened to its hash. A GUID's
     /// identifier gives the key <see cref="ForMessage(string, Guid)"/> gives for that GUID.
     /// </param>
     /// <returns>The key; a long name is shortened to its hash.</returns>
     /// <exception cref="ArgumentException">
     /// <paramref name="handler"/> is null, empty or white space or holds a colon, or <paramref name="messageId"/> is blank, too long, or
-    /// not visible ASCII.
+    /// not ASCII.
     /// </exception>
     /// <remarks>
     /// The key is only as unique as the message's identifier. Take it from the message broker's envelope, chosen where
-    /// the message was sent, never from the message's payload or a request's headers.
+    /// the message was sent, never from the message's payload or a request's headers. A message that arrives with no
+    /// identifier, and is given a new one on each delivery, gets no deduplication across its redeliveries.
     /// </remarks>
     public static string ForMessage(string handler, string messageId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(handler);
 
-        if (!IdempotencyKeys.IsValid(messageId) || messageId.Length > MaximumMessageIdLength)
+        if (string.IsNullOrWhiteSpace(messageId) || messageId.Length > MaximumMessageIdLength || !Ascii.IsValid(messageId))
         {
             throw new ArgumentException(
-                $"A message's identifier is 1 to {MaximumMessageIdLength} visible ASCII characters.", nameof(messageId));
+                $"A message's identifier is 1 to {MaximumMessageIdLength} ASCII characters, not blank.", nameof(messageId));
         }
 
-        return Compose(MessageKind, handler, nameof(handler), messageId);
+        var occurrence = IdempotencyKeys.IsValid(messageId)
+            ? messageId
+            : Convert.ToHexStringLower(SHA256.HashData(Encoding.ASCII.GetBytes(messageId)));
+
+        return Compose(MessageKind, handler, nameof(handler), occurrence);
     }
 
     /// <summary>
