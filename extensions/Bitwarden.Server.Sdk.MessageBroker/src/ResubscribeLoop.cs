@@ -3,10 +3,8 @@ using Microsoft.Extensions.Logging;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Keeps a hosted consumer's receive loop running through broker outages. A stream that fails
-/// (the broker went away, refused the subscription, or could not be reached at all) is opened
-/// again after a delay that doubles with each failure in a row, from one second up to thirty.
-/// A stream that ends without failing ends the loop: that only happens when the host is closing.
+/// Keeps a hosted consumer's receive loop running through broker outages. A stream that fails is
+/// opened again after a delay that doubles with each failure in a row, from one second up to thirty.
 /// </summary>
 internal static class ResubscribeLoop
 {
@@ -21,14 +19,11 @@ internal static class ResubscribeLoop
     /// subscription is in place, and its second after each message, which resets the delay: a
     /// failure after a working stream is a new outage.
     /// </param>
-    /// <param name="logger">Logs each failure and the delay before the next attempt.</param>
-    /// <param name="source">The topic subscription or command queue, for the log and the readiness probe.</param>
-    /// <param name="readiness">
-    /// Told when the consumer is receiving and when it is failing. The consumer said it was expected
-    /// when it was created.
-    /// </param>
-    /// <param name="timeProvider">Times the wait between attempts.</param>
-    /// <param name="stoppingToken">Cancelled when the host stops.</param>
+    /// <param name="logger">The logger for the consumer.</param>
+    /// <param name="source">The topic subscription or command queue being consumed.</param>
+    /// <param name="readiness">Told when the consumer is receiving and when it is failing.</param>
+    /// <param name="timeProvider">The time provider.</param>
+    /// <param name="stoppingToken">The token that stops the loop.</param>
     internal static async Task RunAsync(
         Func<Action, Action, CancellationToken, Task> receiveAsync,
         ILogger logger,

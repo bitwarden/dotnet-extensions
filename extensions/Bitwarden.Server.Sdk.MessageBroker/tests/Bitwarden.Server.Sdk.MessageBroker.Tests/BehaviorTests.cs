@@ -306,7 +306,6 @@ public abstract class BehaviorTests : IAsyncLifetime
         var marker = Random.Shared.Next();
         await publisher.Publish(new MyItem(marker)).SendAsync(messageId, TestContext.Current.CancellationToken);
 
-        // Skip any stray message an earlier test left on a shared broker subscription.
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {
             await envelope.CompleteAsync(TestContext.Current.CancellationToken);
@@ -327,7 +326,6 @@ public abstract class BehaviorTests : IAsyncLifetime
         foreach (var marker in markers)
             await publisher.Publish(new MyItem(marker)).SendAsync(TestContext.Current.CancellationToken);
 
-        // Skip any stray message an earlier test left on a shared broker subscription.
         var ids = new List<string>();
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {
@@ -816,8 +814,6 @@ public abstract class BehaviorTests : IAsyncLifetime
         var messageId = Guid.CreateVersion7().ToString();
         await publisher.Publish(new MyItem(1)).SendAsync(messageId, TestContext.Current.CancellationToken);
 
-        // Wait for this test's own message: a broker subscription shared across tests can still
-        // hold a stray message from an earlier one, which would otherwise be taken first.
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {
             await envelope.CompleteAsync(TestContext.Current.CancellationToken);

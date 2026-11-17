@@ -10,7 +10,6 @@ public class ResubscribeLoopTests
     private readonly FakeLogger _logger = new();
     private readonly FakeTimeProvider _time = new();
 
-    // Each failed attempt is logged with the wait before the next; the waits so far, in order.
     private List<TimeSpan> Waits() =>
         [.. _logger.Collector.GetSnapshot()
             .Where(record => record.Level == LogLevel.Warning)
@@ -57,7 +56,6 @@ public class ResubscribeLoopTests
         var attempts = 0;
         var loop = RunAsync((onMessage, _) =>
         {
-            // The third attempt receives a message before it fails: a new outage, not the same one.
             if (++attempts == 3)
                 onMessage();
             throw new InvalidOperationException("broker gone");
