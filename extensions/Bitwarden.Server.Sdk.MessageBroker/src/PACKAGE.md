@@ -187,20 +187,9 @@ public class UserService(
 
 ### Message identifiers
 
-Every message carries an identifier, which subscribers see as `Envelope.MessageId`. `SendAsync(ct)`
-assigns a new version 7 GUID. To send the same message again under the same identifier, as an
-outbox does when it retries, pass it yourself:
-
-```csharp
-await publisher
-    .Publish(new OrderPayload.V2(order.Id, order.CustomerId))
-    .SendAsync(outboxRow.MessageId, ct);
-```
-
-A subscriber that receives the message twice then sees the same identifier both times, and can use
-it to recognize the repeat. Identifiers must be ASCII, must not be blank, and can be at most 128
-characters (`PublisherExtensions.MaxMessageIdLength`, Azure Service Bus's limit; ASCII keeps them
-within RabbitMQ's 255 bytes too).
+`SendAsync(ct)` gives each message a new version 7 GUID. To send a message again under the same
+identifier, pass it: `SendAsync(messageId, ct)`. An identifier must be ASCII, not blank, and at most
+128 characters.
 
 ### When a send completes
 
