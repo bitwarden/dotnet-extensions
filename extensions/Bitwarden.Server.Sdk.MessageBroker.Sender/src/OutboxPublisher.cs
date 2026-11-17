@@ -3,10 +3,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Bitwarden.Server.Sdk.MessageBroker.Sender;
 
 /// <summary>
-/// The publisher a service injects: <c>SendAsync</c> serializes the message and adds it to the
-/// outbox in <typeparamref name="TContext"/>. Nothing is sent, and nothing is saved, until the
-/// caller's <c>SaveChangesAsync</c> commits it with the change it reports or asks for; the
-/// dispatcher sends it after that.
+/// The publisher a service injects: <c>SendAsync</c> adds the message to the outbox in
+/// <typeparamref name="TContext"/>, and the caller's <c>SaveChangesAsync</c> commits it.
 /// </summary>
 internal sealed class OutboxPublisher<TPayload, TCeiling, TContext> : Publisher<TPayload, TCeiling>, IOutboxPublisher<TPayload>
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>

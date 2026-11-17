@@ -7,12 +7,6 @@ using RabbitMQ.Client;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Sender.Tests;
 
-/// <summary>
-/// The outbox with a real AMQP broker after it, as a service runs it: the change and its messages are saved together,
-/// the dispatcher sends them, the broker routes the event to its subscription and the command to its queue, and the
-/// consumers receive each under the identifier it was saved with. The broker is
-/// <see cref="AmqpTestBroker.Image"/>.
-/// </summary>
 public sealed class BrokerDeliveryTests(AmqpBrokerFixture broker) : IClassFixture<AmqpBrokerFixture>, IAsyncLifetime
 {
     private readonly string _topic = $"shop-{Guid.NewGuid():N}"[..13] + ".events";
@@ -83,8 +77,7 @@ public sealed class BrokerDeliveryTests(AmqpBrokerFixture broker) : IClassFixtur
         }
     }
 
-    // The topology a provisioning step declares from the services' infrastructure requirements: the topic, its
-    // subscription's queue and binding, and the command queue with an exchange of its own that routes to it by name.
+    // The topology a provisioning step declares from the services' infrastructure requirements.
     private async Task DeclareTopologyAsync()
     {
         var factory = new ConnectionFactory { Uri = new Uri(broker.Uri) };

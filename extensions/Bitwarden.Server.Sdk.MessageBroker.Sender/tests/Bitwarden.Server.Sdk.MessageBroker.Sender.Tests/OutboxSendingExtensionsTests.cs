@@ -4,9 +4,6 @@ using static Bitwarden.Server.Sdk.MessageBroker.Sender.Tests.OutboxTestHost;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Sender.Tests;
 
-/// <summary>
-/// Sending later, and taking back one message or a subject's earlier messages.
-/// </summary>
 public sealed class OutboxSendingExtensionsTests : IAsyncDisposable
 {
     private readonly OutboxTestHost _outbox = new();

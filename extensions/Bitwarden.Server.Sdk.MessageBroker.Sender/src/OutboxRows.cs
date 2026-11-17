@@ -28,8 +28,7 @@ internal static class OutboxRows
         // only the sending code has.
         var buffer = new ArrayBufferWriter<byte>();
         serializer.SerializeVariants<TPayload>(variants, buffer);
-        // A local message never reaches a broker, so no broker's limit applies to it, and work a
-        // service hands itself after a commit can be larger than any message it sends.
+        // A local message never reaches a broker, so no broker's size limit applies.
         if (buffer.WrittenCount > maxMessageSize && destination != MessageOutbox.Local)
             throw new InvalidOperationException(
                 $"A '{TPayload.WireName}' message to '{destination}' is {buffer.WrittenCount} bytes, more than the " +

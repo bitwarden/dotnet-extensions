@@ -342,7 +342,6 @@ public abstract class BehaviorTests : IAsyncLifetime
     [Fact(Timeout = 60 * 1000)]
     public async Task ARawSendDeliversTheBodyUnderItsIdentifier()
     {
-        // What an outbox does: send versions it serialized earlier, exactly as stored.
         var host = await CreateInstanceAsync();
         var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);

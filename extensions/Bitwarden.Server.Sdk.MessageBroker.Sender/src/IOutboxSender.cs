@@ -8,8 +8,7 @@ namespace Bitwarden.Server.Sdk.MessageBroker.Sender;
 /// <remarks>
 /// <para>
 /// Scoped, like the <c>DbContext</c> the message is written to: the message commits with the
-/// caller's next <c>SaveChangesAsync</c> on it, and nothing is sent without that save, as with the
-/// keyed <see cref="Publisher{TPayload, TCeiling}"/> it uses.
+/// caller's next <c>SaveChangesAsync</c> on it, and nothing is sent without that save.
 /// </para>
 /// <para>
 /// The message type must be registered through the outbox exactly once, to one destination

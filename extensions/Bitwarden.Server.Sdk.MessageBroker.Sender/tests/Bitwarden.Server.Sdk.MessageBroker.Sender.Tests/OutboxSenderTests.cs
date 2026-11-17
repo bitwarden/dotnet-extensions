@@ -3,9 +3,6 @@ using static Bitwarden.Server.Sdk.MessageBroker.Sender.Tests.OutboxTestHost;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Sender.Tests;
 
-/// <summary>
-/// <see cref="IOutboxSender"/>: adding a message to the one destination its type was registered to.
-/// </summary>
 public sealed class OutboxSenderTests : IAsyncDisposable
 {
     private readonly OutboxTestHost _outbox = new();

@@ -23,10 +23,8 @@ dotnet add package Bitwarden.Server.Sdk.MessageBroker.Sender
   accepted it.
 - **Nothing is sent without a save.** `SendAsync` neither sends nor saves. A change that rolls back
   takes its messages with it.
-- **At least once.** A message can be sent more than once, always under the same identifier: after
-  a crash between the send and the delete, or when one send or local handler runs longer than the
-  claim on its row (`Lease`) and another instance claims the row. A receiver must treat a repeat as
-  harmless.
+- **At least once.** A message can be sent more than once, always under the same identifier. A
+  receiver must treat a repeat as harmless.
 - **A destination** is a topic, another service's command queue, or `MessageOutbox.Local`, a
   handler in the sending service itself.
 - **Set aside.** A failure that sending again can never fix leaves the row in the table with
@@ -57,9 +55,8 @@ dotnet add package Bitwarden.Server.Sdk.MessageBroker.Sender
 `MaxMessageSize` defaults to Azure Service Bus Standard's limit; raise it on a broker that allows
 more. A message handled in the service itself never reaches a broker and has no limit.
 
-`SendOnCommit` suits a service whose readers expect a message's effect within moments of the change,
-sooner than the poll interval, without polling more often. It wakes only the instance that saved,
-and changes nothing about delivery: the poll still runs as the backstop.
+`SendOnCommit` suits a service whose readers expect a message's effect within moments of the change.
+It wakes only the instance that saved; the poll still runs as the backstop.
 
 ## Usage
 
@@ -126,9 +123,7 @@ public sealed class OrganizationDeletion(
 }
 ```
 
-The message is serialized when `SendAsync` runs, with every version it carries, so data an older
-version needs comes from the code that sends it, and it is sent exactly as written. Pass an
-identifier to `SendAsync` to choose it; otherwise a version 7 GUID is used.
+Pass an identifier to `SendAsync` to choose it; otherwise a version 7 GUID is used.
 
 ### Send without naming the destination
 
@@ -159,9 +154,8 @@ versions need data from the sender to step down is sent with its keyed publisher
 ### Send from a save interceptor
 
 Code that holds the `DbContext` being saved but no scope to resolve a publisher in adds a message
-with `MessageOutbox.Add`. It writes the row the publisher would, and refuses a context the
-service's container didn't make, or a type not registered to the destination through that
-context's outbox.
+with `MessageOutbox.Add`. It refuses a context the service's container didn't make, or a type not
+registered to the destination through that context's outbox.
 
 `OrganizationDeletedInterceptor.cs`:
 
@@ -222,10 +216,8 @@ public sealed class InvitationAcceptance(
 
 `RetractMessageAsync` drops a message added in the current unit of work and not yet saved, and
 deletes one already saved at once, inside the caller's transaction if one is open. It returns
-whether the message was in the outbox, so `false` means it was already sent. A send already under
-way can't be recalled, so a retracted message can still arrive, and its receiver handles it as any
-repeat. Only a publisher registered through the outbox can send later; one that sends straight to
-the broker throws.
+`false` once the message has been sent. A send already under way can't be recalled, so a retracted
+message can still arrive. Only a publisher registered through the outbox can send later.
 
 ### Take back a subject's earlier messages
 
@@ -280,10 +272,8 @@ run more than once for one message, so it must be harmless to repeat.
 
 ### Watch the outbox
 
-Every outbox registers a health check, `Message outbox ({context})`, tagged `monitoring`
-(`HealthCheckTags.Monitoring` in `Bitwarden.Server.Sdk.HealthChecks`), so a host reports it without
-taking instances out of rotation: every instance drains the same table, and removing one wouldn't
-help. It is:
+Every outbox registers a health check, `Message outbox ({context})`, tagged `monitoring` so a host
+reports it without taking instances out of rotation. It is:
 
 - **degraded** once the longest-waiting due message is `BacklogDegradedAge` late;
 - **unhealthy** once it is `BacklogUnhealthyAge` late, or any message has been set aside.
@@ -319,15 +309,13 @@ Every instance counts the same table, so aggregate the gauges with `max`, not `s
 
 ## Gotchas and constraints
 
-- A message larger than `MaxMessageSize` is refused by `SendAsync`, so the caller's change fails
-  with it rather than committing a message no broker would take. Send identifiers, not contents.
-- A failure is retried for as long as it takes: an outage, a command queue that doesn't exist yet,
-  expired credentials and a missing permission all clear in time. Only a message Azure Service Bus
-  reports as too large, or a local message its handler dead-lettered or can't read, is set aside.
+- A message larger than `MaxMessageSize` is refused by `SendAsync`, failing the caller's change.
+  Send identifiers, not contents.
+- A failure is retried until it clears. Only a message Azure Service Bus reports as too large, or a
+  local message its handler dead-lettered or can't read, is set aside.
 - During a rolling deploy an instance leaves alone any row of a type it doesn't send, for an
   instance that does.
 - With `Dispatch` off, an instance writes to the outbox but sends nothing; another instance must
   dispatch.
-- Keep each send and local handler well inside `Lease`. The dispatcher stops starting sends from a
-  batch once a quarter of the lease is left and leaves the rest for the next claim, but one that
-  runs past the lease can be sent again by another instance.
+- Keep each send and local handler well inside `Lease`: one that runs past it can be sent again by
+  another instance.

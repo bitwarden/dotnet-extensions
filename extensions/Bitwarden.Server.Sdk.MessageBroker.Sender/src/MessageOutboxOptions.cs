@@ -7,8 +7,7 @@ public sealed class MessageOutboxOptions
 {
     /// <summary>
     /// Whether this instance runs the dispatcher. Default true. When false, what is written to the outbox waits there
-    /// until an instance that dispatches sends it, which suits a host that only writes, or a test that hands the
-    /// service's own messages to their handlers itself rather than racing the dispatcher's polling.
+    /// until an instance that dispatches sends it.
     /// </summary>
     public bool Dispatch { get; set; } = true;
 
@@ -33,11 +32,9 @@ public sealed class MessageOutboxOptions
     public TimeSpan MaximumBackoff { get; set; } = TimeSpan.FromMinutes(5);
 
     /// <summary>
-    /// The largest serialized message <c>SendAsync</c> accepts. A larger one is refused when it is
-    /// written, so the caller's change fails with it, rather than stranding a committed message no
-    /// broker would take. Default 256 KiB, Azure Service Bus Standard's limit; raise it on a broker
-    /// that allows more. A message the service handles itself (<see cref="MessageOutbox.Local"/>) never reaches a
-    /// broker, and has no limit.
+    /// The largest serialized message <c>SendAsync</c> accepts; a larger one is refused when it is
+    /// written, so the caller's change fails with it. Default 256 KiB, Azure Service Bus Standard's
+    /// limit. A message the service handles itself (<see cref="MessageOutbox.Local"/>) has no limit.
     /// </summary>
     public int MaxMessageSize { get; set; } = 256 * 1024;
 
@@ -62,16 +59,8 @@ public sealed class MessageOutboxOptions
     /// than leaving them for the next poll. Off by default.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// For a service whose readers expect a message's effect within moments of the change that sent
-    /// it, sooner than <see cref="PollInterval"/> allows, without polling more often. Only this
-    /// instance's dispatcher is woken, and only by saves made in this instance.
-    /// </para>
-    /// <para>
-    /// Changes nothing about delivery: messages are still written in the same save and sent by the
-    /// same dispatcher, and the poll still runs as the backstop, so a missed wake-up only means the
-    /// next poll sends them.
-    /// </para>
+    /// Only this instance's dispatcher is woken, and only by saves made in this instance. The poll
+    /// still runs as the backstop.
     /// </remarks>
     public bool SendOnCommit { get; set; }
 }

@@ -3,13 +3,8 @@ using Azure.Messaging.ServiceBus;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Keeps a received message's lock from expiring while its handler runs, and while the consumer
-/// waits before redelivering it after a failure. Without renewal a handler that outlasts the
-/// lock duration loses the message: the broker hands it to another receiver while this one is
-/// still working on it, and this one's settlement then fails. The lock is renewed when half of
-/// it remains, until <see cref="StopAsync"/> is called at settlement or the renewal has run for
-/// <see cref="MessagingOptions.MaxLockRenewalDuration"/>. The bound keeps the broker's backstop
-/// for a handler that hangs: its lock then expires and the message is delivered again.
+/// Keeps a received message's lock from expiring while its handler runs and while the consumer
+/// waits to retry it, until <see cref="StopAsync"/> or <see cref="MessagingOptions.MaxLockRenewalDuration"/>.
 /// </summary>
 internal sealed class AzureServiceBusLockRenewal
 {
@@ -24,8 +19,8 @@ internal sealed class AzureServiceBusLockRenewal
     }
 
     /// <summary>
-    /// Stops renewing, and waits for a renewal already under way to finish, so that it never overlaps
-    /// the settlement that follows. Call before settling the message. Safe to call more than once.
+    /// Stops renewing and waits for a renewal under way, so it never overlaps settlement. Call before
+    /// settling the message.
     /// </summary>
     public async Task StopAsync()
     {
@@ -56,9 +51,7 @@ internal sealed class AzureServiceBusLockRenewal
         }
         catch (Exception)
         {
-            // Stopped at settlement, or the receiver closed, or the lock was already lost. In the
-            // last case settlement fails and the broker redelivers the message, as it would have
-            // without renewal.
+            // Stopped, the receiver closed, or the lock was lost and the broker will redeliver.
         }
     }
 }

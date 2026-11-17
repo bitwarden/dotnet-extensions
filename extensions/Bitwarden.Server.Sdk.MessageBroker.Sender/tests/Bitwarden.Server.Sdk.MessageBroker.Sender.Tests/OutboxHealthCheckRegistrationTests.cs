@@ -2,9 +2,6 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Sender.Tests;
 
-/// <summary>
-/// How the outbox's health check is registered.
-/// </summary>
 public sealed class OutboxHealthCheckRegistrationTests : IAsyncDisposable
 {
     private readonly OutboxTestHost _outbox = new();

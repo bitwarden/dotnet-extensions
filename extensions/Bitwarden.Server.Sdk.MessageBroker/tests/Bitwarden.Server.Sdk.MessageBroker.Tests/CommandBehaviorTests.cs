@@ -9,8 +9,6 @@ using RabbitMQ.Client.Exceptions;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 
-// Three command families a notification service might accept on its one command queue.
-
 public sealed record SendMail(int Id) : SendMailPayload.ISole;
 
 public class SendMailPayload : Payload<SendMailPayload, SendMail, SendMail>, IPayloadVariants<SendMailPayload>, IPayloadWireName<SendMailPayload>
@@ -35,7 +33,6 @@ public class SendSmsPayload : Payload<SendSmsPayload, SendSms, SendSms>, IPayloa
     public static IReadOnlyList<(Type, string)> Variants => [(typeof(SendSms), "v1")];
 }
 
-/// <summary>What a command consumer saw, for the tests to wait on.</summary>
 public sealed record HandledCommand(string Family, int Id, string MessageId, int DeliveryCount);
 
 public sealed class CommandRecorder
@@ -87,23 +84,16 @@ public sealed class OtherSendMailConsumer : IMessageConsumer<SendMailPayload, Se
     public Task HandleAsync(Envelope<SendMailPayload, SendMail> envelope, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
-/// <summary>
-/// Command queues on every backend: one queue, owned by the receiver, carrying several command
-/// families, each handed to its own consumer.
-/// </summary>
 public abstract class CommandBehaviorTests : IAsyncLifetime
 {
     private readonly List<IHost> _hosts = [];
 
     protected abstract Dictionary<string, string?> CreateConfig();
 
-    /// <summary>The receiver's command queue.</summary>
     protected abstract string QueueName { get; }
 
-    /// <summary>Whether sending to a queue that doesn't exist fails. False for the in-memory backend, which has no broker.</summary>
     protected virtual bool DetectsMissingQueue => true;
 
-    /// <summary>Runs before the host starts, so a backend can declare the queues the host needs.</summary>
     protected virtual Task PreStartAsync(IHost host) => Task.CompletedTask;
 
     public virtual ValueTask InitializeAsync() => ValueTask.CompletedTask;
@@ -117,7 +107,7 @@ public abstract class CommandBehaviorTests : IAsyncLifetime
         }
     }
 
-    // One host that sends all three families and consumes two of them: send.sms has no consumer.
+    // Sends all three families and consumes two: send.sms has no consumer.
     private async Task<IHost> CreateHostAsync(bool track = true)
     {
         var host = new HostBuilder()
@@ -183,7 +173,6 @@ public abstract class CommandBehaviorTests : IAsyncLifetime
         await AssertDeadLetteredAsync(SendSmsPayload.WireName);
     }
 
-    /// <summary>Asserts a message of <paramref name="family"/> reached the queue's dead-letter store, where the backend has one the test can read.</summary>
     protected virtual Task AssertDeadLetteredAsync(string family) => Task.CompletedTask;
 
     [Fact(Timeout = 60 * 1000)]
@@ -198,7 +187,6 @@ public abstract class CommandBehaviorTests : IAsyncLifetime
         await Sender<SendMailPayload, SendMail>(host, QueueName).Publish(new SendMail(mailId))
             .SendAsync(messageId, TestContext.Current.CancellationToken);
 
-        // Each failure is counted, so the third delivery says so.
         var deliveries = await recorder.WaitForAsync(c => c.Id == mailId, 3);
         Assert.All(deliveries, d => Assert.Equal(messageId, d.MessageId));
         Assert.Equal([1, 2, 3], deliveries.Select(d => d.DeliveryCount).Order().Take(3));
@@ -207,8 +195,6 @@ public abstract class CommandBehaviorTests : IAsyncLifetime
     [Fact(Timeout = 120 * 1000)]
     public async Task ReceiverEndsCleanlyWhenTheHostStopsWhileItConnects()
     {
-        // Stop the host while the queue's receiver may still be connecting. However early that
-        // is, stopping must be prompt and the receiver must end without a fault.
         foreach (var delay in new[] { 0, 1, 5, 10, 20 })
         {
             for (var attempt = 0; attempt < 4; attempt++)
@@ -235,7 +221,6 @@ public abstract class CommandBehaviorTests : IAsyncLifetime
     {
         Assert.SkipUnless(DetectsMissingQueue, "This backend has no broker to refuse the command.");
         var missingQueue = $"missing-{Guid.NewGuid():N}";
-        // A host that only sends: nothing declares the queue it sends to.
         var host = new HostBuilder()
             .ConfigureAppConfiguration(b => b.AddInMemoryCollection(CreateConfig()))
             .ConfigureServices(services =>
@@ -273,7 +258,6 @@ public class RabbitCommandBehaviorTests : CommandBehaviorTests, IClassFixture<Ra
 
     protected override Dictionary<string, string?> CreateConfig() => new() { ["RabbitUri"] = _fixture.GetUri(), ["VerifyTopologyAtStartup"] = "false" };
 
-    // Declares each queue a command consumer reads, and its exchange, as the receiver's provisioning would.
     protected override async Task PreStartAsync(IHost host)
     {
         var uri = host.Services.GetRequiredService<IOptions<MessagingOptions>>().Value.RabbitUri!;
@@ -282,8 +266,7 @@ public class RabbitCommandBehaviorTests : CommandBehaviorTests, IClassFixture<Ra
         await using var channel = await conn.CreateChannelAsync(cancellationToken: TestContext.Current.CancellationToken);
         foreach (var queue in host.Services.GetServices<CommandQueueDeclaration>().Where(d => d.IsConsumer).Select(d => d.QueueName).Distinct())
         {
-            // With a delivery limit, as BROKER-TOPOLOGY.md's policy gives every command queue: LavinMQ
-            // counts deliveries in x-delivery-count only on a queue that has one.
+            // LavinMQ counts x-delivery-count only on a queue with a delivery limit.
             await channel.ExchangeDeclareAsync(queue, ExchangeType.Direct, durable: true,
                 cancellationToken: TestContext.Current.CancellationToken);
             await channel.QueueDeclareAsync(queue, durable: true, exclusive: false, autoDelete: false,
@@ -294,10 +277,6 @@ public class RabbitCommandBehaviorTests : CommandBehaviorTests, IClassFixture<Ra
         }
     }
 
-    /// <summary>
-    /// A command sent before its queue is provisioned fails, whichever part is missing, and the same
-    /// sender succeeds once the queue is bound to its exchange: what an outbox retrying the command sees.
-    /// </summary>
     [Fact(Timeout = 60 * 1000)]
     public async Task ACommandFailsUntilItsQueueIsBoundToItsExchange()
     {
@@ -361,8 +340,7 @@ public class AzureServiceBusCommandBehaviorTests : CommandBehaviorTests
     protected override Dictionary<string, string?> CreateConfig() =>
         new() { ["AzureServiceBusConnectionString"] = _fixture.GetConnectionString(), ["VerifyTopologyAtStartup"] = "false" };
 
-    // The queue is shared by every test in the class: start each one with it, and its dead-letter
-    // queue, empty.
+    // The queue is shared by every test in the class: start each with it and its dead-letter queue empty.
     public override async ValueTask InitializeAsync()
     {
         await using var client = new ServiceBusClient(_fixture.GetConnectionString());

@@ -3,9 +3,6 @@ using static Bitwarden.Server.Sdk.MessageBroker.Sender.Tests.OutboxTestHost;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Sender.Tests;
 
-/// <summary>
-/// Sending a stored message to the broker: to a command queue, and exactly as it was written.
-/// </summary>
 public sealed class OutboxBrokerRouteTests : IAsyncDisposable
 {
     private readonly OutboxTestHost _outbox = new();
@@ -30,8 +27,7 @@ public sealed class OutboxBrokerRouteTests : IAsyncDisposable
     [Fact]
     public async Task AStoredBodyIsSentAsWrittenEvenWithAVersionThisBuildDoesNotKnow()
     {
-        // A newer build wrote v2, which this one doesn't know. Decoding and re-encoding here would
-        // drop it; the body must reach the queue exactly as written.
+        // A newer build wrote v2, which this one doesn't know: the body must reach the queue as written.
         var host = await _outbox.BuildAsync();
         var body = """[{"$type":"v2","OrderId":11,"Currency":"EUR"},{"$type":"v1","OrderId":11}]"""u8.ToArray();
         await InsertAsync(host, new OutboxMessage

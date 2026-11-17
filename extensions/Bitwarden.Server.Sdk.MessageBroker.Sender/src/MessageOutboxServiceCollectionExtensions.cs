@@ -49,10 +49,9 @@ public static class MessageOutboxServiceCollectionExtensions
     /// <summary>
     /// Registers <typeparamref name="THandler"/> to handle messages of type
     /// <typeparamref name="TPayload"/> in this service, through its outbox in
-    /// <typeparamref name="TContext"/>: work that must follow a change once it commits, but needn't
-    /// happen inside the request. Send with the <see cref="Publisher{TPayload, TCeiling}"/> keyed
-    /// <c>"local#{WireName}"</c> (see <see cref="MessageOutbox.Local"/>) and save; the dispatcher
-    /// then calls the handler in a scope of its own instead of sending the message to the broker.
+    /// <typeparamref name="TContext"/>: work that must follow a change once it commits. Send with the
+    /// <see cref="Publisher{TPayload, TCeiling}"/> keyed <c>"local#{WireName}"</c> (see
+    /// <see cref="MessageOutbox.Local"/>) and save.
     /// </summary>
     /// <remarks>
     /// The handler is an <see cref="IMessageConsumer{TPayload, TCeiling}"/>, settled as a
@@ -112,9 +111,7 @@ public static class MessageOutboxServiceCollectionExtensions
         return services;
     }
 
-    // For MessageOutboxOptions.SendOnCommit: the wake-up the dispatcher waits on, and the interceptor
-    // that raises it after a commit that wrote outbox messages. Registered for every outbox context,
-    // since the option is read at run time; the interceptor does nothing while it is off.
+    // For MessageOutboxOptions.SendOnCommit, registered for every outbox context: the option is read at run time.
     [UnconditionalSuppressMessage("Trimming", "IL2091",
         Justification = "TContext is the service's own DbContext, registered with AddDbContext, which keeps the members EF Core needs.")]
     private static void AddSendOnCommit<TContext>(IServiceCollection services)
@@ -128,8 +125,7 @@ public static class MessageOutboxServiceCollectionExtensions
             options.AddInterceptors(provider.GetRequiredService<OutboxSendOnCommitInterceptor<TContext>>()));
     }
 
-    // A message type has one way to be sent. A service that registered it straight to the broker
-    // (AddPublisher, AddCommandSender) would bypass the outbox, and its send could be lost.
+    // One way to send a type: registering it straight to the broker too would bypass the outbox.
     private static void ThrowIfRegisteredDirectly<TPayload, TCeiling>(IServiceCollection services, string destination)
         where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
         where TCeiling : Payload<TPayload>.ICeiling

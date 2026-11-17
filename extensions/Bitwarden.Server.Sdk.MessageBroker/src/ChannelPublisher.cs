@@ -49,8 +49,7 @@ internal sealed class ChannelPublisher<TPayload, TCeiling> : Publisher<TPayload,
         // (started above in the factory) that lives until the envelope is settled.
     }
 
-    // The in-memory topic carries decoded versions. The process that stored the body is the one
-    // sending it, so every version in it is one this build knows.
+    // In process, every stored version is one this build knows.
     internal override Task SendRawAsync(ReadOnlyMemory<byte> body, string messageId, CancellationToken cancellationToken) =>
         SendAsync(_serializer.DeserializeVariants<TPayload>(body.Span), messageId, cancellationToken);
 }

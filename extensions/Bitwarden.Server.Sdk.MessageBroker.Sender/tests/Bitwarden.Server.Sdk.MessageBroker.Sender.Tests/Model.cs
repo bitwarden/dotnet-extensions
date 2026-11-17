@@ -31,9 +31,6 @@ public sealed class ShopContext(DbContextOptions<ShopContext> options) : DbConte
     protected override void OnModelCreating(ModelBuilder modelBuilder) => MessageOutbox.Apply(modelBuilder);
 }
 
-/// <summary>
-/// What the receiving side saw.
-/// </summary>
 public sealed class Received
 {
     public ConcurrentQueue<(string Type, int OrderId, string MessageId)> Messages { get; } = new();
@@ -77,9 +74,6 @@ public class ReserveStockPayload : Payload<ReserveStockPayload, ReserveStock, Re
     public static IReadOnlyList<(Type, string)> Variants => [(typeof(ReserveStock), "v1")];
 }
 
-/// <summary>
-/// What the handler in the sending service saw, and what it does next.
-/// </summary>
 public sealed class StockReservations
 {
     public ConcurrentQueue<(int OrderId, string MessageId, int DeliveryCount)> Handled { get; } = new();

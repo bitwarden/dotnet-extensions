@@ -46,9 +46,8 @@ internal sealed record ExpectedTopology(
 }
 
 /// <summary>
-/// Holds hosted consumers back until the service has provisioned its topology, so they don't fail and
-/// subscribe again while their queues are being created. Open from the start when the service doesn't
-/// provision.
+/// Holds hosted consumers back until the service has provisioned its topology. Open from the start when
+/// the service doesn't provision.
 /// </summary>
 internal sealed class TopologyGate
 {
@@ -57,7 +56,7 @@ internal sealed class TopologyGate
     /// <param name="options">Which broker, and whether the service provisions.</param>
     /// <param name="services">
     /// Gives <see cref="IBitwardenEnvironment"/>, read only when <see cref="MessagingOptions.AutoProvisionTopology"/>
-    /// is unset: it needs the host's environment.
+    /// is unset.
     /// </param>
     public TopologyGate(IOptions<MessagingOptions> options, IServiceProvider services)
     {
@@ -78,31 +77,21 @@ internal sealed class TopologyGate
 /// Once the service first reaches its broker, either creates the topology its registrations need
 /// (<see cref="MessagingOptions.AutoProvisionTopology"/>) or checks that it exists
 /// (<see cref="MessagingOptions.VerifyTopologyAtStartup"/>), and stops the service, naming each object,
-/// if it can't create one or finds one missing.
+/// if it can't create one or finds one missing (exit code 1). An unreachable broker is an outage: it
+/// waits for it.
 /// </summary>
 /// <remarks>
 /// <para>
-/// A missing topic, subscription or queue, or one the service may not create, is a setup mistake, not
-/// an outage: the service stops (exit code 1) rather than running without, say, the queue its commands
-/// arrive on. A broker that can't be reached is an outage, which the service rides through: it waits
-/// for the broker, trying again after a delay that doubles from one second up to thirty.
+/// Provisioning creates what is missing and leaves what exists alone, whoever made it. It doesn't
+/// create the topics it subscribes to or the queues it sends to, which their owners create. Hosted
+/// consumers wait until it finishes.
 /// </para>
 /// <para>
-/// Provisioning, as database schemas are migrated: a self-hosted service creates its topology as it
-/// starts, and one Bitwarden runs leaves it to infrastructure-as-code, unless
-/// <see cref="MessagingOptions.AutoProvisionTopology"/> says otherwise. It creates what is missing and
-/// leaves what exists alone, whoever made it: its own topics and those it subscribes to, its
-/// subscriptions and its command queues, with the settings BROKER-TOPOLOGY.md gives them. It doesn't
-/// create the queues it sends to, which their owner creates. Hosted consumers wait until it finishes.
-/// </para>
-/// <para>
-/// Checking, RabbitMQ and LavinMQ: a passive declare of each exchange and queue the service uses, which
-/// needs no configure right, only the read or write right the service already has on it. It doesn't see
-/// bindings or policies. RabbitMQ refuses a passive declare of an object the service has no rights to,
-/// whether or not it exists, so a refusal is reported as an object the service may not use.
-/// Azure Service Bus: a peek at the service's own subscriptions and command queues, which needs only
-/// the receive rights it has. Its topics and the queues it only sends to can't be checked without the
-/// Manage right; a missing one shows as sends that fail.
+/// Checking, RabbitMQ and LavinMQ: a passive declare of each exchange and queue, which needs only the
+/// read or write right the service already has; RabbitMQ refuses one on an object the service has no
+/// rights to, so a refusal is reported as an object it may not use. Azure Service Bus: a peek at the
+/// service's own subscriptions and command queues; its topics and the queues it only sends to can't be
+/// checked without the Manage right.
 /// </para>
 /// </remarks>
 internal sealed class TopologyStartupService(
@@ -119,7 +108,6 @@ internal sealed class TopologyStartupService(
     /// <summary>Sets the process exit code; tests replace it so a stopped test host doesn't fail the run.</summary>
     internal Action<int> SetExitCode { get; set; } = code => Environment.ExitCode = code;
 
-    /// <summary>Times the wait between attempts while the broker can't be reached.</summary>
     internal TimeProvider TimeProvider { get; set; } = TimeProvider.System;
 
     /// <summary>
@@ -138,8 +126,7 @@ internal sealed class TopologyStartupService(
         }
         finally
         {
-            // Consumers wait no longer once provisioning has finished; a host that is stopping cancels
-            // their wait instead.
+            // A host that is stopping cancels the consumers' wait instead.
             if (!lifetime.ApplicationStopping.IsCancellationRequested)
                 gate.Open();
         }
@@ -187,8 +174,7 @@ internal sealed class TopologyStartupService(
             }
             catch (Exception ex)
             {
-                // The broker can't be reached yet, or went away part way: an outage, not a setup
-                // mistake. Try again once it is back; what was already made is found and left alone.
+                // Unreachable, or went away part way: an outage. What was already made is left alone.
                 logger.LogWarning(ex, "Couldn't {Action} the message broker's topology yet; trying again in {Delay}.", action, delay);
                 if (!await DelayAsync(delay, stoppingToken))
                     return;
@@ -272,8 +258,8 @@ internal sealed class TopologyStartupService(
     }
 
     /// <summary>
-    /// Topology provisioning can't finish yet because another service hasn't created its part, such as the
-    /// topic a subscription is on. Retried as an outage is.
+    /// Another service hasn't created its part yet, such as the topic a subscription is on. Retried as an
+    /// outage is.
     /// </summary>
     private sealed class TopologyNotReadyException(string message) : Exception(message);
 
@@ -345,9 +331,8 @@ internal sealed class TopologyStartupService(
             ? channel.QueueDeclarePassiveAsync(name, cancellationToken)
             : channel.ExchangeDeclarePassiveAsync(name, cancellationToken), cancellationToken);
 
-        // Creates an object a passive declare didn't find, and says whether it is there to use. RabbitMQ also
-        // refuses a passive declare of an object the service has no rights to, so when it refused that too, the
-        // object may exist, made for a service given only the narrowest rights; that is left to whoever made it.
+        // Creates an object a passive declare didn't find. Refused both ways (403), it may exist for a service
+        // with the narrowest rights: left to whoever made it.
         async Task<bool> CreateAsync(string label, string name, ushort? passive, Func<IChannel, Task> declare)
         {
             var refused = await TryAsync(connection, declare, cancellationToken);
@@ -379,11 +364,8 @@ internal sealed class TopologyStartupService(
         Task<ushort?> BindAsync(string queue, string exchange, string routingKey) =>
             TryAsync(connection, channel => channel.QueueBindAsync(queue, exchange, routingKey, cancellationToken: cancellationToken), cancellationToken);
 
-        // A queue that exists is left as it is, dead-lettering and all. A missing one is created with a
-        // dead-letter exchange and queue of its own, and dead-letters to them after MaxDeliveryCount deliveries.
-        // Arguments rather than BROKER-TOPOLOGY.md's policies: a service can declare queues over AMQP but can't
-        // set policies, which need the broker's management API. True when created now, false when it was there,
-        // null when it can't be used.
+        // Arguments rather than policies, which a service can't set over AMQP. True when created now, false
+        // when it was there, null when it can't be used.
         async Task<bool?> EnsureQueueAsync(string label, string queue)
         {
             count++;
@@ -422,8 +404,7 @@ internal sealed class TopologyStartupService(
             return usable ? created.Count > before : null;
         }
 
-        // Binding again is harmless, so a queue that existed is bound again too, in case a release added a
-        // family. Its service may be allowed only to read it, so a refusal there is left to whoever made it.
+        // A queue that existed is bound again in case a release added a family; a refusal there is only a note.
         void Refused(bool queueCreated, string what)
         {
             if (queueCreated)
@@ -568,8 +549,7 @@ internal sealed class TopologyStartupService(
                     return;
                 }
 
-                // A rule for each family no rule admits yet: after a create cut short, or a release that added a
-                // family to a subscription that was already there.
+                // A rule for each family no rule admits yet, such as one a release added.
                 var filters = new List<RuleFilter>();
                 await foreach (var rule in admin.GetRulesAsync(topic, subscription, cancellationToken))
                     filters.Add(rule.Filter);
@@ -623,7 +603,7 @@ internal sealed class TopologyStartupService(
 
     internal static CreateTopicOptions TopicOptions(string topic) => new(topic)
     {
-        // A sender's outbox sends a message again, under the same identifier, after a crash.
+        // Drops a re-send under the same message identifier.
         RequiresDuplicateDetection = true,
         DuplicateDetectionHistoryTimeWindow = DuplicateDetectionWindow,
     };

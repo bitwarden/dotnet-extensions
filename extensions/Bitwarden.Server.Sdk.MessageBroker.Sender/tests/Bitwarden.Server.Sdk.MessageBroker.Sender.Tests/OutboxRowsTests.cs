@@ -3,9 +3,6 @@ using static Bitwarden.Server.Sdk.MessageBroker.Sender.Tests.OutboxTestHost;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Sender.Tests;
 
-/// <summary>
-/// The size limit on what is written to the outbox.
-/// </summary>
 public sealed class OutboxRowsTests : IAsyncDisposable
 {
     private readonly OutboxTestHost _outbox = new();

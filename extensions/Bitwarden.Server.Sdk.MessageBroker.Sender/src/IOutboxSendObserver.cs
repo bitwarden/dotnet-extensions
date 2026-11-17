@@ -1,13 +1,11 @@
 namespace Bitwarden.Server.Sdk.MessageBroker.Sender;
 
 /// <summary>
-/// Watches what the dispatcher hands to the broker: a seam for a test harness, which records each
-/// message sent and can stand in for a broker that is down. Never registered in a running service.
+/// A seam for a test harness: watches what the dispatcher hands to the broker. Never registered in
+/// a running service.
 /// </summary>
 /// <remarks>
-/// Only messages bound for the broker pass it, never those handled in the sending service itself
-/// (<see cref="MessageOutbox.Local"/>). The row is the stored one: its body is the serialized
-/// versions, as written.
+/// Only messages bound for the broker pass it, never those handled in the sending service itself.
 /// </remarks>
 internal interface IOutboxSendObserver
 {

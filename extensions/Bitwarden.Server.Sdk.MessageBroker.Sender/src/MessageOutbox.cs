@@ -42,16 +42,12 @@ public static class MessageOutbox
 
     /// <summary>
     /// Adds <paramref name="message"/> to <paramref name="database"/>'s outbox, to be sent to
-    /// <paramref name="destination"/> once the context's change is saved: for code that has the
-    /// context being saved but not a scope to resolve a publisher in, such as a
-    /// <c>SaveChangesInterceptor</c>.
+    /// <paramref name="destination"/> once the context's change is saved: for code with no scope to
+    /// resolve a publisher in, such as a <c>SaveChangesInterceptor</c>.
     /// </summary>
     /// <remarks>
-    /// The message is serialized as the publisher registered for it serializes it, and the row is
-    /// the one its <c>SendAsync</c> would add. The context must have been made by the service's
-    /// container, and the type must be registered through the outbox to the destination for this
-    /// context (<c>AddOutboxPublisher</c>, <c>AddOutboxCommandSender</c> or, for
-    /// <see cref="Local"/>, <c>AddOutboxLocalHandler</c>); otherwise nothing would ever send it.
+    /// The context must have been made by the service's container, and the type must be registered
+    /// through the outbox to <paramref name="destination"/> for this context.
     /// </remarks>
     /// <typeparam name="TPayload">The message's payload family.</typeparam>
     /// <typeparam name="TCeiling">The family's ceiling.</typeparam>

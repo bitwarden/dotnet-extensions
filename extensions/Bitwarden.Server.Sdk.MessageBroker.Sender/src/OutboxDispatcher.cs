@@ -10,10 +10,8 @@ namespace Bitwarden.Server.Sdk.MessageBroker.Sender;
 
 /// <summary>
 /// Sends what is waiting in <typeparamref name="TContext"/>'s outbox, and deletes each message
-/// once the broker has it. Any number of instances can run against one outbox: each claims a
-/// batch with a lease, and a claim left by an instance that stopped is taken over once it expires.
-/// A message is sent at least once, and again under the same identifier after a crash between the
-/// send and the delete, or when one send outlasts the lease and another instance claims it.
+/// once the broker has it. Instances claim batches with a lease; a message is sent at least once,
+/// under the same identifier each time.
 /// </summary>
 internal sealed class OutboxDispatcher<TContext> : BackgroundService
     where TContext : DbContext, IMessageOutboxContext
@@ -72,10 +70,8 @@ internal sealed class OutboxDispatcher<TContext> : BackgroundService
 
     /// <summary>
     /// How long before its lease runs out the dispatcher stops starting sends from a batch: a quarter
-    /// of the lease, 7.5 seconds by default. That is longer than a send to a broker that doesn't
-    /// answer takes to fail (RabbitMQ's connection attempt gives up after five seconds), so a send
-    /// started before it normally ends while the claim still holds, and another instance never
-    /// claims a row this one is still sending.
+    /// of the lease, longer than a send to a broker that doesn't answer takes to fail, so another
+    /// instance never claims a row this one is still sending.
     /// </summary>
     private TimeSpan LeaseMargin => Options.Lease / 4;
 
@@ -160,10 +156,6 @@ internal sealed class OutboxDispatcher<TContext> : BackgroundService
     /// <summary>
     /// Waits for the poll interval, or until woken, whichever comes first.
     /// </summary>
-    /// <remarks>
-    /// Only <see cref="MessageOutboxOptions.SendOnCommit"/> wakes it. The poll stays as the backstop:
-    /// without a signal this is the plain delay.
-    /// </remarks>
     private async Task WaitAsync(CancellationToken stoppingToken)
     {
         using var waiting = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
@@ -191,9 +183,8 @@ internal sealed class OutboxDispatcher<TContext> : BackgroundService
         var token = Guid.NewGuid();
         var (claimed, leaseUntil) = await ClaimAsync(outbox, token, cancellationToken);
 
-        // What the batch does to rows it has already claimed (deferring, releasing, deleting) isn't
-        // cut short by a stop: a row sent but not deleted would be sent again by another instance
-        // once its lease ran out. A stop only bounds how long that may take.
+        // Settling rows already claimed isn't cut short by a stop: a row sent but not deleted would be
+        // sent again. A stop only bounds how long that may take.
         using var settling = new CancellationTokenSource();
         using var stopping = cancellationToken.Register(() => settling.CancelAfter(SettleTimeout));
 
@@ -205,17 +196,14 @@ internal sealed class OutboxDispatcher<TContext> : BackgroundService
             var row = claimed[i];
             if (!_routes.TryGetValue((row.Destination, row.MessageType), out var route))
             {
-                // The claim's filter takes only routed rows, so this is a fallback. Another build,
-                // older or newer during a deploy, may send it: leave it for that one, a little later,
-                // so it doesn't head every claim here.
+                // A fallback, as the claim takes only routed rows: leave it a little later for a build that can
+                // send it.
                 await PostponeAsync(outbox, row.MessageId, token, settling.Token);
                 continue;
             }
             routed++;
 
-            // Stopping, or too little of the lease left to start another send: leave the rest of the
-            // batch for the next claim, this instance's or another's, rather than send a row another
-            // instance may already be able to claim.
+            // Stopping, or too little of the lease left to start another send: leave the rest for the next claim.
             if (cancellationToken.IsCancellationRequested || _time.GetUtcNow() >= leaseUntil - LeaseMargin)
             {
                 stoppedAt = i;
@@ -237,8 +225,7 @@ internal sealed class OutboxDispatcher<TContext> : BackgroundService
             }
             catch (Exception) when (cancellationToken.IsCancellationRequested)
             {
-                // Stopped during the send, which may or may not have reached the broker: this row and
-                // the rest go back for the next claim, and at least once still holds.
+                // Stopped during the send, which may or may not have reached the broker: give the rest back.
                 stoppedAt = i;
                 break;
             }
@@ -250,8 +237,7 @@ internal sealed class OutboxDispatcher<TContext> : BackgroundService
 
         if (sent.Count > 0)
         {
-            // Only rows this batch still holds: a send slower than the lease lets another instance
-            // claim a row, and that instance's claim is now the one that settles it.
+            // Only rows this batch still holds: a slow send may have let another instance claim one.
             await outbox.Where(row => sent.Contains(row.MessageId) && row.LeaseToken == token)
                 .ExecuteDeleteAsync(settling.Token);
         }
@@ -281,9 +267,8 @@ internal sealed class OutboxDispatcher<TContext> : BackgroundService
         var now = start.ToUnixTimeMilliseconds();
         var until = now + (long)Options.Lease.TotalMilliseconds;
 
-        // Only messages this build can send, by destination and type together. During a rolling
-        // deploy a newer build writes types an older one doesn't know; the older one must leave
-        // them for the newer.
+        // Only messages this build can send: during a rolling deploy a newer build writes types an older
+        // one doesn't know.
         var candidates = await outbox.AsNoTracking()
             .Where(row => row.SetAsideAt == null)
             .Where(row => row.AvailableAt <= now)
@@ -317,9 +302,8 @@ internal sealed class OutboxDispatcher<TContext> : BackgroundService
         var attempts = row.Attempts + 1;
         var error = Describe(exception);
         _metrics.Failed(_database, row, exception);
-        // A committed message must never be lost, so a failure is retried for as long as it takes:
-        // an outage, a missing queue, expired credentials and a missing permission all clear. Only
-        // a failure that sending again can never fix sets it aside.
+        // A committed message must never be lost: every failure is retried except one that sending
+        // again can never fix.
         if (OutboxFailures.IsPermanent(exception))
         {
             _logger.LogError(exception,

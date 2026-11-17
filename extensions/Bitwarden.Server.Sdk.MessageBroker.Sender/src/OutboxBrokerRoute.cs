@@ -3,10 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Bitwarden.Server.Sdk.MessageBroker.Sender;
 
 /// <summary>
-/// Sends through the publisher that goes straight to the broker, registered under
-/// <see cref="MessageBrokerKeys.Direct"/>, so the broker's own sending (confirms, routing, the
-/// in-memory backend) applies unchanged. The stored body goes as written: decoding it here would
-/// drop any version this build doesn't know, which a newer build may have written during a deploy.
+/// Sends through the publisher registered under <see cref="MessageBrokerKeys.Direct"/>. The stored
+/// body goes as written: decoding it would drop any version this build doesn't know.
 /// </summary>
 internal sealed class OutboxBrokerRoute<TPayload, TCeiling> : OutboxRoute
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>

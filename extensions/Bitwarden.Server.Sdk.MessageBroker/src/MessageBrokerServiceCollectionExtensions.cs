@@ -23,9 +23,8 @@ public static class MessageBrokerServiceCollectionExtensions
 
     /// <summary>
     /// Registers the publisher that sends straight to the broker under
-    /// <see cref="MessageBrokerKeys.Direct"/>'s key instead of the public one, for a package that
-    /// puts its own publisher under the public key and sends through this one later, as an outbox
-    /// does.
+    /// <see cref="MessageBrokerKeys.Direct"/>'s key instead of the public one, for an outbox that owns
+    /// the public key.
     /// </summary>
     internal static IServiceCollection AddDirectPublisher<TPayload, TCeiling>(this IServiceCollection services, string name)
         where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
@@ -248,10 +247,8 @@ public static class MessageBrokerServiceCollectionExtensions
     /// <see cref="MessageBrokerKeys.Publisher{TPayload}(string)"/>.
     /// </summary>
     /// <remarks>
-    /// Unlike an event, a command no queue receives is an error: on Azure Service Bus a missing
-    /// queue fails the send, and on RabbitMQ the command is published with <c>mandatory</c> so the
-    /// broker returns it. Either way <c>SendAsync</c> throws <see cref="BrokerUnavailableException"/>,
-    /// so an outbox keeps the command until the receiver's queue exists.
+    /// Unlike an event, a command no queue receives is an error: <c>SendAsync</c> throws
+    /// <see cref="BrokerUnavailableException"/> if the receiver's queue doesn't exist.
     /// </remarks>
     public static IServiceCollection AddCommandSender<TPayload, TCeiling>(this IServiceCollection services, string queueName)
         where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
@@ -307,18 +304,12 @@ public static class MessageBrokerServiceCollectionExtensions
     /// <paramref name="queueName"/>.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// A command queue carries every command family its owner accepts. Register one consumer per
-    /// family; the service runs one receiver for the queue and hands each command to the consumer
-    /// for its family. A command whose family has no consumer here is dead-lettered.
-    /// </para>
-    /// <para>
-    /// As with <see cref="AddMessageConsumer{TPayload, TCeiling, TConsumer}"/>,
-    /// <typeparamref name="TConsumer"/> is scoped and resolved from a fresh scope per command, and
-    /// the framework settles the envelope: completed when the consumer returns, and dead-lettered when it
-    /// throws, unless <paramref name="configureRetry"/>, or <see cref="ConsumerRetryOptions"/> named after
-    /// the queue, allows it more deliveries. Retry settings belong to the queue, shared by every family on it.
-    /// </para>
+    /// Register one consumer per command family the queue accepts; a command whose family has no
+    /// consumer here is dead-lettered. As with <see cref="AddMessageConsumer{TPayload, TCeiling, TConsumer}"/>,
+    /// <typeparamref name="TConsumer"/> is resolved from a fresh scope per command and the framework
+    /// settles the envelope. Retry settings, from <paramref name="configureRetry"/> or
+    /// <see cref="ConsumerRetryOptions"/> named after the queue, belong to the queue and are shared by
+    /// every family on it.
     /// </remarks>
     /// <param name="services">The service collection.</param>
     /// <param name="queueName">The command queue.</param>
@@ -376,8 +367,6 @@ public static class MessageBrokerServiceCollectionExtensions
         return services;
     }
 
-    // The readiness check for every hosted consumer, registered once for any host that calls
-    // AddHealthChecks().
     private static void AddSubscriptionHealthCheck(IServiceCollection services)
     {
         services.TryAddSingleton<SubscriptionReadiness>();
@@ -409,8 +398,6 @@ public static class MessageBrokerServiceCollectionExtensions
         return true;
     }
 
-    // Retry settings, named after the subscription or queue: validated at startup, and configurable
-    // here, by the caller with services.Configure, or from configuration.
     private static void AddConsumerRetry(IServiceCollection services, string name, Action<ConsumerRetryOptions>? configure)
     {
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ConsumerRetryOptions>, ConsumerRetryOptionsValidator>());
@@ -432,15 +419,9 @@ public static class MessageBrokerServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TopologyStartupService>());
     }
 
-    // Keyed on the composite "{destination}#{WireName}" key, so a publisher and a consumer of the same
-    // family on a topic or command queue share one serializer, while a second family on the same
-    // destination gets its own. User-facing MessageBrokerSerializerOptions stays scoped by the
-    // destination's name: one JSON pipeline per topic or queue, shared by every family on it.
-    /// <summary>
-    /// Registers the serializer for <typeparamref name="TPayload"/> on <paramref name="destinationName"/>,
-    /// keyed as its publisher is. Internal so the outbox sender registers its local destination's
-    /// serializer the same way.
-    /// </summary>
+    // One serializer per destination and family; MessageBrokerSerializerOptions stays scoped by
+    // destination name. Internal so the outbox sender registers its local destination's serializer
+    // the same way.
     internal static void AddFamilySerializer<TPayload>(IServiceCollection services, string destinationName)
         where TPayload : IPayloadWireName<TPayload>
     {
