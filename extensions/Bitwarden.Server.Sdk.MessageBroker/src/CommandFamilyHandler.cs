@@ -9,10 +9,8 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 internal abstract class CommandFamilyHandler
 {
-    /// <summary>The command queue this handler reads from.</summary>
     public abstract string QueueName { get; }
 
-    /// <summary>The payload family wire name this handler decodes.</summary>
     public abstract string FamilyWireName { get; }
 
     /// <summary>Decodes, handles and settles <paramref name="message"/>.</summary>
@@ -89,7 +87,7 @@ internal sealed class CommandFamilyHandler<TPayload, TCeiling, TConsumer> : Comm
         }
         catch (Exception)
         {
-            // As above: an unsettled message is redelivered when its lock expires.
+            // An unsettled message is redelivered when its lock expires.
         }
     }
 

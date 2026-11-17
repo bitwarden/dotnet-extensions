@@ -1,10 +1,7 @@
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// A message received from a command queue before its payload family is known. A queue carries
-/// every command family its owner accepts, so the receive loop reads the family from the broker
-/// metadata and hands the message to that family's <see cref="CommandFamilyHandler"/>, which
-/// decodes the body.
+/// A message received from a command queue before its payload family is known.
 /// </summary>
 internal sealed class CommandQueueMessage
 {
@@ -14,7 +11,6 @@ internal sealed class CommandQueueMessage
     /// <summary>The payload family wire name from the broker metadata, or null if it is missing.</summary>
     public required string? FamilyWireName { get; init; }
 
-    /// <summary>The identifier the sender sent the command under.</summary>
     public required string MessageId { get; init; }
 
     /// <summary>The W3C traceparent of the send span, if the command was sent under a trace.</summary>
