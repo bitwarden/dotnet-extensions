@@ -59,9 +59,15 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
         {
             ObjectDisposedException.ThrowIf(_isClosing, this);
             if (_connection is { IsOpen: true } open)
+            {
                 return Task.FromResult(open);
+            }
+
             if (_connecting is null || _connecting.IsCompleted)
+            {
                 _connecting = ConnectAsync(TakeDeadConnection());
+            }
+
             attempt = _connecting;
         }
         return attempt.WaitAsync(cancellationToken);
