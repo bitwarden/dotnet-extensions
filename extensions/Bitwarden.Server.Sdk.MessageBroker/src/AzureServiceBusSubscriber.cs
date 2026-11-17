@@ -48,8 +48,7 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
 
         await using var receiverLifetime = receiver;
 
-        // A receive on a quiet subscription waits for a message, so say the subscription is in
-        // place once a peek succeeds: it opens the link and needs the same Listen right.
+        // A receive on a quiet subscription waits for a message, so a successful peek signals subscribed.
         var subscribed = false;
         try
         {
@@ -58,9 +57,10 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
             await peek.WaitAsync(_connection.Closed);
             subscribed = true;
         }
-        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or ServiceBusException
-                                   && _connection.IsClosing
-                                   && !cancellationToken.IsCancellationRequested)
+        catch (Exception ex) when (
+            (ex is OperationCanceledException or ObjectDisposedException or ServiceBusException)
+            && _connection.IsClosing
+            && !cancellationToken.IsCancellationRequested)
         {
             // The connection closed while the link was opening: a shutdown.
         }
@@ -87,9 +87,10 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
                 _ = receive.ContinueWith(static t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
                 received = await receive.WaitAsync(_connection.Closed);
             }
-            catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or ServiceBusException
-                                       && _connection.IsClosing
-                                       && !cancellationToken.IsCancellationRequested)
+            catch (Exception ex) when (
+                (ex is OperationCanceledException or ObjectDisposedException or ServiceBusException)
+                && _connection.IsClosing
+                && !cancellationToken.IsCancellationRequested)
             {
                 // The connection closed while the receive was opening its link or waiting for a
                 // message. Whatever the Azure SDK surfaced, this is a shutdown: end the stream.

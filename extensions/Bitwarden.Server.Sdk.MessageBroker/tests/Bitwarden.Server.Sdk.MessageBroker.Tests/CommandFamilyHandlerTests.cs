@@ -4,10 +4,6 @@ using Microsoft.Extensions.Options;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 
-/// <summary>
-/// A command a queue's receiver can't decode is set aside, so it can't block the families behind it
-/// on the same queue, and the consumer never sees it.
-/// </summary>
 public sealed class CommandFamilyHandlerTests : IDisposable
 {
     private const string Queue = "mail.commands";

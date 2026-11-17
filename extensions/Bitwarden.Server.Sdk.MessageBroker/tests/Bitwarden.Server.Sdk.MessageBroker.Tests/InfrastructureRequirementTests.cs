@@ -33,10 +33,6 @@ public class InfrastructureRequirementTests
             Values(requirements, MessagingRequirements.CommandConsume, "queue", "family"));
     }
 
-    /// <summary>
-    /// The test harnesses provision brokers from the internal declaration records, and tooling reads the
-    /// requirements: both must describe the same topology.
-    /// </summary>
     [Fact]
     public void TheRequirementsAgreeWithTheDeclarationsTheTestHarnessesProvisionFrom()
     {

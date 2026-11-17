@@ -5,11 +5,6 @@ using Microsoft.Extensions.Options;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 
-/// <summary>
-/// Azure Service Bus by connection string (a shared access key) or by namespace (a token
-/// credential the app registers, typically its managed identity). Nothing here connects: building a client is enough
-/// to check which way it was configured.
-/// </summary>
 public class AzureServiceBusConfigurationTests
 {
     private const string Namespace = "bitwarden-test.servicebus.windows.net";
