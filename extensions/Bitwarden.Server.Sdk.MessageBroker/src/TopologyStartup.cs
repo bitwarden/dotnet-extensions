@@ -91,9 +91,9 @@ internal sealed class TopologyGate
 /// Provisioning, as database schemas are migrated: a self-hosted service creates its topology as it
 /// starts, and one Bitwarden runs leaves it to infrastructure-as-code, unless
 /// <see cref="MessagingOptions.AutoProvisionTopology"/> says otherwise. It creates what is missing and
-/// leaves what exists alone, whoever made it: its own topics and those it subscribes to, its
-/// subscriptions and its command queues, with the settings BROKER-TOPOLOGY.md gives them. It doesn't
-/// create the queues it sends to, which their owner creates. Hosted consumers wait until it finishes.
+/// leaves what exists alone, whoever made it: its own topics, its subscriptions and its command
+/// queues, with the settings BROKER-TOPOLOGY.md gives them. It doesn't create the topics it subscribes
+/// to or the queues it sends to, which their owners create. Hosted consumers wait until it finishes.
 /// </para>
 /// <para>
 /// Checking, RabbitMQ and LavinMQ: a passive declare of each exchange and queue the service uses, which
