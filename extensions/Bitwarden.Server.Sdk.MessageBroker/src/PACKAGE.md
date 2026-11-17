@@ -293,7 +293,7 @@ broker metadata:
 | Property        | Description                                                                                                   |
 | --------------- | ------------------------------------------------------------------------------------------------------------- |
 | `Payload`       | The resolved variant at `TCeiling` (see above).                                                               |
-| `MessageId`     | The identifier the publisher sent the message under. The same on every redelivery, and on a re-send that passes it again. |
+| `MessageId`     | The identifier the publisher sent the message under; the same on every redelivery and re-send.                |
 | `TraceId`       | W3C traceparent of the publish span, for linking consumer traces to producer traces.                          |
 | `DeliveryCount` | Number of times this message has been delivered. `1` on the first attempt, incrementing with each redelivery. |
 
