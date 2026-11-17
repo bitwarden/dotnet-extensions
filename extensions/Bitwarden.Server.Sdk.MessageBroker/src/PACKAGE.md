@@ -264,15 +264,8 @@ within RabbitMQ's 255 bytes too).
 
 ### When a send completes
 
-`SendAsync` completes once the broker has accepted the message: Azure Service Bus acknowledges every
-send, and on RabbitMQ the publisher's channel uses publisher confirms. If the broker can't be
-reached, or refuses the message for a reason a retry could fix, `SendAsync` throws
-`BrokerUnavailableException`. A message too large for the broker is different: Azure Service Bus
-throws its own `ServiceBusException` (reason `MessageSizeExceeded`). RabbitMQ closes the publisher's
-channel instead, which surfaces as `BrokerUnavailableException` even though a retry can't succeed;
-the publisher opens a new channel for its next send. A topic with no
-subscriptions still accepts a message and drops it, because a publisher doesn't depend on who is
-listening.
+`SendAsync` completes once the broker has accepted the message. If the broker can't be reached, or
+refuses the message for a reason a retry could fix, it throws `BrokerUnavailableException`.
 
 ### Assisted downcasts
 
