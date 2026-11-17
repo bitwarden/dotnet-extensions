@@ -352,20 +352,13 @@ services.AddCommandConsumer<SendPushPayload, SendPush, SendPushConsumer>("notifi
 ```
 
 Consumers implement `IMessageConsumer<TPayload, TCeiling>` and are hosted like those registered
-with `AddMessageConsumer`: a scope per command, completed when the consumer returns and requeued
-when it throws. The service runs one receiver for the queue and hands each command to the
-consumer for its family. A command whose family has no consumer is dead-lettered, so it doesn't
-block the queue.
+with `AddMessageConsumer`. A command whose family has no consumer is dead-lettered.
 
-Commands differ from events in one way: a command nobody will receive is an error. If the queue
-doesn't exist, `SendAsync` throws `BrokerUnavailableException`. On RabbitMQ that is either the queue's
-exchange missing, or the exchange with no queue bound to it: the command is published with
-`mandatory`, so the broker returns it. An outbox keeps the command and retries until the receiver's
-queue exists.
+Unlike an event, a command nobody will receive is an error: if the receiver's queue doesn't exist,
+or on RabbitMQ isn't bound to its exchange yet, `SendAsync` throws `BrokerUnavailableException`.
 
-Commands are versioned the same way as events: every version the sender knows travels in one
-message, and the consumer reads the newest it understands. The in-memory backend keeps its command
-queues in the process and doesn't escrow them, so commands still queued at shutdown are lost.
+Commands are versioned the same way as events. The in-memory backend doesn't escrow commands, so
+commands still queued at shutdown are lost.
 
 ## Observability
 

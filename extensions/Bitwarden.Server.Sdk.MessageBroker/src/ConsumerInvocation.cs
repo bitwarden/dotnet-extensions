@@ -3,11 +3,7 @@ using System.Diagnostics;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Runs a hosted consumer on one received message, the same way for a topic subscription
-/// (<see cref="ConsumerBackgroundService{TPayload, TCeiling, TConsumer}"/>) and a command queue
-/// (<see cref="CommandFamilyHandler{TPayload, TCeiling, TConsumer}"/>): the receive span is current
-/// while it runs, it gets a scope of its own, and the message is completed when it returns and
-/// requeued when it throws.
+/// Runs a hosted consumer on one received message, for topic subscriptions and command queues alike.
 /// </summary>
 internal static class ConsumerInvocation
 {

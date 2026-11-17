@@ -213,10 +213,8 @@ public static class MessageBrokerServiceCollectionExtensions
     /// <see cref="MessageBrokerKeys.Publisher{TPayload}(string)"/>.
     /// </summary>
     /// <remarks>
-    /// Unlike an event, a command no queue receives is an error: on Azure Service Bus a missing
-    /// queue fails the send, and on RabbitMQ the command is published with <c>mandatory</c> so the
-    /// broker returns it. Either way <c>SendAsync</c> throws <see cref="BrokerUnavailableException"/>,
-    /// so an outbox keeps the command until the receiver's queue exists.
+    /// Unlike an event, a command no queue receives is an error: <c>SendAsync</c> throws
+    /// <see cref="BrokerUnavailableException"/> if the receiver's queue doesn't exist.
     /// </remarks>
     public static IServiceCollection AddCommandSender<TPayload, TCeiling>(this IServiceCollection services, string queueName)
         where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
@@ -257,17 +255,10 @@ public static class MessageBrokerServiceCollectionExtensions
     /// <paramref name="queueName"/>.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// A command queue carries every command family its owner accepts. Register one consumer per
-    /// family; the service runs one receiver for the queue and hands each command to the consumer
-    /// for its family. A command whose family has no consumer here is dead-lettered.
-    /// </para>
-    /// <para>
-    /// As with <see cref="AddMessageConsumer{TPayload, TCeiling, TConsumer}"/>,
-    /// <typeparamref name="TConsumer"/> is scoped and resolved from a fresh scope per command, and
-    /// the framework settles the envelope: completed when the consumer returns, requeued when it
-    /// throws.
-    /// </para>
+    /// Register one consumer per command family the queue accepts; a command whose family has no
+    /// consumer here is dead-lettered. As with <see cref="AddMessageConsumer{TPayload, TCeiling, TConsumer}"/>,
+    /// <typeparamref name="TConsumer"/> is resolved from a fresh scope per command and the framework
+    /// settles the envelope.
     /// </remarks>
     public static IServiceCollection AddCommandConsumer<TPayload, TCeiling, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TConsumer>(
         this IServiceCollection services,
@@ -351,10 +342,8 @@ public static class MessageBrokerServiceCollectionExtensions
         AddAzureServiceBusInfrastructure(services);
     }
 
-    // Keyed on the composite "{destination}#{WireName}" key, so a publisher and a consumer of the same
-    // family on a topic or command queue share one serializer, while a second family on the same
-    // destination gets its own. User-facing MessageBrokerSerializerOptions stays scoped by the
-    // destination's name: one JSON pipeline per topic or queue, shared by every family on it.
+    // One serializer per destination and family; MessageBrokerSerializerOptions stays scoped by
+    // destination name.
     private static void AddFamilySerializer<TPayload>(IServiceCollection services, string destinationName)
         where TPayload : IPayloadWireName<TPayload>
     {
