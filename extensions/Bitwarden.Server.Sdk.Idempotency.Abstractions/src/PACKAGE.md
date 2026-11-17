@@ -171,7 +171,9 @@ honors the header for a service built on the SDK.
   awaited method isn't seen by its caller. Once ended, an operation is never current again, and ending one out of order
   leaves alone an operation begun since.
 - **A write whose body differs from the first run's** (it carries a time, or reads something the first run changed)
-  gets a key of its own and is done as a new write. It is never refused for differing.
+  gets a key of its own and is done as a new write. It is never refused for differing. To keep a run's writes the
+  same, take anything a body needs to be unique or timely from the operation, not the clock: an identifier from
+  `DeriveId`, and a time from the message or the job's due time.
 
 ## Types
 
