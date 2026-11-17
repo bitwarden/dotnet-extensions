@@ -52,10 +52,6 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
                 _channel = null;
             }
 
-            // Publisher confirms with tracking: BasicPublishAsync completes only once the broker
-            // has taken responsibility for the message, and throws PublishException if it refuses
-            // it. A send that returns has been accepted, which is what lets a caller such as an
-            // outbox treat it as delivered to the broker.
             _channel = await conn.CreateChannelAsync(
                 new CreateChannelOptions(publisherConfirmationsEnabled: true, publisherConfirmationTrackingEnabled: true),
                 cancellationToken);
@@ -100,9 +96,6 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
         }
         catch (PublishException ex)
         {
-            // The broker refused the message (a nack), for instance a full queue that rejects publishes.
-            // mandatory is false, so an unroutable message is not a refusal: an event topic
-            // with no subscriptions accepts and drops it, as on Azure Service Bus.
             throw new BrokerUnavailableException(_exchangeName, ex);
         }
     }
