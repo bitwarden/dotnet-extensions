@@ -21,9 +21,10 @@ dotnet add package Bitwarden.Server.Sdk.Idempotency.Abstractions
 - **At most once per key.** A service that honors the header does the write at most once per key, replaying its first
   answer to a repeat, marked with `Idempotency-Replayed: true` (`IdempotencyKeys.ReplayedHeader`) so a log or a test
   can tell a replay from a first answer.
-- **An operation names a piece of work.** Inside one, `IdempotentOperation.KeyForWrite(method, address, body)` returns
-  a key derived, with the service's secret, from the operation's key, the method, the address, the body, and how many
-  identical writes the operation made before. Outside one it returns null, and the client sends a fresh key per call,
+- **An operation names a piece of work.** Inside one, `IdempotentOperation.KeyForWrite(method, address, body, context)`
+  returns a key derived, with the service's secret, from the operation's key, the method, the address, the body, the
+  context headers the write carries (whom it is for), and how many identical writes the operation made before. Writes
+  for different users or organizations get different keys whatever order a run makes them in. Outside one it returns null, and the client sends a fresh key per call,
   which covers its own retries of that call.
 - **Each service has a secret.** `IdempotencySecret`, from `Idempotency:Secret`, keys every key and identifier the
   service's operations derive, so only the service can compute them. Only the service that derived a key derives it

@@ -178,38 +178,71 @@ public static class IdempotentOperation
     /// <param name="method">The request's method.</param>
     /// <param name="address">The request's address.</param>
     /// <param name="body">The request's body; empty when it has none.</param>
+    /// <param name="context">
+    /// The context headers the request carries, by name and value, such as <c>Bitwarden-User</c>: whom the write is
+    /// for. Empty when it carries none.
+    /// </param>
     /// <returns>64 lower-case hex characters, or null when no operation has begun.</returns>
-    /// <exception cref="ArgumentException"><paramref name="method"/> or <paramref name="address"/> is not valid UTF-16 text (a lone surrogate).</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="method"/>, <paramref name="address"/> or a context value is not valid UTF-16 text (a lone
+    /// surrogate), or a context header's name is blank, holds a colon, or is given twice.
+    /// </exception>
     /// <remarks>
     /// The key is <see cref="CacheKey.DeriveCacheKey(CacheSecret, ReadOnlySpan{string})"/> with the operation's secret
-    /// over <c>idempotency-key</c>, the operation's key, the method, the address, the body in base64, and the ordinal in
-    /// decimal: how many identical writes the operation has made before. Only a holder of the secret can compute it.
+    /// over <c>idempotency-key</c>, the operation's key, the method, the address, the body in base64, the ordinal in
+    /// decimal (how many identical writes the operation has made before), and each context header as
+    /// <c>{name}:{value}</c>, its name in lower case, in order of name. Only a holder of the secret can compute it.
+    /// Writes for different users or organizations get different keys whatever order they are made in.
     /// </remarks>
-    public static string? KeyForWrite(string method, string address, ReadOnlySpan<byte> body)
+    public static string? KeyForWrite(
+        string method, string address, ReadOnlySpan<byte> body, IEnumerable<KeyValuePair<string, string>> context)
     {
         ArgumentNullException.ThrowIfNull(method);
         ArgumentNullException.ThrowIfNull(address);
+        ArgumentNullException.ThrowIfNull(context);
+
+        var headers = ContextParameters(context);
 
         if (Active is not { } scope)
         {
             return null;
         }
 
-        // Counted by the body's digest rather than the body, so the scope never holds a body.
-        var ordinal = scope.Next(("write", method, address, Convert.ToHexStringLower(SHA256.HashData(body))));
+        const string invalidText = "The method, the address or a context value is not valid UTF-16 text.";
+        string[] write = [scope.Key, method, address, Convert.ToBase64String(body)];
+
+        // Counted by everything but the ordinal, derived, so the scope holds no body and no context value.
+        var ordinal = scope.Next(Derive(scope.Secret, invalidText, nameof(address), [WriteKeyPurpose, .. write, .. headers]));
 
         var key = Derive(
             scope.Secret,
-            "The method or the address is not valid UTF-16 text.",
+            invalidText,
             nameof(address),
-            WriteKeyPurpose,
-            scope.Key,
-            method,
-            address,
-            Convert.ToBase64String(body),
-            ordinal.ToString(CultureInfo.InvariantCulture));
+            [WriteKeyPurpose, .. write, ordinal.ToString(CultureInfo.InvariantCulture), .. headers]);
 
         return Convert.ToHexStringLower(key.AsSpan());
+    }
+
+    // Each header as one parameter, {name}:{value}, in order of name. A header's name has no colon, so the first one
+    // ends it.
+    private static string[] ContextParameters(IEnumerable<KeyValuePair<string, string>> context)
+    {
+        var headers = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (name, value) in context)
+        {
+            if (string.IsNullOrWhiteSpace(name) || name.Contains(':', StringComparison.Ordinal))
+            {
+                throw new ArgumentException("A context header's name is blank or holds a colon.", nameof(context));
+            }
+
+            ArgumentNullException.ThrowIfNull(value, nameof(context));
+            if (!headers.TryAdd(name.ToLowerInvariant(), value))
+            {
+                throw new ArgumentException("A context header is given twice.", nameof(context));
+            }
+        }
+
+        return [.. headers.Select(header => $"{header.Key}:{header.Value}")];
     }
 
     /// <summary>
@@ -235,7 +268,8 @@ public static class IdempotentOperation
             return null;
         }
 
-        var ordinal = scope.Next(("id", purpose, string.Empty, string.Empty));
+        var ordinal = scope.Next(Derive(
+            scope.Secret, "The purpose is not valid UTF-16 text.", nameof(purpose), [DerivedIdPurpose, scope.Key, purpose]));
         var derived = Derive(
             scope.Secret,
             "The purpose is not valid UTF-16 text.",
@@ -279,7 +313,7 @@ public static class IdempotentOperation
 
     private sealed class Scope(string key, CacheSecret secret, Scope? outer) : IDisposable
     {
-        private readonly ConcurrentDictionary<(string, string, string, string), int> _counts = new();
+        private readonly ConcurrentDictionary<CacheKey, int> _counts = new();
 
         public string Key { get; } = key;
 
@@ -292,7 +326,7 @@ public static class IdempotentOperation
         /// <summary>
         /// How many times the operation has asked for <paramref name="target"/> before.
         /// </summary>
-        public int Next((string, string, string, string) target) => _counts.AddOrUpdate(target, 0, (_, count) => count + 1);
+        public int Next(CacheKey target) => _counts.AddOrUpdate(target, 0, (_, count) => count + 1);
 
         /// <summary>
         /// The nearest scope from <paramref name="scope"/> outwards that has not ended, or null.

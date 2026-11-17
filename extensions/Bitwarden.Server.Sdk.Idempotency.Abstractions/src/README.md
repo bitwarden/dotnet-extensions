@@ -21,15 +21,19 @@ its caller. Ending a scope marks it ended and, when it is the current scope, res
 that hasn't ended. A scope ended out of order is never current again, and leaves alone a scope begun since it.
 
 Each scope holds its key and the secret it was begun with, and counts the times it has been asked for each target (a
-write's method, address and body, or an identifier's purpose), so identical writes in one run get distinct keys in the
-same order on every run. Keys and identifiers are `CacheKey.DeriveCacheKey(secret, parameters)`: HMAC-SHA-256 keyed by
+write's method, address, body and context, or an identifier's purpose), so identical writes in one run get distinct
+keys in the same order on every run. A target is counted by its derivation without the count, so the scope holds no
+body and no context value. Keys and identifiers are `CacheKey.DeriveCacheKey(secret, parameters)`: HMAC-SHA-256 keyed by
 the secret over each parameter length-prefixed, so no parameter can pass for two. The first parameter names the use, so
 a key and an identifier never share an input:
 
-| Derived       | Parameters, in order                                                  | Result                                       |
-| ------------- | --------------------------------------------------------------------- | -------------------------------------------- |
-| `KeyForWrite` | `idempotency-key`, operation key, method, address, body base64, count | Lower-case hex of the 32 bytes               |
-| `DeriveId`    | `derived-id`, operation key, purpose, count                           | First 16 bytes, with RFC 9562 version 8 bits |
+| Derived       | Parameters, in order                                                                             | Result                                       |
+| ------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| `KeyForWrite` | `idempotency-key`, operation key, method, address, body base64, count, each `{name}:{value}`     | Lower-case hex of the 32 bytes               |
+| `DeriveId`    | `derived-id`, operation key, purpose, count                                                      | First 16 bytes, with RFC 9562 version 8 bits |
+
+A write's context headers come last, one parameter each, named in lower case and in order of name. A header's name has
+no colon, so `{name}:{value}` reads back one way.
 
 The count is in invariant decimal digits. The identifier's version and variant bits are set in the big-endian byte
 order RFC 9562 writes. `CacheKey` encodes text as strict UTF-8, so a lone surrogate throws `EncoderFallbackException`,
