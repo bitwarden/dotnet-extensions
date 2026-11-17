@@ -49,27 +49,22 @@ and provisioned from that list rather than written by hand. The kinds are consta
 | `messaging-command-consume` | `AddCommandConsumer`     | `queue`, `family`                  | Nothing; lets provisioning check senders against what the queue accepts |
 | `messaging-command-send`  | `AddCommandSender`         | `queue`, `family`                  | Send rights on the receiving service's queue (on RabbitMQ, write on the queue's own exchange) |
 
-None of them carries a connection string or key. The sections below say what each becomes on each
-broker.
+None of them carries a connection string or key.
 
 Provisioning collects every service's list and checks it before granting anything:
 
 - **One owner per topic and per queue.** Each topic appears under `messaging-topic`, and each queue
   under `messaging-command-queue`, for exactly one service. Fail if two services claim the same
-  one: granting send rights on a topic to a service that isn't its owner would let it publish
-  another service's events, and granting receive rights on a queue would let it read another
-  service's commands.
+  one: a non-owner could publish another service's events or read its commands.
 - **One owner per subscription.** Each topic and subscription pair appears under
   `messaging-subscription` for exactly one service, and its topic has an owner under
-  `messaging-topic`. Fail otherwise: two services on one subscription would each get receive rights
-  on it and take each other's messages.
-- **No two declarations make the same broker object.** Work out every name each declaration becomes
-  on the broker, and fail if two declarations of any kinds produce the same one. On RabbitMQ
-  everything shares one name space: a topic's exchange is `{topic}`, a subscription's queue is
-  `{topic}.{subscription}`, and a command queue and its exchange are both `{queue}`, so the
-  subscription `vault` on the topic `notification` and the command queue `notification.vault` would
-  be the same queue, and so would the subscription `b.c` on the topic `a` and the subscription `c`
-  on the topic `a.b`. The dead-letter exchanges and queues each of these needs count too.
+  `messaging-topic`. Fail otherwise: two services on one subscription would take each other's
+  messages.
+- **No two declarations make the same broker object.** Fail if two declarations of any kinds produce
+  the same broker name, dead-letter exchanges and queues included. On RabbitMQ everything shares one
+  name space (a topic's exchange is `{topic}`, a subscription's queue `{topic}.{subscription}`, a
+  command queue and its exchange both `{queue}`), so the subscription `vault` on the topic
+  `notification` and the command queue `notification.vault` would be the same queue.
 - **Send rights only where declared.** Grant send rights on a topic only to its owner, and on a
   queue only to the services that declare `messaging-command-send` for it.
 - **Senders match consumers.** Each `messaging-command-send` should name a family the queue's owner
@@ -103,12 +98,10 @@ and does not consume any `ServiceBusClient` the app registers separately. An app
 
 For each unique `queue` passed to `AddCommandConsumer<TPayload, TCeiling, TConsumer>(queue)`:
 
-- A queue named `{queue}`, owned by the receiving service. It carries every command family the
-  service accepts, so it has no filter: the receiver reads `x-bw-payload-family` and dead-letters a
-  family it has no consumer for. Set `MaxDeliveryCount` as for a subscription.
+- A queue named `{queue}`, owned by the receiving service, with no filter. Set `MaxDeliveryCount`
+  as for a subscription.
 
-Senders (`AddCommandSender`) need only send rights on the queue. Sending to a queue that doesn't
-exist throws `BrokerUnavailableException`.
+Senders (`AddCommandSender`) need only send rights on the queue.
 
 ### Access with a managed identity
 
@@ -139,11 +132,9 @@ If the queue's routing-key binding is wrong, `RabbitSubscriber` falls back to th
 check — it reads the `x-bw-payload-family` header and dead-letters mismatches. The routing-key
 binding is still the right production configuration because it moves the filter into the broker.
 
-A hosted consumer ends its own retries: it dead-letters a failed message once it has been delivered
-`ConsumerRetryOptions.MaxDeliveries` times, by default on its first failure (see PACKAGE.md). The
-delivery limit is the backstop, for a consumer that returns messages itself or a message that keeps
-coming back for another reason, so set it at least as high as the largest `MaxDeliveries` configured
-for the queue. A consumer that returns a message for redelivery does so with `basic.reject`, which
+A hosted consumer ends its own retries after `ConsumerRetryOptions.MaxDeliveries` (see PACKAGE.md).
+The delivery limit is the backstop, so set it at least as high as the largest `MaxDeliveries`
+configured for the queue. A consumer that returns a message for redelivery does so with `basic.reject`, which
 RabbitMQ counts toward the limit and in the `x-delivery-count` header that becomes
 `Envelope.DeliveryCount`.
 
@@ -242,16 +233,11 @@ For each unique `queue` passed to `AddCommandConsumer<TPayload, TCeiling, TConsu
   routing key. Senders publish to the exchange with the same routing key.
 - Apply the same `delivery-limit` and dead-letter policy as subscription queues.
 
-Each command queue has an exchange of its own, rather than senders using RabbitMQ's default
-exchange, so that sending can be granted one queue at a time. RabbitMQ checks a publish against
-`write` on the exchange: a sender's user needs `write` on `^{queue}$` for each queue it sends to,
-and the receiver's user `read` on its own queue. The permissions are regular expressions, so escape
-the dots in a queue's name (`^notification\.commands$`); an unescaped dot matches any character. Write on the default exchange (`amq.default`)
-would let a user publish to every queue in the virtual host, event subscription queues included,
-so don't grant it to service users.
-
-Senders publish with `mandatory`, so a command sent before the queue exists is returned by the
-broker and `SendAsync` throws `BrokerUnavailableException` instead of the command being dropped.
+Each command queue has its own exchange so that sending can be granted one queue at a time: a
+sender's user needs `write` on `^{queue}$` for each queue it sends to, and the receiver's user
+`read` on its own queue. The permissions are regular expressions, so escape the dots in a queue's
+name (`^notification\.commands$`). Don't grant service users `write` on the default exchange
+(`amq.default`): it reaches every queue in the virtual host.
 
 ### Where RabbitMQ and LavinMQ differ
 

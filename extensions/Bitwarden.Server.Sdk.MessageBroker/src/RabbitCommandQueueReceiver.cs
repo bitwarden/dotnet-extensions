@@ -20,9 +20,7 @@ internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
 
     public async IAsyncEnumerable<CommandQueueMessage> ReceiveAsync(Action onSubscribed, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        // As RabbitSubscriber does: the host can close the connection while the stream is still
-        // being set up. That is a shutdown, not a broker failure, so the stream ends as it does
-        // when the channel closes, and setup calls end rather than wait for a reply.
+        // The host closing the connection during setup is a shutdown, not a broker failure.
         using var setupCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _connection.Closed);
         IChannel rabbitChannel;
         try
@@ -54,8 +52,7 @@ internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
                 TraceParent = ReadHeader(headers, BrokerProperties.TraceParent),
                 DeliveryCount = deliveryCount,
                 CompleteAsync = ct => rabbitChannel.BasicAckAsync(deliveryTag, multiple: false, ct).AsTask(),
-                // A reject, as RabbitSubscriber's: RabbitMQ 4.3+ counts it toward the delivery limit,
-                // where a nack isn't. A closed channel already returned its unacknowledged messages.
+                // Reject, not nack: RabbitMQ 4.3+ counts only a reject toward the delivery limit.
                 RequeueAsync = ct => rabbitChannel.IsOpen
                     ? rabbitChannel.BasicRejectAsync(deliveryTag, requeue: true, ct).AsTask()
                     : Task.CompletedTask,
@@ -66,8 +63,6 @@ internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
             }, CancellationToken.None);
         };
 
-        // As RabbitSubscriber does: an unexpected channel close ends the loop, and is surfaced
-        // as BrokerDisconnectedException once the messages already read are drained.
         Exception? brokerDisconnect = null;
         rabbitChannel.ChannelShutdownAsync += (_, args) =>
         {
@@ -87,7 +82,6 @@ internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
             yield break;
         }
 
-        // Connection, channel and consumer are all in place.
         onSubscribed();
 
         await foreach (var message in innerChannel.Reader.ReadAllAsync(cancellationToken))

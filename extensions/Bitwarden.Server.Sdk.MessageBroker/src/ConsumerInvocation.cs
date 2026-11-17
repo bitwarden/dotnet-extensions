@@ -3,12 +3,7 @@ using System.Diagnostics;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Runs a hosted consumer on one received message, the same way for a topic subscription
-/// (<see cref="ConsumerBackgroundService{TPayload, TCeiling, TConsumer}"/>) and a command queue
-/// (<see cref="CommandFamilyHandler{TPayload, TCeiling, TConsumer}"/>): the receive span is current
-/// while it runs, it gets a scope of its own, and the message is completed when it returns. When it
-/// throws, the message is dead-lettered, or, if its <see cref="ConsumerRetryOptions"/> allow another
-/// delivery, returned after the retry delay (<see cref="RetryDelay"/>).
+/// Runs a hosted consumer on one received message, for topic subscriptions and command queues alike.
 /// </summary>
 internal static class ConsumerInvocation
 {
@@ -51,8 +46,7 @@ internal static class ConsumerInvocation
             {
                 if (stopped)
                 {
-                    // Return the message at once, for the next instance (or, in memory, escrow),
-                    // without the retry delay or the dead-letter decision.
+                    // Return the message at once, without the retry delay or the dead-letter decision.
                     if (!envelope.IsSettled)
                         await envelope.RequeueAsync("The consumer stopped.", CancellationToken.None);
                 }
@@ -64,10 +58,7 @@ internal static class ConsumerInvocation
                 }
                 else if (!envelope.IsSettled)
                 {
-                    // A handler that settled the message itself (dead-lettered it, say) before
-                    // throwing has decided its fate. Otherwise retry it if its options allow
-                    // another delivery, and dead-letter it if not. The reason names the exception's
-                    // type only: its message can carry data from the payload.
+                    // The reason names the exception's type only: its message can carry payload data.
                     var reason = $"The consumer threw {failure.GetType().Name} on delivery {envelope.DeliveryCount}.";
                     if (envelope.DeliveryCount >= retry.MaxDeliveries)
                     {
@@ -84,8 +75,7 @@ internal static class ConsumerInvocation
             {
                 // Settlement failed (broker disconnected, lock expired, etc.). The broker
                 // will redeliver the message when the lock times out. Swallow so a transient
-                // settlement error doesn't kill the consumer permanently, and don't wait: the
-                // handler succeeded, or the message is already on its way back.
+                // settlement error doesn't kill the consumer permanently.
             }
         }
         finally
