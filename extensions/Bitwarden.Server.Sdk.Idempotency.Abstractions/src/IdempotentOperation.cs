@@ -13,13 +13,15 @@ namespace Bitwarden.Server.Sdk.Idempotency;
 /// <remarks>
 /// <para>
 /// A client that sends an <c>Idempotency-Key</c> (<see cref="IdempotencyKeys.Header"/>) on a write, to an operation
-/// whose service's contract marks it (<see cref="IdempotencyKeys.Extension"/>), asks <see cref="KeyForWrite"/> for it. Outside an operation the client sends a fresh key for each call, which covers its
-/// own retries of that call. Inside one, the key is derived, with the service's secret (<see cref="IdempotencySecret"/>), from the operation's key, the method, the address, the body, and how many identical writes the
+/// whose service's contract marks it (<see cref="IdempotencyKeys.Extension"/>), asks <see cref="KeyForWrite"/> for it.
+/// Outside an operation the client sends a fresh key for each call, which covers its own retries of that call. Inside
+/// one, the key is derived, with the service's secret (<see cref="IdempotencySecret"/>), from the operation's key, the
+/// method, the address, the body, the context the write carries (whom it is for), and how many identical writes the
 /// operation has made before: so an operation that is run again from the start (a message redelivered, a job's
 /// occurrence run again, an attempt of a retry loop) with the same key sends the same keys, and the callees replay what
-/// they answered the first time. A write whose body differs from the first run's (it carries a time, or reads
-/// something the first run changed) gets a key of its own and is done as a new write, as it would be outside an
-/// operation; it is never refused for differing.
+/// they answered the first time. A write whose body differs from the first run's (it carries a time, or reads something
+/// the first run changed) gets a key of its own and is done as a new write, as it would be outside an operation; it is
+/// never refused for differing.
 /// </para>
 /// <para>
 /// The key must be stable for the logical operation and unique to it: a message's id, a job occurrence, an id the
@@ -44,10 +46,10 @@ public static class IdempotentOperation
     private static readonly AsyncLocal<Scope?> Ambient = new();
 
     // The first parameter of each derivation, one per use, so a write key and a derived identifier never share an
-    // input.
-    private const string WriteKeyPurpose = "idempotency-key";
+    // input, and no other use of CacheKey shares one. The version moves if a derivation's parameters ever change.
+    private const string WriteKeyPurpose = "bitwarden.idempotency.write-key.v1";
 
-    private const string DerivedIdPurpose = "derived-id";
+    private const string DerivedIdPurpose = "bitwarden.idempotency.derived-id.v1";
 
     // The first part of an operation key ForMessage or ForJob gives, so a message's key and a job's never match.
     private const string MessageKind = "msg";
@@ -91,7 +93,7 @@ public static class IdempotentOperation
                 $"An operation key is 1 to {MaximumKeyLength} visible ASCII characters.", nameof(key));
         }
 
-        var scope = new Scope(key, secret.Value, Ambient.Value);
+        var scope = new Scope(key, secret.Value, secret.ServiceName, Ambient.Value);
         Ambient.Value = scope;
 
         return scope;
@@ -206,8 +208,9 @@ public static class IdempotentOperation
     /// </exception>
     /// <remarks>
     /// The key is <see cref="CacheKey.DeriveCacheKey(CacheSecret, ReadOnlySpan{string})"/> with the operation's secret
-    /// over <c>idempotency-key</c>, the operation's key, the method, the address, the body's SHA-256 in lower-case hex, the ordinal in
-    /// decimal (how many identical writes the operation has made before), and each context header as
+    /// over <c>bitwarden.idempotency.write-key.v1</c>, the service's name, the operation's key, the method, the address,
+    /// the body's SHA-256 in lower-case hex, the ordinal in decimal (how many identical writes the operation has made
+    /// before), and each context header as
     /// <c>{name}:{value}</c>, its name in lower case, in order of name. Only a holder of the secret can compute it.
     /// Writes for different users or organizations get different keys whatever order they are made in.
     /// </remarks>
@@ -226,7 +229,7 @@ public static class IdempotentOperation
         }
 
         const string invalidText = "The method, the address or a context value is not valid UTF-16 text.";
-        string[] write = [scope.Key, method, address, Convert.ToHexStringLower(SHA256.HashData(body))];
+        string[] write = [scope.ServiceName, scope.Key, method, address, Convert.ToHexStringLower(SHA256.HashData(body))];
 
         // Counted by everything but the ordinal, derived, so the scope holds no body and no context value.
         var ordinal = scope.Next(Derive(scope.Secret, invalidText, nameof(address), [WriteKeyPurpose, .. write, .. headers]));
@@ -277,11 +280,11 @@ public static class IdempotentOperation
     /// </exception>
     /// <remarks>
     /// The purpose names what the identifier is for, and the subject whom. Never a person's data: no email address, no
-    /// name. The identifier is the first 16 bytes of
-    /// <see cref="CacheKey.DeriveCacheKey(CacheSecret, ReadOnlySpan{string})"/> with the operation's secret over
-    /// <c>derived-id</c>, the operation's key, the purpose, the ordinal in decimal and the subject, if any, so only a
-    /// holder of the secret can compute it. The same purpose and subject asked for twice in one run get two identifiers,
-    /// in order. Pass the subject whenever one operation makes the same kind of thing for several users or
+    /// name. The identifier is the first 16 bytes of <see cref="CacheKey.DeriveCacheKey(CacheSecret,
+    /// ReadOnlySpan{string})"/> with the operation's secret over <c>bitwarden.idempotency.derived-id.v1</c>, the
+    /// service's name, the operation's key, the purpose, the ordinal in decimal and the subject, if any, so only a
+    /// holder of the secret can compute it. The same purpose and subject asked for twice in one run get two
+    /// identifiers, in order. Pass the subject whenever one operation makes the same kind of thing for several users or
     /// organizations: each one's identifier then stays theirs whatever order a run asks in.
     /// </remarks>
     public static Guid? DeriveId(string purpose, string? subject = null)
@@ -294,14 +297,12 @@ public static class IdempotentOperation
         }
 
         const string invalidText = "The purpose or the subject is not valid UTF-16 text.";
+        string[] what = [DerivedIdPurpose, scope.ServiceName, scope.Key, purpose];
         string[] whom = subject is null ? [] : [subject];
 
-        var ordinal = scope.Next(Derive(scope.Secret, invalidText, nameof(purpose), [DerivedIdPurpose, scope.Key, purpose, .. whom]));
+        var ordinal = scope.Next(Derive(scope.Secret, invalidText, nameof(purpose), [.. what, .. whom]));
         var derived = Derive(
-            scope.Secret,
-            invalidText,
-            nameof(purpose),
-            [DerivedIdPurpose, scope.Key, purpose, ordinal.ToString(CultureInfo.InvariantCulture), .. whom]);
+            scope.Secret, invalidText, nameof(purpose), [.. what, ordinal.ToString(CultureInfo.InvariantCulture), .. whom]);
         var bytes = derived.AsSpan()[..16].ToArray();
 
         // RFC 9562 version 8 (custom) and the RFC variant, in the big-endian byte order the RFC writes.
@@ -342,13 +343,15 @@ public static class IdempotentOperation
         }
     }
 
-    private sealed class Scope(string key, CacheSecret secret, Scope? outer) : IDisposable
+    private sealed class Scope(string key, CacheSecret secret, string serviceName, Scope? outer) : IDisposable
     {
         private readonly ConcurrentDictionary<CacheKey, int> _counts = new();
 
         public string Key { get; } = key;
 
         public CacheSecret Secret { get; } = secret;
+
+        public string ServiceName { get; } = serviceName;
 
         public bool Ended { get; private set; }
 

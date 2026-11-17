@@ -20,8 +20,8 @@ public sealed class IdempotencySecretTests
     [InlineData("development")]
     public void ReadSecret_UnsetInDevelopment_IsTheDevelopmentSecret(string environment)
     {
-        Assert.Equal(CacheSecret.Development, IdempotencySecret.ReadSecret(Configuration(null), environment).Value);
-        Assert.Equal(CacheSecret.Development, IdempotencySecret.ReadSecret(Configuration(" "), environment).Value);
+        Assert.Equal(CacheSecret.Development, IdempotencySecret.ReadSecret(Configuration(null), environment, "test-service").Value);
+        Assert.Equal(CacheSecret.Development, IdempotencySecret.ReadSecret(Configuration(" "), environment, "test-service").Value);
     }
 
     [Theory]
@@ -30,7 +30,7 @@ public sealed class IdempotencySecretTests
     [InlineData("QA")]
     public void ReadSecret_UnsetOutsideDevelopment_Throws(string environment)
     {
-        var exception = Assert.Throws<InvalidOperationException>(() => IdempotencySecret.ReadSecret(Configuration(null), environment));
+        var exception = Assert.Throws<InvalidOperationException>(() => IdempotencySecret.ReadSecret(Configuration(null), environment, "test-service"));
 
         Assert.Contains(IdempotencySecret.SecretKey, exception.Message);
     }
@@ -41,7 +41,7 @@ public sealed class IdempotencySecretTests
         var value = Base64(CacheSecret.Development);
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            IdempotencySecret.ReadSecret(Configuration(value), "Production"));
+            IdempotencySecret.ReadSecret(Configuration(value), "Production", "test-service"));
 
         Assert.Contains(IdempotencySecret.SecretKey, exception.Message);
         Assert.DoesNotContain(value, exception.Message);
@@ -50,7 +50,7 @@ public sealed class IdempotencySecretTests
     [Fact]
     public void ReadSecret_TheDevelopmentSecretInDevelopment_IsAllowed()
     {
-        Assert.Equal(CacheSecret.Development, IdempotencySecret.ReadSecret(Configuration(Base64(CacheSecret.Development)), "Development").Value);
+        Assert.Equal(CacheSecret.Development, IdempotencySecret.ReadSecret(Configuration(Base64(CacheSecret.Development)), "Development", "test-service").Value);
     }
 
     [Theory]
@@ -58,7 +58,7 @@ public sealed class IdempotencySecretTests
     [InlineData("Production")]
     public void ReadSecret_ReadsBase64(string environment)
     {
-        Assert.Equal(Secret, IdempotencySecret.ReadSecret(Configuration(Base64(Secret)), environment).Value);
+        Assert.Equal(Secret, IdempotencySecret.ReadSecret(Configuration(Base64(Secret)), environment, "test-service").Value);
     }
 
     // Neither the message nor an inner exception quotes what was configured.
@@ -68,18 +68,27 @@ public sealed class IdempotencySecretTests
     [InlineData("AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB", "Development")]
     public void ReadSecret_NotBase64OfThirtyTwoBytes_Throws(string value, string environment)
     {
-        var exception = Assert.Throws<InvalidOperationException>(() => IdempotencySecret.ReadSecret(Configuration(value), environment));
+        var exception = Assert.Throws<InvalidOperationException>(() => IdempotencySecret.ReadSecret(Configuration(value), environment, "test-service"));
 
         Assert.Contains(IdempotencySecret.SecretKey, exception.Message);
         Assert.DoesNotContain(value, exception.ToString());
         Assert.Null(exception.InnerException);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void ReadSecret_ABlankServiceName_Throws(string? serviceName)
+    {
+        Assert.ThrowsAny<ArgumentException>(() => IdempotencySecret.ReadSecret(Configuration(Base64(Secret)), "Production", serviceName!));
+    }
+
     [Fact]
     public void ReadSecret_NullArguments_Throw()
     {
-        Assert.Throws<ArgumentNullException>(() => IdempotencySecret.ReadSecret(null!, "Production"));
-        Assert.Throws<ArgumentNullException>(() => IdempotencySecret.ReadSecret(Configuration(null), null!));
+        Assert.Throws<ArgumentNullException>(() => IdempotencySecret.ReadSecret(null!, "Production", "test-service"));
+        Assert.Throws<ArgumentNullException>(() => IdempotencySecret.ReadSecret(Configuration(null), null!, "test-service"));
     }
 
     // Only ReadSecret, which checks the secret, makes one.
@@ -92,7 +101,7 @@ public sealed class IdempotencySecretTests
     [Fact]
     public void ToString_NeverWritesTheSecret()
     {
-        var secret = new IdempotencySecret(Secret);
+        var secret = new IdempotencySecret(Secret, "test-service");
 
         Assert.Equal("[idempotency secret]", secret.ToString());
         Assert.Equal("[idempotency secret]", $"{secret}");
@@ -108,7 +117,7 @@ public sealed class IdempotencySecretTests
     [Fact]
     public void Value_IsTheSecretGiven()
     {
-        Assert.Equal(Secret, new IdempotencySecret(Secret).Value);
+        Assert.Equal(Secret, new IdempotencySecret(Secret, "test-service").Value);
     }
 
     internal static IConfiguration Configuration(string? secret) => new SecretOnly(secret);

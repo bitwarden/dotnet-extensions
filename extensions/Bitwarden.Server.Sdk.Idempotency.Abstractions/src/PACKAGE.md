@@ -24,13 +24,15 @@ dotnet add package Bitwarden.Server.Sdk.Idempotency.Abstractions
 - **An operation names a piece of work.** Inside one, `IdempotentOperation.KeyForWrite(method, address, body, context)`
   returns a key derived, with the service's secret, from the operation's key, the method, the address, the body, the
   context headers the write carries (whom it is for), and how many identical writes the operation made before. Writes
-  for different users or organizations get different keys whatever order a run makes them in. Outside one it returns null, and the client sends a fresh key per call,
-  which covers its own retries of that call.
+  for different users or organizations get different keys whatever order a run makes them in. Outside one it returns
+  null, and the client sends a fresh key per call, which covers its own retries of that call.
 - **Each service has a secret.** `IdempotencySecret`, from `Idempotency:Secret`, keys every key and identifier the
   service's operations derive, so only the service can compute them. Only the service that derived a key derives it
   again, so the secret is the service's own, the same on every instance. `IdempotentOperation.Begin` takes the
   `IdempotencySecret` itself, which only `IdempotencySecret.ReadSecret` and `AddIdempotencySecret()` make, so every
-  operation's secret has passed their checks.
+  operation's secret has passed their checks. Every key and identifier is also derived from the service's name, so
+  two services that end up with the same secret still derive their own; give each service a secret of its own all
+  the same.
 - **This package neither sends nor honors the header.** A client sends it, a service honors it, and a host that runs
   message handlers or jobs begins an operation around each run.
 
@@ -41,10 +43,12 @@ dotnet add package Bitwarden.Server.Sdk.Idempotency.Abstractions
 | `Idempotency:Secret` | None    | Base64 of 32 bytes: the secret the service's operations derive their keys and identifiers with. Required outside `Development`; see below. |
 
 `AddIdempotencySecret()` registers `IdempotencySecret`, read from configuration as the host starts by
-`IdempotencySecret.ReadSecret(configuration, environmentName)`, so a service deployed without its secret fails to start. In `Development` an unset secret is
-`CacheSecret.Development`. Outside it, an unset secret, or one equal to `CacheSecret.Development`, throws
-`InvalidOperationException`, naming the setting and never its value. A container with no `IHostEnvironment` is treated
-as not `Development`. A service that runs no operations doesn't call `AddIdempotencySecret()` and needs no secret.
+`IdempotencySecret.ReadSecret(configuration, environmentName, serviceName)`, with the host's
+`IHostEnvironment.ApplicationName` as the service's name, so a service deployed without its secret fails to start. In
+`Development` an unset secret is `CacheSecret.Development`. Outside it, an unset secret, or one equal to
+`CacheSecret.Development`, throws `InvalidOperationException`, naming the setting and never its value. A container with
+no `IHostEnvironment` is treated as not `Development` and has no service name, so reading the secret throws. A service
+that runs no operations doesn't call `AddIdempotencySecret()` and needs no secret.
 
 ## Usage
 

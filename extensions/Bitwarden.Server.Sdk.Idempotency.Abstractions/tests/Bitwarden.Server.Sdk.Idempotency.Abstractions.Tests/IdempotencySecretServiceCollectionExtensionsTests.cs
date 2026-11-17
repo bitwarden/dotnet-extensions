@@ -19,6 +19,14 @@ public sealed class IdempotencySecretServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddIdempotencySecret_NamesTheServiceAsTheHostDoes()
+    {
+        var secret = Resolve(new ServiceCollection().AddIdempotencySecret(), IdempotencySecretTests.Configuration(null), "Development");
+
+        Assert.Equal("test", secret.ServiceName);
+    }
+
+    [Fact]
     public void AddIdempotencySecret_UnsetInDevelopment_IsTheDevelopmentSecret()
     {
         var secret = Resolve(new ServiceCollection().AddIdempotencySecret(), IdempotencySecretTests.Configuration(null), "Development");
@@ -26,8 +34,8 @@ public sealed class IdempotencySecretServiceCollectionExtensionsTests
         Assert.Equal(CacheSecret.Development, secret.Value);
     }
 
-    // A container built without a host has no environment, and is treated as not Development; one without
-    // configuration has no secret.
+    // A container built without a host has no environment, so is treated as not Development and has no service name;
+    // one without configuration has no secret.
     [Fact]
     public void AddIdempotencySecret_WithNoEnvironmentOrConfiguration_RequiresASecret()
     {
@@ -43,7 +51,7 @@ public sealed class IdempotencySecretServiceCollectionExtensionsTests
     public void AddIdempotencySecret_KeepsASecretAlreadyRegistered()
     {
         var services = new ServiceCollection();
-        services.AddSingleton(new IdempotencySecret(Secret));
+        services.AddSingleton(new IdempotencySecret(Secret, "test-service"));
         services.AddIdempotencySecret();
 
         var descriptor = Assert.Single(services, d => d.ServiceType == typeof(IdempotencySecret));
