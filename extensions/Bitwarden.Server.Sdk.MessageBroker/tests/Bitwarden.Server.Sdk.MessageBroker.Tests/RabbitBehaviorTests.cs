@@ -311,11 +311,6 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
         }
     }
 
-    /// <summary>
-    /// Verifies that a message the broker refuses fails the send. The subscription queue holds one message and refuses
-    /// any more (<c>x-overflow: reject-publish</c>), so the broker nacks the second publish. Without publisher confirms
-    /// the send returned as soon as the message was written to the socket, and the refused message was lost silently.
-    /// </summary>
     [Fact(Timeout = 60 * 1000)]
     public async Task MessageTheBrokerRefusesFailsTheSend()
     {
