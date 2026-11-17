@@ -57,9 +57,10 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
             await peek.WaitAsync(_connection.Closed);
             subscribed = true;
         }
-        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or ServiceBusException
-                                   && _connection.IsClosing
-                                   && !cancellationToken.IsCancellationRequested)
+        catch (Exception ex) when (
+            (ex is OperationCanceledException or ObjectDisposedException or ServiceBusException)
+            && _connection.IsClosing
+            && !cancellationToken.IsCancellationRequested)
         {
             // The connection closed while the link was opening: a shutdown.
         }
@@ -86,9 +87,10 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
                 _ = receive.ContinueWith(static t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
                 received = await receive.WaitAsync(_connection.Closed);
             }
-            catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or ServiceBusException
-                                       && _connection.IsClosing
-                                       && !cancellationToken.IsCancellationRequested)
+            catch (Exception ex) when (
+                (ex is OperationCanceledException or ObjectDisposedException or ServiceBusException)
+                && _connection.IsClosing
+                && !cancellationToken.IsCancellationRequested)
             {
                 // The connection closed while the receive was opening its link or waiting for a
                 // message. Whatever the Azure SDK surfaced, this is a shutdown: end the stream.

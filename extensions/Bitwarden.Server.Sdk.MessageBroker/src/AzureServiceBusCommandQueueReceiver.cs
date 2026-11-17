@@ -43,9 +43,10 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
             await peek.WaitAsync(stopWaiting.Token);
             subscribed = true;
         }
-        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or ServiceBusException
-                                   && _connection.IsClosing
-                                   && !cancellationToken.IsCancellationRequested)
+        catch (Exception ex) when (
+            (ex is OperationCanceledException or ObjectDisposedException or ServiceBusException)
+            && _connection.IsClosing
+            && !cancellationToken.IsCancellationRequested)
         {
         }
         catch (ServiceBusException ex)
@@ -67,9 +68,10 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
                 _ = receive.ContinueWith(static t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
                 received = await receive.WaitAsync(stopWaiting.Token);
             }
-            catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or ServiceBusException
-                                       && _connection.IsClosing
-                                       && !cancellationToken.IsCancellationRequested)
+            catch (Exception ex) when (
+                (ex is OperationCanceledException or ObjectDisposedException or ServiceBusException)
+                && _connection.IsClosing
+                && !cancellationToken.IsCancellationRequested)
             {
                 // A shutdown, whatever the Azure SDK surfaced.
                 break;
