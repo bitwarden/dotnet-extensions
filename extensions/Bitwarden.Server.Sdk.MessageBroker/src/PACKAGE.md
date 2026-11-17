@@ -114,10 +114,9 @@ Every registration also declares the topology it needs as infrastructure require
 `MessagingRequirements`), so provisioning can be generated from a service's startup; see
 [BROKER-TOPOLOGY.md](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/BROKER-TOPOLOGY.md#collecting-a-services-topology).
 
-Those requirements are also what a service checks once it first reaches its broker. If any topic,
-subscription or queue it needs is missing, it logs one critical message naming each and stops with
-exit code 1. An unreachable broker doesn't stop it; the check waits until the broker answers. On Azure
-Service Bus only subscriptions and the service's own command queue can be checked. Set
+Once a service first reaches its broker, it checks that every topic, subscription and queue it
+needs exists, and if not stops with exit code 1, naming what is missing; an unreachable broker
+doesn't stop it. Set
 `VerifyTopologyAtStartup` to `false` to turn the check off, for example in tests that declare their
 topology after the host starts. See
 [BROKER-TOPOLOGY.md](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/BROKER-TOPOLOGY.md#checking-the-topology-at-startup).

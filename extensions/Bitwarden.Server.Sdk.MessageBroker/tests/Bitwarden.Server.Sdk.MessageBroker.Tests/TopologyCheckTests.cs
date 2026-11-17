@@ -222,9 +222,7 @@ public class AzureServiceBusTopologyCheckTests
         _fixture = fixture;
     }
 
-    // The emulator doesn't report a missing entity as Azure Service Bus does (MessagingEntityNotFound when
-    // the receive link attaches): it closes the link after a timeout, which the check takes for an outage.
-    // So only a service whose topology exists can be tested against it.
+    // The emulator reports a missing entity as an outage, so only existing topology can be tested here.
     [Fact(Timeout = 60 * 1000)]
     public async Task ServiceWhoseSubscriptionsAndQueueExistKeepsRunning()
     {
@@ -232,9 +230,7 @@ public class AzureServiceBusTopologyCheckTests
             new() { ["AzureServiceBusConnectionString"] = _fixture.GetConnectionString() },
             services =>
             {
-                // The emulator declares topic "behavior" with subscriptions "behavior" and "pm", and queue
-                // "commands". The queue is declared as a requirement only: a consumer would take the other
-                // tests' commands.
+                // Requirement only for the queue: a consumer would take the other tests' commands.
                 services.AddSubscriber<UserCreatedPayload, UserCreated>("behavior", "pm");
                 services.AddSubscriber<UserDeletedPayload, UserDeleted>("behavior", "behavior");
                 MessagingRequirements.DeclareCommandConsumer(services, "commands", SendPushPayload.WireName);

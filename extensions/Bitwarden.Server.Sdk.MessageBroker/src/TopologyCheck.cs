@@ -40,24 +40,15 @@ internal sealed record ExpectedTopology(
 
 /// <summary>
 /// Checks, once the service first reaches its broker, that the topology its registrations need exists,
-/// and stops the service, naming what is missing, if it doesn't (<see cref="MessagingOptions.VerifyTopologyAtStartup"/>).
+/// and stops the service (exit code 1), naming what is missing, if it doesn't. An unreachable broker
+/// is an outage, not a setup mistake: the check waits for it.
 /// </summary>
 /// <remarks>
-/// <para>
-/// Topology is provisioned outside the services, so a missing topic, subscription or queue is a setup
-/// mistake, not an outage: the service stops (exit code 1) rather than running without, say, the queue
-/// its commands arrive on. A broker that can't be reached is an outage, which the service rides
-/// through: the check waits for it, trying again after a delay that doubles from one second up to thirty.
-/// </para>
-/// <para>
-/// RabbitMQ and LavinMQ: a passive declare of each exchange and queue the service uses, which needs no
-/// configure right, only the read or write right the service already has on it. It doesn't see
-/// bindings or policies. RabbitMQ refuses a passive declare of an object the service has no rights to,
-/// whether or not it exists, so a refusal is reported as an object the service may not use.
-/// Azure Service Bus: a peek at the service's own subscriptions and command queues, which needs only
-/// the receive rights it has. Its topics and the queues it only sends to can't be checked without the
-/// Manage right; a missing one shows as sends that fail.
-/// </para>
+/// RabbitMQ and LavinMQ: a passive declare of each exchange and queue, which needs only the read or
+/// write right the service already has; RabbitMQ refuses one on an object the service has no rights
+/// to, so a refusal is reported as an object it may not use. Azure Service Bus: a peek at the
+/// service's own subscriptions and command queues; its topics and the queues it only sends to can't
+/// be checked without the Manage right.
 /// </remarks>
 internal sealed class TopologyCheckService(
     IOptions<MessagingOptions> options,
@@ -69,7 +60,6 @@ internal sealed class TopologyCheckService(
     /// <summary>Sets the process exit code; tests replace it so a stopped test host doesn't fail the run.</summary>
     internal Action<int> SetExitCode { get; set; } = code => Environment.ExitCode = code;
 
-    /// <summary>Times the wait between attempts while the broker can't be reached.</summary>
     internal TimeProvider TimeProvider { get; set; } = TimeProvider.System;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -100,8 +90,7 @@ internal sealed class TopologyCheckService(
             }
             catch (Exception ex)
             {
-                // The broker can't be reached yet, or went away during the check: an outage, not a
-                // setup mistake. Check again once it is back.
+                // Unreachable, or went away during the check: an outage, so check again.
                 logger.LogWarning(ex, "Couldn't check the message broker's topology yet; trying again in {Delay}.", delay);
                 try
                 {

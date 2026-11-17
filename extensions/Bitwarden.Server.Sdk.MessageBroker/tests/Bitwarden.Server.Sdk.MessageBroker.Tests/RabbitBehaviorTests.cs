@@ -467,10 +467,6 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
         public string GetUri(string user = "guest", string password = "guest") =>
             $"amqp://{user}:{password}@{_container!.Hostname}:{_container.GetMappedPublicPort(5672)}/";
 
-        /// <summary>
-        /// Adds a broker user with the given rights on the default virtual host, through the broker's own
-        /// command-line tool (<c>rabbitmqctl</c>, or <c>lavinmqctl</c> on LavinMQ).
-        /// </summary>
         public async Task AddUserAsync(string user, string password, string configure, string write, string read)
         {
             var tool = AmqpTestBroker.Image.Contains("lavinmq", StringComparison.OrdinalIgnoreCase) ? "lavinmqctl" : "rabbitmqctl";

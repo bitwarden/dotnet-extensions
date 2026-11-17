@@ -37,11 +37,9 @@ down to the family they consume.
 Once a service first reaches its broker, it checks that the topology its registrations need exists,
 from the same requirements listed under
 [Collecting a service's topology](#collecting-a-services-topology). If anything is missing, it logs
-one critical message naming each missing object and stops with exit code 1, so a deployment with
-incomplete topology fails at once instead of running without, say, the queue its commands arrive on.
-A broker that can't be reached doesn't stop it: it logs a warning and checks again, waiting one second
-and doubling the wait up to thirty, until the broker answers. Set `VerifyTopologyAtStartup` to
-`false` to turn the check off.
+one critical message naming each missing object and stops with exit code 1. A broker that can't be
+reached doesn't stop it: it logs a warning and checks again until the broker answers. Set
+`VerifyTopologyAtStartup` to `false` to turn the check off.
 
 The check needs no rights beyond those the service already has (see
 [Users and permissions](#users-and-permissions) and
@@ -272,7 +270,6 @@ name (`^notification\.commands$`). Don't grant service users `write` on the defa
 - **Permissions.** Both check `configure`, `write` and `read` against regular expressions over
   resource names, so the rights described under command queues apply to both. They differ on a
   passive declare of an object the user has no rights to: RabbitMQ refuses it (`403`) whether or not
-  the object exists, and LavinMQ answers as it would for anyone (`404` when it is missing). The
-  startup check reports a refusal as an object that is missing or not permitted.
+  the object exists, and LavinMQ answers `404` when it is missing.
 
 CI runs the library's broker tests on both RabbitMQ 4.3.6 and LavinMQ 2.10.4.

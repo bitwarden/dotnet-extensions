@@ -41,10 +41,9 @@ public class MessagingOptions
 
     /// <summary>
     /// Whether the service checks, once it first reaches its broker, that the topics, subscriptions and
-    /// queues its registrations need exist, and stops, naming what is missing, if they don't. A broker
-    /// that can't be reached doesn't stop the service; the check waits until it can. Default is
-    /// <see langword="true"/>; turn it off for a broker whose topology is declared after the service
-    /// starts, such as in tests.
+    /// queues its registrations need exist, and stops, naming what is missing, if they don't. Default is
+    /// <see langword="true"/>; turn it off where topology is declared after the service starts, such as
+    /// in tests.
     /// </summary>
     public bool VerifyTopologyAtStartup { get; set; } = true;
 }
