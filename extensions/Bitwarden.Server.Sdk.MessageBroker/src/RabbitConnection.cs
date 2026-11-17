@@ -73,6 +73,55 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
         return attempt.WaitAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Opens the connection if a RabbitMQ URI is configured.
+    /// </summary>
+    /// <remarks>
+    /// The host still starts if the broker can't be reached. Until it can, publishers throw
+    /// <see cref="Bitwarden.Server.Sdk.MessageBroker.BrokerUnavailableException"/> and hosted consumers keep trying
+    /// to subscribe, because each <see cref="GetConnectionAsync"/> call tries to connect again.
+    /// </remarks>
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(_options.Value.RabbitUri))
+            return;
+
+        try
+        {
+            await GetConnectionAsync(cancellationToken);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>
+    /// Closes the connection.
+    /// </summary>
+    /// <remarks>
+    /// Cancels <see cref="Closed"/> first, so a connection attempt still under way, or a call waiting
+    /// for the broker's reply, ends at once rather than holding up shutdown. <see cref="Closed"/>
+    /// stays readable afterwards, so a subscriber that starts after the connection closed still sees it
+    /// cancelled.
+    /// </remarks>
+    public async ValueTask DisposeAsync()
+    {
+        IConnection? connection;
+        lock (_sync)
+        {
+            _isClosing = true;
+            connection = _connection;
+            _connection = null;
+        }
+
+        _closed.Cancel();
+
+        if (connection is not null)
+            await connection.DisposeAsync();
+    }
+
     // Called under _sync: a connection the broker closed is replaced, and disposed off the lock.
     private IConnection? TakeDeadConnection()
     {
@@ -123,54 +172,5 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
         // The host closed while this attempt was finishing.
         await connection.DisposeAsync();
         throw new ObjectDisposedException(nameof(RabbitConnection));
-    }
-
-    /// <summary>
-    /// Opens the connection if a RabbitMQ URI is configured.
-    /// </summary>
-    /// <remarks>
-    /// The host still starts if the broker can't be reached. Until it can, publishers throw
-    /// <see cref="Bitwarden.Server.Sdk.MessageBroker.BrokerUnavailableException"/> and hosted consumers keep trying
-    /// to subscribe, because each <see cref="GetConnectionAsync"/> call tries to connect again.
-    /// </remarks>
-    public async Task StartAsync(CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrEmpty(_options.Value.RabbitUri))
-            return;
-
-        try
-        {
-            await GetConnectionAsync(cancellationToken);
-        }
-        catch (Exception) when (!cancellationToken.IsCancellationRequested)
-        {
-        }
-    }
-
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-    /// <summary>
-    /// Closes the connection.
-    /// </summary>
-    /// <remarks>
-    /// Cancels <see cref="Closed"/> first, so a connection attempt still under way, or a call waiting
-    /// for the broker's reply, ends at once rather than holding up shutdown. <see cref="Closed"/>
-    /// stays readable afterwards, so a subscriber that starts after the connection closed still sees it
-    /// cancelled.
-    /// </remarks>
-    public async ValueTask DisposeAsync()
-    {
-        IConnection? connection;
-        lock (_sync)
-        {
-            _isClosing = true;
-            connection = _connection;
-            _connection = null;
-        }
-
-        _closed.Cancel();
-
-        if (connection is not null)
-            await connection.DisposeAsync();
     }
 }
