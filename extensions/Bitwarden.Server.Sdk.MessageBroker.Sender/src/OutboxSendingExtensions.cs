@@ -60,8 +60,7 @@ public static class OutboxSendingExtensions
     /// arrive. Its receiver handles it as it handles any duplicate: harmlessly.
     /// </remarks>
     /// <returns>
-    /// Whether the message was in the outbox and is now gone from it: <see langword="false"/> once it
-    /// has been sent. <see langword="true"/> doesn't promise it won't arrive, if a send was under way.
+    /// Whether the message was in the outbox and is now gone from it.
     /// </returns>
     public static async Task<bool> RetractMessageAsync<TContext>(
         this TContext database,
@@ -81,10 +80,9 @@ public static class OutboxSendingExtensions
 
     /// <summary>
     /// Takes back every message of type <paramref name="messageType"/> not yet sent whose identifier
-    /// starts with <paramref name="idPrefix"/>, but <paramref name="except"/>: the earlier sends of
-    /// something only the latest of which matters. One added in this unit of work and not yet saved
-    /// is dropped from it; those already saved are deleted at once, inside the caller's transaction
-    /// if one is open.
+    /// starts with <paramref name="idPrefix"/>, but <paramref name="except"/>. One added in this unit
+    /// of work and not yet saved is dropped from it; those already saved are deleted at once, inside
+    /// the caller's transaction if one is open.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -94,8 +92,7 @@ public static class OutboxSendingExtensions
     /// identifier, and so the prefix, is never a person's data.
     /// </para>
     /// <para>
-    /// As with <see cref="RetractMessageAsync"/>, a send already under way can't be recalled, so a
-    /// retracted message can still arrive, and its receiver handles it harmlessly.
+    /// As with <see cref="RetractMessageAsync"/>, a retracted message can still arrive.
     /// </para>
     /// </remarks>
     /// <param name="database">The database holding the outbox.</param>

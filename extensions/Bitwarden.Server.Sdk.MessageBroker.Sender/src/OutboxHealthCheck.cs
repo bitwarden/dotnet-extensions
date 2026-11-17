@@ -10,9 +10,8 @@ namespace Bitwarden.Server.Sdk.MessageBroker.Sender;
 /// <see cref="MessageOutboxOptions.BacklogUnhealthyAge"/> late or any message has been set aside.
 /// </summary>
 /// <remarks>
-/// Tagged <c>monitoring</c> (<c>HealthCheckTags.Monitoring</c> in Bitwarden.Server.Sdk.HealthChecks), so a host leaves it
-/// out of readiness: every instance drains the same table, and taking one out of rotation wouldn't
-/// help. The description and data hold counts, ages and the database's name only.
+/// Tagged <c>monitoring</c>, so a host leaves it out of readiness: every instance drains the same
+/// table. The description and data hold counts, ages and the database's name only.
 /// </remarks>
 internal sealed class OutboxHealthCheck<TContext>(OutboxBacklog<TContext> backlog, IOptions<MessageOutboxOptions> options) : IHealthCheck
     where TContext : DbContext, IMessageOutboxContext

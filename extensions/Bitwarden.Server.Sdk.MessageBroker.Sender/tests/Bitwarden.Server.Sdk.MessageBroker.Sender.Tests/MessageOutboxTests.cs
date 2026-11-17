@@ -5,10 +5,6 @@ using static Bitwarden.Server.Sdk.MessageBroker.Sender.Tests.OutboxTestHost;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Sender.Tests;
 
-/// <summary>
-/// <see cref="MessageOutbox.Add{TPayload, TCeiling}"/>: adding to a context being saved, without a
-/// publisher.
-/// </summary>
 public sealed class MessageOutboxTests : IAsyncDisposable
 {
     private readonly OutboxTestHost _outbox = new();

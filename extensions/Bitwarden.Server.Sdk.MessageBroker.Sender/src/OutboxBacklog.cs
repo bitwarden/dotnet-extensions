@@ -6,7 +6,7 @@ namespace Bitwarden.Server.Sdk.MessageBroker.Sender;
 
 /// <summary>
 /// Counts one database's outbox, at most once per <see cref="MessageOutboxOptions.BacklogSampleInterval"/>
-/// however often it is asked: the dispatcher asks after each poll and the health check when it runs.
+/// however often it is asked.
 /// </summary>
 /// <remarks>
 /// Lateness is measured from <see cref="OutboxMessage.DueAt"/>, which retries don't move, so a

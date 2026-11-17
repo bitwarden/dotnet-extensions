@@ -5,9 +5,6 @@ using static Bitwarden.Server.Sdk.MessageBroker.Sender.Tests.OutboxTestHost;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Sender.Tests;
 
-/// <summary>
-/// The outbox's meter: what each sent message is counted with.
-/// </summary>
 public sealed class OutboxMetricsTests : IAsyncDisposable
 {
     private readonly OutboxTestHost _outbox = new();

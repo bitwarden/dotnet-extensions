@@ -11,16 +11,11 @@ namespace Bitwarden.Server.Sdk.MessageBroker.Sender;
 /// </summary>
 /// <remarks>
 /// <para>
-/// For <see cref="MessageOutboxOptions.SendOnCommit"/>. Does nothing while that option is off,
-/// which it is by default.
+/// Does nothing while <see cref="MessageOutboxOptions.SendOnCommit"/> is off.
 /// </para>
 /// <para>
-/// Remembers, per context, that a save added outbox rows, and signals when they become visible:
-/// when the transaction holding them commits, or, for a save with no transaction of its own
-/// (a single batched command), as soon as the save returns. A rolled-back transaction or a failed
-/// save signals nothing. A save under an ambient <c>TransactionScope</c> signals before that scope
-/// completes; the dispatcher then finds nothing new and the poll sends the rows, as it would have
-/// without this.
+/// Signals when the transaction holding the rows commits, or, for a save with no transaction of its
+/// own, as soon as the save returns. A rolled-back transaction or a failed save signals nothing.
 /// </para>
 /// </remarks>
 internal sealed class OutboxSendOnCommitInterceptor<TContext>(OutboxWake<TContext> wake, IOptions<MessageOutboxOptions> options)
@@ -29,8 +24,7 @@ internal sealed class OutboxSendOnCommitInterceptor<TContext>(OutboxWake<TContex
 {
     private static readonly object Marker = new();
 
-    // Contexts holding outbox rows that are saved but not yet committed. Weak, so a context that
-    // is disposed with a transaction left open is simply forgotten.
+    // Saved but not yet committed; weak, so a context disposed with a transaction open is forgotten.
     private readonly ConditionalWeakTable<DbContext, object> _pending = new();
 
     public InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
@@ -105,9 +99,7 @@ internal sealed class OutboxSendOnCommitInterceptor<TContext>(OutboxWake<TContex
         }
     }
 
-    // A save that opened its own transaction has committed it by now, and the commit has already
-    // signalled; one that ran without a transaction is visible now. Inside a caller's transaction
-    // the rows wait for its commit.
+    // A save's own transaction has signalled on commit; one without a transaction is visible now.
     private void Saved(DbContext? context)
     {
         if (context is not null && context.Database.CurrentTransaction is null && _pending.Remove(context))

@@ -5,12 +5,6 @@ using Microsoft.Extensions.Hosting;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Sender.Tests;
 
-/// <summary>
-/// The outbox's claim, lease, send, delete, deferral and retraction on each engine a service runs on, each a real
-/// database in a container: SQL Server, PostgreSQL, MySQL and MariaDB. SQLite, the tests' own engine, is covered by
-/// <see cref="OutboxDispatcherTests"/> and the other classes on <see cref="OutboxTestHost"/>. Several instances share
-/// one outbox here as they do in production: each is a host of its own on its own connections.
-/// </summary>
 public abstract class OutboxEngineTests(OutboxEngineFixture fixture) : IAsyncLifetime
 {
     private const string Topic = "shop.events";
@@ -245,9 +239,8 @@ public abstract class OutboxEngineTests(OutboxEngineFixture fixture) : IAsyncLif
     [Fact(Timeout = 120 * 1000)]
     public async Task ABatchThatOutlastsItsLeaseHandlesEachMessageOnce()
     {
-        // Eight handlers of 600 ms are longer than the four-second lease. The first instance stops
-        // starting them with a quarter of the lease left; the second claims what it left, and nothing
-        // either of them is still handling.
+        // Eight 600 ms handlers outlast the four-second lease: the second instance claims what the first
+        // left, and nothing it is still handling.
         var instances = Enumerable.Range(0, 2).Select(_ => Instance(o => o.Lease = TimeSpan.FromSeconds(4))).ToList();
         foreach (var instance in instances)
             instance.Services.GetRequiredService<StockReservations>().Next = _ => Task.Delay(600, Token);

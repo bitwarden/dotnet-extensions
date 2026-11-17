@@ -4,10 +4,7 @@ namespace Bitwarden.Server.Sdk.MessageBroker.Sender;
 
 /// <summary>
 /// Hands a waiting message to a handler in this service, in a scope of its own, instead of sending
-/// it to the broker. The handler is the same <see cref="IMessageConsumer{TPayload, TCeiling}"/> a
-/// subscription would use, and is settled the same way: returning completes the message (its row is
-/// deleted), throwing or <c>RequeueAsync</c> tries it again later, and <c>DeadLetterAsync</c> sets
-/// it aside.
+/// it to the broker. The handler is settled as a subscription's would be.
 /// </summary>
 internal sealed class OutboxLocalRoute<TPayload, TCeiling, THandler> : OutboxRoute
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>

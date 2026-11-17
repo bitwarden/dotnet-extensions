@@ -4,10 +4,6 @@ using static Bitwarden.Server.Sdk.MessageBroker.Sender.Tests.OutboxTestHost;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Sender.Tests;
 
-/// <summary>
-/// <see cref="MessageOutboxOptions.SendOnCommit"/>: a commit that wrote outbox messages wakes the
-/// dispatcher (<see cref="OutboxWake{TContext}"/>), and nothing else does.
-/// </summary>
 public sealed class OutboxSendOnCommitInterceptorTests : IAsyncDisposable
 {
     private static readonly Dictionary<string, string?> SendsOnCommit = new() { ["MessageOutbox:SendOnCommit"] = "true" };

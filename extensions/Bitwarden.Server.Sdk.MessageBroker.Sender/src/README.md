@@ -15,9 +15,6 @@ MariaDB and SQLite.
 
 ## How it works
 
-This section is how the code does it; what a service sees (retries, set-asides, lateness, send on
-commit) is in [PACKAGE.md](PACKAGE.md).
-
 - **Registration.** `AddOutboxPublisher` and `AddOutboxCommandSender` register, for one message type
   and destination, MessageBroker's own publisher under the internal key
   `MessageBrokerKeys.Direct(key)` (`AddDirectPublisher` and `AddDirectCommandSender`), so a service

@@ -3,9 +3,6 @@ using static Bitwarden.Server.Sdk.MessageBroker.Sender.Tests.OutboxTestHost;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Sender.Tests;
 
-/// <summary>
-/// Registering senders on the outbox: the publisher a service injects, and what is refused.
-/// </summary>
 public sealed class MessageOutboxServiceCollectionExtensionsTests : IAsyncDisposable
 {
     private readonly OutboxTestHost _outbox = new();
@@ -31,8 +28,7 @@ public sealed class MessageOutboxServiceCollectionExtensionsTests : IAsyncDispos
             services.AddOutboxPublisher<OrderPlacedPayload, OrderPlaced, ShopContext>(Topic));
     }
 
-    // One service sending to its own command queue (MessageBroker's ClaimTopicFamily allows a sender
-    // and a consumer of the same family in one service when the payload type is the same).
+    // One service sending to its own command queue.
 
     [Fact(Timeout = 60 * 1000)]
     public async Task ACommandTheServiceSendsItselfIsReceivedByIt()

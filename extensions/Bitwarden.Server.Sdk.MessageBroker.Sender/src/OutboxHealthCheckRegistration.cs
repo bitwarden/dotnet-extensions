@@ -22,8 +22,7 @@ internal sealed class OutboxHealthCheckRegistration<TContext> : IConfigureOption
         options.Registrations.Add(new HealthCheckRegistration(
             Name,
             provider => ActivatorUtilities.CreateInstance<OutboxHealthCheck<TContext>>(provider),
-            // A database that can't be read is reported by what reads it; here it only means the
-            // backlog is unknown.
+            // An unreadable database only means the backlog is unknown here.
             failureStatus: HealthStatus.Degraded,
             tags: [MonitoringTag]));
 }

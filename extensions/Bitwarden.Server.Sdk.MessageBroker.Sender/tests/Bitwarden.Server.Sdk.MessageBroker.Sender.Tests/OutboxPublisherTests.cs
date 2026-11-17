@@ -4,9 +4,6 @@ using static Bitwarden.Server.Sdk.MessageBroker.Sender.Tests.OutboxTestHost;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Sender.Tests;
 
-/// <summary>
-/// The keyed publisher a service injects: sending adds to the outbox, and only the save commits it.
-/// </summary>
 public sealed class OutboxPublisherTests : IAsyncDisposable
 {
     private readonly OutboxTestHost _outbox = new();

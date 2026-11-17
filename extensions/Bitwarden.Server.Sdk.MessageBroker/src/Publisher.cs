@@ -31,8 +31,8 @@ public abstract class Publisher<TPayload, TCeiling>
 
     /// <summary>
     /// Sends <paramref name="body"/>, versions already serialized, exactly as given, under
-    /// <paramref name="messageId"/>. For an outbox sending what it stored: decoding and re-encoding
-    /// would drop any version the sending build doesn't know. The built-in publishers implement it.
+    /// <paramref name="messageId"/>: decoding and re-encoding would drop any version this build
+    /// doesn't know.
     /// </summary>
     internal virtual Task SendRawAsync(ReadOnlyMemory<byte> body, string messageId, CancellationToken cancellationToken) =>
         throw new NotSupportedException($"{GetType().Name} can't send a serialized body.");

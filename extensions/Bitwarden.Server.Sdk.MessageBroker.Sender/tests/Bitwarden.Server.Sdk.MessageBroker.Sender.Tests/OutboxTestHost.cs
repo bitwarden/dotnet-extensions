@@ -8,9 +8,7 @@ namespace Bitwarden.Server.Sdk.MessageBroker.Sender.Tests;
 
 /// <summary>
 /// Instances of a service with an outbox, all on one SQLite database in memory and the in-memory
-/// broker unless the settings name another: events to <see cref="Topic"/>, commands to
-/// <see cref="Queue"/>, and <see cref="ReserveStock"/> handled in the service itself. Each test
-/// class owns one, and the hosts it built are stopped with it.
+/// broker unless the settings name another.
 /// </summary>
 internal sealed class OutboxTestHost : IAsyncDisposable
 {
@@ -21,9 +19,6 @@ internal sealed class OutboxTestHost : IAsyncDisposable
 
     public static CancellationToken Token => TestContext.Current.CancellationToken;
 
-    /// <summary>
-    /// The database every instance shares.
-    /// </summary>
     public SqliteConnection Connection { get; } = new("DataSource=:memory:");
 
     /// <summary>
@@ -78,17 +73,11 @@ internal sealed class OutboxTestHost : IAsyncDisposable
     public static OutboxDispatcher<ShopContext> Dispatcher(IHost host) =>
         host.Services.GetServices<IHostedService>().OfType<OutboxDispatcher<ShopContext>>().Single();
 
-    /// <summary>
-    /// The keyed publisher a service injects for <paramref name="destination"/>.
-    /// </summary>
     public static Publisher<TPayload, TCeiling> Sender<TPayload, TCeiling>(IServiceProvider scope, string destination)
         where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
         where TCeiling : Payload<TPayload>.ICeiling
         => scope.GetRequiredKeyedService<Publisher<TPayload, TCeiling>>(MessageBrokerKeys.Publisher<TPayload>(destination));
 
-    /// <summary>
-    /// The outbox's rows, by message identifier.
-    /// </summary>
     public static async Task<List<OutboxMessage>> RowsAsync(IHost host)
     {
         await using var scope = host.Services.CreateAsyncScope();
@@ -96,9 +85,6 @@ internal sealed class OutboxTestHost : IAsyncDisposable
             .OrderBy(row => row.MessageId).ToListAsync(Token);
     }
 
-    /// <summary>
-    /// Places an order and publishes it with the keyed publisher, in one save.
-    /// </summary>
     public static async Task SendOrderAsync(IHost host, int orderId, string? messageId = null)
     {
         await using var scope = host.Services.CreateAsyncScope();
@@ -109,9 +95,6 @@ internal sealed class OutboxTestHost : IAsyncDisposable
         await database.SaveChangesAsync(Token);
     }
 
-    /// <summary>
-    /// Sends a <see cref="ReserveStock"/> to the service itself and saves.
-    /// </summary>
     public static async Task ReserveStockAsync(IHost host, int orderId, string messageId)
     {
         await using var scope = host.Services.CreateAsyncScope();
@@ -120,9 +103,6 @@ internal sealed class OutboxTestHost : IAsyncDisposable
         await scope.ServiceProvider.GetRequiredService<ShopContext>().SaveChangesAsync(Token);
     }
 
-    /// <summary>
-    /// Sends <paramref name="message"/> with <see cref="IOutboxSender"/> and saves.
-    /// </summary>
     public static async Task<string> SendAsync<TPayload, TCeiling>(
         IHost host, TCeiling message, string? messageId = null, DateTimeOffset? notBefore = null)
         where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>

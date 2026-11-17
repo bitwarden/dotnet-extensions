@@ -7,9 +7,6 @@ using Testcontainers.PostgreSql;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Sender.Tests;
 
-/// <summary>
-/// A real database in a container, with the outbox's table created in it.
-/// </summary>
 public abstract class OutboxEngineFixture : IAsyncLifetime
 {
     /// <summary>
@@ -22,9 +19,6 @@ public abstract class OutboxEngineFixture : IAsyncLifetime
         return new ShopContext(options.Options);
     }
 
-    /// <summary>
-    /// Points a context at this database.
-    /// </summary>
     public void Configure(DbContextOptionsBuilder options)
     {
         ConfigureEngine(options);

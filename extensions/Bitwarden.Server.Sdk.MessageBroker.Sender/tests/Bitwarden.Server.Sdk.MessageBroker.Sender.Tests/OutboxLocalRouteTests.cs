@@ -3,10 +3,6 @@ using static Bitwarden.Server.Sdk.MessageBroker.Sender.Tests.OutboxTestHost;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Sender.Tests;
 
-/// <summary>
-/// A message handled in the sending service, and how each way its handler settles the envelope
-/// (<see cref="OutboxEnvelope{TPayload, TCeiling}"/>) is acted on.
-/// </summary>
 public sealed class OutboxLocalRouteTests : IAsyncDisposable
 {
     private readonly OutboxTestHost _outbox = new();

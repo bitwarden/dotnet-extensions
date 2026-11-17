@@ -31,8 +31,8 @@ public static class MessageBrokerKeys
     public const string Credential = "Bitwarden.Server.Sdk.MessageBroker";
 
     /// <summary>
-    /// The key the publisher that sends straight to the broker is registered under when another
-    /// package (an outbox) owns the public key <paramref name="publicKey"/>.
+    /// The key the broker publisher is registered under when another package (an outbox) owns
+    /// <paramref name="publicKey"/>.
     /// </summary>
     internal static string Direct(string publicKey) => $"direct:{publicKey}";
 }

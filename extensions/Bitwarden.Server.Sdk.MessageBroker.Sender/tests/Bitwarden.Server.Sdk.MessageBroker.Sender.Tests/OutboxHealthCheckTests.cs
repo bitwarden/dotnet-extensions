@@ -6,9 +6,6 @@ using static Bitwarden.Server.Sdk.MessageBroker.Sender.Tests.OutboxTestHost;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Sender.Tests;
 
-/// <summary>
-/// The outbox's health check: late messages degrade it and then fail it, and one set aside fails it.
-/// </summary>
 public sealed class OutboxHealthCheckTests : IAsyncLifetime
 {
     private readonly OutboxTestHost _outbox = new();

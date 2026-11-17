@@ -23,9 +23,8 @@ public static class MessageBrokerServiceCollectionExtensions
 
     /// <summary>
     /// Registers the publisher that sends straight to the broker under
-    /// <see cref="MessageBrokerKeys.Direct"/>'s key instead of the public one, for a package that
-    /// puts its own publisher under the public key and sends through this one later, as an outbox
-    /// does.
+    /// <see cref="MessageBrokerKeys.Direct"/>'s key instead of the public one, for an outbox that owns
+    /// the public key.
     /// </summary>
     internal static IServiceCollection AddDirectPublisher<TPayload, TCeiling>(this IServiceCollection services, string name)
         where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>

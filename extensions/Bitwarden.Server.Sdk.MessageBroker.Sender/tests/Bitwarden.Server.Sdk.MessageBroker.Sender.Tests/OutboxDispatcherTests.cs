@@ -7,11 +7,6 @@ using static Bitwarden.Server.Sdk.MessageBroker.Sender.Tests.OutboxTestHost;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Sender.Tests;
 
-/// <summary>
-/// The dispatcher on SQLite in memory and the in-memory broker: claiming, sending, deleting and
-/// deferring. Its batch is driven directly where a test needs to control it, and by a running host
-/// end to end. The same claims on each server engine are in <see cref="OutboxEngineTests"/>.
-/// </summary>
 public sealed class OutboxDispatcherTests : IAsyncDisposable
 {
     private readonly OutboxTestHost _outbox = new();
@@ -63,8 +58,6 @@ public sealed class OutboxDispatcherTests : IAsyncDisposable
     [Fact]
     public async Task AFailureOtherThanTheBrokerIsRetriedAndNeverSetAside()
     {
-        // Credentials that expired or a permission not granted yet also clear in time: a committed
-        // message is retried for as long as it takes.
         var host = await _outbox.BuildAsync(services => services.AddSingleton(sp => new OutboxRegistration(typeof(ShopContext), new FailingRoute())));
         await InsertAsync(host, new OutboxMessage
         {
@@ -118,9 +111,8 @@ public sealed class OutboxDispatcherTests : IAsyncDisposable
     [Fact(Timeout = 60 * 1000)]
     public async Task RowsOfAnUnregisteredPairingAreNotClaimedAndDoNotKeepTheDispatcherPolling()
     {
-        // Each row's destination and type are both registered, but not together: a command's type on
-        // the topic. A full batch of them, older than the routable row, mustn't hold it back or keep
-        // the dispatcher polling without a pause.
+        // Destination and type each registered, but not together: a full batch of them mustn't hold
+        // back the routable row.
         var commands = new CommandCounter();
         var host = await _outbox.BuildAsync(services =>
         {
