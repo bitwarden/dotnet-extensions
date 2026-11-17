@@ -250,16 +250,24 @@ public static class IdempotentOperation
     /// null outside one: the same on every run of the operation, so a run again names the same thing.
     /// </summary>
     /// <param name="purpose">Tells this identifier from the operation's others, such as a template's name.</param>
+    /// <param name="subject">
+    /// Whom the thing is for, such as a user's or an organization's identifier, when the operation makes the same kind
+    /// of thing for several. Null when it makes one.
+    /// </param>
     /// <returns>A version 8 UUID (RFC 9562), or null when no operation has begun.</returns>
-    /// <exception cref="ArgumentException"><paramref name="purpose"/> is not valid UTF-16 text (a lone surrogate).</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="purpose"/> or <paramref name="subject"/> is not valid UTF-16 text (a lone surrogate).
+    /// </exception>
     /// <remarks>
-    /// The purpose names what the identifier is for. Never a person's data: no email address, no name. The identifier
-    /// is the first 16 bytes of <see cref="CacheKey.DeriveCacheKey(CacheSecret, ReadOnlySpan{string})"/> with the
-    /// operation's secret over <c>derived-id</c>, the operation's key, the purpose and the ordinal in decimal, so only
-    /// a holder of the secret can compute it. The same purpose asked for twice in one run gets two identifiers, in
-    /// order.
+    /// The purpose names what the identifier is for, and the subject whom. Never a person's data: no email address, no
+    /// name. The identifier is the first 16 bytes of
+    /// <see cref="CacheKey.DeriveCacheKey(CacheSecret, ReadOnlySpan{string})"/> with the operation's secret over
+    /// <c>derived-id</c>, the operation's key, the purpose, the ordinal in decimal and the subject, if any, so only a
+    /// holder of the secret can compute it. The same purpose and subject asked for twice in one run get two identifiers,
+    /// in order. Pass the subject whenever one operation makes the same kind of thing for several users or
+    /// organizations: each one's identifier then stays theirs whatever order a run asks in.
     /// </remarks>
-    public static Guid? DeriveId(string purpose)
+    public static Guid? DeriveId(string purpose, string? subject = null)
     {
         ArgumentNullException.ThrowIfNull(purpose);
 
@@ -268,16 +276,15 @@ public static class IdempotentOperation
             return null;
         }
 
-        var ordinal = scope.Next(Derive(
-            scope.Secret, "The purpose is not valid UTF-16 text.", nameof(purpose), [DerivedIdPurpose, scope.Key, purpose]));
+        const string invalidText = "The purpose or the subject is not valid UTF-16 text.";
+        string[] whom = subject is null ? [] : [subject];
+
+        var ordinal = scope.Next(Derive(scope.Secret, invalidText, nameof(purpose), [DerivedIdPurpose, scope.Key, purpose, .. whom]));
         var derived = Derive(
             scope.Secret,
-            "The purpose is not valid UTF-16 text.",
+            invalidText,
             nameof(purpose),
-            DerivedIdPurpose,
-            scope.Key,
-            purpose,
-            ordinal.ToString(CultureInfo.InvariantCulture));
+            [DerivedIdPurpose, scope.Key, purpose, ordinal.ToString(CultureInfo.InvariantCulture), .. whom]);
         var bytes = derived.AsSpan()[..16].ToArray();
 
         // RFC 9562 version 8 (custom) and the RFC variant, in the big-endian byte order the RFC writes.

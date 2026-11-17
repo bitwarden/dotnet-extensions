@@ -116,21 +116,23 @@ each of its writes carries a fresh key. The reason is required. The handler may 
 
 ### Name something the operation creates or sends
 
-`IdempotentOperation.DeriveId(purpose)` gives an identifier that is the same on every run of the operation, and null
-outside one. In `WelcomeMail.cs`:
+`IdempotentOperation.DeriveId(purpose, subject)` gives an identifier that is the same on every run of the operation,
+and null outside one. In `WelcomeMail.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Idempotency;
 
 public static class WelcomeMail
 {
-    public static Guid MessageId() => IdempotentOperation.DeriveId("welcome-mail") ?? Guid.NewGuid();
+    public static Guid MessageId(Guid user) => IdempotentOperation.DeriveId("welcome-mail", user.ToString()) ?? Guid.NewGuid();
 }
 ```
 
-The purpose says what the identifier is for, such as a template's name. Never a person's data: no email address, no
-name. Only a holder of the service's secret can compute the identifier. Asked for twice in one run, the same purpose
-gives two identifiers, in order.
+The purpose says what the identifier is for, such as a template's name, and the subject whom, such as a user's or an
+organization's identifier. Pass the subject whenever one operation makes the same kind of thing for several: each
+one's identifier then stays theirs whatever order a run asks in. Never a person's data: no email address, no name. Only
+a holder of the service's secret can compute the identifier. Asked for twice in one run, the same purpose and subject
+give two identifiers, in order.
 
 ### Honor the header in a service
 

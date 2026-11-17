@@ -487,6 +487,43 @@ public sealed class IdempotentOperationTests
         Assert.Equal(Guid.Parse("4a16d020-83f5-8209-b270-67ee3b0f4f77"), IdempotentOperation.DeriveId("mail"));
     }
 
+    // Identifiers for different subjects keep their values whichever order a run asks for them in.
+    [Fact]
+    public void DeriveId_ForDifferentSubjects_KeepTheirIdsInEitherOrder()
+    {
+        const string A = "b0000000-0000-4000-8000-000000000001";
+        const string B = "b0000000-0000-4000-8000-000000000002";
+
+        static (Guid? A, Guid? B) Run(bool aFirst)
+        {
+            using var operation = IdempotentOperation.Begin("operation-1", Secret);
+            if (aFirst)
+            {
+                var a = IdempotentOperation.DeriveId("welcome-mail", A);
+                return (a, IdempotentOperation.DeriveId("welcome-mail", B));
+            }
+
+            var b = IdempotentOperation.DeriveId("welcome-mail", B);
+            return (IdempotentOperation.DeriveId("welcome-mail", A), b);
+        }
+
+        var first = Run(aFirst: true);
+
+        Assert.NotEqual(first.A, first.B);
+        Assert.Equal(first, Run(aFirst: false));
+    }
+
+    // Computed with derive_id above, the subject added after the ordinal.
+    [Fact]
+    public void DeriveId_WithASubject_MatchesTheGoldenVector()
+    {
+        using var operation = IdempotentOperation.Begin("operation-1", Secret);
+
+        Assert.Equal(
+            Guid.Parse("3711f8e2-be66-8193-b131-18f02a4e6ca7"),
+            IdempotentOperation.DeriveId("mail", "b0000000-0000-4000-8000-000000000001"));
+    }
+
     // Computed with derive_id above and bytes(32), the development secret.
     [Fact]
     public void DeriveId_WithTheDevelopmentSecret_MatchesTheGoldenVectors()

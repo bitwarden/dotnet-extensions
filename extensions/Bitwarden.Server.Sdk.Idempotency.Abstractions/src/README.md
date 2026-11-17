@@ -30,7 +30,7 @@ a key and an identifier never share an input:
 | Derived       | Parameters, in order                                                                             | Result                                       |
 | ------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------- |
 | `KeyForWrite` | `idempotency-key`, operation key, method, address, body base64, count, each `{name}:{value}`     | Lower-case hex of the 32 bytes               |
-| `DeriveId`    | `derived-id`, operation key, purpose, count                                                      | First 16 bytes, with RFC 9562 version 8 bits |
+| `DeriveId`    | `derived-id`, operation key, purpose, count, subject if any                                      | First 16 bytes, with RFC 9562 version 8 bits |
 
 A write's context headers come last, one parameter each, named in lower case and in order of name. A header's name has
 no colon, so `{name}:{value}` reads back one way.
