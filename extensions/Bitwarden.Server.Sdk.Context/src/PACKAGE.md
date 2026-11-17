@@ -18,8 +18,9 @@ dotnet add package Bitwarden.Server.Sdk.Context
 ## Key concepts
 
 - **Context is not authentication.** Who the caller is comes from its token. The organization and the user say only
-  what a call concerns, never permission to do it: the service still enforces its own access rules. A service
-  believes the headers only as the signed `Bitwarden-Delegation` token (`ContextToken`) says.
+  what a call concerns, never permission to do it: the service's authorization middleware checks that before any code
+  reads the context. A service believes the headers only as the signed `Bitwarden-Delegation` token (`ContextToken`)
+  says.
 - **Where it comes from.** A service host registers `IContext`, reading the request when there is one and the current
   `ContextScope` otherwise, and a client writes the headers on a service's outgoing calls. Any member may be absent.
 - **A scope flows on the execution context,** so everything the work calls, however deep, sees it, and nothing outside
@@ -37,6 +38,7 @@ using Bitwarden.Server.Sdk.Context;
 
 public sealed class WidgetQueries(IContext context, IWidgetStore store)
 {
+    // The service's authorization middleware has already checked the caller may act on this organization or user.
     public Task<IReadOnlyList<Widget>> ListAsync(CancellationToken cancellationToken) =>
         context.OrganizationId is { } organization
             ? store.ListForOrganizationAsync(organization, cancellationToken)
