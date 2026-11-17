@@ -69,10 +69,16 @@ internal sealed class TopologyCheckService(
             return;
 
         var expected = ExpectedTopology.From(infrastructure.Value.Requirements);
-        Func<CancellationToken, Task<CheckResult>>? check =
-            value.UsesAzureServiceBus ? token => CheckAzureServiceBusAsync(expected, token)
-            : !string.IsNullOrEmpty(value.RabbitUri) ? token => CheckRabbitAsync(expected, token)
-            : null;
+        Func<CancellationToken, Task<CheckResult>>? check = null;
+        if (value.UsesAzureServiceBus)
+        {
+            check = token => CheckAzureServiceBusAsync(expected, token);
+        }
+        else if (!string.IsNullOrEmpty(value.RabbitUri))
+        {
+            check = token => CheckRabbitAsync(expected, token);
+        }
+
         if (check is null || expected.IsEmpty)
             return;
 
