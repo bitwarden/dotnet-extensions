@@ -105,20 +105,23 @@ party (`FlagKind`, `USER` by default and then left out, and `FlagKey`), its orga
 
 `CallChain` carries the services a request passed through, oldest first, in `Bitwarden-Call-Chain`. A service whose
 own name is already in the chain is being called back while its own request waits. A host enters the chain a request
-arrived with (`CallChain.Enter`), and a client sends it on, with the calling service added, on every call. In
-`LoopBack.cs`:
+arrived with (`CallChain.Enter`), and a client sends it on, with the calling service added, on every call. Read it only
+from a call another service made, authenticated as that service. In `LoopBack.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Context;
 
 public static class LoopBack
 {
-    public static bool IsReentry(string? header, string self) =>
-        CallChain.TryParse(header, out var chain) && chain.Contains(self, StringComparer.Ordinal);
+    public static bool IsReentry(string? header, bool fromService, string self) =>
+        fromService && CallChain.TryParse(header, out var chain) && chain.Contains(self, StringComparer.Ordinal);
 
     public static string Outgoing(string self) => CallChain.Format(CallChain.Append(CallChain.Current, self));
 }
 ```
+
+Noticing a call back is advisory: the chain is the calling service's word, so use it to log or refuse a loop, never to
+skip a lock or a check.
 
 ## Gotchas and constraints
 
