@@ -41,9 +41,6 @@ public class SendPushPayload
     public static IReadOnlyList<(Type, string)> Variants => [(typeof(SendPush), "v1")];
 }
 
-/// <summary>
-/// The mail each consumer handled.
-/// </summary>
 public sealed class MailRecorder
 {
     public ConcurrentQueue<Guid> Handled { get; } = new();
@@ -63,10 +60,6 @@ public sealed class SendPushConsumer : IMessageConsumer<SendPushPayload, SendPus
     public Task HandleAsync(Envelope<SendPushPayload, SendPush> envelope, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
-/// <summary>
-/// Three services, registered as MessageBroker registers them: identity publishes users' events, vault reads one and
-/// sends mail, notification reads mail and push commands.
-/// </summary>
 public static class Sample
 {
     public const string IdentityEvents = "identity.events";
@@ -91,15 +84,9 @@ public static class Sample
         services.AddCommandConsumer<SendPushPayload, SendPush, SendPushConsumer>(NotificationCommands);
     }
 
-    /// <summary>
-    /// The three services' manifests, from their registrations.
-    /// </summary>
     public static IReadOnlyList<ServiceManifest> Manifests() =>
         [Manifest("identity", Identity), Manifest("vault", Vault), Manifest("notification", Notification)];
 
-    /// <summary>
-    /// A service's manifest, from what its registrations declare.
-    /// </summary>
     public static ServiceManifest Manifest(string service, Action<IServiceCollection> register)
     {
         var services = new ServiceCollection();

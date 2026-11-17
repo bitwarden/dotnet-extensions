@@ -58,7 +58,6 @@ jobs:
           dotnet test --project extensions/Bitwarden.Server.Sdk.MessageBroker.Topology/tests/Bitwarden.Server.Sdk.MessageBroker.Topology.Tests
           --configuration Debug --no-build -- --filter-class "*.RabbitProvisioningTests"
 
-      # The Service Bus template whose parameters Bitwarden.Server.Sdk.MessageBroker.Topology writes compiles.
       - name: Compile the Service Bus template
         if: ${{ !cancelled() }}
         run: |

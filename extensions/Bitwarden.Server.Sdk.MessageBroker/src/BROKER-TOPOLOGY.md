@@ -32,11 +32,9 @@ the exchanges, queues, topics, subscriptions, and related filters and policies m
 broker before the application starts, through infrastructure-as-code or the broker's definitions.
 
 [`Bitwarden.Server.Sdk.MessageBroker.Topology`](../../Bitwarden.Server.Sdk.MessageBroker.Topology/src/PACKAGE.md)
-does that from every service's declarations: it makes the checks under
-[Collecting a service's topology](#collecting-a-services-topology), then writes the RabbitMQ and LavinMQ
-`definitions.json` described below and the parameters of the Azure Service Bus Bicep template in
-[`infra/messaging/`](../../../infra/messaging/README.md), with the names and settings a service that
-creates its own topology uses.
+does that from every service's declarations, writing the RabbitMQ and LavinMQ `definitions.json`
+described below and the parameters of the Azure Service Bus Bicep template in
+[`infra/messaging/`](../../../infra/messaging/README.md).
 
 A broker topic carries messages from many payload families. Publishers stamp every outgoing message with
 their family wire name (`IPayloadWireName<TPayload>.WireName`) so subscriptions can bind or filter

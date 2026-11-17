@@ -4,10 +4,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Topology.Tests;
 
-/// <summary>
-/// The template and the emulator configuration give each entity the settings MessageBroker gives the entities it
-/// creates itself (<c>TopologyStartupService</c>), so a topology is the same whoever provisions it.
-/// </summary>
 public class ServiceBusSettingsTests
 {
     private const int MaxDeliveryCount = 7;

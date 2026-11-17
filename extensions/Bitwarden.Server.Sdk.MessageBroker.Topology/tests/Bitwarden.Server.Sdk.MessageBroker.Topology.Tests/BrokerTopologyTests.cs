@@ -52,7 +52,6 @@ public class BrokerTopologyTests
     [Fact]
     public void ASubscriptionReadsOneFamily()
     {
-        // MessageBroker refuses this registration, so only a manifest written otherwise can hold it.
         var problems = Problems(
             Sample.Manifest("identity", Sample.Identity),
             ServiceManifest.Parse("vault", """
@@ -109,7 +108,6 @@ public class BrokerTopologyTests
     [Fact]
     public void OnlyATopicsOrQueuesOwnerSaysWhatItCarries()
     {
-        // MessageBroker declares an owner with every publish and consume, so only a manifest written otherwise can do this.
         var problems = Problems(
             Sample.Manifest("identity", Sample.Identity),
             Sample.Manifest("notification", Sample.Notification),

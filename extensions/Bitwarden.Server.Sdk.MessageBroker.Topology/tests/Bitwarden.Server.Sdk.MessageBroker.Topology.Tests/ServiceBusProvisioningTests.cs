@@ -7,10 +7,6 @@ using Microsoft.Extensions.Hosting;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Topology.Tests;
 
-/// <summary>
-/// The Service Bus emulator, configured from the topology alone, carries MessageBroker's traffic: the same topics,
-/// family-filtered subscriptions and queues the Bicep template makes in Azure.
-/// </summary>
 public sealed class ServiceBusProvisioningTests : IAsyncLifetime
 {
     private const string SqlPassword = "Topology-Tests-1";

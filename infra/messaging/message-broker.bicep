@@ -52,7 +52,7 @@ resource namespace 'Microsoft.ServiceBus/namespaces@2022-10-01-preview' = {
   }
 }
 
-// Duplicate detection: a sender's outbox sends a message again, under the same identifier, after a crash.
+// Duplicate detection drops a re-send under the same message identifier.
 resource topic 'Microsoft.ServiceBus/namespaces/topics@2022-10-01-preview' = [for t in topics: {
   parent: namespace
   name: t.name

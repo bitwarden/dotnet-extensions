@@ -7,10 +7,6 @@ using Microsoft.Extensions.Hosting;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Topology.Tests;
 
-/// <summary>
-/// The definitions, imported into a real broker as an install would, carry MessageBroker's traffic: nothing here
-/// declares a queue or exchange but the definitions. On <see cref="AmqpTestBroker.Image"/>.
-/// </summary>
 public sealed class RabbitProvisioningTests : IAsyncLifetime
 {
     private const int MaxDeliveryCount = 3;
@@ -35,7 +31,6 @@ public sealed class RabbitProvisioningTests : IAsyncLifetime
         var imported = await _broker.ExecAsync([control, "import_definitions", "/tmp/definitions.json"], TestContext.Current.CancellationToken);
         Assert.True(imported.ExitCode == 0, $"{control} import_definitions: {imported.Stdout}{imported.Stderr}");
 
-        // The three services in one host: what each may do is the broker's business, not this test's.
         _host = new HostBuilder()
             .ConfigureAppConfiguration(b => b.AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -125,7 +120,6 @@ public sealed class RabbitProvisioningTests : IAsyncLifetime
         var counted = await _broker!.ExecAsync(AmqpTestBroker.Image.Contains("lavinmq", StringComparison.Ordinal)
             ? ["lavinmqctl", "list_queues", "name", "messages"]
             : ["rabbitmqctl", "list_queues", "--quiet", "name", "messages"], TestContext.Current.CancellationToken);
-        // Its subscription queue's own dead-letter queue.
         Assert.Matches(@"(?m)^dead-letter\.identity\.events\.vault\s+1\s*$", counted.Stdout);
     }
 

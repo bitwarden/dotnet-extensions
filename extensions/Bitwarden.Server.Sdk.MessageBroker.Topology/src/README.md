@@ -18,9 +18,8 @@ and nothing writes a credential: users, passwords, keys and connection strings a
 
 - **Collecting.** `BrokerTopology.Collect` implements BROKER-TOPOLOGY.md's checks that don't depend
   on a broker ("Provisioning collects every service's list and checks it"), plus one family and one
-  reader per subscription, which every broker's names depend on. It adds every problem to one list
-  before throwing, so one run reports them all. A publish or consume declared by a service other
-  than the owner is a problem rather than a family the owner seems to have.
+  reader per subscription, which every broker's names depend on. A publish or consume declared by a
+  service other than the owner is a problem rather than a family the owner seems to have.
 - **Send rights only where declared** holds by construction: the model records a topic's owner and
   a queue's senders from their own declarations alone, and the writers grant nothing else.
 - **Broker names.** Each writer works out the names its broker gives every declaration and refuses

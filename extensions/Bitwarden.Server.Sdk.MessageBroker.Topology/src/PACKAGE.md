@@ -38,12 +38,10 @@ dotnet add package Bitwarden.Server.Sdk.MessageBroker.Topology
   credentials, so the output can sit in a repository or ship with a release.
 - **Rights follow ownership.** Only a topic's owner may send to it, only a subscription's reader
   and a queue's owner may receive, and only the services that declare a command for a queue may send
-  to it. The Azure Service Bus template grants exactly those, as long as it is deployed as a
-  deployment stack that deletes what it no longer manages, as
+  to it. The Azure Service Bus template grants exactly those when deployed as a deployment stack, as
   [its README](https://github.com/bitwarden/dotnet-extensions/blob/main/infra/messaging/README.md)
-  says: a plain deployment only adds, so a right a service no longer needs would stay. On RabbitMQ
-  and LavinMQ, an install grants them to each service's user, as BROKER-TOPOLOGY.md's "Users and
-  permissions" says.
+  says; a plain deployment leaves rights a service no longer needs. On RabbitMQ and LavinMQ, an
+  install grants them to each service's user, as BROKER-TOPOLOGY.md's "Users and permissions" says.
 
 ## Usage
 
@@ -102,9 +100,8 @@ The policies' `delivery-limit` is one less than `RabbitDefinitionsOptions.MaxDel
 default, as on Azure Service Bus), since the broker counts redeliveries.
 
 `Build` throws `BrokerTopologyException` when two declarations would make the same exchange or
-queue name (both brokers grant rights by patterns over names, whatever the kind), when a topic or
-command queue is named `dead-letter` or starts with `dead-letter.`, or when a name is longer than
-255 bytes.
+queue name, when a topic or command queue is named `dead-letter` or starts with `dead-letter.`, or
+when a name is longer than 255 bytes.
 
 ### Write the Azure Service Bus template's parameters
 

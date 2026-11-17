@@ -6,10 +6,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Bitwarden.Server.Sdk.MessageBroker.Topology;
 
 /// <summary>
-/// A topology as RabbitMQ definitions (BROKER-TOPOLOGY.md, "RabbitMQ and LavinMQ"): what RabbitMQ loads at start
-/// (<c>management.load_definitions</c>) or imports (<c>POST /api/definitions</c>), and LavinMQ imports
-/// (<c>lavinmqctl import_definitions</c>). The virtual host, exchanges, queues, bindings and policies only: no users,
-/// permissions or passwords, which each install sets itself.
+/// A topology as RabbitMQ and LavinMQ definitions, for either broker to import. The virtual host, exchanges, queues,
+/// bindings and policies only: no users, permissions or passwords, which each install sets itself.
 /// </summary>
 public static class RabbitDefinitions
 {
@@ -38,13 +36,11 @@ public static class RabbitDefinitions
     /// queue bound with its own name as routing key. Senders publish to the queue's own exchange, so sending can be
     /// granted one queue at a time.</item>
     /// <item>Each subscription queue and command queue dead-letters to a fanout exchange and quorum queue of its own,
-    /// <c>dead-letter.{queue}</c>, bound with an empty routing key: the names a service that creates its own topology
-    /// uses.</item>
+    /// <c>dead-letter.{queue}</c>, bound with an empty routing key.</item>
     /// <item>Each subscription queue and command queue has a policy of its own, matching its name exactly, with the
     /// delivery limit, its dead-letter exchange, <c>dead-letter-strategy: at-least-once</c> and
     /// <c>overflow: reject-publish</c>. Policies, not queue arguments, so an install can change them on a queue that
-    /// exists. An exact pattern can't reach a dead-letter queue, which would cycle its messages back through itself, or
-    /// another queue whose name happens to start with this one's.</item>
+    /// exists.</item>
     /// </list>
     /// </remarks>
     public static JsonObject Build(BrokerTopology topology, RabbitDefinitionsOptions? options = null)
@@ -164,8 +160,7 @@ public static class RabbitDefinitions
             problems.Add($"The {what} {name} is named with {reservedPart}, the first name part reserved for RabbitMQ's dead-letter exchanges and queues.");
         }
 
-        // Both brokers grant rights by patterns over names, whatever the object's kind, so a name is one object: only
-        // a command queue's exchange and queue share one, and they're one declaration.
+        // Both brokers grant rights by patterns over names, whatever the kind, so no two declarations may share a name.
         foreach (var name in made.GroupBy(m => m.Name, StringComparer.Ordinal))
         {
             var declarations = name.Select(m => m.Declaration).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();

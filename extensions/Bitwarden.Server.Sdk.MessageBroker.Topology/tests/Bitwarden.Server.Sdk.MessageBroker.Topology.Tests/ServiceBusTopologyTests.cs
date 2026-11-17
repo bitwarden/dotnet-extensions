@@ -46,7 +46,6 @@ public class ServiceBusTopologyTests
     [Fact]
     public void TheTemplatesExampleParametersAreWhatItWritesForTheSample()
     {
-        // infra/messaging/message-broker.parameters.json shows what a deployment is given: the sample's three services.
         var example = JsonNode.Parse(File.ReadAllText(Infra("message-broker.parameters.json")));
 
         var written = ServiceBusTopology.BicepParameters(BrokerTopology.Collect(Sample.Manifests()));

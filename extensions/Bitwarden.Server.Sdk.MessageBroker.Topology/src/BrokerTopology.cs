@@ -3,9 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Bitwarden.Server.Sdk.MessageBroker.Topology;
 
 /// <summary>
-/// Every service's topics, subscriptions and command queues, collected from their manifests and checked as
-/// BROKER-TOPOLOGY.md requires before anything is provisioned or granted. Broker-neutral: the broker's own names
-/// and settings come from <see cref="RabbitDefinitions"/> and the other writers.
+/// Every service's topics, subscriptions and command queues, collected from their manifests and checked together
+/// before anything is provisioned or granted. The same for every broker.
 /// </summary>
 public sealed class BrokerTopology
 {
@@ -80,14 +79,12 @@ public sealed class BrokerTopology
 
             if (families.Count > 1)
             {
-                // A subscription is bound or filtered to one family; the subscriber dead-letters any other.
                 problems.Add($"{readerServices[0]}'s subscription {subscription} on {topic} reads {string.Join(" and ", families)}; a subscription reads one family.");
                 continue;
             }
 
             if (!topicOwners.TryGetValue(topic, out var owner))
             {
-                // Unless it's claimed by two, in which case that's the problem already reported.
                 if (!contestedTopics.Contains(topic))
                 {
                     problems.Add($"{readerServices[0]} subscribes to {topic}, which no service publishes.");
@@ -118,7 +115,6 @@ public sealed class BrokerTopology
                 var (queue, family) = (requirement["queue"], requirement["family"]);
                 if (!queueOwners.TryGetValue(queue, out var owner))
                 {
-                    // Unless it's claimed by two, in which case that's the problem already reported.
                     if (!contestedQueues.Contains(queue))
                     {
                         problems.Add($"{manifest.Service} sends {family} to {queue}, which no service reads.");
@@ -129,7 +125,6 @@ public sealed class BrokerTopology
 
                 if (!consumed.Contains((queue, family)))
                 {
-                    // It would be dead-lettered at runtime.
                     problems.Add($"{manifest.Service} sends {family} to {queue}, which {owner} doesn't consume.");
                     continue;
                 }
@@ -162,8 +157,7 @@ public sealed class BrokerTopology
                     .OrderBy(s => s.Service, StringComparer.Ordinal).ThenBy(s => s.Family, StringComparer.Ordinal)]))]);
     }
 
-    // Each name's one owner. A name claimed by more than one service is reported here and goes in contested, so the
-    // declarations that depend on it aren't reported again as having no owner.
+    // A name claimed by more than one service is reported here and goes in contested, so it isn't reported again.
     private static Dictionary<string, string> Owners(
         List<ServiceManifest> manifests, string kind, string property, string what, List<string> problems, out HashSet<string> contested)
     {
@@ -188,8 +182,7 @@ public sealed class BrokerTopology
         return owners;
     }
 
-    // What is published on each topic (or consumed from each queue): only its owner may declare it, as MessageBroker's
-    // registrations do, so another service's declaration is a problem rather than a family the owner seems to have.
+    // Only a topic's or queue's owner may declare what it carries; another service's declaration is a problem.
     private static HashSet<(string Destination, string Family)> OwnedPairs(
         List<ServiceManifest> manifests, string kind, string destination, Dictionary<string, string> owners, HashSet<string> contested,
         string verb, string what, List<string> problems)
@@ -202,7 +195,6 @@ public sealed class BrokerTopology
                 var (name, family) = (requirement[destination], requirement["family"]);
                 if (!owners.TryGetValue(name, out var owner))
                 {
-                    // Unless it's claimed by two, in which case that's the problem already reported.
                     if (!contested.Contains(name))
                     {
                         problems.Add($"{manifest.Service} {verb} {family} on the {what} {name}, which it doesn't declare as its own.");

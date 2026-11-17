@@ -5,10 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Bitwarden.Server.Sdk.MessageBroker.Topology;
 
 /// <summary>
-/// A topology as Azure Service Bus entities (BROKER-TOPOLOGY.md, "Azure Service Bus"): a topic per topic, a
-/// subscription per subscription with a correlation filter on its family, a queue per command queue, and each service's
-/// rights. Written as the parameters of <c>infra/messaging/message-broker.bicep</c>, and as the Service Bus emulator's
-/// configuration, from the same entities.
+/// A topology as Azure Service Bus entities and each service's rights, written as the parameters of
+/// <c>infra/messaging/message-broker.bicep</c> and as the Service Bus emulator's configuration.
 /// </summary>
 public static partial class ServiceBusTopology
 {
@@ -156,8 +154,7 @@ public static partial class ServiceBusTopology
             .ToList();
         foreach (var (name, what) in entities)
         {
-            // Topics and queues: letters, digits, periods, hyphens and underscores, starting and ending with a letter or
-            // digit, up to 260 characters. Slashes would make a path; none of ours needs one.
+            // Slashes, which Service Bus allows, would make a path; none of ours needs one.
             if (name.Length > 260 || !EntityName().IsMatch(name))
             {
                 problems.Add($"The {what} {name} isn't a Service Bus {what} name: letters, digits, '.', '-' and '_', starting and ending with a letter or digit, up to 260 characters.");
@@ -166,7 +163,6 @@ public static partial class ServiceBusTopology
 
         foreach (var same in entities.GroupBy(e => e.Name, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1))
         {
-            // A namespace's topics and queues share one set of names, without regard to case.
             problems.Add($"{string.Join(", ", same.Select(e => $"the {e.What} {e.Name}"))} would be one Service Bus entity: topics and queues share one set of names, without regard to case.");
         }
 
