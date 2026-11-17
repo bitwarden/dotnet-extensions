@@ -291,6 +291,16 @@ broker metadata:
 | `TraceId`       | W3C traceparent of the publish span, for linking consumer traces to producer traces.                          |
 | `DeliveryCount` | Number of times this message has been delivered. `1` on the first attempt, incrementing with each redelivery. |
 
+### Broker outages
+
+Consumers registered with `AddMessageConsumer` keep running through a broker outage: they subscribe
+again, waiting one second at first and up to thirty seconds between attempts. A host whose broker
+is down when it starts still starts. On RabbitMQ, a send while the broker is unreachable throws
+`BrokerUnavailableException` rather than waiting for it. On Azure Service Bus, the client retries
+first, and a send throws `BrokerUnavailableException` once its retry policy gives up. A raw
+`ISubscriber` stream (registered with `AddSubscriber`) ends with `BrokerDisconnectedException`
+instead; subscribing again is up to you.
+
 ### Stopping gracefully
 
 For Azure Service Bus and RabbitMQ, unacknowledged messages are automatically requeued by the

@@ -118,9 +118,7 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
             cancellationToken: TestContext.Current.CancellationToken);
     }
 
-    // Use an invalid host/port so the connection attempt fails immediately, faulting the TCS
-    // without throwing from StartAsync (resilient startup). The first publish then surfaces
-    // BrokerUnavailableException wrapping the underlying BrokerUnreachableException.
+    // An unused port, so each connection attempt is refused at once.
     protected override Dictionary<string, string?> CreateBrokerDownConfig() =>
         new() { { "RabbitUri", "amqp://guest:guest@localhost:1/" } };
 
@@ -173,7 +171,9 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
 
         Assert.NotNull(ex);
         Assert.Equal(TopicName, ex.TopicName);
-        Assert.IsAssignableFrom<OperationInterruptedException>(ex.InnerException);
+        // The dead channel's error, or the reconnect's once the publisher has noticed.
+        Assert.True(ex.InnerException is OperationInterruptedException or BrokerUnreachableException,
+            $"Unexpected inner exception: {ex.InnerException?.GetType().Name}");
     }
 
     /// <summary>
