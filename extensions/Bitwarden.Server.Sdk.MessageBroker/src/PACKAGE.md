@@ -291,23 +291,13 @@ broker metadata:
 | `TraceId`       | W3C traceparent of the publish span, for linking consumer traces to producer traces.                          |
 | `DeliveryCount` | Number of times this message has been delivered. `1` on the first attempt, incrementing with each redelivery. |
 
-### When the broker goes away
+### Broker outages
 
-Consumers registered with `AddMessageConsumer` keep running through a
-broker outage. When their subscription fails, they log a warning and subscribe again, waiting one
-second after the first failure and doubling the wait up to thirty seconds. The wait goes back to
-one second once messages flow again. A host whose broker is down when it starts still starts, and
-its consumers catch up once the broker is back.
-
-A send while the broker is unreachable throws `BrokerUnavailableException` rather than waiting for
-it: at once if the broker refuses the connection, and within five seconds if its address doesn't
-answer at all. Sends that arrive while an attempt to connect is under way share that attempt, and
-the next send after a failure tries again. On RabbitMQ the library reconnects itself (the
-client's automatic recovery is turned off so there is one mechanism); the Azure Service Bus client
-reconnects on its own.
-
-A raw `ISubscriber` stream (registered with `AddSubscriber` and enumerated yourself) still ends with
-`BrokerDisconnectedException` when the broker goes away; subscribing again is up to you.
+Consumers registered with `AddMessageConsumer` keep running through a broker outage: they subscribe
+again, waiting one second at first and up to thirty seconds between attempts. A host whose broker
+is down when it starts still starts. A send while the broker is unreachable throws
+`BrokerUnavailableException` rather than waiting for it. A raw `ISubscriber` stream (registered with
+`AddSubscriber`) ends with `BrokerDisconnectedException` instead; subscribing again is up to you.
 
 ### Stopping gracefully
 
