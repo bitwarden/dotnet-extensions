@@ -143,18 +143,35 @@ public sealed class BrokerTopology
             throw new BrokerTopologyException(problems);
         }
 
-        return new BrokerTopology(
-            [.. topicOwners.OrderBy(t => t.Key, StringComparer.Ordinal).Select(t => new TopicTopology(
-                t.Key,
-                t.Value,
-                [.. published.Where(p => p.Destination == t.Key).Select(p => p.Family).Order(StringComparer.Ordinal)],
-                [.. (topics.TryGetValue(t.Key, out var list) ? list : []).OrderBy(s => s.Name, StringComparer.Ordinal)]))],
-            [.. queueOwners.OrderBy(q => q.Key, StringComparer.Ordinal).Select(q => new CommandQueueTopology(
-                q.Key,
-                q.Value,
-                [.. consumed.Where(c => c.Destination == q.Key).Select(c => c.Family).Order(StringComparer.Ordinal)],
-                [.. (senders.TryGetValue(q.Key, out var list) ? list : [])
-                    .OrderBy(s => s.Service, StringComparer.Ordinal).ThenBy(s => s.Family, StringComparer.Ordinal)]))]);
+        var topicTopologies = topicOwners
+            .OrderBy(t => t.Key, StringComparer.Ordinal)
+            .Select(t =>
+            {
+                string[] families = [.. published
+                    .Where(p => p.Destination == t.Key)
+                    .Select(p => p.Family)
+                    .Order(StringComparer.Ordinal)];
+                SubscriptionTopology[] subscriptions = topics.TryGetValue(t.Key, out var list)
+                    ? [.. list.OrderBy(s => s.Name, StringComparer.Ordinal)]
+                    : [];
+                return new TopicTopology(t.Key, t.Value, families, subscriptions);
+            });
+
+        var queueTopologies = queueOwners
+            .OrderBy(q => q.Key, StringComparer.Ordinal)
+            .Select(q =>
+            {
+                string[] families = [.. consumed
+                    .Where(c => c.Destination == q.Key)
+                    .Select(c => c.Family)
+                    .Order(StringComparer.Ordinal)];
+                CommandSenderTopology[] queueSenders = senders.TryGetValue(q.Key, out var list)
+                    ? [.. list.OrderBy(s => s.Service, StringComparer.Ordinal).ThenBy(s => s.Family, StringComparer.Ordinal)]
+                    : [];
+                return new CommandQueueTopology(q.Key, q.Value, families, queueSenders);
+            });
+
+        return new BrokerTopology([.. topicTopologies], [.. queueTopologies]);
     }
 
     // A name claimed by more than one service is reported here and goes in contested, so it isn't reported again.
