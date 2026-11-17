@@ -93,8 +93,7 @@ public static class PublisherExtensions
     }
 
     /// <summary>
-    /// The longest message identifier accepted. Azure Service Bus limits <c>MessageId</c> to 128
-    /// characters, so every transport holds to the same limit.
+    /// The longest message identifier accepted on every transport: Azure Service Bus's limit.
     /// </summary>
     public const int MaxMessageIdLength = 128;
 
@@ -113,9 +112,8 @@ public static class PublisherExtensions
 
     /// <summary>
     /// Finalizes the chain and hands it to the publisher under <paramref name="messageId"/>. Pass
-    /// the same identifier every time the same message is sent again, as an outbox does on a
-    /// retry, so subscribers can recognize the repeat. Only compiles once every assisted downcast
-    /// has been crossed.
+    /// the same identifier every time the same message is sent again, so subscribers can recognize
+    /// the repeat. Only compiles once every assisted downcast has been crossed.
     /// </summary>
     /// <exception cref="ArgumentException">
     /// <paramref name="messageId"/> is empty, whitespace, longer than <see cref="MaxMessageIdLength"/>,
@@ -131,12 +129,16 @@ public static class PublisherExtensions
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
         if (messageId.Length > MaxMessageIdLength)
+        {
             throw new ArgumentException(
                 $"A message identifier can be at most {MaxMessageIdLength} characters.", nameof(messageId));
-        // ASCII keeps one character to one byte, so the length limit also holds RabbitMQ's: AMQP
-        // carries message-id as a short string of at most 255 UTF-8 bytes.
+        }
+
         if (!System.Text.Ascii.IsValid(messageId))
+        {
             throw new ArgumentException("A message identifier must be ASCII.", nameof(messageId));
+        }
+
         builder.Current.DescendToFloor(builder.Accumulated);
         return builder.Publisher.SendAsync(builder.Accumulated, messageId, cancellationToken);
     }
