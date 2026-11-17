@@ -10,7 +10,7 @@ crates/bitwarden-uniffi-server ──cdylib──▶ native/runtimes/<rid>/nativ
                                               ▼
                                            src/Generated/*.cs              (committed, internal)
                                               │
-                                           NativeServerSdk ──▶ ICryptoParsingClient
+                                           NativeServerSdk ──▶ ICryptoParsingClient, IKeyDataClient
 ```
 
 Generated types stay `internal`; only the domain interfaces, their result records and enums, and
