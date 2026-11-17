@@ -37,6 +37,11 @@ app.Run();
 The `UseBitwardenAuthentication()` replaces the need for `UseAuthentication` but it does NOT replace
 the need for `UseAuthorization()`.
 
+`AddBitwardenAuthentication()` does not register ASP.NET Core Data Protection since validating bearer
+tokens does not need it. If your application uses `IDataProtectionProvider` it should call
+`AddDataProtection()` itself, adding schemes through `AddAuthentication()`, such as cookies, will also
+register it.
+
 ## Customization
 
 Authentication can be configured via any property in the [`JwtBearerOptions`](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.builder.jwtbeareroptions)

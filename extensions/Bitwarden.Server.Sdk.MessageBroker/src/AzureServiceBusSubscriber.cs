@@ -4,29 +4,42 @@ using Azure.Messaging.ServiceBus;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-internal sealed class AzureServiceBusSubscriber<T> : ISubscriber<T>
+internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>
+    where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
+    where TCeiling : Payload<TPayload>.ICeiling
 {
     private readonly string _topicName;
     private readonly string _subscriptionName;
-    private readonly ServiceBusClient _client;
+    private readonly AzureServiceBusConnection _connection;
     private readonly IMessageSerializer _serializer;
     private readonly MessageBrokerMetrics _metrics;
 
-    public AzureServiceBusSubscriber(ServiceBusClient client, string topicName, string subscriptionName, IMessageSerializer serializer, MessageBrokerMetrics metrics)
+    public AzureServiceBusSubscriber(AzureServiceBusConnection connection, string topicName, string subscriptionName, IMessageSerializer serializer, MessageBrokerMetrics metrics)
     {
         _topicName = topicName;
         _subscriptionName = subscriptionName;
-        _client = client;
+        _connection = connection;
         _serializer = serializer;
         _metrics = metrics;
     }
 
-    public async IAsyncEnumerable<Envelope<T>> SubscribeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await using var receiver = _client
-            .CreateReceiver(_topicName, _subscriptionName, new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.PeekLock });
+        ServiceBusReceiver receiver;
+        try
+        {
+            receiver = _connection.Client
+                .CreateReceiver(_topicName, _subscriptionName, new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.PeekLock });
+        }
+        catch (ObjectDisposedException) when (_connection.IsClosing)
+        {
+            // The connection closed before the stream started.
+            yield break;
+        }
 
-        while (!cancellationToken.IsCancellationRequested && !_client.IsClosed)
+        await using var receiverLifetime = receiver;
+
+        while (!cancellationToken.IsCancellationRequested && !_connection.IsClosing)
         {
             // Receive one message at a time so the receiver holds at most one pending lock.
             // This ensures that when iteration stops (break / cancellation), no unprocessed
@@ -34,15 +47,19 @@ internal sealed class AzureServiceBusSubscriber<T> : ISubscriber<T>
             IReadOnlyList<ServiceBusReceivedMessage> received;
             try
             {
-                received = await receiver.ReceiveMessagesAsync(maxMessages: 1, cancellationToken: cancellationToken);
+                // The Azure SDK does not cancel a receive that is still opening its link, and closing
+                // the client does not end it either: it waits out its try timeout. Stop waiting for it
+                // once the connection has closed, and observe the failure it ends with.
+                var receive = receiver.ReceiveMessagesAsync(maxMessages: 1, cancellationToken: cancellationToken);
+                _ = receive.ContinueWith(static t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+                received = await receive.WaitAsync(_connection.Closed);
             }
-            catch (OperationCanceledException)
+            catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or ServiceBusException
+                                       && _connection.IsClosing
+                                       && !cancellationToken.IsCancellationRequested)
             {
-                throw;
-            }
-            catch (ObjectDisposedException) when (_client.IsClosed)
-            {
-                // The client was disposed while we were waiting — exit the loop cleanly.
+                // The connection closed while the receive was opening its link or waiting for a
+                // message. Whatever the Azure SDK surfaced, this is a shutdown: end the stream.
                 break;
             }
             catch (ServiceBusException ex)
@@ -52,10 +69,23 @@ internal sealed class AzureServiceBusSubscriber<T> : ISubscriber<T>
 
             foreach (var sbMessage in received)
             {
-                T? message;
+                // Defense in depth: when the operator-declared Correlation filter routes correctly,
+                // only matching messages arrive. A missing or wrong filter could deliver another
+                // family's message here; decoding it against TPayload would silently discard every
+                // variant and dead-letter on the length check below with no indication the real
+                // problem was the subscription filter. Fail fast with the actual reason.
+                if (sbMessage.ApplicationProperties.TryGetValue(BrokerProperties.PayloadFamily, out var familyObj)
+                    && familyObj is string familyName
+                    && familyName != TPayload.WireName)
+                {
+                    await receiver.DeadLetterMessageAsync(sbMessage, cancellationToken: cancellationToken);
+                    continue;
+                }
+
+                IReadOnlyList<Payload<TPayload>.IVariant> variants;
                 try
                 {
-                    message = _serializer.Deserialize<T>(sbMessage.Body.ToArray());
+                    variants = _serializer.DeserializeVariants<TPayload>(sbMessage.Body.ToArray());
                 }
                 catch (Exception)
                 {
@@ -63,35 +93,53 @@ internal sealed class AzureServiceBusSubscriber<T> : ISubscriber<T>
                     continue;
                 }
 
-                if (message is not null)
+                if (variants.Count == 0)
                 {
-                    _metrics.RecordConsume(_topicName);
-                    var traceId = sbMessage.ApplicationProperties.TryGetValue("traceparent", out var tp) ? tp as string : null;
-                    var activity = MessageBrokerActivitySource.StartConsumerActivity(_topicName, traceId);
-                    yield return new AzureServiceBusEnvelope(message, receiver, sbMessage, activity);
-                }
-                else
-                {
+                    // No variant on the wire was known to this subscriber.
                     await receiver.DeadLetterMessageAsync(sbMessage, cancellationToken: cancellationToken);
+                    continue;
                 }
+
+                var traceId = sbMessage.ApplicationProperties.TryGetValue(BrokerProperties.TraceParent, out var tp) ? tp as string : null;
+                var activity = MessageBrokerActivitySource.StartConsumerActivity(_topicName, TPayload.WireName, traceId);
+
+                AzureServiceBusEnvelope envelope;
+                try
+                {
+                    envelope = new AzureServiceBusEnvelope(variants, receiver, sbMessage, activity);
+                }
+                catch (InvalidOperationException)
+                {
+                    // Received variants cannot be resolved to TCeiling — dead-letter.
+                    activity?.Dispose();
+                    await receiver.DeadLetterMessageAsync(sbMessage, cancellationToken: cancellationToken);
+                    continue;
+                }
+
+                _metrics.RecordConsume(_topicName, TPayload.WireName, envelope.ConsumedVariantWireName);
+                yield return envelope;
             }
         }
     }
 
-    private sealed class AzureServiceBusEnvelope : Envelope<T>
+    private sealed class AzureServiceBusEnvelope : Envelope<TPayload, TCeiling>
     {
         private readonly ServiceBusReceiver _receiver;
         private readonly ServiceBusReceivedMessage _sbMessage;
 
-        public AzureServiceBusEnvelope(T message, ServiceBusReceiver receiver, ServiceBusReceivedMessage sbMessage, Activity? activity)
-            : base(message, activity)
+        public AzureServiceBusEnvelope(
+            IReadOnlyList<Payload<TPayload>.IVariant> variants,
+            ServiceBusReceiver receiver,
+            ServiceBusReceivedMessage sbMessage,
+            Activity? activity)
+            : base(variants, activity)
         {
             _receiver = receiver;
             _sbMessage = sbMessage;
         }
 
         public override string MessageId => _sbMessage.MessageId;
-        public override string? TraceId => _sbMessage.ApplicationProperties.TryGetValue("traceparent", out var tp) ? tp as string : null;
+        public override string? TraceId => _sbMessage.ApplicationProperties.TryGetValue(BrokerProperties.TraceParent, out var tp) ? tp as string : null;
         public override int DeliveryCount => _sbMessage.DeliveryCount;
 
         protected override Task CompleteAsyncCore(CancellationToken cancellationToken) =>
