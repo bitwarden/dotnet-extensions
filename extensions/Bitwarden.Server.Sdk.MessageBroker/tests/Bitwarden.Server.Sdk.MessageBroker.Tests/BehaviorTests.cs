@@ -195,6 +195,23 @@ public abstract class BehaviorTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// A subscription that dead-letters a message after a fixed number of deliveries, and how to
+    /// confirm a message reached its dead-letter destination.
+    /// </summary>
+    /// <param name="Publisher">Publishes to the subscription's topic.</param>
+    /// <param name="Subscriber">Receives from the subscription.</param>
+    /// <param name="Deliveries">How many times a message returned on every delivery is delivered before it is dead-lettered.</param>
+    /// <param name="AssertDeadLetteredAsync">Fails unless the message with this identifier was dead-lettered.</param>
+    protected sealed record DeliveryLimitedSubscription(
+        Publisher<MyItemPayload, MyItem> Publisher,
+        ISubscriber<MyItemPayload, MyItem> Subscriber,
+        int Deliveries,
+        Func<string, Task> AssertDeadLetteredAsync);
+
+    /// <summary>Creates a subscription whose messages are dead-lettered after a fixed number of deliveries.</summary>
+    protected abstract Task<DeliveryLimitedSubscription> CreateDeliveryLimitedSubscriptionAsync();
+
+    /// <summary>
     /// Runs after the host is built but before <see cref="IHost.StartAsync"/>. Backends can override
     /// to declare broker topology (exchanges, queues, subscriptions) before publishers and
     /// subscribers connect. The default is a no-op.
@@ -215,6 +232,50 @@ public abstract class BehaviorTests : IAsyncLifetime
             await host.StopAsync();
             host.Dispose();
         }
+    }
+
+    /// <summary>
+    /// A message returned on every delivery is delivered up to its subscription's delivery limit, with
+    /// the count rising each time, and is then dead-lettered rather than redelivered forever.
+    /// </summary>
+    [Fact(Timeout = 90 * 1000)]
+    public async Task MessageReturnedOnEveryDeliveryIsDeadLetteredAtTheDeliveryLimit()
+    {
+        var limited = await CreateDeliveryLimitedSubscriptionAsync();
+        // A subscription can be shared with other tests; this test's message is told apart by its id.
+        var id = Random.Shared.Next(1_000_000, int.MaxValue);
+        await limited.Publisher.Publish(new MyItem(id)).SendAsync(TestContext.Current.CancellationToken);
+
+        var deliveries = new List<int>();
+        string? messageId = null;
+        using var receiveCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        receiveCts.CancelAfter(TimeSpan.FromSeconds(60));
+        try
+        {
+            await foreach (var envelope in limited.Subscriber.SubscribeAsync(receiveCts.Token))
+            {
+                if (envelope.Payload.Id != id)
+                {
+                    await envelope.CompleteAsync(TestContext.Current.CancellationToken);
+                    continue;
+                }
+
+                messageId ??= envelope.MessageId;
+                deliveries.Add(envelope.DeliveryCount);
+                await envelope.RequeueAsync(cancellationToken: TestContext.Current.CancellationToken);
+                Assert.True(deliveries.Count <= limited.Deliveries,
+                    $"Delivered {deliveries.Count} times past a limit of {limited.Deliveries} deliveries.");
+
+                // Once the limit is reached, wait a few seconds more for a delivery that shouldn't come.
+                if (deliveries.Count == limited.Deliveries)
+                    receiveCts.CancelAfter(TimeSpan.FromSeconds(3));
+            }
+        }
+        catch (OperationCanceledException) { /* expected: nothing more to deliver */ }
+        catch (BrokerDisconnectedException) { /* expected: channel closed on iterator dispose */ }
+
+        Assert.Equal(Enumerable.Range(1, limited.Deliveries), deliveries);
+        await limited.AssertDeadLetteredAsync(messageId!);
     }
 
     [Fact(Timeout = 60 * 1000)]
@@ -332,23 +393,25 @@ public abstract class BehaviorTests : IAsyncLifetime
 
         await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
 
-        // Receive and explicitly return the message (abandon it for redelivery).
+        // Explicitly return the message (abandon it for redelivery) twice, then complete it. Each return
+        // must be counted, not just flagged as delivered before. One subscription throughout: closing one
+        // returns whatever it holds, which a broker may count as a failed delivery of its own.
+        var deliveries = new List<int>();
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {
             Assert.Equal(1, envelope.Payload.Id);
-            Assert.Equal(1, envelope.DeliveryCount);
-            await envelope.RequeueAsync(cancellationToken: TestContext.Current.CancellationToken);
-            break;
-        }
+            deliveries.Add(envelope.DeliveryCount);
+            if (deliveries.Count < 3)
+            {
+                await envelope.RequeueAsync(cancellationToken: TestContext.Current.CancellationToken);
+                continue;
+            }
 
-        // The returned message must be redelivered with an incremented DeliveryCount.
-        await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
-        {
-            Assert.Equal(1, envelope.Payload.Id);
-            Assert.Equal(2, envelope.DeliveryCount);
             await envelope.CompleteAsync(TestContext.Current.CancellationToken);
             break;
         }
+
+        Assert.Equal([1, 2, 3], deliveries);
     }
 
     /// <summary>
