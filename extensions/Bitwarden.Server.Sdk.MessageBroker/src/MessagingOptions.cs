@@ -11,10 +11,9 @@ public class MessagingOptions
 
     /// <summary>
     /// The Azure Service Bus namespace's host name, such as <c>bitwarden.servicebus.windows.net</c>.
-    /// When set, Azure Service Bus is used with a token credential instead of a shared access key:
-    /// the <see cref="Azure.Core.TokenCredential"/> the app registers under
-    /// <see cref="Microsoft.Extensions.DependencyInjection.MessageBrokerKeys.Credential"/>, typically its
-    /// managed identity. A host with a namespace and no registered credential refuses to start.
+    /// When set, Azure Service Bus is used with the <see cref="Azure.Core.TokenCredential"/> the app
+    /// registers under <see cref="Microsoft.Extensions.DependencyInjection.MessageBrokerKeys.Credential"/>;
+    /// a host without one refuses to start.
     /// Set this or <see cref="AzureServiceBusConnectionString"/>, not both.
     /// </summary>
     public string? AzureServiceBusFullyQualifiedNamespace { get; set; }

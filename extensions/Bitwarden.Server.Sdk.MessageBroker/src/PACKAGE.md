@@ -84,9 +84,8 @@ services.AddKeyedSingleton<TokenCredential>(MessageBrokerKeys.Credential,
     new ManagedIdentityCredential(ManagedIdentityId.FromUserAssignedClientId(clientId)));
 ```
 
-The broker has no credential of its own, so the app always states which identity it uses; a host
-with a namespace and no registered credential refuses to start. The key keeps a credential you
-register for something else, such as Key Vault's, from being taken for the broker.
+The broker has no credential of its own: a host with a namespace and no registered credential
+refuses to start.
 
 ```json
 {
