@@ -15,16 +15,14 @@ LavinMQ. Services don't depend on which one is in use.
 | Self-host  | RabbitMQ 4.3.6    | Azure Service Bus, LavinMQ 2.10.4      |
 | Lite       | LavinMQ 2.10.4    | Azure Service Bus, RabbitMQ 4.3.6      |
 
-A self-hosted service creates the topics, queues and subscriptions it needs as it starts, as it
-migrates its database, so a self-hosted install's broker needs no setup, whichever broker it is. In the
-cloud, infrastructure-as-code creates them before release. An operator can switch either way with
+A self-hosted service creates the topics, queues and subscriptions it needs as it starts, so a
+self-hosted install's broker needs no setup. In the cloud, infrastructure-as-code creates them before
+release. An operator can switch either way with
 `AutoProvisionTopology`; a service that doesn't create its topology checks it at startup, and stops,
 naming what is missing.
 
 RabbitMQ and LavinMQ share one backend in the library (the `Rabbit*` types, configured with
-`RabbitUri`): it relies on what both brokers provide, quorum queues, policies, `delivery-limit`,
-`dead-letter-strategy`, `x-delivery-count` and importing `definitions.json`, and the differences
-between them are listed under [RabbitMQ and LavinMQ](#rabbitmq-and-lavinmq).
+`RabbitUri`); see [RabbitMQ and LavinMQ](#rabbitmq-and-lavinmq).
 
 ## Provisioning
 
@@ -42,13 +40,10 @@ down to the family they consume.
 Once a service first reaches its broker, it either creates the topology its registrations need or
 checks that it exists, from the same requirements listed under
 [Collecting a service's topology](#collecting-a-services-topology). Which one follows
-`AutoProvisionTopology`, the way a self-hosted service migrates its own database schema and one
-Bitwarden runs leaves that to a release step: unset, a self-hosted service
-(`IBitwardenEnvironment.SelfHosted`) creates its topology and any other checks it. If an object is missing, or the
-service can't create it, it logs one critical message naming each and stops with exit code 1, so a
-deployment with incomplete topology fails at once instead of running without, say, the queue its
-commands arrive on. A broker that can't be reached doesn't stop it: it logs a warning and tries again,
-waiting one second and doubling the wait up to thirty, until the broker answers.
+`AutoProvisionTopology`: unset, a self-hosted service (`IBitwardenEnvironment.SelfHosted`) creates its
+topology and any other checks it. If an object is missing, or the service can't create it, it logs one
+critical message naming each and stops with exit code 1. A broker that can't be reached doesn't stop
+it: it logs a warning and tries again until the broker answers.
 
 ### Creating it
 
@@ -60,13 +55,11 @@ operator provisioned keeps its own settings, dead-lettering included:
   each family no rule of the subscription admits yet;
 - its command queues, and on RabbitMQ and LavinMQ their exchanges.
 
-It doesn't create the topics it subscribes to or the queues it sends to; their owners do. A
-subscription whose topic doesn't exist yet waits for its owner to create it, logging a warning and
-trying again with the same wait as for an unreachable broker. Its hosted consumers wait until it is
-done. Bindings and rules are made again on every start, so a family a release adds reaches an
-existing subscription; one the service may not make on an object it didn't create (a queue it may
-only read, say) is left to whoever made the object, with a warning. `MaxDeliveryCount` (default 10) is
-the delivery limit of what it creates.
+It doesn't create the topics it subscribes to or the queues it sends to; their owners do, and a
+subscription whose topic doesn't exist yet waits for it. Its hosted consumers wait until it is done.
+Bindings and rules are made again on every start, so a family a release adds reaches an existing
+subscription; one the service may not make on an object it didn't create is left, with a warning.
+`MaxDeliveryCount` (default 10) is the delivery limit of what it creates.
 
 - **RabbitMQ and LavinMQ:** the shapes below, with one difference: each queue's delivery limit and
   dead-lettering are queue arguments (`x-delivery-limit`, `x-dead-letter-exchange`,
@@ -133,16 +126,13 @@ and provisioned from that list rather than written by hand. The kinds are consta
 | `messaging-command-consume` | `AddCommandConsumer`     | `queue`, `family`                  | Nothing; lets provisioning check senders against what the queue accepts |
 | `messaging-command-send`  | `AddCommandSender`         | `queue`, `family`                  | Send rights on the receiving service's queue (on RabbitMQ, write on the queue's own exchange) |
 
-None of them carries a connection string or key. The sections below say what each becomes on each
-broker.
+None of them carries a connection string or key.
 
 Provisioning collects every service's list and checks it before granting anything:
 
 - **One owner per topic and per queue.** Each topic appears under `messaging-topic`, and each queue
   under `messaging-command-queue`, for exactly one service. Fail if two services claim the same
-  one: granting send rights on a topic to a service that isn't its owner would let it publish
-  another service's events, and granting receive rights on a queue would let it read another
-  service's commands.
+  one: a non-owner could publish another service's events or read its commands.
 - **One owner per subscription.** Each topic and subscription pair appears under
   `messaging-subscription` for exactly one service, and its topic has an owner under
   `messaging-topic`. Fail otherwise: two services on one subscription would each get receive rights
@@ -189,12 +179,10 @@ and does not consume any `ServiceBusClient` the app registers separately. An app
 
 For each unique `queue` passed to `AddCommandConsumer<TPayload, TCeiling, TConsumer>(queue)`:
 
-- A queue named `{queue}`, owned by the receiving service. It carries every command family the
-  service accepts, so it has no filter: the receiver reads `x-bw-payload-family` and dead-letters a
-  family it has no consumer for. Set `MaxDeliveryCount` as for a subscription.
+- A queue named `{queue}`, owned by the receiving service, with no filter. Set `MaxDeliveryCount`
+  as for a subscription.
 
-Senders (`AddCommandSender`) need only send rights on the queue. Sending to a queue that doesn't
-exist throws `BrokerUnavailableException`.
+Senders (`AddCommandSender`) need only send rights on the queue.
 
 ### Access with a managed identity
 
@@ -225,11 +213,9 @@ If the queue's routing-key binding is wrong, `RabbitSubscriber` falls back to th
 check — it reads the `x-bw-payload-family` header and dead-letters mismatches. The routing-key
 binding is still the right production configuration because it moves the filter into the broker.
 
-A hosted consumer ends its own retries: it dead-letters a failed message once it has been delivered
-`ConsumerRetryOptions.MaxDeliveries` times, by default on its first failure (see PACKAGE.md). The
-delivery limit is the backstop, for a consumer that returns messages itself or a message that keeps
-coming back for another reason, so set it at least as high as the largest `MaxDeliveries` configured
-for the queue. A consumer that returns a message for redelivery does so with `basic.reject`, which
+A hosted consumer ends its own retries after `ConsumerRetryOptions.MaxDeliveries` (see PACKAGE.md).
+The delivery limit is the backstop, so set it at least as high as the largest `MaxDeliveries`
+configured for the queue. A consumer that returns a message for redelivery does so with `basic.reject`, which
 RabbitMQ counts toward the limit and in the `x-delivery-count` header that becomes
 `Envelope.DeliveryCount`.
 
@@ -238,8 +224,7 @@ changed on an existing queue. Declare the topology in a `definitions.json` file 
 the broker starts: both brokers import the same file, RabbitMQ with `load_definitions` (see the
 RabbitMQ documentation on [definitions](https://www.rabbitmq.com/docs/definitions) and
 [quorum queue poison-message handling](https://www.rabbitmq.com/docs/quorum-queues#poison-message-handling)),
-and LavinMQ with its definitions import. RabbitMQ's `rabbitmqadmin` and `rabbitmqctl` have no
-equivalents in `lavinmqctl`, so a definitions file is the one way that works for both.
+and LavinMQ with its definitions import.
 
 ### Example: a user service
 
@@ -329,10 +314,9 @@ its dots (`^user-events$`, `^notification\.commands$`,
 `^(user-events\.vault|dead-letter\.user-events\.vault)$`). A pattern such as `^dead-letter\.` would
 let a service delete every other service's dead-lettered messages.
 
-Remove the default `guest` user, or at least change its password and limit it, on both brokers. Don't
-rely on RabbitMQ's rule that `guest` connects only from the local host: the official container image
-turns it off, and the LavinMQ image accepts `guest` from outside the container too. A service sharing one administrator login can publish to
-any queue and read any other service's messages, whatever the rules above say.
+Remove the default `guest` user, or at least change its password and limit it, on both brokers:
+both official images accept `guest` from outside the container. A service sharing one administrator
+login can publish to any queue and read any other service's messages, whatever the rules above say.
 
 Keep users and their credentials out of the topology file that ships with a release or sits in a
 repository: create them from a secret store, or through the management API when deploying. A
@@ -347,23 +331,16 @@ For each unique `queue` passed to `AddCommandConsumer<TPayload, TCeiling, TConsu
   routing key. Senders publish to the exchange with the same routing key.
 - Apply the same `delivery-limit` and dead-letter policy as subscription queues.
 
-Each command queue has an exchange of its own, rather than senders using RabbitMQ's default
-exchange, so that sending can be granted one queue at a time. RabbitMQ checks a publish against
-`write` on the exchange: a sender's user needs `write` on `^{queue}$` for each queue it sends to,
-and the receiver's user `read` on its own queue. The permissions are regular expressions, so escape
-the dots in a queue's name (`^notification\.commands$`); an unescaped dot matches any character. Write on the default exchange (`amq.default`)
-would let a user publish to every queue in the virtual host, event subscription queues included,
-so don't grant it to service users.
-
-Senders publish with `mandatory`, so a command sent before the queue exists is returned by the
-broker and `SendAsync` throws `BrokerUnavailableException` instead of the command being dropped.
+Each command queue has its own exchange so that sending can be granted one queue at a time: a
+sender's user needs `write` on `^{queue}$` for each queue it sends to, and the receiver's user
+`read` on its own queue. The permissions are regular expressions, so escape the dots in a queue's
+name (`^notification\.commands$`). Don't grant service users `write` on the default exchange
+(`amq.default`): it reaches every queue in the virtual host.
 
 ### Where RabbitMQ and LavinMQ differ
 
-- **Delivery count.** Both count a `basic.reject` toward a quorum queue's `delivery-limit` and in
-  the `x-delivery-count` header that becomes `Envelope.DeliveryCount`. RabbitMQ sends the header as
-  a 64-bit integer and LavinMQ as a 32-bit one; the library reads either. LavinMQ sends it only on a
-  queue that has a delivery limit, so without the policy every redelivery reads as the second.
+- **Delivery count.** LavinMQ sends `x-delivery-count` only on a queue that has a delivery limit, so
+  without the policy every redelivery reads as the second.
 - **Provisioning.** Both import `definitions.json`. `rabbitmqadmin` and `rabbitmqctl` have no
   equivalents in `lavinmqctl`, so use a definitions file for either broker.
 - **Dead-lettering.** Both set the `x-death` header on a dead-lettered message, naming the queue it
@@ -377,5 +354,4 @@ broker and `SendAsync` throws `BrokerUnavailableException` instead of the comman
   name (`.*`); narrower patterns, even ones matching both the queue and its dead-letter exchange, are
   refused, and RabbitMQ accepts them.
 
-The library's broker tests for this backend (behaviour, command queues, outages and the startup check) run against both
-brokers (`MESSAGING_TESTS_AMQP_IMAGE`): CI runs them on RabbitMQ 4.3.6 and LavinMQ 2.10.4.
+CI runs the library's broker tests on both RabbitMQ 4.3.6 and LavinMQ 2.10.4.

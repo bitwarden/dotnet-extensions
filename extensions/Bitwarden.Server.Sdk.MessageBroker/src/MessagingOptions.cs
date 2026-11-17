@@ -11,10 +11,9 @@ public class MessagingOptions
 
     /// <summary>
     /// The Azure Service Bus namespace's host name, such as <c>bitwarden.servicebus.windows.net</c>.
-    /// When set, Azure Service Bus is used with a token credential instead of a shared access key:
-    /// the <see cref="Azure.Core.TokenCredential"/> the app registers under
-    /// <see cref="Microsoft.Extensions.DependencyInjection.MessageBrokerKeys.Credential"/>, typically its
-    /// managed identity. A host with a namespace and no registered credential refuses to start.
+    /// When set, Azure Service Bus is used with the <see cref="Azure.Core.TokenCredential"/> the app
+    /// registers under <see cref="Microsoft.Extensions.DependencyInjection.MessageBrokerKeys.Credential"/>;
+    /// a host without one refuses to start.
     /// Set this or <see cref="AzureServiceBusConnectionString"/>, not both.
     /// </summary>
     public string? AzureServiceBusFullyQualifiedNamespace { get; set; }
@@ -37,11 +36,8 @@ public class MessagingOptions
 
     /// <summary>
     /// How long, at most, an Azure Service Bus message's lock is renewed while a consumer handles it
-    /// and waits to retry it. After that the lock is left to expire, so a handler that hangs gives
-    /// the message back to the broker for another delivery rather than holding it until the host
-    /// stops. Set it no shorter than the longest <see cref="ConsumerRetryOptions.MaxRetryDelay"/>, or a
-    /// message waiting to be retried can lose its lock and be delivered again sooner. Default is five
-    /// minutes, as for the Azure SDK's own processor.
+    /// and waits to retry it. Set it no shorter than the longest
+    /// <see cref="ConsumerRetryOptions.MaxRetryDelay"/>. Default is five minutes.
     /// </summary>
     public TimeSpan MaxLockRenewalDuration { get; set; } = TimeSpan.FromMinutes(5);
 
@@ -56,13 +52,10 @@ public class MessagingOptions
     public bool VerifyTopologyAtStartup { get; set; } = true;
 
     /// <summary>
-    /// Whether the service creates the topics, subscriptions and queues its registrations need, once it
-    /// first reaches its broker, as a self-hosted service migrates its database schema. It creates only
-    /// what is missing, with the settings BROKER-TOPOLOGY.md gives them, and needs the rights to create
-    /// them: configure on RabbitMQ and LavinMQ, the Manage right on Azure Service Bus. Its hosted
-    /// consumers wait until it is done. When it doesn't provision,
-    /// <see cref="VerifyTopologyAtStartup"/> decides whether it checks instead. Unset, a self-hosted
-    /// service provisions and one Bitwarden runs doesn't, leaving it to infrastructure-as-code.
+    /// Whether the service creates the missing topics, subscriptions and queues its registrations need,
+    /// once it first reaches its broker. It needs the rights to create them: configure on RabbitMQ and
+    /// LavinMQ, the Manage right on Azure Service Bus. Unset, a self-hosted service provisions and any
+    /// other doesn't.
     /// </summary>
     public bool? AutoProvisionTopology { get; set; }
 }
