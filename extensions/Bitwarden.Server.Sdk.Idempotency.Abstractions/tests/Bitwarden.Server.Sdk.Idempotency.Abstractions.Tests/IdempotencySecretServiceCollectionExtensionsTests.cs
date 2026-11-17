@@ -13,7 +13,7 @@ public sealed class IdempotencySecretServiceCollectionExtensionsTests
     [Fact]
     public void AddIdempotencySecret_ReadsTheConfiguredSecret()
     {
-        var secret = Resolve(new ServiceCollection().AddIdempotencySecret(), IdempotencySecretTests.Configuration(Secret.ToString()), "Production");
+        var secret = Resolve(new ServiceCollection().AddIdempotencySecret(), IdempotencySecretTests.Configuration(IdempotencySecretTests.Base64(Secret)), "Production");
 
         Assert.Equal(Secret, secret.Value);
     }

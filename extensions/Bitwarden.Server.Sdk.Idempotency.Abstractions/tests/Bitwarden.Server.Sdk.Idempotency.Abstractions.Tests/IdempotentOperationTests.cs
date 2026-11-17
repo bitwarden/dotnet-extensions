@@ -9,7 +9,9 @@ public sealed class IdempotentOperationTests
     private static readonly KeyValuePair<string, string>[] NoContext = [];
 
     // A test secret, 32 bytes of 0x01, which the golden vectors below are computed with.
-    private static readonly CacheSecret Secret = new(Enumerable.Repeat((byte)1, CacheSecret.Length).ToArray());
+    private static readonly IdempotencySecret Secret = new(new CacheSecret(Enumerable.Repeat((byte)1, CacheSecret.Length).ToArray()));
+
+    private static readonly IdempotencySecret Development = new(CacheSecret.Development);
 
     [Fact]
     public void OutsideAnOperation_NothingIsDerived()
@@ -178,6 +180,12 @@ public sealed class IdempotentOperationTests
 
         second.Dispose();
         Assert.Equal("outer-op", IdempotentOperation.Current);
+    }
+
+    [Fact]
+    public void Begin_ANullSecret_IsRefused()
+    {
+        Assert.Throws<ArgumentNullException>(() => IdempotentOperation.Begin("operation-1", null!));
     }
 
     [Fact]
@@ -483,7 +491,7 @@ public sealed class IdempotentOperationTests
     [Fact]
     public void KeyForWrite_WithTheDevelopmentSecret_MatchesTheGoldenVectors()
     {
-        using var operation = IdempotentOperation.Begin("operation-1", CacheSecret.Development);
+        using var operation = IdempotentOperation.Begin("operation-1", Development);
 
         Assert.Equal(
             "348129896b11e0c49df43fb09bfedc69e5497733728841064e4297067818a157",
@@ -547,7 +555,7 @@ public sealed class IdempotentOperationTests
     [Fact]
     public void DeriveId_WithTheDevelopmentSecret_MatchesTheGoldenVectors()
     {
-        using var operation = IdempotentOperation.Begin("operation-1", CacheSecret.Development);
+        using var operation = IdempotentOperation.Begin("operation-1", Development);
 
         Assert.Equal(Guid.Parse("696037ed-5f96-888c-8e1d-af430c918e66"), IdempotentOperation.DeriveId("mail"));
         Assert.Equal(Guid.Parse("b380fe9f-4669-8a46-953f-732b3c909243"), IdempotentOperation.DeriveId("mail"));
@@ -558,14 +566,14 @@ public sealed class IdempotentOperationTests
     [Fact]
     public void AnotherSecret_DerivesOtherKeysAndIds()
     {
-        static (string? Key, Guid? Id) Run(CacheSecret secret)
+        static (string? Key, Guid? Id) Run(IdempotencySecret secret)
         {
             using var operation = IdempotentOperation.Begin("operation-1", secret);
             return (IdempotentOperation.KeyForWrite("POST", Address, "{}"u8, NoContext), IdempotentOperation.DeriveId("mail"));
         }
 
         var mine = Run(Secret);
-        var other = Run(new CacheSecret(Enumerable.Repeat((byte)2, CacheSecret.Length).ToArray()));
+        var other = Run(new IdempotencySecret(new CacheSecret(Enumerable.Repeat((byte)2, CacheSecret.Length).ToArray())));
 
         Assert.NotEqual(mine.Key, other.Key);
         Assert.NotEqual(mine.Id, other.Id);

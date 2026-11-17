@@ -32,7 +32,7 @@ namespace Bitwarden.Server.Sdk.Idempotency;
 /// <see cref="IdempotencySecret"/>.
 /// </para>
 /// <code>
-/// using (IdempotentOperation.Begin($"archive-widget:{message.Id}", idempotencySecret.Value))
+/// using (IdempotentOperation.Begin($"archive-widget:{message.Id}", idempotencySecret))
 /// {
 ///     await widgets.ArchiveAsync(...);
 ///     await audit.RecordAsync(...);
@@ -77,15 +77,17 @@ public static class IdempotentOperation
     /// Begin it in the method that makes the writes, or one that awaits it: an ambient value set inside an awaited
     /// method is not seen by its caller.
     /// </remarks>
-    public static IDisposable Begin(string key, CacheSecret secret)
+    public static IDisposable Begin(string key, IdempotencySecret secret)
     {
+        ArgumentNullException.ThrowIfNull(secret);
+
         if (!IdempotencyKeys.IsValid(key) || key.Length > MaximumKeyLength)
         {
             throw new ArgumentException(
                 $"An operation key is 1 to {MaximumKeyLength} visible ASCII characters.", nameof(key));
         }
 
-        var scope = new Scope(key, secret, Ambient.Value);
+        var scope = new Scope(key, secret.Value, Ambient.Value);
         Ambient.Value = scope;
 
         return scope;

@@ -28,7 +28,9 @@ dotnet add package Bitwarden.Server.Sdk.Idempotency.Abstractions
   which covers its own retries of that call.
 - **Each service has a secret.** `IdempotencySecret`, from `Idempotency:Secret`, keys every key and identifier the
   service's operations derive, so only the service can compute them. Only the service that derived a key derives it
-  again, so the secret is the service's own, the same on every instance.
+  again, so the secret is the service's own, the same on every instance. `IdempotentOperation.Begin` takes the
+  `IdempotencySecret` itself, which only `IdempotencySecret.ReadSecret` and `AddIdempotencySecret()` make, so every
+  operation's secret has passed their checks.
 - **This package neither sends nor honors the header.** A client sends it, a service honors it, and a host that runs
   message handlers or jobs begins an operation around each run.
 
@@ -71,7 +73,7 @@ public sealed class ArchiveWidgetWorkflow(IWidgetCalls widgets, IdempotencySecre
         {
             try
             {
-                using (IdempotentOperation.Begin(operation, secret.Value))
+                using (IdempotentOperation.Begin(operation, secret))
                 {
                     await widgets.ArchiveAsync(widget, cancellationToken);
                     return;

@@ -25,7 +25,7 @@ public static class IdempotencySecretServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.TryAddSingleton(provider => new IdempotencySecret(IdempotencySecret.ReadSecret(
+        services.TryAddSingleton(provider => new IdempotencySecret(IdempotencySecret.ReadValue(
             provider.GetService<IConfiguration>()?[IdempotencySecret.SecretKey],
             provider.GetService<IHostEnvironment>()?.EnvironmentName ?? Environments.Production)));
 

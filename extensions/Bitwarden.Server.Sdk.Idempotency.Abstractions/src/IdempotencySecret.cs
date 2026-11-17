@@ -5,7 +5,7 @@ namespace Bitwarden.Server.Sdk.Idempotency;
 
 /// <summary>
 /// The secret a service derives its operations' write keys and identifiers with
-/// (<see cref="IdempotentOperation.Begin(string, CacheSecret)"/>).
+/// (<see cref="IdempotentOperation.Begin(string, IdempotencySecret)"/>).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -30,17 +30,14 @@ public sealed class IdempotencySecret
     // Compared as IHostEnvironment.IsDevelopment compares it.
     private const string DevelopmentEnvironment = "Development";
 
-    /// <summary>
-    /// Holds a secret already read.
-    /// </summary>
-    /// <param name="value">The secret.</param>
-    public IdempotencySecret(CacheSecret value)
+    // Internal, so every secret an operation begins with went through ReadSecret's checks.
+    internal IdempotencySecret(CacheSecret value)
     {
         Value = value;
     }
 
     /// <summary>
-    /// The secret, which <see cref="IdempotentOperation.Begin(string, CacheSecret)"/> takes.
+    /// The secret itself.
     /// </summary>
     public CacheSecret Value { get; }
 
@@ -50,23 +47,25 @@ public sealed class IdempotencySecret
     /// <param name="configuration">The configuration holding <see cref="SecretKey"/>.</param>
     /// <param name="environmentName">The host's environment name, for example <c>Production</c>.</param>
     /// <returns>
-    /// The secret, or <see cref="CacheSecret.Development"/> when none is configured in <c>Development</c>.
+    /// The secret, or <see cref="CacheSecret.Development"/> when none is configured in <c>Development</c>: the only way,
+    /// besides <see cref="Microsoft.Extensions.DependencyInjection.IdempotencySecretServiceCollectionExtensions.AddIdempotencySecret"/>,
+    /// to get one.
     /// </returns>
     /// <exception cref="InvalidOperationException">
     /// The secret is unset or is <see cref="CacheSecret.Development"/> outside <c>Development</c>, or is not base64 of
     /// <see cref="CacheSecret.Length"/> bytes. The message names the key, never the value.
     /// </exception>
-    public static CacheSecret ReadSecret(IConfiguration configuration, string environmentName)
+    public static IdempotencySecret ReadSecret(IConfiguration configuration, string environmentName)
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        return ReadSecret(configuration[SecretKey], environmentName);
+        return new IdempotencySecret(ReadValue(configuration[SecretKey], environmentName));
     }
 
     /// <summary>
     /// Reads <paramref name="value"/> as <see cref="ReadSecret(IConfiguration, string)"/> reads the configured one.
     /// </summary>
-    internal static CacheSecret ReadSecret(string? value, string environmentName)
+    internal static CacheSecret ReadValue(string? value, string environmentName)
     {
         ArgumentNullException.ThrowIfNull(environmentName);
 
