@@ -35,6 +35,10 @@ a key and an identifier never share an input:
 A write's context headers come last, one parameter each, named in lower case and in order of name. A header's name has
 no colon, so `{name}:{value}` reads back one way.
 
+`ForMessage` and `ForJob` give `{kind}:{name}:{occurrence}`, the kind `msg` or `job`. A name may not hold a colon, and a
+name too long or not visible ASCII is replaced by the hex of its UTF-8 SHA-256, so only the occurrence can hold one and
+a key reads back one way.
+
 The count is in invariant decimal digits. The identifier's version and variant bits are set in the big-endian byte
 order RFC 9562 writes. `CacheKey` encodes text as strict UTF-8, so a lone surrogate throws `EncoderFallbackException`,
 which `KeyForWrite` and `DeriveId` turn into an `ArgumentException` that doesn't quote the text.

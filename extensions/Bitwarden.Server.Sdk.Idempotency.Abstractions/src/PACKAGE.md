@@ -91,8 +91,9 @@ public sealed class ArchiveWidgetWorkflow(IWidgetCalls widgets, IdempotencySecre
 A host that runs message handlers or jobs begins an operation around each run, keyed by
 `IdempotentOperation.ForMessage(handler, envelope)` or `IdempotentOperation.ForJob(job, dueAt)`, with the service's
 `IdempotencySecret`. A redelivered message
-or an occurrence run again repeats its key; two handlers of one envelope, or the next occurrence, don't share it. A
-blank name throws `ArgumentException`, and a long one is shortened to its hash.
+or an occurrence run again repeats its key; two handlers of one envelope, or the next occurrence, don't share it. The
+key is `msg:{handler}:{identifier}` or `job:{job}:{due time}`, so a message's key and a job's never match. A blank name,
+or one holding a colon, throws `ArgumentException`, and a long one is shortened to its hash.
 
 The key is only as unique as what it is made from. Take the envelope's identifier from the message broker, minted
 where the message was published, and the due time from the scheduler, never from a message's payload or a request's

@@ -49,6 +49,11 @@ public static class IdempotentOperation
 
     private const string DerivedIdPurpose = "derived-id";
 
+    // The first part of an operation key ForMessage or ForJob gives, so a message's key and a job's never match.
+    private const string MessageKind = "msg";
+
+    private const string JobKind = "job";
+
     /// <summary>
     /// The longest operation key accepted.
     /// </summary>
@@ -100,7 +105,7 @@ public static class IdempotentOperation
     /// <param name="handler">The handler's stable name, such as its type's full name.</param>
     /// <param name="envelope">The envelope's identifier.</param>
     /// <returns>The key; a long name is shortened to its hash.</returns>
-    /// <exception cref="ArgumentException"><paramref name="handler"/> is null, empty or white space.</exception>
+    /// <exception cref="ArgumentException"><paramref name="handler"/> is null, empty or white space, or holds a colon.</exception>
     /// <remarks>
     /// The key is only as unique as the envelope's identifier. Take it from the message broker's envelope, minted where
     /// the message was published, never from the message's payload or a request's headers. A message published again
@@ -111,7 +116,7 @@ public static class IdempotentOperation
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(handler);
 
-        return Compose(handler, envelope.ToString());
+        return Compose(MessageKind, handler, nameof(handler), envelope.ToString());
     }
 
     /// <summary>
@@ -126,7 +131,7 @@ public static class IdempotentOperation
     /// </param>
     /// <returns>The key; a long name is shortened to its hash.</returns>
     /// <exception cref="ArgumentException">
-    /// <paramref name="handler"/> is null, empty or white space, or <paramref name="messageId"/> is blank, too long, or
+    /// <paramref name="handler"/> is null, empty or white space or holds a colon, or <paramref name="messageId"/> is blank, too long, or
     /// not visible ASCII.
     /// </exception>
     /// <remarks>
@@ -143,7 +148,7 @@ public static class IdempotentOperation
                 $"A message's identifier is 1 to {MaximumMessageIdLength} visible ASCII characters.", nameof(messageId));
         }
 
-        return Compose(handler, messageId);
+        return Compose(MessageKind, handler, nameof(handler), messageId);
     }
 
     /// <summary>
@@ -159,7 +164,7 @@ public static class IdempotentOperation
     /// <param name="job">The job's name.</param>
     /// <param name="dueAt">When the occurrence was due.</param>
     /// <returns>The key; a long name is shortened to its hash.</returns>
-    /// <exception cref="ArgumentException"><paramref name="job"/> is null, empty or white space.</exception>
+    /// <exception cref="ArgumentException"><paramref name="job"/> is null, empty or white space, or holds a colon.</exception>
     /// <remarks>
     /// Take the due time from the scheduler that owns the job's occurrences, never from a payload or a request's
     /// headers. Two runs given the same job and due time repeat each other's keys and derived identifiers, so the
@@ -169,7 +174,7 @@ public static class IdempotentOperation
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(job);
 
-        return Compose($"job:{job}", dueAt.ToUnixTimeMilliseconds().ToString(System.Globalization.CultureInfo.InvariantCulture));
+        return Compose(JobKind, job, nameof(job), dueAt.ToUnixTimeMilliseconds().ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     /// <summary>
@@ -294,15 +299,22 @@ public static class IdempotentOperation
         return new Guid(bytes, bigEndian: true);
     }
 
-    private static string Compose(string name, string occurrence)
+    // {kind}:{name}:{occurrence}. Neither the kind nor the name holds a colon, so only the occurrence can, and a key reads
+    // back one way.
+    private static string Compose(string kind, string name, string parameterName, string occurrence)
     {
-        var key = $"{name}:{occurrence}";
+        if (name.Contains(':', StringComparison.Ordinal))
+        {
+            throw new ArgumentException("A handler's or a job's name may not hold a colon.", parameterName);
+        }
+
+        var key = $"{kind}:{name}:{occurrence}";
         if (key.Length <= MaximumKeyLength && IdempotencyKeys.IsValid(key))
         {
             return key;
         }
 
-        return $"{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(name)))}:{occurrence}";
+        return $"{kind}:{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(name)))}:{occurrence}";
     }
 
     private static CacheKey Derive(CacheSecret secret, string invalidText, string parameterName, params ReadOnlySpan<string> parameters)

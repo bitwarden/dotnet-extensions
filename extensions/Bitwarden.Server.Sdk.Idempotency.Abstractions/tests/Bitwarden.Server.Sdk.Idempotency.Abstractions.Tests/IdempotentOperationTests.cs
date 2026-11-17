@@ -211,7 +211,7 @@ public sealed class IdempotentOperationTests
     {
         var envelope = Guid.NewGuid();
 
-        Assert.Equal($"Some.Handler:{envelope}", IdempotentOperation.ForMessage("Some.Handler", envelope));
+        Assert.Equal($"msg:Some.Handler:{envelope}", IdempotentOperation.ForMessage("Some.Handler", envelope));
     }
 
     [Fact]
@@ -240,7 +240,7 @@ public sealed class IdempotentOperationTests
     [Fact]
     public void ForMessage_AStringIdentifier_IsTheHandlerAndTheIdentifier()
     {
-        Assert.Equal("Some.Handler:device-1.0192", IdempotentOperation.ForMessage("Some.Handler", "device-1.0192"));
+        Assert.Equal("msg:Some.Handler:device-1.0192", IdempotentOperation.ForMessage("Some.Handler", "device-1.0192"));
     }
 
     [Fact]
@@ -290,6 +290,25 @@ public sealed class IdempotentOperationTests
     public void ForJob_ABlankName_IsRefused(string? job)
     {
         Assert.ThrowsAny<ArgumentException>(() => IdempotentOperation.ForJob(job!, DateTimeOffset.UnixEpoch));
+    }
+
+    // A message's key and a job's never match, and only the identifier or the due time can hold a colon, so a key reads
+    // back one way.
+    [Fact]
+    public void ForMessageAndForJob_NeverShareAKey()
+    {
+        var dueAt = DateTimeOffset.FromUnixTimeMilliseconds(1_700_000_000_000);
+
+        Assert.NotEqual(IdempotentOperation.ForJob("purge", dueAt), IdempotentOperation.ForMessage("purge", "1700000000000"));
+        Assert.Equal("msg:Some.Handler:a:b", IdempotentOperation.ForMessage("Some.Handler", "a:b"));
+    }
+
+    [Fact]
+    public void ForMessageAndForJob_ANameWithAColon_IsRefused()
+    {
+        Assert.Equal("handler", Assert.Throws<ArgumentException>(() => IdempotentOperation.ForMessage("A:B", Guid.NewGuid())).ParamName);
+        Assert.Equal("handler", Assert.Throws<ArgumentException>(() => IdempotentOperation.ForMessage("A:B", "c")).ParamName);
+        Assert.Equal("job", Assert.Throws<ArgumentException>(() => IdempotentOperation.ForJob("a:b", DateTimeOffset.UnixEpoch)).ParamName);
     }
 
     [Fact]
@@ -580,7 +599,7 @@ public sealed class IdempotentOperationTests
         var envelope = Guid.Parse("0b8a3c1e-5d2f-4e6a-9b7c-1d2e3f405162");
 
         Assert.Equal(
-            "7501aff06f185bd2ac47a4a687343ce3d91d52c9e5022364b36fd1b7ed6fddee:0b8a3c1e-5d2f-4e6a-9b7c-1d2e3f405162",
+            "msg:7501aff06f185bd2ac47a4a687343ce3d91d52c9e5022364b36fd1b7ed6fddee:0b8a3c1e-5d2f-4e6a-9b7c-1d2e3f405162",
             IdempotentOperation.ForMessage(new string('h', 300), envelope));
     }
 
@@ -592,9 +611,9 @@ public sealed class IdempotentOperationTests
         var envelope = Guid.Parse("0b8a3c1e-5d2f-4e6a-9b7c-1d2e3f405162");
 
         Assert.Equal(
-            "168eec374dd458d9643109ccbb3b7b83f0d5badf98745a5b84ec2a0a432e12a4:0b8a3c1e-5d2f-4e6a-9b7c-1d2e3f405162",
-            IdempotentOperation.ForMessage(new string('h', 164), envelope));
-        Assert.Equal($"{new string('h', 163)}:{envelope}", IdempotentOperation.ForMessage(new string('h', 163), envelope));
+            "msg:031f14841107e114e08449dad28e000922d751460acb9dc00763623128a63ee5:0b8a3c1e-5d2f-4e6a-9b7c-1d2e3f405162",
+            IdempotentOperation.ForMessage(new string('h', 160), envelope));
+        Assert.Equal($"msg:{new string('h', 159)}:{envelope}", IdempotentOperation.ForMessage(new string('h', 159), envelope));
     }
 
     [Fact]
@@ -603,7 +622,7 @@ public sealed class IdempotentOperationTests
         var envelope = Guid.Parse("0b8a3c1e-5d2f-4e6a-9b7c-1d2e3f405162");
 
         Assert.Equal(
-            "6245da155660b3cc7381fd353fa4dbda49838684fc300f11032acd7912cadbd9:0b8a3c1e-5d2f-4e6a-9b7c-1d2e3f405162",
+            "msg:6245da155660b3cc7381fd353fa4dbda49838684fc300f11032acd7912cadbd9:0b8a3c1e-5d2f-4e6a-9b7c-1d2e3f405162",
             IdempotentOperation.ForMessage("H\u00e4ndler", envelope));
     }
 }
