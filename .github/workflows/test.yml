@@ -26,6 +26,11 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
 
+      - name: Fetch Rust SDK native library
+        run: extensions/Bitwarden.Server.Sdk.Crypto/scripts/fetch-native.sh --from-pinned linux-x64
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Test solution
         run: dotnet test --configuration Debug -- --coverage --coverage-output-format cobertura --coverage-output "coverage.cobertura.xml" --report-xunit-trx --report-xunit-trx-filename "test-results.trx"
 
@@ -40,3 +45,39 @@ jobs:
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
+
+  # Proves the Rust SDK native library loads on every OS the Crypto package ships for.
+  crypto-native:
+    name: Crypto native (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: osx-arm64
+            os: macos-15
+          - rid: win-x64
+            os: windows-2022
+          - rid: linux-arm64
+            os: ubuntu-24.04-arm
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+
+      - name: Fetch Rust SDK native library
+        shell: bash
+        run: extensions/Bitwarden.Server.Sdk.Crypto/scripts/fetch-native.sh --from-pinned ${{ matrix.rid }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Test Crypto
+        run: dotnet test --project extensions/Bitwarden.Server.Sdk.Crypto/tests/Bitwarden.Server.Sdk.Crypto.Tests

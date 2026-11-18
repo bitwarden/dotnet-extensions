@@ -1,0 +1,52 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Description>Bitwarden SDK crypto for the server, backed by the Rust SDK through UniFFI.</Description>
+    <!-- The generated UniFFI bindings pass pointers to the native library. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <PreReleaseVersionLabel>beta</PreReleaseVersionLabel>
+    <PreReleaseVersionIteration>1</PreReleaseVersionIteration>
+    <VersionSuffix Condition="'$(VersionSuffix)' == '' AND '$(IsPreRelease)' == 'true'">$(PreReleaseVersionLabel).$(PreReleaseVersionIteration)</VersionSuffix>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Crypto.Tests" />
+  </ItemGroup>
+
+  <!--
+    Native libraries, placed by scripts/fetch-native.sh:
+
+      native/runtimes/osx-arm64/native/libbitwarden_uniffi_server.dylib
+
+    Packed as runtimes/<rid>/native/ so NuGet consumers resolve them through deps.json. Also copied
+    to the output under the same path for ProjectReference consumers, which NativeLibraryResolver
+    probes.
+  -->
+  <PropertyGroup>
+    <BitwardenNativeRoot>$(MSBuildThisFileDirectory)../native/runtimes/</BitwardenNativeRoot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <BitwardenNativeLibrary Include="$(BitwardenNativeRoot)**/*.so;$(BitwardenNativeRoot)**/*.dylib;$(BitwardenNativeRoot)**/*.dll" />
+    <None Include="@(BitwardenNativeLibrary)"
+          Link="runtimes/%(RecursiveDir)%(Filename)%(Extension)"
+          Pack="true"
+          PackagePath="runtimes/%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+  </ItemGroup>
+
+  <Target Name="EnsureBitwardenNativeLibraries" BeforeTargets="Build" Condition="'@(BitwardenNativeLibrary)' == ''">
+    <Error Text="No native libraries in $(BitwardenNativeRoot). Run extensions/Bitwarden.Server.Sdk.Crypto/scripts/fetch-native.sh first." />
+  </Target>
+
+</Project>
