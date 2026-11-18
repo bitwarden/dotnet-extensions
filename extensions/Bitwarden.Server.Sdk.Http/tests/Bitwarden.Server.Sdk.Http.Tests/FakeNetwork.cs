@@ -5,14 +5,17 @@ namespace Bitwarden.Server.Sdk.Http.Tests;
 
 /// <summary>
 /// A network where each name resolves to the addresses given for it and no other name resolves, and where every
-/// connection, whatever it is for, reaches <paramref name="server"/>; keeping the names asked for and the endpoints
-/// connected to.
+/// connection a <see cref="Sender"/> opens, whatever it is for, reaches <paramref name="server"/>; keeping the names
+/// asked for and the endpoints connected to.
 /// </summary>
-internal sealed class FakeNetwork(ScriptedServer? server, params (string Name, string[] Addresses)[] names) : SsrfConnector
+internal sealed class FakeNetwork(ScriptedServer? server, params (string Name, string[] Addresses)[] names) : SsrfResolver
 {
     public List<string> Resolved { get; } = [];
 
-    public List<EndPoint> Opened { get; } = [];
+    /// <summary>
+    /// Each endpoint a <see cref="Sender"/> connected to, as the handler named it.
+    /// </summary>
+    public List<DnsEndPoint> Opened { get; } = [];
 
     public override Task<IPAddress[]> ResolveAsync(string host, CancellationToken cancellationToken)
     {
@@ -22,9 +25,32 @@ internal sealed class FakeNetwork(ScriptedServer? server, params (string Name, s
             : throw new SocketException((int)SocketError.HostNotFound);
     }
 
-    protected override async ValueTask<Stream> OpenAsync(EndPoint endpoint, CancellationToken cancellationToken)
+    /// <summary>
+    /// A <see cref="SocketsHttpHandler"/> set up as <see cref="SsrfPrimaryHandlerFilter"/> sets one up, connecting
+    /// through this network, through <paramref name="proxy"/> or else directly.
+    /// </summary>
+    public SocketsHttpHandler Sender(IWebProxy? proxy = null)
     {
-        Opened.Add(endpoint);
+        var sender = Handler(proxy);
+        sender.AllowAutoRedirect = false;
+        sender.UseCookies = false;
+        return sender;
+    }
+
+    /// <summary>
+    /// A <see cref="SocketsHttpHandler"/> as a client would configure one, connecting through this network, through
+    /// <paramref name="proxy"/> or else directly; its redirects and cookies left for the guard to turn off.
+    /// </summary>
+    public SocketsHttpHandler Handler(IWebProxy? proxy = null) => new()
+    {
+        UseProxy = proxy is not null,
+        Proxy = proxy,
+        ConnectCallback = ConnectAsync,
+    };
+
+    private async ValueTask<Stream> ConnectAsync(SocketsHttpConnectionContext context, CancellationToken cancellationToken)
+    {
+        Opened.Add(context.DnsEndPoint);
         if (server is null)
         {
             throw new SocketException((int)SocketError.ConnectionRefused);
@@ -34,17 +60,4 @@ internal sealed class FakeNetwork(ScriptedServer? server, params (string Name, s
         await socket.ConnectAsync(IPAddress.Loopback, server.Port, cancellationToken);
         return new NetworkStream(socket, ownsSocket: true);
     }
-
-    /// <summary>
-    /// A <see cref="SocketsHttpHandler"/> set up as <see cref="SsrfPrimaryHandlerFilter"/> sets one up, connecting
-    /// through this network, through <paramref name="proxy"/> or else directly.
-    /// </summary>
-    public SocketsHttpHandler Sender(IWebProxy? proxy = null) => new()
-    {
-        AllowAutoRedirect = false,
-        UseCookies = false,
-        UseProxy = proxy is not null,
-        Proxy = proxy,
-        ConnectCallback = new SsrfConnection(this, proxy).ConnectAsync,
-    };
 }

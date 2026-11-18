@@ -12,7 +12,7 @@ namespace Bitwarden.Server.Sdk.Http.Tests;
 public sealed class SsrfPrimaryHandlerFilterTests
 {
     [Fact]
-    public void ASocketsHandler_IsSetUpToConnectOnlyWhereTheGuardChecked()
+    public void ASocketsHandler_StopsFollowingRedirectsAndKeepingCookies()
     {
         var primary = new SocketsHttpHandler();
         var builder = Builder("guarded", primary);
@@ -21,8 +21,6 @@ public sealed class SsrfPrimaryHandlerFilterTests
 
         Assert.False(primary.AllowAutoRedirect);
         Assert.False(primary.UseCookies);
-        Assert.IsType<SsrfConnection>(primary.ConnectCallback?.Target);
-        Assert.Same(HttpClient.DefaultProxy, primary.Proxy);
         Assert.Same(primary, GuardOf(builder).Sender);
     }
 
@@ -135,8 +133,8 @@ public sealed class SsrfPrimaryHandlerFilterTests
         Assert.Single(builder.AdditionalHandlers);
     }
 
-    // An HttpClientHandler has no ConnectCallback to pin connections with: the client fails to be created, naming
-    // itself, rather than going unguarded.
+    // Only a SocketsHttpHandler is set up: any other handler fails the client's creation, naming it, rather than
+    // going unguarded.
     [Fact]
     public void AnHttpClientHandler_Throws()
     {
@@ -149,7 +147,6 @@ public sealed class SsrfPrimaryHandlerFilterTests
         Assert.Contains(nameof(HttpClientHandler), exception.Message, StringComparison.Ordinal);
     }
 
-    // A test's fake has no ConnectCallback either.
     [Fact]
     public void AHandlerThatIsNotASocketsHandler_Throws()
     {
@@ -157,14 +154,17 @@ public sealed class SsrfPrimaryHandlerFilterTests
             () => Run(new SsrfPrimaryHandlerFilter("guarded", _ => true), Builder("guarded", new Answering())));
     }
 
-    // A ConnectCallback of the client's own would decide where connections go instead of the guard.
+    // A ConnectCallback of the client's own is kept: every request reaches it addressed to the checked address.
     [Fact]
-    public void ASocketsHandlerWithItsOwnConnectCallback_Throws()
+    public void ASocketsHandlerWithItsOwnConnectCallback_IsKept()
     {
-        var primary = new SocketsHttpHandler { ConnectCallback = (_, _) => throw new InvalidOperationException("Never connects.") };
+        Func<SocketsHttpConnectionContext, CancellationToken, ValueTask<Stream>> connect =
+            (_, _) => throw new InvalidOperationException("Never connects.");
+        var primary = new SocketsHttpHandler { ConnectCallback = connect };
 
-        Assert.Throws<InvalidOperationException>(
-            () => Run(new SsrfPrimaryHandlerFilter("guarded", _ => true), Builder("guarded", primary)));
+        Run(new SsrfPrimaryHandlerFilter("guarded", _ => true), Builder("guarded", primary));
+
+        Assert.Same(connect, primary.ConnectCallback);
     }
 
     private static void Run(SsrfPrimaryHandlerFilter filter, HttpMessageHandlerBuilder builder) =>
@@ -179,7 +179,7 @@ public sealed class SsrfPrimaryHandlerFilterTests
         if (guarded)
         {
             builder.AdditionalHandlers.Add(
-                new SsrfProtectionHandler(NullLogger<SsrfProtectionHandler>.Instance, builder.Services.GetRequiredService<SsrfConnector>()));
+                new SsrfProtectionHandler(NullLogger<SsrfProtectionHandler>.Instance, builder.Services.GetRequiredService<SsrfResolver>()));
         }
 
         return builder;
@@ -190,7 +190,7 @@ public sealed class SsrfPrimaryHandlerFilterTests
     /// </summary>
     private sealed class FakeBuilder : HttpMessageHandlerBuilder
     {
-        private readonly ServiceProvider _services = new ServiceCollection().AddSingleton<SsrfConnector>().BuildServiceProvider();
+        private readonly ServiceProvider _services = new ServiceCollection().AddSingleton<SsrfResolver>().BuildServiceProvider();
 
         public override string? Name { get; set; }
 

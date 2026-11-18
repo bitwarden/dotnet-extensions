@@ -67,7 +67,7 @@ public class SsrfProtectionHandlerTests
     private static (HttpClient client, TestInnerHandler inner) CreateClient(bool followRedirects = true)
     {
         var inner = new TestInnerHandler();
-        var guard = new SsrfProtectionHandler(NullLogger<SsrfProtectionHandler>.Instance, new SsrfConnector())
+        var guard = new SsrfProtectionHandler(NullLogger<SsrfProtectionHandler>.Instance, new SsrfResolver())
         {
             FollowRedirects = followRedirects,
             InnerHandler = inner,
@@ -106,7 +106,7 @@ public class SsrfProtectionHandlerTests
         var response = await client.GetAsync(url, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(IPAddress.Parse(address), Pinned(inner.LastRequest!).Address);
+        Assert.Equal(IPAddress.Parse(address), SentTo(inner.SentUris[^1]));
     }
 
     [Fact]
@@ -697,8 +697,6 @@ public class SsrfProtectionHandlerTests
     [Theory]
     [InlineData("redirects")]
     [InlineData("cookies")]
-    [InlineData("connect")]
-    [InlineData("proxy")]
     public async Task SendAsync_ASenderChangedAfterItWasSetUp_Throws(string change)
     {
         var network = new FakeNetwork(null);
@@ -710,13 +708,6 @@ public class SsrfProtectionHandlerTests
                 break;
             case "cookies":
                 sender.UseCookies = true;
-                break;
-            case "connect":
-                sender.ConnectCallback = (_, _) => throw new InvalidOperationException("Never connects.");
-                break;
-            case "proxy":
-                // The process's default proxy, left to be read later, rather than one fixed.
-                sender.UseProxy = true;
                 break;
         }
 
@@ -740,7 +731,7 @@ public class SsrfProtectionHandlerTests
             new HttpRequestMessage(HttpMethod.Get, "http://example.test/path?query=1"), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal([new IPEndPoint(IPAddress.Parse("93.184.216.34"), 80)], network.Opened);
+        Assert.Equal([new DnsEndPoint("93.184.216.34", 80)], network.Opened);
         Assert.Equal(["example.test"], network.Resolved);
         Assert.StartsWith("GET /path?query=1 HTTP/1.1\n", server.Requests.Single(), StringComparison.Ordinal);
         Assert.Contains("Host: example.test\n", server.Requests.Single(), StringComparison.Ordinal);
@@ -782,20 +773,23 @@ public class SsrfProtectionHandlerTests
         Assert.StartsWith("CONNECT 93.184.216.34:443 HTTP/1.1\n", server.Requests[0], StringComparison.Ordinal);
     }
 
-    // A host the proxy bypasses is connected to directly, pinned to the checked address.
-    [Fact]
-    public async Task SendAsync_AHostTheProxyBypasses_IsConnectedToDirectly()
+    // The proxy decides by the address the request is sent to: a bypass rule naming the checked address connects to
+    // it directly, and one naming only the host no longer matches, so the request goes through the proxy.
+    [Theory]
+    [InlineData(@"93\.184\.216\.34", "93.184.216.34", 80, "GET /path HTTP/1.1\n")]
+    [InlineData(@"example\.test", "proxy.test", 3128, "GET http://93.184.216.34/path HTTP/1.1\n")]
+    public async Task SendAsync_AProxyBypassRule_AppliesToTheCheckedAddress(string bypass, string connectedTo, int port, string requestLine)
     {
         using var server = new ScriptedServer();
         var network = new FakeNetwork(server, ("example.test", ["93.184.216.34"]));
-        var proxy = new WebProxy("http://proxy.test:3128", BypassOnLocal: false, BypassList: [@"example\.test"]);
+        var proxy = new WebProxy("http://proxy.test:3128", BypassOnLocal: false, BypassList: [bypass]);
         var (invoker, _, _) = Guard(network, network.Sender(proxy));
 
         using var response = await invoker.SendAsync(
             new HttpRequestMessage(HttpMethod.Get, "http://example.test/path"), TestContext.Current.CancellationToken);
 
-        Assert.Equal([new IPEndPoint(IPAddress.Parse("93.184.216.34"), 80)], network.Opened);
-        Assert.StartsWith("GET /path HTTP/1.1\n", server.Requests.Single(), StringComparison.Ordinal);
+        Assert.Equal([new DnsEndPoint(connectedTo, port)], network.Opened);
+        Assert.StartsWith(requestLine, server.Requests.Single(), StringComparison.Ordinal);
     }
 
     // Through a proxy, a port that isn't the scheme's default stays in the Host header.
@@ -887,7 +881,7 @@ public class SsrfProtectionHandlerTests
         using var response = await invoker.SendAsync(
             new HttpRequestMessage(HttpMethod.Get, "http://example.test/"), TestContext.Current.CancellationToken);
 
-        Assert.Equal(IPAddress.Parse(pinned), Pinned(inner.LastRequest!).Address);
+        Assert.Equal(IPAddress.Parse(pinned), SentTo(inner.SentUris[^1]));
     }
 
     // An internationalized name is resolved, and sent in the Host header, in its ASCII form, which is all a connection
@@ -905,7 +899,7 @@ public class SsrfProtectionHandlerTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(["xn--bcher-kva.de"], network.Resolved);
         Assert.Contains("Host: xn--bcher-kva.de\n", server.Requests.Single(), StringComparison.Ordinal);
-        Assert.Equal([new IPEndPoint(IPAddress.Parse("93.184.216.34"), 80)], network.Opened);
+        Assert.Equal([new DnsEndPoint("93.184.216.34", 80)], network.Opened);
     }
 
     // A relative Location resolves against the host name the request was for, so the next hop is resolved and checked
@@ -922,8 +916,8 @@ public class SsrfProtectionHandlerTests
             new HttpRequestMessage(HttpMethod.Get, "http://example.test/start"), TestContext.Current.CancellationToken);
 
         Assert.Equal(["example.test", "example.test"], network.Resolved);
-        Assert.Equal(new Uri("http://example.test/next"), inner.SentUris[1]);
-        Assert.Equal(IPAddress.Parse("93.184.216.34"), Pinned(inner.AllRequests[1]).Address);
+        Assert.Equal(new Uri("http://93.184.216.34/next"), inner.SentUris[1]);
+        Assert.Equal("example.test", inner.AllRequests[1].Headers.Host);
     }
 
     /// <summary>
@@ -932,10 +926,9 @@ public class SsrfProtectionHandlerTests
     private static FakeNetwork Names(params (string Name, string[] Addresses)[] names) => new(null, names);
 
     /// <summary>
-    /// The address the guard checked for <paramref name="request"/>.
+    /// The address a request was sent to.
     /// </summary>
-    private static SsrfPin Pinned(HttpRequestMessage request) =>
-        request.Options.TryGetValue(SsrfConnector.PinKey, out var pin) ? pin : throw new InvalidOperationException("Not pinned.");
+    private static IPAddress SentTo(Uri sent) => IPAddress.Parse(sent.Host.Trim('[', ']'));
 
     /// <summary>
     /// A guard resolving through <paramref name="network"/>, set up in front of <paramref name="below"/>, or else a
