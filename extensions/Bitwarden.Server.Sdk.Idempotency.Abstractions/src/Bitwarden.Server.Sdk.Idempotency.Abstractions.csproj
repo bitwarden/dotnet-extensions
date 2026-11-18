@@ -23,7 +23,7 @@
     <!-- CacheKey, the keyed derivation of the operations' write keys and identifiers. -->
     <PackageReference Include="Bitwarden.Server.Sdk.CryptoPrimitives" Version="0.1.0" />
     <!-- The host's environment decides whether the secret is required. -->
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.14" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="11.0.0" />
   </ItemGroup>
 
 </Project>
