@@ -5,8 +5,8 @@ namespace Bitwarden.Server.Sdk.PasswordHashing;
 
 internal sealed class ServerPasswordHasher : IServerPasswordHasher
 {
-    // Matches PasswordHasherKdfIterations on the Bitwarden server, so new hashes are identical in
-    // shape to the ones it stores (V3: PBKDF2-HMAC-SHA512, 128-bit salt, 256-bit subkey).
+    // Keeps new hashes identical in shape to the ones the Bitwarden server already stores
+    // (V3: PBKDF2-HMAC-SHA512, 128-bit salt, 256-bit subkey).
     private const int Iterations = 100_000;
 
     // The hasher ignores the user it is given; one shared instance stands in for it.
