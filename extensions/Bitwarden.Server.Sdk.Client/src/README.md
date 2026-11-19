@@ -39,6 +39,11 @@ code here writes to Redis.
   call's deadline bounds them too.
 - **Cached reads** wait on Redis for `CachedReads.Patience` and rest it for `CachedReadsConnection.Rest` after a
   failure.
+- **Trust.** `TrustInternalAuthorities` (`HttpClientBuilderInternalTlsExtensions`) gives a client a `SocketsHttpHandler`
+  whose chain policy is `InternalTls.ChainPolicy` from Bitwarden.Server.Sdk.Http, built from `Tls:CertificateAuthorities`
+  (`InternalAuthorities`, read once, checked at startup). The service clients, the token client and a product client's
+  conventional client call it; no other client gets it. Chain building and the name and usage checks stay in
+  `SslStream`: there is no validation callback.
 
 `NSwag/` holds three of NSwag's parameter templates (header, path and query), each changed only to move a date to UTC
 before it is formatted. They are not part of the NuGet package.
@@ -66,3 +71,6 @@ A change must keep:
   with `JsonWebTokenHandler` and takes its `kid` from the library's RFC 7638 thumbprint. `System.Security.Cryptography`
   is used directly only to load and export keys and to generate random bytes; no JWS, signature or JWK is assembled by
   hand.
+- **Internal trust only where the callee is our own.** With `Tls:CertificateAuthorities` set, the service, token and
+  product clients trust those roots alone, never the system's as well, and no other client trusts them. A client
+  protected with `AddSsrfProtection` must never get them.

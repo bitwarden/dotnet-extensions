@@ -39,6 +39,7 @@ the host at startup, naming the keys that would have supplied it, for example
 | `CallerSecret`   | `Services:{Name}:CallerSecret`, `globalSettings:internalIdentityKey`                                                                                                 |
 | `CallerKey`      | `Services:{Name}:CallerKey`, `Bitwarden:ClientKey`: a PKCS #8 private key, base64, P-256 or RSA of 2048 bits or more                                                 |
 | `RequireHttps`   | `Tls:RequireHttps`: `BaseAddress` and `IdentityUri` must then be `https://`                                                                                          |
+| Trusted roots    | `Tls:CertificateAuthorities:0`, `:1`, ...: PEM files of internal root authorities, then trusted alone                                                                |
 | Event actor rule | `OutgoingCall:RefuseEventActor` (`false`): refuse, rather than log, a call that carries an event's actor                                                             |
 
 The `services:{name}:...` keys are what .NET Aspire publishes for a referenced service, and
@@ -59,7 +60,7 @@ Cached reads add these:
 | `Caching:Owned:InProcess:Lifetime`               | `00:00:30` | How long an index answer is held in the process.                                                                                                                                                                                                                                                                                                           |
 | `Caching:Owned:InProcess:Capacity`               | `10000`    | How many index answers one client holds.                                                                                                                                                                                                                                                                                                                   |
 
-`CallerSecret`, `Tls:RequireHttps` and `Caching:Owned:AnswerSecret` carry a security trade-off; see
+`CallerSecret`, `Tls:RequireHttps`, `Tls:CertificateAuthorities` and `Caching:Owned:AnswerSecret` carry a security trade-off; see
 [Gotchas and constraints](#gotchas-and-constraints).
 
 ## Key concepts
@@ -335,6 +336,11 @@ a sparse fieldset from a generated attributes class, keeping the attributes its 
 - **Calls are a Secure Channel only over TLS.** Set `Tls:RequireHttps` so a plain address stops the host at startup:
   every `AddBitwardenClient` address and the authorization server's, and a product client's conventional address. A
   product client over a named client of your own is yours to check.
+- **With `Tls:CertificateAuthorities` set, the service, token and product clients trust those roots alone.** They
+  don't fall back to the system's roots, so a callee must have a certificate from the internal authority. Revocation
+  isn't checked: certificate lifetime is the control. Give another client that calls the deployment's own services
+  the same trust with `TrustInternalAuthorities()`, but never a client protected with `AddSsrfProtection`, which calls
+  addresses a caller supplies.
 - **A guessable key is confirmable by holders of the secret.** A cached answer keyed by text, such as an email address,
   is looked up by a key derived from it with `Caching:Owned:AnswerSecret`. Anyone who can read Redis and holds the
   secret can confirm a guess; in `Development`, the secret may be `CacheSecret.Development`, which anyone holds.
