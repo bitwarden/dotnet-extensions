@@ -5,9 +5,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Bitwarden.Server.Sdk.Http.Tests;
 
 /// <summary>
-/// The filter puts a guarded client's guard below every handler the client adds, and sets its sending handler up to
-/// connect only where the guard checked, after every other configuration has run; it leaves other clients, and a client the
-/// guard doesn't apply to, as they were.
+/// The filter puts a guarded client's guard below every handler the client adds, and, after every other configuration
+/// has run, turns its sending handler's redirects and cookies off and hands that handler to the guard; it leaves other
+/// clients, and a client the guard doesn't apply to, as they were.
 /// </summary>
 public sealed class SsrfPrimaryHandlerFilterTests
 {
@@ -103,7 +103,6 @@ public sealed class SsrfPrimaryHandlerFilterTests
 
         Assert.True(primary.AllowAutoRedirect);
         Assert.True(primary.UseCookies);
-        Assert.Null(primary.ConnectCallback);
         Assert.Same(builder.Services, asked);
     }
 
@@ -116,7 +115,7 @@ public sealed class SsrfPrimaryHandlerFilterTests
         Run(new SsrfPrimaryHandlerFilter("guarded", _ => true), Builder("guarded", primary, guarded: false));
 
         Assert.True(primary.AllowAutoRedirect);
-        Assert.Null(primary.ConnectCallback);
+        Assert.True(primary.UseCookies);
     }
 
     // A client guarded twice is set up twice, the second time as the first left it.
@@ -186,7 +185,7 @@ public sealed class SsrfPrimaryHandlerFilterTests
     }
 
     /// <summary>
-    /// A handler builder holding what a configuration sets, with the network the guard uses as its only service.
+    /// A handler builder holding what a configuration sets, with the guard's resolver as its only service.
     /// </summary>
     private sealed class FakeBuilder : HttpMessageHandlerBuilder
     {
