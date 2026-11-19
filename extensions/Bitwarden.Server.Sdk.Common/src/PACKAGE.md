@@ -81,28 +81,6 @@ public required string Notes { get; init; }
 A value that is too long as well is refused as malformed, and so is a value that isn't a string. The
 value is never decrypted. `EncryptedStringFormat.IsWellFormed` makes the same check in code.
 
-### Trust an internal certificate authority
-
-If your services' certificates come from an internal authority, name its root certificate under
-`Tls:CertificateAuthorities` and check each server's certificate with `InternalTls.Trusts`:
-
-```csharp
-var tls = configuration.GetSection(InternalTls.Section).Get<InternalTls>() ?? new InternalTls();
-var authorities = tls.LoadAuthorities();
-
-var handler = new SocketsHttpHandler
-{
-    SslOptions =
-    {
-        RemoteCertificateValidationCallback = (_, certificate, chain, errors) =>
-            InternalTls.Trusts(authorities, certificate, chain, errors),
-    },
-};
-```
-
-A certificate is trusted if the system trusts it, or if it chains to a named authority, is valid
-now and is allowed for server authentication. A name that doesn't match is never trusted.
-
 ### Key a cached answer by text
 
 When a cached answer is keyed by text such as an email address, store only its digest. The service
@@ -141,4 +119,3 @@ starts. Every service and client sharing the cache must use the same secret.
 | `EncryptedAttribute`, `PersonalDataAttribute`                   | Mark a field as Protected Data or as personal data                                             |
 | `OwnedCacheEntry`                                               | How a service-owned cache entry is stored in Redis                                             |
 | `OwnedAnswerKey`                                                | How a service-owned answer is keyed in the same cache                                          |
-| `InternalTls`                                                   | Which certificate authorities a service trusts for calls between services                      |
