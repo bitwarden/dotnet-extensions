@@ -4,7 +4,8 @@ Collects the infrastructure a service declares by running its startup.
 
 - `InfrastructureCollector` - `CollectInfrastructure<TEntryPoint>()` entry point
 - `InfrastructureCollectionOptions` - Self-hosted, flavor, environment and configuration settings for the run
-- `InfrastructureManifest` - The collected requirements plus schema version and hosting mode, with `ToJsonString()`
+- `InfrastructureManifest` - The collected requirements plus schema version and hosting mode, with `ToJsonString()` and `VerifySnapshot()`
+- `InfrastructureSnapshotMismatchException` - Thrown when a snapshot was missing or out of date and has been rewritten
 
 ## Design
 
@@ -30,3 +31,8 @@ Collects the infrastructure a service declares by running its startup.
   property order is fixed.
 - `tests/InfrastructureSampleApp` is the entry point used by the tests. It declares different
   requirements depending on self-hosting, flavor, environment and configuration.
+- `VerifySnapshot` writes the snapshot and throws rather than only failing, so updating snapshots is
+  "run the tests, review the diff, commit". Relative paths use `[CallerFilePath]`, which relies on
+  builds not remapping source paths (no `ContinuousIntegrationBuild` or `PathMap`); absolute paths
+  work regardless. `ToJsonString` uses `\n` line endings and the comparison ignores line endings in
+  the existing file, so snapshots committed on Windows and Linux agree.

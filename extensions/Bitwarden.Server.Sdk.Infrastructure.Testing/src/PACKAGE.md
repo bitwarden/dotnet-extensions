@@ -11,19 +11,34 @@ Runs a service's startup and returns the infrastructure it declares through
 var manifest = InfrastructureCollector.CollectInfrastructure<Program>();
 ```
 
-Collect once per hosting mode to get a separate list for cloud and for self-hosted:
+Collect once per hosting mode and check each against a committed snapshot:
 
 ```csharp
 [Theory]
-[InlineData(false)]
-[InlineData(true)]
-public void Infrastructure(bool selfHosted)
+[InlineData(false, "infrastructure.cloud.json")]
+[InlineData(true, "infrastructure.self-hosted.json")]
+public void Infrastructure(bool selfHosted, string snapshot)
 {
     var manifest = InfrastructureCollector.CollectInfrastructure<Program>(o => o.SelfHosted = selfHosted);
 
-    // Assert on manifest.Requirements, or snapshot manifest.ToJsonString().
+    manifest.VerifySnapshot(snapshot);
 }
 ```
+
+### Snapshots
+
+`VerifySnapshot(path)` compares the manifest with a snapshot file. A relative path is resolved
+against the directory of the test's source file, so snapshots sit next to the test that checks them.
+
+- If the snapshot matches, the test passes.
+- If it is missing or out of date, the current manifest is written to it and
+  `InfrastructureSnapshotMismatchException` is thrown. Review the change and commit the file; the
+  next run passes.
+
+Committing the snapshots makes every change to a service's infrastructure show up as a diff in the
+pull request that caused it, and the committed files are always the service's current bill of
+materials. Snapshots are written with `\n` line endings, and line endings in an existing snapshot
+are ignored, so they match on every platform.
 
 ### Options
 

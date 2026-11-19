@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -14,6 +15,9 @@ public sealed class InfrastructureManifest
     /// shape of the manifest or of its requirements changes in a way readers need to know about.
     /// </summary>
     public const int CurrentSchemaVersion = 1;
+
+    private static readonly JsonSerializerOptions s_indentedOptions = new() { WriteIndented = true, NewLine = "\n" };
+    private static readonly JsonSerializerOptions s_compactOptions = new();
 
     internal InfrastructureManifest(bool selfHosted, string? selfHostFlavor, string environment, IReadOnlyDictionary<string, IReadOnlyList<JsonObject>> requirements)
     {
@@ -50,7 +54,8 @@ public sealed class InfrastructureManifest
     public IReadOnlyDictionary<string, IReadOnlyList<JsonObject>> Requirements { get; }
 
     /// <summary>
-    /// Writes the manifest as JSON with a fixed property order, suitable for saving or snapshotting.
+    /// Writes the manifest as JSON with a fixed property order and <c>\n</c> line endings, so the
+    /// output is the same on every platform and suitable for saving or snapshotting.
     /// </summary>
     /// <param name="indented">Whether to indent the JSON.</param>
     /// <returns>The manifest as JSON.</returns>
@@ -77,6 +82,57 @@ public sealed class InfrastructureManifest
             ["requirements"] = requirements,
         };
 
-        return manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = indented });
+        return manifest.ToJsonString(indented ? s_indentedOptions : s_compactOptions);
+    }
+
+    /// <summary>
+    /// Compares the manifest with the snapshot file at <paramref name="path"/>. When the snapshot is
+    /// missing or out of date, writes the current manifest to it and throws, so the change can be
+    /// reviewed and committed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A relative <paramref name="path"/> is resolved against the directory of the calling source
+    /// file, so snapshots live next to the test that checks them. Commit one snapshot per hosting
+    /// mode, for example <c>infrastructure.cloud.json</c> and <c>infrastructure.self-hosted.json</c>.
+    /// </para>
+    /// <para>
+    /// Line endings in the existing snapshot are ignored, so a snapshot checked out with
+    /// <c>\r\n</c> line endings still matches.
+    /// </para>
+    /// </remarks>
+    /// <param name="path">The snapshot file, absolute or relative to the calling source file.</param>
+    /// <param name="callerFilePath">Supplied by the compiler; do not pass a value.</param>
+    /// <exception cref="InfrastructureSnapshotMismatchException">
+    /// The snapshot was missing or differed from the manifest, and has been updated.
+    /// </exception>
+    public void VerifySnapshot(string path, [CallerFilePath] string callerFilePath = "")
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+
+        var snapshotPath = Path.IsPathRooted(path)
+            ? path
+            : Path.GetFullPath(Path.Combine(Path.GetDirectoryName(callerFilePath) ?? string.Empty, path));
+        var expected = ToJsonString() + "\n";
+
+        string? existing = null;
+        if (File.Exists(snapshotPath))
+        {
+            existing = File.ReadAllText(snapshotPath).ReplaceLineEndings("\n");
+            if (existing == expected)
+            {
+                return;
+            }
+        }
+
+        var directory = Path.GetDirectoryName(snapshotPath);
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        File.WriteAllText(snapshotPath, expected);
+
+        throw new InfrastructureSnapshotMismatchException(snapshotPath, existing is null);
     }
 }

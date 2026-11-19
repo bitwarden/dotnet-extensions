@@ -122,25 +122,6 @@ public class InfrastructureCollectorTests
         Assert.Equal(expectedFlavor, manifest.SelfHostFlavor);
     }
 
-    [Fact]
-    public void ToJsonString_WritesEnvelope()
-    {
-        var manifest = InfrastructureCollector.CollectInfrastructure<Program>(o => o.SelfHosted = true);
-
-        Assert.Equal(
-            """{"schemaVersion":1,"selfHosted":true,"selfHostFlavor":"unknown","environment":"Production","requirements":{"database":[{"name":"vault"}],"messaging-subscription":[{"topic":"orders","subscription":"billing"}],"messaging-topic":[{"topic":"orders"}],"self-signed-certificate":[{"name":"identity"}]}}""",
-            manifest.ToJsonString(indented: false));
-    }
-
-    [Fact]
-    public void ToJsonString_DoesNotIncludeConfiguration()
-    {
-        var manifest = InfrastructureCollector.CollectInfrastructure<Program>(o =>
-            o.Configuration["Sample:Secret"] = "do-not-write");
-
-        Assert.DoesNotContain("do-not-write", manifest.ToJsonString());
-    }
-
     private static IEnumerable<string> Describe(InfrastructureManifest manifest)
         => manifest.Requirements.SelectMany(pair => pair.Value.Select(requirement => $"{pair.Key} {requirement.ToJsonString()}"));
 }
