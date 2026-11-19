@@ -88,7 +88,7 @@ or snapshot:
   "environment": "Production",
   "requirements": {
     "database": [ { "name": "vault" } ],
-    "messaging-subscription": [ { "topic": "orders", "subscription": "billing" } ]
+    "messaging-subscription": [ { "topic": "orders", "subscription": "billing", "family": "order.placed" } ]
   }
 }
 ```

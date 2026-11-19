@@ -54,6 +54,7 @@ Setting both raises `OptionsValidationException` at startup via `MessagingOption
 | -------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | `MessageBrokerServiceCollectionExtensions.cs`                  | Service-collection registration; backend selection logic                         |
 | `MessageBrokerKeys.cs`                                         | Composite publisher keyed-service key builder                                    |
+| `MessagingRequirements.cs`                                     | The infrastructure requirements each registration declares                       |
 | `Envelope.cs`                                                  | Abstract base class for received messages                                        |
 | `IMessageConsumer.cs`                                          | Public interface for consumers registered via `AddMessageConsumer`               |
 | `ConsumerBackgroundService.cs`                                 | Hosted service that drives the consumer loop; auto-settles envelopes             |

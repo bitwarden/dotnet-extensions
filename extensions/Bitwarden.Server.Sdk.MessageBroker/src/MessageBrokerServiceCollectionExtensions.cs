@@ -52,6 +52,7 @@ public static class MessageBrokerServiceCollectionExtensions
         });
 
         services.AddSingleton(new BrokerTopologyDeclaration(name, TPayload.WireName));
+        MessagingRequirements.DeclarePublisher(services, name, TPayload.WireName);
 
         return services;
     }
@@ -119,6 +120,7 @@ public static class MessageBrokerServiceCollectionExtensions
         services.AddSingleton(new ChannelSubscriberDescriptor(typeof(TPayload), subscriptionKey));
 
         services.AddSingleton(new BrokerTopologyDeclaration(name, TPayload.WireName, subscriptionName));
+        MessagingRequirements.DeclareSubscription(services, name, subscriptionName, TPayload.WireName);
 
         return services;
     }
@@ -262,6 +264,7 @@ public static class MessageBrokerServiceCollectionExtensions
         });
 
         services.AddSingleton(new CommandQueueDeclaration(queueName, TPayload.WireName, IsConsumer: false));
+        MessagingRequirements.DeclareCommandSend(services, queueName, TPayload.WireName);
         return services;
     }
 
@@ -329,6 +332,7 @@ public static class MessageBrokerServiceCollectionExtensions
         }
 
         services.AddSingleton(new CommandQueueDeclaration(queueName, TPayload.WireName, IsConsumer: true));
+        MessagingRequirements.DeclareCommandConsumer(services, queueName, TPayload.WireName);
         return services;
     }
 
