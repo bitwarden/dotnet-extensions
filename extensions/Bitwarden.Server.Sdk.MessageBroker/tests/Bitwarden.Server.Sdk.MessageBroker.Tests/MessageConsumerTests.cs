@@ -44,7 +44,7 @@ public class MessageConsumerTests
             .ConfigureServices(services =>
             {
                 services.AddPublisher<MyItemPayload, MyItem>("test");
-                services.AddMessageConsumer<MyItemPayload, MyItem, SignalingConsumer>("test", "test");
+                services.AddMessageConsumer<MyItemPayload, MyItem, SignalingConsumer>("test", "test", retry => retry.MaxDeliveries = 2);
                 services.AddSingleton(state);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -147,7 +147,7 @@ public class MessageConsumerTests
                 // inside AddSubscriber leaves our registration in place.
                 services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/test",
                     (_, _) => new ChannelBackedSubscriber(ch.Reader));
-                services.AddMessageConsumer<MyItemPayload, MyItem, SignalingConsumer>("test", "test");
+                services.AddMessageConsumer<MyItemPayload, MyItem, SignalingConsumer>("test", "test", retry => retry.MaxDeliveries = 2);
                 services.AddSingleton(state);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -320,6 +320,34 @@ public class MessageConsumerTests
             {
                 services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/test",
                     (_, _) => new ChannelBackedSubscriber(ch.Reader));
+                services.AddMessageConsumer<MyItemPayload, MyItem, ActionConsumer>("test", "test", retry => retry.MaxDeliveries = 2);
+                services.AddSingleton<Func<Envelope<MyItemPayload, MyItem>, CancellationToken, Task>>(
+                    (_, _) => Task.FromException(new InvalidOperationException("simulated failure")));
+                services.AddOptions<MessagingOptions>().BindConfiguration("");
+            })
+            .Build();
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        await ch.Writer.WriteAsync(envelope, TestContext.Current.CancellationToken);
+        await envelope.Settled.WaitAsync(TestContext.Current.CancellationToken);
+        await host.StopAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, envelope.CompleteCalls);
+        Assert.Equal(1, envelope.RequeueCalls);
+        Assert.Equal(0, envelope.DeadLetterCalls);
+    }
+
+    [Fact(Timeout = 60 * 1000)]
+    public async Task FrameworkDeadLettersEnvelopeWhenHandlerThrowsByDefault()
+    {
+        var ch = Channel.CreateUnbounded<Envelope<MyItemPayload, MyItem>>();
+        var envelope = new TrackingEnvelope(new MyItem(4));
+
+        var host = new HostBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/test",
+                    (_, _) => new ChannelBackedSubscriber(ch.Reader));
                 services.AddMessageConsumer<MyItemPayload, MyItem, ActionConsumer>("test", "test");
                 services.AddSingleton<Func<Envelope<MyItemPayload, MyItem>, CancellationToken, Task>>(
                     (_, _) => Task.FromException(new InvalidOperationException("simulated failure")));
@@ -331,6 +359,40 @@ public class MessageConsumerTests
         await ch.Writer.WriteAsync(envelope, TestContext.Current.CancellationToken);
         await envelope.Settled.WaitAsync(TestContext.Current.CancellationToken);
         await host.StopAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, envelope.CompleteCalls);
+        Assert.Equal(0, envelope.RequeueCalls);
+        Assert.Equal(1, envelope.DeadLetterCalls);
+    }
+
+    [Fact(Timeout = 60 * 1000)]
+    public async Task AHandlerCancelledByTheHostStoppingReturnsItsMessage()
+    {
+        var ch = Channel.CreateUnbounded<Envelope<MyItemPayload, MyItem>>();
+        var envelope = new TrackingEnvelope(new MyItem(9));
+        var handling = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var host = new HostBuilder()
+            .ConfigureServices(services =>
+            {
+                services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/test",
+                    (_, _) => new ChannelBackedSubscriber(ch.Reader));
+                services.AddMessageConsumer<MyItemPayload, MyItem, ActionConsumer>("test", "test");
+                services.AddSingleton<Func<Envelope<MyItemPayload, MyItem>, CancellationToken, Task>>(
+                    async (_, token) =>
+                    {
+                        handling.SetResult();
+                        await Task.Delay(Timeout.Infinite, token);
+                    });
+                services.AddOptions<MessagingOptions>().BindConfiguration("");
+            })
+            .Build();
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        await ch.Writer.WriteAsync(envelope, TestContext.Current.CancellationToken);
+        await handling.Task.WaitAsync(TestContext.Current.CancellationToken);
+        await host.StopAsync(TestContext.Current.CancellationToken);
+        await envelope.Settled.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(0, envelope.CompleteCalls);
         Assert.Equal(1, envelope.RequeueCalls);

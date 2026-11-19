@@ -13,6 +13,10 @@ internal sealed class MessagingOptionsValidator : IValidateOptions<MessagingOpti
                 $"{nameof(MessagingOptions.RabbitUri)} are configured; " +
                 "only one messaging backend can be active at a time.");
 
+        if (options.MaxLockRenewalDuration < TimeSpan.Zero)
+            return ValidateOptionsResult.Fail(
+                $"{nameof(MessagingOptions.MaxLockRenewalDuration)} cannot be negative.");
+
         return ValidateOptionsResult.Success;
     }
 }

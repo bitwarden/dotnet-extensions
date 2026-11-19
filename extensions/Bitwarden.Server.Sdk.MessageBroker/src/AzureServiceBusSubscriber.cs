@@ -14,8 +14,13 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
     private readonly IMessageSerializer _serializer;
     private readonly MessageBrokerMetrics _metrics;
 
-    public AzureServiceBusSubscriber(AzureServiceBusConnection connection, string topicName, string subscriptionName, IMessageSerializer serializer, MessageBrokerMetrics metrics)
+    private readonly TimeSpan _maxLockRenewal;
+
+    public AzureServiceBusSubscriber(
+        AzureServiceBusConnection connection, string topicName, string subscriptionName, IMessageSerializer serializer, MessageBrokerMetrics metrics,
+        TimeSpan maxLockRenewal)
     {
+        _maxLockRenewal = maxLockRenewal;
         _topicName = topicName;
         _subscriptionName = subscriptionName;
         _connection = connection;
@@ -106,7 +111,7 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
                 AzureServiceBusEnvelope envelope;
                 try
                 {
-                    envelope = new AzureServiceBusEnvelope(variants, receiver, sbMessage, activity);
+                    envelope = new AzureServiceBusEnvelope(variants, receiver, sbMessage, activity, _maxLockRenewal);
                 }
                 catch (InvalidOperationException)
                 {
@@ -126,31 +131,45 @@ internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscribe
     {
         private readonly ServiceBusReceiver _receiver;
         private readonly ServiceBusReceivedMessage _sbMessage;
+        private readonly AzureServiceBusLockRenewal _lockRenewal;
 
         public AzureServiceBusEnvelope(
             IReadOnlyList<Payload<TPayload>.IVariant> variants,
             ServiceBusReceiver receiver,
             ServiceBusReceivedMessage sbMessage,
-            Activity? activity)
+            Activity? activity,
+            TimeSpan maxLockRenewal)
             : base(variants, activity)
         {
             _receiver = receiver;
             _sbMessage = sbMessage;
+            _lockRenewal = new AzureServiceBusLockRenewal(receiver, sbMessage, maxLockRenewal);
         }
 
         public override string MessageId => _sbMessage.MessageId;
         public override string? TraceId => _sbMessage.ApplicationProperties.TryGetValue(BrokerProperties.TraceParent, out var tp) ? tp as string : null;
         public override int DeliveryCount => _sbMessage.DeliveryCount;
 
-        protected override Task CompleteAsyncCore(CancellationToken cancellationToken) =>
-            _receiver.CompleteMessageAsync(_sbMessage, cancellationToken);
+        protected override async Task CompleteAsyncCore(CancellationToken cancellationToken)
+        {
+            await _lockRenewal.StopAsync();
+            await _receiver.CompleteMessageAsync(_sbMessage, cancellationToken);
+        }
 
         // If the receiver is already closed (iterator was disposed), the lock was released
         // automatically on close, which is equivalent to abandonment.
-        protected override Task RequeueCoreAsync(CancellationToken cancellationToken) =>
-            _receiver.IsClosed ? Task.CompletedTask : _receiver.AbandonMessageAsync(_sbMessage, cancellationToken: cancellationToken);
+        protected override async Task RequeueCoreAsync(CancellationToken cancellationToken)
+        {
+            await _lockRenewal.StopAsync();
+            if (!_receiver.IsClosed)
+                await _receiver.AbandonMessageAsync(_sbMessage, cancellationToken: cancellationToken);
+        }
 
-        protected override Task DeadLetterAsyncCore(string? reason, CancellationToken cancellationToken) =>
-            _receiver.IsClosed ? Task.CompletedTask : _receiver.DeadLetterMessageAsync(_sbMessage, deadLetterReason: reason, cancellationToken: cancellationToken);
+        protected override async Task DeadLetterAsyncCore(string? reason, CancellationToken cancellationToken)
+        {
+            await _lockRenewal.StopAsync();
+            if (!_receiver.IsClosed)
+                await _receiver.DeadLetterMessageAsync(_sbMessage, deadLetterReason: reason, cancellationToken: cancellationToken);
+        }
     }
 }

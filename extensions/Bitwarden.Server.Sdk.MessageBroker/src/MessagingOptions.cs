@@ -15,4 +15,11 @@ public class MessagingOptions
     /// Service Bus backends rely on broker-side configuration for delivery limits. Default is 10.
     /// </summary>
     public int MaxDeliveryCount { get; set; } = 10;
+
+    /// <summary>
+    /// How long, at most, an Azure Service Bus message's lock is renewed while a consumer handles it
+    /// and waits to retry it. Set it no shorter than the longest
+    /// <see cref="ConsumerRetryOptions.MaxRetryDelay"/>. Default is five minutes.
+    /// </summary>
+    public TimeSpan MaxLockRenewalDuration { get; set; } = TimeSpan.FromMinutes(5);
 }

@@ -211,7 +211,8 @@ for the full walkthrough.
 
 Implement `IMessageConsumer<TPayload, TCeiling>` and register with `AddMessageConsumer`. This
 registers both the subscriber and a hosted service in one call, and handles settlement
-automatically — `CompleteAsync` on success, `RequeueAsync` when `HandleAsync` throws:
+automatically — `CompleteAsync` on success, and `DeadLetterAsync` when `HandleAsync` throws, unless
+retries are configured (see [When a consumer throws](#when-a-consumer-throws)):
 
 ```csharp
 // Registration
@@ -297,6 +298,45 @@ broker metadata:
 | `TraceId`       | W3C traceparent of the publish span, for linking consumer traces to producer traces.                          |
 | `DeliveryCount` | Number of times this message has been delivered. `1` on the first attempt, incrementing with each redelivery. |
 
+### When a consumer throws
+
+By default a consumer registered with `AddMessageConsumer` or `AddCommandConsumer` doesn't retry: when
+it throws, the message is dead-lettered at once. To retry, configure `ConsumerRetryOptions` for the
+subscription or command queue, either when registering it:
+
+```csharp
+services.AddMessageConsumer<OrderPayload, OrderPayload.V2, OrderNotificationService>(
+    "orders", "notifications",
+    retry =>
+    {
+        retry.MaxDeliveries = 5;
+        retry.RetryDelay = TimeSpan.FromSeconds(1);
+        retry.MaxRetryDelay = TimeSpan.FromSeconds(10);
+    });
+```
+
+or from configuration, as named options: `{topic}/{subscription}` for a subscription, the queue's
+name for a command queue.
+
+```csharp
+services.AddOptions<ConsumerRetryOptions>("orders/notifications").BindConfiguration("Messaging:Retry:Orders");
+```
+
+- `MaxDeliveries`: how many times the message is delivered before a failure dead-letters it.
+  Default 1, which is no retry. Set it no higher than the broker's own delivery limit.
+- `RetryDelay`: how long the consumer waits after a failure before returning the message, doubling
+  with each delivery up to `MaxRetryDelay` (default thirty seconds). Default is no wait.
+
+While it waits, the consumer takes no other message from that subscription or queue; on a command
+queue that holds up every command family on it.
+
+A consumer that settles the message itself before throwing isn't retried. The dead-letter reason
+names the exception's type, never its message, which can carry data from the payload.
+
+On Azure Service Bus the message's lock is renewed while the consumer handles it and while it waits,
+for up to `MaxLockRenewalDuration` (five minutes by default; set it no shorter than the longest
+`MaxRetryDelay`).
+
 ### Broker outages
 
 Consumers registered with `AddMessageConsumer` or `AddCommandConsumer` keep running through a broker
@@ -310,7 +350,8 @@ up. A raw `ISubscriber` stream (registered with `AddSubscriber`) ends with
 ### Stopping gracefully
 
 For Azure Service Bus and RabbitMQ, unacknowledged messages are automatically requeued by the
-broker when the host shuts down.
+broker when the host shuts down. A hosted consumer whose handler throws `OperationCanceledException`
+because the host is stopping returns its message at once, neither dead-lettered nor delayed.
 
 For the in-memory channel backend, consumers registered with `AddMessageConsumer` are protected by
 an escrow mechanism: any messages left in the channel when the host stops are written to an

@@ -26,7 +26,8 @@ public sealed class CommandFamilyHandlerTests : IDisposable
             new SystemTextJsonMessageSerializer(
                 _services.GetRequiredService<IOptionsMonitor<MessageBrokerSerializerOptions>>(), Queue),
             _services.GetRequiredService<IServiceScopeFactory>(),
-            new MessageBrokerMetrics(_services.GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>()));
+            new MessageBrokerMetrics(_services.GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>()),
+            _services.GetRequiredService<IOptionsMonitor<ConsumerRetryOptions>>());
     }
 
     public void Dispose() => _services.Dispose();

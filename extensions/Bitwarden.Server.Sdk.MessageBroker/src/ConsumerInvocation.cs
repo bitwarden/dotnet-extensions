@@ -10,6 +10,7 @@ internal static class ConsumerInvocation
     public static async Task RunAsync<TPayload, TCeiling, TConsumer>(
         IServiceScopeFactory scopeFactory,
         Envelope<TPayload, TCeiling> envelope,
+        ConsumerRetryOptions retry,
         CancellationToken stoppingToken)
         where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
         where TCeiling : Payload<TPayload>.ICeiling
@@ -24,17 +25,51 @@ internal static class ConsumerInvocation
         await using var scope = scopeFactory.CreateAsyncScope();
         try
         {
-            var consumer = scope.ServiceProvider.GetRequiredService<TConsumer>();
-            await consumer.HandleAsync(envelope, stoppingToken);
-            // Settle with CancellationToken.None: passing along a stopped token after a
-            // successful handler would leave the message un-acked and unsettled.
-            await envelope.CompleteAsync(CancellationToken.None);
-        }
-        catch (Exception ex)
-        {
+            Exception? failure = null;
+            var stopped = false;
             try
             {
-                await envelope.RequeueAsync(ex.Message, CancellationToken.None);
+                var consumer = scope.ServiceProvider.GetRequiredService<TConsumer>();
+                await consumer.HandleAsync(envelope, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // The host is stopping and the handler gave up because of it: not a failure.
+                stopped = true;
+            }
+            catch (Exception ex)
+            {
+                failure = ex;
+            }
+
+            try
+            {
+                if (stopped)
+                {
+                    // Return the message at once, without the retry delay or the dead-letter decision.
+                    if (!envelope.IsSettled)
+                        await envelope.RequeueAsync("The consumer stopped.", CancellationToken.None);
+                }
+                else if (failure is null)
+                {
+                    // Settle with CancellationToken.None: passing along a stopped token after a
+                    // successful handler would leave the message un-acked and unsettled.
+                    await envelope.CompleteAsync(CancellationToken.None);
+                }
+                else if (!envelope.IsSettled)
+                {
+                    // The reason names the exception's type only: its message can carry payload data.
+                    var reason = $"The consumer threw {failure.GetType().Name} on delivery {envelope.DeliveryCount}.";
+                    if (envelope.DeliveryCount >= retry.MaxDeliveries)
+                    {
+                        await envelope.DeadLetterAsync(reason, CancellationToken.None);
+                    }
+                    else
+                    {
+                        await RetryDelay.WaitAsync(retry, envelope.DeliveryCount, stoppingToken);
+                        await envelope.RequeueAsync(reason, CancellationToken.None);
+                    }
+                }
             }
             catch (Exception)
             {

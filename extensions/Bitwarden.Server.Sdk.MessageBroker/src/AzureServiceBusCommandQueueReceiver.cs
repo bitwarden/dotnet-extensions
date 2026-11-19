@@ -8,9 +8,11 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
 {
     private readonly AzureServiceBusConnection _connection;
     private readonly string _queueName;
+    private readonly TimeSpan _maxLockRenewal;
 
-    public AzureServiceBusCommandQueueReceiver(AzureServiceBusConnection connection, string queueName)
+    public AzureServiceBusCommandQueueReceiver(AzureServiceBusConnection connection, string queueName, TimeSpan maxLockRenewal)
     {
+        _maxLockRenewal = maxLockRenewal;
         _connection = connection;
         _queueName = queueName;
     }
@@ -57,6 +59,7 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
 
             foreach (var sbMessage in received)
             {
+                var lockRenewal = new AzureServiceBusLockRenewal(receiver, sbMessage, _maxLockRenewal);
                 yield return new CommandQueueMessage
                 {
                     Body = sbMessage.Body.ToMemory(),
@@ -68,14 +71,24 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
                         ? tp as string
                         : null,
                     DeliveryCount = sbMessage.DeliveryCount,
-                    CompleteAsync = ct => receiver.CompleteMessageAsync(sbMessage, ct),
+                    CompleteAsync = async ct =>
+                    {
+                        await lockRenewal.StopAsync();
+                        await receiver.CompleteMessageAsync(sbMessage, ct);
+                    },
                     // A closed receiver released its locks, which is the same as abandoning.
-                    RequeueAsync = ct => receiver.IsClosed
-                        ? Task.CompletedTask
-                        : receiver.AbandonMessageAsync(sbMessage, cancellationToken: ct),
-                    DeadLetterAsync = (reason, ct) => receiver.IsClosed
-                        ? Task.CompletedTask
-                        : receiver.DeadLetterMessageAsync(sbMessage, deadLetterReason: reason, cancellationToken: ct),
+                    RequeueAsync = async ct =>
+                    {
+                        await lockRenewal.StopAsync();
+                        if (!receiver.IsClosed)
+                            await receiver.AbandonMessageAsync(sbMessage, cancellationToken: ct);
+                    },
+                    DeadLetterAsync = async (reason, ct) =>
+                    {
+                        await lockRenewal.StopAsync();
+                        if (!receiver.IsClosed)
+                            await receiver.DeadLetterMessageAsync(sbMessage, deadLetterReason: reason, cancellationToken: ct);
+                    },
                 };
             }
         }
