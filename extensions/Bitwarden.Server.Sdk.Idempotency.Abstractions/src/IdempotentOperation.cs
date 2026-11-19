@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using Bitwarden.Server.Sdk.CryptoPrimitives;
 
 namespace Bitwarden.Server.Sdk.Idempotency;
 
@@ -12,7 +14,7 @@ namespace Bitwarden.Server.Sdk.Idempotency;
 /// <para>
 /// A client that sends an <c>Idempotency-Key</c> (<see cref="IdempotencyKeys.Header"/>) on a write, to an operation
 /// whose service's contract marks it (<see cref="IdempotencyKeys.Extension"/>), asks <see cref="KeyForWrite"/> for it. Outside an operation the client sends a fresh key for each call, which covers its
-/// own retries of that call. Inside one, the key is derived from the operation's key, the method, the address, the body, and how many identical writes the
+/// own retries of that call. Inside one, the key is derived, with the service's secret (<see cref="IdempotencySecret"/>), from the operation's key, the method, the address, the body, and how many identical writes the
 /// operation has made before: so an operation that is run again from the start (a message redelivered, a job's
 /// occurrence run again, an attempt of a retry loop) with the same key sends the same keys, and the callees replay what
 /// they answered the first time. A write whose body differs from the first run's (it carries a time, or reads
@@ -24,12 +26,13 @@ namespace Bitwarden.Server.Sdk.Idempotency;
 /// operation mints once before its first attempt. Never a person's data: no email address, no name.
 /// </para>
 /// <para>
-/// A host that runs message handlers or jobs can begin one around each run, keyed by <see cref="ForMessage"/> or
+/// A host that runs message handlers or jobs can begin one around each run, keyed by <see cref="ForMessage(string, string)"/> or
 /// <see cref="ForJob"/>, and leave out a handler or job that declares <see cref="PerCallIdempotencyKeysAttribute"/>.
-/// A retry loop begins one per attempt, with a key minted before the loop.
+/// A retry loop begins one per attempt, with a key minted before the loop. Each begins it with the service's
+/// <see cref="IdempotencySecret"/>.
 /// </para>
 /// <code>
-/// using (IdempotentOperation.Begin($"archive-widget:{message.Id}"))
+/// using (IdempotentOperation.Begin($"archive-widget:{message.Id}", idempotencySecret.Value))
 /// {
 ///     await widgets.ArchiveAsync(...);
 ///     await audit.RecordAsync(...);
@@ -40,6 +43,12 @@ public static class IdempotentOperation
 {
     private static readonly AsyncLocal<Scope?> Ambient = new();
 
+    // The first parameter of each derivation, one per use, so a write key and a derived identifier never share an
+    // input.
+    private const string WriteKeyPurpose = "idempotency-key";
+
+    private const string DerivedIdPurpose = "derived-id";
+
     /// <summary>
     /// The longest operation key accepted.
     /// </summary>
@@ -47,19 +56,23 @@ public static class IdempotentOperation
 
     /// <summary>
     /// Begins an operation: the writes made until the result is disposed carry keys derived from
-    /// <paramref name="key"/>, and <see cref="DeriveId"/> answers from it.
+    /// <paramref name="key"/> with <paramref name="secret"/>, and <see cref="DeriveId"/> answers from them.
     /// </summary>
     /// <param name="key">Stable for the logical operation, and unique to it.</param>
+    /// <param name="secret">
+    /// The service's secret (<see cref="IdempotencySecret"/>). A run again must begin with the same one, or its writes
+    /// carry new keys and are done again.
+    /// </param>
     /// <returns>
-    /// Ends the operation, restoring any operation it was begun inside. An ended operation is never current again, even
-    /// when operations are ended out of order.
+    /// Ends the operation, restoring the nearest operation it was begun inside that is still running. An ended operation
+    /// is never current again, and one ended out of order leaves alone an operation begun since.
     /// </returns>
     /// <exception cref="ArgumentException"><paramref name="key"/> is blank, too long, or not visible ASCII.</exception>
     /// <remarks>
     /// Begin it in the method that makes the writes, or one that awaits it: an ambient value set inside an awaited
     /// method is not seen by its caller.
     /// </remarks>
-    public static IDisposable Begin(string key)
+    public static IDisposable Begin(string key, CacheSecret secret)
     {
         if (!IdempotencyKeys.IsValid(key) || key.Length > MaximumKeyLength)
         {
@@ -67,7 +80,7 @@ public static class IdempotentOperation
                 $"An operation key is 1 to {MaximumKeyLength} visible ASCII characters.", nameof(key));
         }
 
-        var scope = new Scope(key, Ambient.Value);
+        var scope = new Scope(key, secret, Ambient.Value);
         Ambient.Value = scope;
 
         return scope;
@@ -78,7 +91,7 @@ public static class IdempotentOperation
     /// </summary>
     public static string? Current => Active?.Key;
 
-    private static Scope? Active => Ambient.Value is { Ended: false } scope ? scope : null;
+    private static Scope? Active => Scope.LiveFrom(Ambient.Value);
 
     /// <summary>
     /// The operation key a message handler's work runs under: the handler's name and the envelope's identifier, so a
@@ -88,12 +101,56 @@ public static class IdempotentOperation
     /// <param name="envelope">The envelope's identifier.</param>
     /// <returns>The key; a long name is shortened to its hash.</returns>
     /// <exception cref="ArgumentException"><paramref name="handler"/> is null, empty or white space.</exception>
+    /// <remarks>
+    /// The key is only as unique as the envelope's identifier. Take it from the message broker's envelope, minted where
+    /// the message was published, never from the message's payload or a request's headers. A message published again
+    /// under an identifier already used repeats the operation's keys and derived identifiers, so its writes are
+    /// answered from the first message's.
+    /// </remarks>
     public static string ForMessage(string handler, Guid envelope)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(handler);
 
         return Compose(handler, envelope.ToString());
     }
+
+    /// <summary>
+    /// The operation key a message handler's work runs under, for a message whose identifier is a string, as a message
+    /// broker's is: the handler's name and the message's identifier, so a redelivery repeats it and two handlers of one
+    /// message don't share it.
+    /// </summary>
+    /// <param name="handler">The handler's stable name, such as its type's full name.</param>
+    /// <param name="messageId">
+    /// The message's identifier: 1 to <see cref="MaximumMessageIdLength"/> visible ASCII characters. A GUID's
+    /// identifier gives the key <see cref="ForMessage(string, Guid)"/> gives for that GUID.
+    /// </param>
+    /// <returns>The key; a long name is shortened to its hash.</returns>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="handler"/> is null, empty or white space, or <paramref name="messageId"/> is blank, too long, or
+    /// not visible ASCII.
+    /// </exception>
+    /// <remarks>
+    /// The key is only as unique as the message's identifier. Take it from the message broker's envelope, chosen where
+    /// the message was sent, never from the message's payload or a request's headers.
+    /// </remarks>
+    public static string ForMessage(string handler, string messageId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(handler);
+
+        if (!IdempotencyKeys.IsValid(messageId) || messageId.Length > MaximumMessageIdLength)
+        {
+            throw new ArgumentException(
+                $"A message's identifier is 1 to {MaximumMessageIdLength} visible ASCII characters.", nameof(messageId));
+        }
+
+        return Compose(handler, messageId);
+    }
+
+    /// <summary>
+    /// The longest message identifier <see cref="ForMessage(string, string)"/> accepts: a message broker's limit, and
+    /// short enough that the key, with a shortened name, is never over <see cref="MaximumKeyLength"/>.
+    /// </summary>
+    public const int MaximumMessageIdLength = 128;
 
     /// <summary>
     /// The operation key a recurring job's run works under: the job's name and the occurrence's due time, so the same
@@ -103,6 +160,11 @@ public static class IdempotentOperation
     /// <param name="dueAt">When the occurrence was due.</param>
     /// <returns>The key; a long name is shortened to its hash.</returns>
     /// <exception cref="ArgumentException"><paramref name="job"/> is null, empty or white space.</exception>
+    /// <remarks>
+    /// Take the due time from the scheduler that owns the job's occurrences, never from a payload or a request's
+    /// headers. Two runs given the same job and due time repeat each other's keys and derived identifiers, so the
+    /// second's writes are answered from the first's.
+    /// </remarks>
     public static string ForJob(string job, DateTimeOffset dueAt)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(job);
@@ -116,28 +178,53 @@ public static class IdempotentOperation
     /// <param name="method">The request's method.</param>
     /// <param name="address">The request's address.</param>
     /// <param name="body">The request's body; empty when it has none.</param>
-    /// <returns>A lower-case hex SHA-256, or null when no operation has begun.</returns>
+    /// <returns>64 lower-case hex characters, or null when no operation has begun.</returns>
+    /// <exception cref="ArgumentException"><paramref name="method"/> or <paramref name="address"/> is not valid UTF-16 text (a lone surrogate).</exception>
+    /// <remarks>
+    /// The key is <see cref="CacheKey.DeriveCacheKey(CacheSecret, ReadOnlySpan{string})"/> with the operation's secret
+    /// over <c>idempotency-key</c>, the operation's key, the method, the address, the body in base64, and the ordinal in
+    /// decimal: how many identical writes the operation has made before. Only a holder of the secret can compute it.
+    /// </remarks>
     public static string? KeyForWrite(string method, string address, ReadOnlySpan<byte> body)
     {
+        ArgumentNullException.ThrowIfNull(method);
+        ArgumentNullException.ThrowIfNull(address);
+
         if (Active is not { } scope)
         {
             return null;
         }
 
-        var target = $"write\n{method}\n{address}\n{Convert.ToHexStringLower(SHA256.HashData(body))}";
+        // Counted by the body's digest rather than the body, so the scope never holds a body.
+        var ordinal = scope.Next(("write", method, address, Convert.ToHexStringLower(SHA256.HashData(body))));
 
-        return Hash(scope.Key, target, scope.Next(target));
+        var key = Derive(
+            scope.Secret,
+            "The method or the address is not valid UTF-16 text.",
+            nameof(address),
+            WriteKeyPurpose,
+            scope.Key,
+            method,
+            address,
+            Convert.ToBase64String(body),
+            ordinal.ToString(CultureInfo.InvariantCulture));
+
+        return Convert.ToHexStringLower(key.AsSpan());
     }
 
     /// <summary>
-    /// An identifier for something the operation creates or sends, derived from the operation, or null outside one:
-    /// the same on every run of the operation, so a run again names the same thing.
+    /// An identifier, derived deterministically from the operation, for something the operation creates or sends, or
+    /// null outside one: the same on every run of the operation, so a run again names the same thing.
     /// </summary>
-    /// <param name="purpose">Tells this identifier from the operation's others, such as a template and its recipients.</param>
+    /// <param name="purpose">Tells this identifier from the operation's others, such as a template's name.</param>
     /// <returns>A version 8 UUID (RFC 9562), or null when no operation has begun.</returns>
+    /// <exception cref="ArgumentException"><paramref name="purpose"/> is not valid UTF-16 text (a lone surrogate).</exception>
     /// <remarks>
-    /// The purpose is hashed with the operation's key and never kept, so it may name what the identifier is for. The
-    /// same purpose asked for twice in one run gets two identifiers, in order.
+    /// The purpose names what the identifier is for. Never a person's data: no email address, no name. The identifier
+    /// is the first 16 bytes of <see cref="CacheKey.DeriveCacheKey(CacheSecret, ReadOnlySpan{string})"/> with the
+    /// operation's secret over <c>derived-id</c>, the operation's key, the purpose and the ordinal in decimal, so only
+    /// a holder of the secret can compute it. The same purpose asked for twice in one run gets two identifiers, in
+    /// order.
     /// </remarks>
     public static Guid? DeriveId(string purpose)
     {
@@ -148,8 +235,16 @@ public static class IdempotentOperation
             return null;
         }
 
-        var target = $"id\n{purpose}";
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes($"{scope.Key}\n{target}\n{scope.Next(target)}")).AsSpan(0, 16).ToArray();
+        var ordinal = scope.Next(("id", purpose, string.Empty, string.Empty));
+        var derived = Derive(
+            scope.Secret,
+            "The purpose is not valid UTF-16 text.",
+            nameof(purpose),
+            DerivedIdPurpose,
+            scope.Key,
+            purpose,
+            ordinal.ToString(CultureInfo.InvariantCulture));
+        var bytes = derived.AsSpan()[..16].ToArray();
 
         // RFC 9562 version 8 (custom) and the RFC variant, in the big-endian byte order the RFC writes.
         bytes[6] = (byte)((bytes[6] & 0x0F) | 0x80);
@@ -169,21 +264,48 @@ public static class IdempotentOperation
         return $"{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(name)))}:{occurrence}";
     }
 
-    private static string Hash(string key, string target, int ordinal) =>
-        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"{key}\n{target}\n{ordinal}")));
-
-    private sealed class Scope(string key, Scope? outer) : IDisposable
+    private static CacheKey Derive(CacheSecret secret, string invalidText, string parameterName, params ReadOnlySpan<string> parameters)
     {
-        private readonly ConcurrentDictionary<string, int> _counts = new(StringComparer.Ordinal);
+        try
+        {
+            return CacheKey.DeriveCacheKey(secret, parameters);
+        }
+        catch (EncoderFallbackException)
+        {
+            // Not chained: the inner exception's message quotes the character, and the text may be an address.
+            throw new ArgumentException(invalidText, parameterName);
+        }
+    }
+
+    private sealed class Scope(string key, CacheSecret secret, Scope? outer) : IDisposable
+    {
+        private readonly ConcurrentDictionary<(string, string, string, string), int> _counts = new();
 
         public string Key { get; } = key;
 
+        public CacheSecret Secret { get; } = secret;
+
         public bool Ended { get; private set; }
+
+        private Scope? Outer { get; } = outer;
 
         /// <summary>
         /// How many times the operation has asked for <paramref name="target"/> before.
         /// </summary>
-        public int Next(string target) => _counts.AddOrUpdate(target, 0, (_, count) => count + 1);
+        public int Next((string, string, string, string) target) => _counts.AddOrUpdate(target, 0, (_, count) => count + 1);
+
+        /// <summary>
+        /// The nearest scope from <paramref name="scope"/> outwards that has not ended, or null.
+        /// </summary>
+        public static Scope? LiveFrom(Scope? scope)
+        {
+            while (scope is { Ended: true })
+            {
+                scope = scope.Outer;
+            }
+
+            return scope;
+        }
 
         public void Dispose()
         {
@@ -193,7 +315,13 @@ public static class IdempotentOperation
             }
 
             Ended = true;
-            Ambient.Value = outer;
+
+            // Only the current scope hands back to its outer one: a scope ended out of order leaves alone a scope begun
+            // since, which skips past it when it ends in turn.
+            if (ReferenceEquals(Ambient.Value, this))
+            {
+                Ambient.Value = LiveFrom(Outer);
+            }
         }
     }
 }
