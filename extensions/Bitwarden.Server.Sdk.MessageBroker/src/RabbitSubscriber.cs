@@ -11,6 +11,12 @@ internal static class RabbitSubscriber
 {
     /// <summary>The queue a subscription reads on RabbitMQ and LavinMQ, bound to its topic's exchange.</summary>
     internal static string QueueName(string topic, string subscription) => $"{topic}.{subscription}";
+
+    /// <summary>
+    /// The prefix of the dead-letter exchange and queue each subscription queue and command queue dead-letters to,
+    /// <c>dead-letter.{queue}</c>.
+    /// </summary>
+    internal const string DeadLetterPrefix = "dead-letter.";
 }
 
 internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>, ISignalsSubscribed<TPayload, TCeiling>

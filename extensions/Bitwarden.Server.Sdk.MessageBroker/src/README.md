@@ -67,7 +67,7 @@ Setting both raises `OptionsValidationException` at startup via `MessagingOption
 | `ResubscribeLoop.cs`                                           | Keeps a hosted consumer subscribing again, with backoff, through broker outages  |
 | `RetryDelay.cs`                                                | The wait after a consumer throws, before the message is redelivered              |
 | `SubscriptionReadiness.cs`                                     | The readiness check: whether each hosted consumer is receiving                   |
-| `TopologyStartup.cs`                                           | Creates, or checks, the topology a service needs as it starts                    |
+| `TopologyStartup.cs`                                           | Creates, or checks, the topology a service needs as it starts. `Bitwarden.Server.Sdk.MessageBroker.Topology` and `infra/messaging/message-broker.bicep` mirror its shapes, names and settings: change them together |
 | `ConsumerRetryOptions.cs`                                      | Per-subscription and per-queue retry settings; by default a failure isn't retried |
 | `IMessageEscrowStore.cs`                                       | Public interface for durable message escrow on shutdown                          |
 | `ChannelPublisher.cs` / `ChannelSubscriber.cs`                 | In-memory backend                                                                |

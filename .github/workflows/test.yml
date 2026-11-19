@@ -50,6 +50,20 @@ jobs:
           dotnet test --project extensions/Bitwarden.Server.Sdk.MessageBroker.Sender/tests/Bitwarden.Server.Sdk.MessageBroker.Sender.Tests
           --configuration Debug --no-build -- --filter-class "*.BrokerDeliveryTests"
 
+      - name: Test the generated broker definitions on LavinMQ
+        if: ${{ !cancelled() }}
+        env:
+          MESSAGING_TESTS_AMQP_IMAGE: cloudamqp/lavinmq:2.10.4@sha256:2d92aa41dda178e18ed1d64d3b48af47273a4c2134e82f61fcbc112797c378a9
+        run: >
+          dotnet test --project extensions/Bitwarden.Server.Sdk.MessageBroker.Topology/tests/Bitwarden.Server.Sdk.MessageBroker.Topology.Tests
+          --configuration Debug --no-build -- --filter-class "*.RabbitProvisioningTests"
+
+      - name: Compile the Service Bus template
+        if: ${{ !cancelled() }}
+        run: |
+          az bicep install
+          az bicep build --file infra/messaging/message-broker.bicep --stdout > /dev/null
+
       - name: Report test results
         uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
         if: ${{ github.event.pull_request.head.repo.full_name == github.repository && !cancelled() }}
