@@ -239,7 +239,11 @@
         }
       },
       "bitwarden.server.sdk.idempotency.abstractions": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "Bitwarden.Server.Sdk.CryptoPrimitives": "[0.1.0, )",
+          "Microsoft.Extensions.Hosting.Abstractions": "[10.0.14, )"
+        }
       },
       "bitwarden.server.sdk.resources.caching.abstractions": {
         "type": "Project",
