@@ -19,6 +19,21 @@ public static class MessageBrokerServiceCollectionExtensions
     public static IServiceCollection AddPublisher<TPayload, TCeiling>(this IServiceCollection services, string name)
         where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
         where TCeiling : Payload<TPayload>.ICeiling
+        => AddPublisherCore<TPayload, TCeiling>(services, name, MessageBrokerKeys.Publisher<TPayload>(name));
+
+    /// <summary>
+    /// Registers the publisher that sends straight to the broker under
+    /// <see cref="MessageBrokerKeys.Direct"/>'s key instead of the public one, for an outbox that owns
+    /// the public key.
+    /// </summary>
+    internal static IServiceCollection AddDirectPublisher<TPayload, TCeiling>(this IServiceCollection services, string name)
+        where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
+        where TCeiling : Payload<TPayload>.ICeiling
+        => AddPublisherCore<TPayload, TCeiling>(services, name, MessageBrokerKeys.Direct(MessageBrokerKeys.Publisher<TPayload>(name)));
+
+    private static IServiceCollection AddPublisherCore<TPayload, TCeiling>(IServiceCollection services, string name, string serviceKey)
+        where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
+        where TCeiling : Payload<TPayload>.ICeiling
     {
         // DI time enforcement of valid payload variant chain.
         ChainValidator<TPayload, TCeiling>.ThrowIfInvalid();
@@ -33,7 +48,7 @@ public static class MessageBrokerServiceCollectionExtensions
                 sp.GetServices<ChannelEscrowRegistration<TPayload, TCeiling>>(),
                 sp.GetRequiredService<MessageBrokerMetrics>(),
                 name));
-        services.TryAddKeyedSingleton<Publisher<TPayload, TCeiling>>(publisherKey, (sp, _) =>
+        services.TryAddKeyedSingleton<Publisher<TPayload, TCeiling>>(serviceKey, (sp, _) =>
         {
             var options = sp.GetRequiredService<IOptions<MessagingOptions>>().Value;
             var serializer = sp.GetRequiredKeyedService<IMessageSerializer>(publisherKey);
@@ -48,7 +63,7 @@ public static class MessageBrokerServiceCollectionExtensions
                     exchangeName: name, routingKey: TPayload.WireName, mandatory: false, serializer, metrics);
             }
             return new ChannelPublisher<TPayload, TCeiling>(sp.GetRequiredKeyedService<ChannelTopic<TPayload, TCeiling>>(publisherKey), name, metrics,
-                options.MaxDeliveryCount, sp.GetRequiredService<ILogger<ChannelPublisher<TPayload, TCeiling>>>());
+                options.MaxDeliveryCount, sp.GetRequiredService<ILogger<ChannelPublisher<TPayload, TCeiling>>>(), serializer);
         });
 
         services.AddSingleton(new BrokerTopologyDeclaration(name, TPayload.WireName));
@@ -238,6 +253,20 @@ public static class MessageBrokerServiceCollectionExtensions
     public static IServiceCollection AddCommandSender<TPayload, TCeiling>(this IServiceCollection services, string queueName)
         where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
         where TCeiling : Payload<TPayload>.ICeiling
+        => AddCommandSenderCore<TPayload, TCeiling>(services, queueName, MessageBrokerKeys.Publisher<TPayload>(queueName));
+
+    /// <summary>
+    /// As <see cref="AddDirectPublisher{TPayload, TCeiling}"/>, for a command sender: registered under
+    /// <see cref="MessageBrokerKeys.Direct"/>'s key, for an outbox to send through.
+    /// </summary>
+    internal static IServiceCollection AddDirectCommandSender<TPayload, TCeiling>(this IServiceCollection services, string queueName)
+        where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
+        where TCeiling : Payload<TPayload>.ICeiling
+        => AddCommandSenderCore<TPayload, TCeiling>(services, queueName, MessageBrokerKeys.Direct(MessageBrokerKeys.Publisher<TPayload>(queueName)));
+
+    private static IServiceCollection AddCommandSenderCore<TPayload, TCeiling>(IServiceCollection services, string queueName, string serviceKey)
+        where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
+        where TCeiling : Payload<TPayload>.ICeiling
     {
         ChainValidator<TPayload, TCeiling>.ThrowIfInvalid();
         ClaimTopicFamily<TPayload>(services, queueName);
@@ -246,7 +275,7 @@ public static class MessageBrokerServiceCollectionExtensions
         AddChannelCommandQueue(services, queueName);
 
         var key = MessageBrokerKeys.Publisher<TPayload>(queueName);
-        services.TryAddKeyedSingleton<Publisher<TPayload, TCeiling>>(key, (sp, _) =>
+        services.TryAddKeyedSingleton<Publisher<TPayload, TCeiling>>(serviceKey, (sp, _) =>
         {
             var options = sp.GetRequiredService<IOptions<MessagingOptions>>().Value;
             var serializer = sp.GetRequiredKeyedService<IMessageSerializer>(key);
@@ -391,8 +420,9 @@ public static class MessageBrokerServiceCollectionExtensions
     }
 
     // One serializer per destination and family; MessageBrokerSerializerOptions stays scoped by
-    // destination name.
-    private static void AddFamilySerializer<TPayload>(IServiceCollection services, string destinationName)
+    // destination name. Internal so the outbox sender registers its local destination's serializer
+    // the same way.
+    internal static void AddFamilySerializer<TPayload>(IServiceCollection services, string destinationName)
         where TPayload : IPayloadWireName<TPayload>
     {
         services.TryAddKeyedSingleton<IMessageSerializer>(MessageBrokerKeys.Publisher<TPayload>(destinationName), (sp, _) =>

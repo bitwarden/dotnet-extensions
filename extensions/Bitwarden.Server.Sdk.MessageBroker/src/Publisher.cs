@@ -30,6 +30,14 @@ public abstract class Publisher<TPayload, TCeiling>
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Sends <paramref name="body"/>, versions already serialized, exactly as given, under
+    /// <paramref name="messageId"/>: decoding and re-encoding would drop any version this build
+    /// doesn't know.
+    /// </summary>
+    internal virtual Task SendRawAsync(ReadOnlyMemory<byte> body, string messageId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException($"{GetType().Name} can't send a serialized body.");
+
+    /// <summary>
     /// Begins a publish from <paramref name="ceiling"/>. Chain
     /// <see cref="PublisherExtensions.With"/> once per assisted downcast and finish with one of
     /// the <see cref="PublisherExtensions"/> <c>SendAsync</c> overloads.
@@ -127,6 +135,13 @@ public static class PublisherExtensions
         where TCeiling : Payload<TPayload>.ICeiling
         where TCurrent : Payload<TPayload>.IReachesFloor
     {
+        ThrowIfInvalidMessageId(messageId);
+        builder.Current.DescendToFloor(builder.Accumulated);
+        return builder.Publisher.SendAsync(builder.Accumulated, messageId, cancellationToken);
+    }
+
+    internal static void ThrowIfInvalidMessageId(string messageId)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
         if (messageId.Length > MaxMessageIdLength)
         {
@@ -138,8 +153,5 @@ public static class PublisherExtensions
         {
             throw new ArgumentException("A message identifier must be ASCII.", nameof(messageId));
         }
-
-        builder.Current.DescendToFloor(builder.Accumulated);
-        return builder.Publisher.SendAsync(builder.Accumulated, messageId, cancellationToken);
     }
 }

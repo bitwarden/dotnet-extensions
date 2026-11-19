@@ -84,6 +84,21 @@ Setting both raises `OptionsValidationException` at startup via `MessagingOption
 | `MessageBrokerActivitySource.cs`                               | Shared `ActivitySource` for publish and consume spans                            |
 | `MessageBrokerMetrics.cs`                                      | Shared metrics (publish counter, consume counter, channel depth gauge)           |
 | `SystemTextJsonMessageSerializer.cs`                           | Default JSON serializer                                                          |
+| `SendFailures.cs`                                              | Which send failures sending again can never fix, for the outbox sender           |
+
+### What the outbox sender uses
+
+`Bitwarden.Server.Sdk.MessageBroker.Sender` sees this package's internals (`InternalsVisibleTo` in the
+csproj) and depends on these. Change one only with the Sender in the same pull request.
+
+- `Publisher.SendRawAsync`: sends a stored, serialized body as given, on every backend.
+- `AddDirectPublisher`, `AddDirectCommandSender` and `MessageBrokerKeys.Direct`: the broker
+  publisher under a key the outbox owns.
+- `PublisherExtensions.ThrowIfInvalidMessageId`: the identifier check, before a message is stored.
+- `SendFailures.IsPermanent`: which failures set a stored message aside.
+- `PublishBuilder`'s `Accumulated`, `Current` and `Publisher`: for `SendLaterAsync`.
+- `ChainValidator.ThrowIfInvalid`: the payload chain check, for a local handler.
+- `AddFamilySerializer`: the serializer for a local handler's destination.
 
 ## RabbitMQ topology
 
