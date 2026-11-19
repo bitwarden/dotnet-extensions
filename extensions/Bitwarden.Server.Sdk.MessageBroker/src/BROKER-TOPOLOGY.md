@@ -36,6 +36,15 @@ The library creates and owns its own `ServiceBusClient` from the configured conn
 and does not consume any `ServiceBusClient` the app registers separately. An app that also uses
 `ServiceBusClient` against the same namespace will have two AMQP connections to the broker.
 
+### Command queues
+
+For each unique `queue` passed to `AddCommandConsumer<TPayload, TCeiling, TConsumer>(queue)`:
+
+- A queue named `{queue}`, owned by the receiving service, with no filter. Set `MaxDeliveryCount`
+  as for a subscription.
+
+Senders (`AddCommandSender`) need only send rights on the queue.
+
 ## RabbitMQ
 
 For each unique `topic` passed to `AddPublisher<TPayload, TCeiling>(topic)`:
@@ -111,3 +120,19 @@ rabbitmqctl set_policy user-events-subscriptions "^user-events\." \
   '{"delivery-limit":10,"dead-letter-exchange":"dead-letter.user-events","dead-letter-strategy":"at-least-once","overflow":"reject-publish"}' \
   --apply-to quorum_queues
 ```
+
+### Command queues (RabbitMQ)
+
+For each unique `queue` passed to `AddCommandConsumer<TPayload, TCeiling, TConsumer>(queue)`:
+
+- A durable **direct** exchange named `{queue}`.
+- A durable quorum queue named `{queue}`, bound to that exchange with the queue's name as its
+  routing key. Senders publish to the exchange with the same routing key.
+- Apply the same `delivery-limit` and dead-letter policy as subscription queues.
+
+Each command queue has its own exchange so that sending can be granted one queue at a time: a
+sender's user needs `write` on `^{queue}$` for each queue it sends to, and the receiver's user
+`read` on its own queue. The permissions are regular expressions, so escape the dots in a queue's
+name (`^notification\.commands$`). Don't grant service users `write` on the default exchange
+(`amq.default`): it reaches every queue in the virtual host.
+

@@ -8,16 +8,24 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
 {
+    private readonly string _destinationName;
     private readonly string _exchangeName;
+    private readonly string _routingKey;
+    private readonly bool _mandatory;
     private readonly IMessageSerializer _serializer;
     private readonly MessageBrokerMetrics _metrics;
     private readonly RabbitConnection _connection;
     private readonly SemaphoreSlim _channelGate = new(1, 1);
     private IChannel? _channel;
 
-    public RabbitPublisher(RabbitConnection connection, string exchangeName, IMessageSerializer serializer, MessageBrokerMetrics metrics)
+    public RabbitPublisher(
+        RabbitConnection connection, string destinationName, string exchangeName, string routingKey, bool mandatory,
+        IMessageSerializer serializer, MessageBrokerMetrics metrics)
     {
+        _destinationName = destinationName;
         _exchangeName = exchangeName;
+        _routingKey = routingKey;
+        _mandatory = mandatory;
         _serializer = serializer;
         _metrics = metrics;
         _connection = connection;
@@ -65,8 +73,8 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
         string messageId,
         CancellationToken cancellationToken)
     {
-        using var activity = MessageBrokerActivitySource.StartProducerActivity(_exchangeName, TPayload.WireName);
-        _metrics.RecordPublish(_exchangeName, TPayload.WireName);
+        using var activity = MessageBrokerActivitySource.StartProducerActivity(_destinationName, TPayload.WireName);
+        _metrics.RecordPublish(_destinationName, TPayload.WireName);
         try
         {
             var channel = await GetChannelAsync(cancellationToken);
@@ -81,20 +89,20 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
                     [BrokerProperties.PayloadFamily] = TPayload.WireName,
                 },
             };
-            await channel.BasicPublishAsync(_exchangeName, routingKey: TPayload.WireName, mandatory: false,
+            await channel.BasicPublishAsync(_exchangeName, _routingKey, _mandatory,
                 props, buffer.WrittenMemory, cancellationToken);
         }
         catch (BrokerUnreachableException ex)
         {
-            throw new BrokerUnavailableException(_exchangeName, ex);
+            throw new BrokerUnavailableException(_destinationName, ex);
         }
         catch (OperationInterruptedException ex)
         {
-            throw new BrokerUnavailableException(_exchangeName, ex);
+            throw new BrokerUnavailableException(_destinationName, ex);
         }
         catch (PublishException ex)
         {
-            throw new BrokerUnavailableException(_exchangeName, ex);
+            throw new BrokerUnavailableException(_destinationName, ex);
         }
     }
 
