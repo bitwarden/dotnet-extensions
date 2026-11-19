@@ -50,8 +50,10 @@ public static class BitwardenClientServiceCollectionExtensions
         // Read once: the operations the callee's contract, embedded in the client package, marks as honouring keys.
         var keyed = KeyedOperations.FromAssembly(typeof(TImplementation).Assembly);
 
-        // Bounded for every token request, a renewal no call waits on included; a call's deadline bounds it too.
-        services.AddHttpClient(ServiceTokenProvider.TokenClientName, client => client.Timeout = ServiceTokenProvider.RequestTimeout);
+        // Bounded for every token request, a renewal no call waits on included; a call's deadline bounds it too. Identity
+        // is one of the deployment's own services, so the token client trusts the internal authorities alone.
+        services.AddHttpClient(ServiceTokenProvider.TokenClientName, client => client.Timeout = ServiceTokenProvider.RequestTimeout)
+            .TrustInternalAuthorities();
 
         // Whether a call carrying an event's actor is refused (OutgoingCall:RefuseEventActor, EventActor.cs), bound once
         // however many clients a service registers.
@@ -117,6 +119,8 @@ public static class BitwardenClientServiceCollectionExtensions
                 // hide which of the two it was.
                 client.Timeout = Timeout.InfiniteTimeSpan;
             })
+            // The callee is one of the deployment's own services: with internal authorities named, trust them alone.
+            .TrustInternalAuthorities()
             // In this order, outermost first (IHttpClientFactory runs handlers in the order they are added):
             //
             // 1. The fault handler: the call's one deadline, around everything below, and the translation of every
