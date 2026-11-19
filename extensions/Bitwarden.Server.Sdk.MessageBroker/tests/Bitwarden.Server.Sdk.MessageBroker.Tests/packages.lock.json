@@ -144,6 +144,15 @@
           "Microsoft.Azure.Amqp": "2.7.0"
         }
       },
+      "Bitwarden.Server.Sdk.Infrastructure": {
+        "type": "Transitive",
+        "resolved": "0.1.0",
+        "contentHash": "WJTDzZXbvN4Dd8bafeix+E0pG+GvJxSKV1gbs+9hJqZz9kmISCNOWi+AzFVmKG5fYaMivlA7aM0pS/TH58JSyA==",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.14",
+          "Microsoft.Extensions.Options": "10.0.14"
+        }
+      },
       "BouncyCastle.Cryptography": {
         "type": "Transitive",
         "resolved": "2.7.0",
@@ -657,6 +666,7 @@
         "type": "Project",
         "dependencies": {
           "Azure.Messaging.ServiceBus": "[7.21.0, )",
+          "Bitwarden.Server.Sdk.Infrastructure": "[0.1.0, )",
           "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.14, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.14, )",
           "Microsoft.Extensions.Options": "[10.0.14, )",

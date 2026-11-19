@@ -231,7 +231,7 @@ public class AzureServiceBusFixture : IAsyncLifetime
         // Rabbit PreStartAsync pattern) connects to localhost:80 and fails. Revisit if a future
         // emulator image exposes the admin HTTP endpoint, or if the SDK adds a dedicated
         // emulator-aware admin client constructor — at that point we could drop this JSON and
-        // declare topology per-test from BrokerTopologyDeclaration records.
+        // declare topology per-test from the messaging infrastructure requirements.
         _configFile = Path.Combine(Path.GetTempPath(), $"sb-emulator-{Guid.NewGuid():N}.json");
         await File.WriteAllTextAsync(_configFile, """
             {

@@ -49,8 +49,11 @@ Setting both raises `OptionsValidationException` at startup via `MessagingOption
 ## RabbitMQ topology
 
 The library does not provision RabbitMQ topology; operators pre-declare it (see
-[PACKAGE.md](PACKAGE.md) for the required exchanges, queues, bindings, and policies). The
-expected shape is driven by two design choices:
+[PACKAGE.md](PACKAGE.md) for the required exchanges, queues, bindings, and policies).
+Publishers and subscribers declare the topics and subscriptions they need as
+`messaging-topic` and `messaging-subscription` infrastructure requirements, which is what the
+Rabbit behavior tests read to declare topology before each test. The expected shape is driven by
+two design choices:
 
 - **Quorum queues** for subscriber queues. The `x-delivery-count` header on quorum queues
   (RabbitMQ 3.12+) is what `RabbitSubscriber` reads into `Envelope<T>.DeliveryCount`. Classic

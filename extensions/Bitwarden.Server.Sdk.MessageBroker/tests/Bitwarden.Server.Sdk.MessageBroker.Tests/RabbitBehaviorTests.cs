@@ -1,3 +1,4 @@
+using Bitwarden.Server.Sdk.Infrastructure;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,13 +29,16 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
     protected override Dictionary<string, string?> CreateConfig() =>
         new() { { "RabbitUri", _fixture.GetUri() } };
 
-    // Declares the exchanges, queues and bindings that AddPublisher / AddSubscriber register in
-    // DI as BrokerTopologyDeclaration records. Connection failures are swallowed so the
-    // "broker is down" tests still exercise their intended error paths.
+    // Declares the exchanges, queues and bindings for the messaging-topic and
+    // messaging-subscription infrastructure requirements that AddPublisher / AddSubscriber
+    // declare. Connection failures are swallowed so the "broker is down" tests still exercise
+    // their intended error paths.
     protected override async Task PreStartAsync(IHost host, CancellationToken cancellationToken)
     {
-        var declarations = host.Services.GetServices<BrokerTopologyDeclaration>().ToList();
-        if (declarations.Count == 0)
+        var requirements = host.Services.GetRequiredService<IOptions<InfrastructureOptions>>().Value.Requirements;
+        var topics = requirements.GetValueOrDefault("messaging-topic", []);
+        var subscriptions = requirements.GetValueOrDefault("messaging-subscription", []);
+        if (topics.Count == 0 && subscriptions.Count == 0)
             return;
 
         var uri = host.Services.GetRequiredService<IOptions<MessagingOptions>>().Value.RabbitUri;
@@ -46,20 +50,22 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
             var factory = new ConnectionFactory { Uri = new Uri(uri) };
             await using var conn = await factory.CreateConnectionAsync(cancellationToken);
             await using var channel = await conn.CreateChannelAsync(cancellationToken: cancellationToken);
-            foreach (var decl in declarations)
+            foreach (var topic in topics)
             {
-                await channel.ExchangeDeclareAsync(decl.TopicName, ExchangeType.Fanout, durable: true,
+                await channel.ExchangeDeclareAsync(topic["topic"]!.GetValue<string>(), ExchangeType.Fanout,
+                    durable: true, cancellationToken: cancellationToken);
+            }
+
+            foreach (var subscription in subscriptions)
+            {
+                var topicName = subscription["topic"]!.GetValue<string>();
+                var queueName = $"{topicName}.{subscription["subscription"]!.GetValue<string>()}";
+                await channel.QueueDeclareAsync(queueName, durable: true, exclusive: false,
+                    autoDelete: false,
+                    arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum" },
                     cancellationToken: cancellationToken);
-                if (decl.SubscriptionName is not null)
-                {
-                    var queueName = $"{decl.TopicName}.{decl.SubscriptionName}";
-                    await channel.QueueDeclareAsync(queueName, durable: true, exclusive: false,
-                        autoDelete: false,
-                        arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum" },
-                        cancellationToken: cancellationToken);
-                    await channel.QueueBindAsync(queueName, decl.TopicName, routingKey: "",
-                        cancellationToken: cancellationToken);
-                }
+                await channel.QueueBindAsync(queueName, topicName, routingKey: "",
+                    cancellationToken: cancellationToken);
             }
         }
         catch (BrokerUnreachableException)

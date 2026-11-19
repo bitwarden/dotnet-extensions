@@ -46,6 +46,17 @@ the exchanges, queues, topics, subscriptions, and related policies must be decla
 before the application starts — typically as part of the broker container's bootstrap or via
 infrastructure-as-code (Terraform, Pulumi, broker-specific CLIs).
 
+The topology a service needs is also declared as infrastructure requirements through
+`Bitwarden.Server.Sdk.Infrastructure`, whichever backend is configured:
+
+- `AddPublisher<T>(topic)` declares a `messaging-topic` requirement with `{ "topic": … }`.
+- `AddSubscriber<T>(topic, subscription)` and `AddMessageConsumer` declare the same
+  `messaging-topic` requirement plus a `messaging-subscription` requirement with
+  `{ "topic": …, "subscription": … }`.
+
+Collecting a service's infrastructure with `Bitwarden.Server.Sdk.Infrastructure.Testing` therefore
+lists every topic and subscription to provision as described below.
+
 For each publisher and subscriber registered with `AddPublisher<T>(topic)` /
 `AddSubscriber<T>(topic, subscription)`, declare the following on the broker:
 

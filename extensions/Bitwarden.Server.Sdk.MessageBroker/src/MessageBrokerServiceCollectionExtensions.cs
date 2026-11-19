@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -45,7 +46,7 @@ public static class MessageBrokerServiceCollectionExtensions
                 options.MaxDeliveryCount, sp.GetRequiredService<ILogger<ChannelPublisher<T>>>());
         });
 
-        services.AddSingleton(new BrokerTopologyDeclaration(name));
+        AddTopicRequirement(services, name);
 
         return services;
     }
@@ -113,7 +114,12 @@ public static class MessageBrokerServiceCollectionExtensions
         // channel subscribers without a corresponding consumer.
         services.AddSingleton(new ChannelSubscriberDescriptor(typeof(T), subscriptionKey));
 
-        services.AddSingleton(new BrokerTopologyDeclaration(name, subscriptionName));
+        AddTopicRequirement(services, name);
+        services.AddInfrastructureRequirement(SubscriptionRequirementKind, new JsonObject
+        {
+            ["topic"] = name,
+            ["subscription"] = subscriptionName,
+        });
 
         return services;
     }
@@ -198,6 +204,14 @@ public static class MessageBrokerServiceCollectionExtensions
 
     // Sentinel registered in DI to prevent duplicate IHostedService entries for the same ChannelTopic.
     private sealed record ChannelTopicLifetimeMarker(Type MessageType, string TopicName);
+
+    private const string TopicRequirementKind = "messaging-topic";
+    private const string SubscriptionRequirementKind = "messaging-subscription";
+
+    private static void AddTopicRequirement(IServiceCollection services, string name)
+    {
+        services.AddInfrastructureRequirement(TopicRequirementKind, new JsonObject { ["topic"] = name });
+    }
 
     private static void AddRabbitInfrastructure(IServiceCollection services)
     {
