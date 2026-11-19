@@ -213,5 +213,5 @@ The RabbitMQ tests run against `rabbitmq:4.3.6`, the version the self-hosted ins
 another AMQP 0-9-1 broker's image. CI runs them on LavinMQ as well:
 
 ```bash
-MESSAGING_TESTS_AMQP_IMAGE=cloudamqp/lavinmq:2.10.4 dotnet run -- --filter-class "*.RabbitBehaviorTests" --filter-class "*.RabbitCommandBehaviorTests" --filter-class "*.RabbitOutageTests" --filter-class "*.RabbitTopologyCheckTests"
+MESSAGING_TESTS_AMQP_IMAGE=cloudamqp/lavinmq:2.10.4@sha256:2d92aa41dda178e18ed1d64d3b48af47273a4c2134e82f61fcbc112797c378a9 dotnet run -- --filter-class "*.RabbitBehaviorTests" --filter-class "*.RabbitCommandBehaviorTests" --filter-class "*.RabbitOutageTests" --filter-class "*.RabbitTopologyCheckTests"
 ```
