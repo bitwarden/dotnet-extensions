@@ -11,16 +11,17 @@ namespace Bitwarden.Server.Sdk.Http;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This handler performs DNS resolution on the request URI, validates that none of the
-/// resolved addresses are internal, and then rewrites the request to connect directly
-/// to the validated IP while preserving the original Host header for TLS/SNI. A name that
-/// can't be resolved is refused. Once the response arrives, the request's URI names the host again.
+/// For each request it resolves the host, refuses the request when any address is internal or none resolves, and
+/// addresses the request to the address it checked, with the host in the <c>Host</c> header, so neither the primary
+/// handler nor a proxy has a name to resolve differently. <see cref="SocketsHttpHandler"/> takes the name TLS asks for
+/// and checks the certificate against from the <c>Host</c> header, and so does the <c>server.address</c> its telemetry
+/// records. Once the response arrives, the request names the host again.
 /// </para>
 /// <para>
 /// It also handles HTTP redirects manually so that each redirect hop is validated
-/// against SSRF rules. A redirect from https to http is returned, not followed. AllowAutoRedirect
-/// must be off on the primary handler; a response that a handler below followed a redirect to is
-/// refused rather than returned.
+/// against SSRF rules. A redirect from https to http is returned, not followed.
+/// <see cref="SsrfPrimaryHandlerFilter"/> puts it below every handler the client adds and sets <see cref="Sender"/>;
+/// it refuses to send until that is done, and again if the primary handler was replaced or changed since.
 /// </para>
 /// </remarks>
 internal class SsrfProtectionHandler : DelegatingHandler
@@ -39,7 +40,7 @@ internal class SsrfProtectionHandler : DelegatingHandler
     ];
 
     private readonly ILogger<SsrfProtectionHandler> _logger;
-    private readonly Func<string, CancellationToken, Task<IPAddress[]>> _resolve;
+    private readonly SsrfResolver _resolver;
 
     /// <summary>
     /// When <c>true</c> (default), the handler follows HTTP redirects and validates each hop
@@ -49,20 +50,18 @@ internal class SsrfProtectionHandler : DelegatingHandler
     /// </summary>
     public bool FollowRedirects { get; set; } = true;
 
-    public SsrfProtectionHandler(ILogger<SsrfProtectionHandler> logger)
-        : this(logger, Dns.GetHostAddressesAsync)
-    {
-    }
+    /// <summary>
+    /// The handler that sends this guard's requests, set up by <see cref="SsrfPrimaryHandlerFilter"/>.
+    /// </summary>
+    internal HttpMessageHandler? Sender { get; set; }
 
     /// <summary>
-    /// A handler that resolves host names with <paramref name="resolve"/> rather than the system's DNS.
+    /// A handler that resolves host names with <paramref name="resolver"/>.
     /// </summary>
-    internal SsrfProtectionHandler(
-        ILogger<SsrfProtectionHandler> logger,
-        Func<string, CancellationToken, Task<IPAddress[]>> resolve)
+    public SsrfProtectionHandler(ILogger<SsrfProtectionHandler> logger, SsrfResolver resolver)
     {
         _logger = logger;
-        _resolve = resolve;
+        _resolver = resolver;
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(
@@ -74,16 +73,29 @@ internal class SsrfProtectionHandler : DelegatingHandler
             throw new SsrfProtectionException("Request URI is null.");
         }
 
-        // Track the current URI and method across hops. ValidateAndSendAsync rewrites
-        // the request URI to a resolved IP, so we must preserve the original hostname-based
-        // URI for correct relative redirect resolution and the current method for correct
-        // method transitions (e.g., POST→301→GET→307 should preserve GET, not the original POST).
+        EnsureSender();
+
+        // HTTP/3 can't be guarded: a server's Alt-Svc header can name another host, which SocketsHttpHandler then
+        // reaches over QUIC by resolving that name itself, never checked.
+        if (request.Version.Major >= 3 || request.VersionPolicy == HttpVersionPolicy.RequestVersionOrHigher)
+        {
+            throw new SsrfProtectionException(
+                "A request that may use HTTP/3 can't be guarded: ask for HTTP/2 or lower, or exactly the version asked for.");
+        }
+
+        // Track the current URI and method across hops: the URI each hop names, for correct relative redirect
+        // resolution, and the current method for correct method transitions (e.g., POST→301→GET→307 should preserve
+        // GET, not the original POST).
         var currentUri = request.RequestUri!;
         var currentMethod = request.Method;
 
+        // The first hop is checked before anything is buffered, so a refused request reads none of its body.
+        var address = await CheckAsync(currentUri, cancellationToken).ConfigureAwait(false);
+
         // A redirect keeping the method sends the body again, and a body read from a stream can be sent only once:
-        // its bytes and content headers are kept here, and every hop that keeps the method gets fresh content
-        // built from them (each hop's request, and its content, is disposed once the next hop replaces it).
+        // the content is buffered, its bytes and content headers are kept here, and every hop that keeps the method
+        // gets fresh content built from them (each hop's request, and its content, is disposed once the next hop
+        // replaces it). The body is held twice in memory: the request's buffer and the copy.
         byte[]? body = null;
         KeyValuePair<string, IEnumerable<string>>[] bodyHeaders = [];
         if (FollowRedirects && request.Content is not null)
@@ -93,7 +105,7 @@ internal class SsrfProtectionHandler : DelegatingHandler
             bodyHeaders = [.. request.Content.Headers];
         }
 
-        var response = await ValidateAndSendAsync(request, cancellationToken).ConfigureAwait(false);
+        var response = await SendCheckedAsync(request, address, cancellationToken).ConfigureAwait(false);
 
         if (!FollowRedirects)
         {
@@ -151,7 +163,8 @@ internal class SsrfProtectionHandler : DelegatingHandler
 
             try
             {
-                response = await ValidateAndSendAsync(hop, cancellationToken).ConfigureAwait(false);
+                response = await SendCheckedAsync(
+                    hop, await CheckAsync(redirectUri, cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
             }
             catch
             {
@@ -159,8 +172,8 @@ internal class SsrfProtectionHandler : DelegatingHandler
                 throw;
             }
 
-            // Update tracking for next iteration: use the pre-rewrite URI
-            // (redirectUri is not mutated by ValidateAndSendAsync)
+            // Update tracking for next iteration: use the URI the hop names (redirectUri is not mutated by
+            // SendCheckedAsync)
             currentUri = redirectUri;
             currentMethod = redirectMethod;
         }
@@ -169,14 +182,35 @@ internal class SsrfProtectionHandler : DelegatingHandler
     }
 
     /// <summary>
-    /// Validates the request URI against SSRF rules and sends the request via the inner handler.
+    /// Refuses a request the guard can't vouch for: one it wasn't set up for, or whose primary handler was replaced or
+    /// changed after <see cref="SsrfPrimaryHandlerFilter"/> set it up.
     /// </summary>
-    private async Task<HttpResponseMessage> ValidateAndSendAsync(
-        HttpRequestMessage request,
-        CancellationToken cancellationToken)
+    private void EnsureSender()
     {
-        var uri = request.RequestUri!;
+        if (Sender is null)
+        {
+            throw new InvalidOperationException("SSRF protection has no primary handler set up; add it with AddSsrfProtection.");
+        }
 
+        var handler = InnerHandler;
+        while (!ReferenceEquals(handler, Sender) && handler is DelegatingHandler { InnerHandler: var inner })
+        {
+            handler = inner;
+        }
+
+        if (!ReferenceEquals(handler, Sender) ||
+            Sender is SocketsHttpHandler { AllowAutoRedirect: true } or SocketsHttpHandler { UseCookies: true })
+        {
+            throw new InvalidOperationException(
+                "SSRF protection's primary handler was replaced or changed after it was set up.");
+        }
+    }
+
+    /// <summary>
+    /// Resolves the request URI's host and checks every address it resolves to, returning the one to send to.
+    /// </summary>
+    private async Task<IPAddress> CheckAsync(Uri uri, CancellationToken cancellationToken)
+    {
         // A name in its ASCII (punycode) form, as DNS and the Host header need it: SocketsHttpHandler refuses a header
         // that isn't ASCII. An IP address keeps its brackets, as a Host header needs them for IPv6.
         var host = uri.HostNameType == UriHostNameType.Dns ? uri.IdnHost : uri.Host;
@@ -205,24 +239,35 @@ internal class SsrfProtectionHandler : DelegatingHandler
         }
 
         // Pick the first valid IPv4 address (prefer IPv4 for compatibility)
-        var selectedIp = resolvedAddresses
+        return resolvedAddresses
             .Select(a => a.IsIPv4MappedToIPv6 ? a.MapToIPv4() : a)
             .FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork)
             ?? resolvedAddresses.First();
+    }
 
-        // Rewrite the request URI to use the IP directly, preserving the Host header
-        var builder = new UriBuilder(uri)
-        {
-            Host = selectedIp.ToString()
-        };
+    /// <summary>
+    /// Sends a request to the <paramref name="address"/> <see cref="CheckAsync"/> checked for it via the inner handler.
+    /// </summary>
+    private async Task<HttpResponseMessage> SendCheckedAsync(
+        HttpRequestMessage request,
+        IPAddress address,
+        CancellationToken cancellationToken)
+    {
+        var uri = request.RequestUri!;
 
-        // Preserve the original Host header for TLS SNI and virtual hosting
+        // Addressed to the checked IP, so nothing below resolves the name again; the Host header keeps the name, for
+        // TLS (the name it asks for and checks the certificate against), virtual hosting and telemetry. A Host header
+        // the caller set is kept.
         if (!request.Headers.Contains("Host"))
         {
+            var host = uri.HostNameType == UriHostNameType.Dns ? uri.IdnHost : uri.Host;
             request.Headers.Host = uri.IsDefaultPort ? host : $"{host}:{uri.Port}";
         }
 
-        var sent = builder.Uri;
+        var sent = new UriBuilder(uri)
+        {
+            Host = address.AddressFamily == AddressFamily.InterNetworkV6 ? $"[{address}]" : address.ToString(),
+        }.Uri;
         request.RequestUri = sent;
 
         HttpResponseMessage response;
@@ -236,18 +281,19 @@ internal class SsrfProtectionHandler : DelegatingHandler
             throw;
         }
 
-        // A handler below that followed a redirect itself (a primary handler still allowing automatic redirects)
-        // answers for a destination this guard never checked: refuse the answer rather than hand it back.
+        // A handler below that readdressed the request, or followed a redirect itself, has sent it somewhere this
+        // guard never checked. The request has already gone out by then; the answer is refused rather than handed back.
         if (request.RequestUri != sent || (response.RequestMessage ?? request).RequestUri != sent)
         {
             response.Dispose();
-            _logger.LogWarning("SSRF protection refused a response from {Host} that a handler below it redirected", host);
+            request.RequestUri = uri;
+            _logger.LogWarning("SSRF protection refused a response from {Host} that a handler below it readdressed", uri.IdnHost);
             throw new SsrfProtectionException(
-                $"The request to '{host}' was redirected below SSRF protection; automatic redirects must be off on the primary handler.");
+                $"The request to '{uri.IdnHost}' was readdressed below SSRF protection, and its response was refused.");
         }
 
-        // The connection went to the checked address; the caller's request, and the response's, name the host again,
-        // so a caller resolving a relative Location against them reaches the host it asked for.
+        // The request names the host again, so a caller resolving a relative Location against it, or against the
+        // response's request, reaches the host it asked for.
         request.RequestUri = uri;
         if (response.RequestMessage is { } answered && answered.RequestUri == sent)
         {
@@ -311,7 +357,7 @@ internal class SsrfProtectionHandler : DelegatingHandler
 
         try
         {
-            return await _resolve(host, cancellationToken).ConfigureAwait(false);
+            return await _resolver.ResolveAsync(host, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is SocketException or ArgumentOutOfRangeException)
         {

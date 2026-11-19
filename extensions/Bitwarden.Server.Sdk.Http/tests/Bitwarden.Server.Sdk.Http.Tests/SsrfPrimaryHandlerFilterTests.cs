@@ -1,37 +1,59 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Bitwarden.Server.Sdk.Http.Tests;
 
 /// <summary>
-/// The filter turns automatic redirects off on a guarded client's sending handler after every other configuration
-/// has run, and leaves other clients, and a client the guard doesn't apply to, as they were.
+/// The filter puts a guarded client's guard below every handler the client adds, and, after every other configuration
+/// has run, turns its sending handler's redirects and cookies off and hands that handler to the guard; it leaves other
+/// clients, and a client the guard doesn't apply to, as they were.
 /// </summary>
 public sealed class SsrfPrimaryHandlerFilterTests
 {
     [Fact]
-    public void ASocketsHandler_StopsFollowingRedirects()
+    public void ASocketsHandler_StopsFollowingRedirectsAndKeepingCookies()
     {
         var primary = new SocketsHttpHandler();
+        var builder = Builder("guarded", primary);
 
-        Run(new SsrfPrimaryHandlerFilter("guarded", _ => true), Builder("guarded", primary));
+        Run(new SsrfPrimaryHandlerFilter("guarded", _ => true), builder);
 
         Assert.False(primary.AllowAutoRedirect);
+        Assert.False(primary.UseCookies);
+        Assert.Same(primary, GuardOf(builder).Sender);
     }
 
+    // A proxy the handler names is the one it keeps.
     [Fact]
-    public void AnHttpClientHandler_StopsFollowingRedirects()
+    public void AProxyTheHandlerNames_IsKept()
     {
-        using var primary = new HttpClientHandler();
+        var proxy = new System.Net.WebProxy("http://proxy.test:3128");
+        var primary = new SocketsHttpHandler { Proxy = proxy };
 
         Run(new SsrfPrimaryHandlerFilter("guarded", _ => true), Builder("guarded", primary));
 
-        Assert.False(primary.AllowAutoRedirect);
+        Assert.Same(proxy, primary.Proxy);
     }
 
-    // The configuration before it runs first, so a primary handler it sets is the one turned off.
+    // The guard goes below every handler the client added, whenever it was added, so they run once for each request
+    // and never for a redirect the guard follows.
     [Fact]
-    public void APrimaryHandlerSetByAnEarlierConfiguration_StopsFollowingRedirects()
+    public void TheGuard_GoesBelowEveryOtherHandler()
+    {
+        var builder = Builder("guarded", new SocketsHttpHandler());
+        var guard = GuardOf(builder);
+        var later = new HandingOn();
+        builder.AdditionalHandlers.Add(later);
+
+        Run(new SsrfPrimaryHandlerFilter("guarded", _ => true), builder);
+
+        Assert.Equal([later, guard], builder.AdditionalHandlers);
+    }
+
+    // The configuration before it runs first, so a primary handler it sets is the one set up.
+    [Fact]
+    public void APrimaryHandlerSetByAnEarlierConfiguration_IsSetUp()
     {
         var primary = new SocketsHttpHandler();
         var builder = Builder("guarded", new SocketsHttpHandler());
@@ -39,18 +61,16 @@ public sealed class SsrfPrimaryHandlerFilterTests
         new SsrfPrimaryHandlerFilter("guarded", _ => true).Configure(next => next.PrimaryHandler = primary)(builder);
 
         Assert.False(primary.AllowAutoRedirect);
+        Assert.Same(primary, GuardOf(builder).Sender);
     }
 
-    // A primary handler handing requests on is followed, through every layer, to the one that sends them.
+    // A handler wrapping the one that sends would sit below the guard and see every redirect hop.
     [Fact]
-    public void HandlersHandingRequestsOn_AreFollowedToTheSender()
+    public void AWrappedSocketsHandler_Throws()
     {
-        var sender = new SocketsHttpHandler();
-        var primary = new HandingOn(new HandingOn(sender));
+        var builder = Builder("guarded", new HandingOn(new SocketsHttpHandler()));
 
-        Run(new SsrfPrimaryHandlerFilter(null, _ => true), Builder("any", primary));
-
-        Assert.False(sender.AllowAutoRedirect);
+        Assert.Throws<InvalidOperationException>(() => Run(new SsrfPrimaryHandlerFilter("guarded", _ => true), builder));
     }
 
     // With no name every client is guarded; with one, only that client.
@@ -72,7 +92,7 @@ public sealed class SsrfPrimaryHandlerFilterTests
     public void WhereTheGuardDoesNotApply_TheHandlerIsLeftAlone()
     {
         var primary = new SocketsHttpHandler();
-        var builder = Builder("guarded", primary);
+        var builder = Builder("guarded", primary, guarded: false);
         IServiceProvider? asked = null;
 
         Run(new SsrfPrimaryHandlerFilter("guarded", services =>
@@ -82,33 +102,94 @@ public sealed class SsrfPrimaryHandlerFilterTests
         }), builder);
 
         Assert.True(primary.AllowAutoRedirect);
+        Assert.True(primary.UseCookies);
         Assert.Same(builder.Services, asked);
     }
 
-    // A handler with no redirect switch, a fake standing in for the network, is left as it is.
+    // A client whose handlers were cleared after the guard was added (a test answering in process) is left as it is.
     [Fact]
-    public void AHandlerWithoutARedirectSwitch_IsLeftAsItIs()
+    public void AClientWithoutItsGuard_IsLeftAlone()
     {
-        var primary = new Answering();
+        var primary = new SocketsHttpHandler();
+
+        Run(new SsrfPrimaryHandlerFilter("guarded", _ => true), Builder("guarded", primary, guarded: false));
+
+        Assert.True(primary.AllowAutoRedirect);
+        Assert.True(primary.UseCookies);
+    }
+
+    // A client guarded twice is set up twice, the second time as the first left it.
+    [Fact]
+    public void TwoFilters_SetTheClientUpOnce()
+    {
+        var primary = new SocketsHttpHandler();
         var builder = Builder("guarded", primary);
 
+        Run(new SsrfPrimaryHandlerFilter(null, _ => true), builder);
         Run(new SsrfPrimaryHandlerFilter("guarded", _ => true), builder);
 
-        Assert.Same(primary, builder.PrimaryHandler);
+        Assert.Same(primary, GuardOf(builder).Sender);
+        Assert.Single(builder.AdditionalHandlers);
+    }
+
+    // Only a SocketsHttpHandler is set up: any other handler fails the client's creation, naming it, rather than
+    // going unguarded.
+    [Fact]
+    public void AnHttpClientHandler_Throws()
+    {
+        using var primary = new HttpClientHandler();
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => Run(new SsrfPrimaryHandlerFilter("guarded", _ => true), Builder("guarded", primary)));
+
+        Assert.Contains("'guarded'", exception.Message, StringComparison.Ordinal);
+        Assert.Contains(nameof(HttpClientHandler), exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AHandlerThatIsNotASocketsHandler_Throws()
+    {
+        Assert.Throws<InvalidOperationException>(
+            () => Run(new SsrfPrimaryHandlerFilter("guarded", _ => true), Builder("guarded", new Answering())));
+    }
+
+    // A ConnectCallback of the client's own is kept: every request reaches it addressed to the checked address.
+    [Fact]
+    public void ASocketsHandlerWithItsOwnConnectCallback_IsKept()
+    {
+        Func<SocketsHttpConnectionContext, CancellationToken, ValueTask<Stream>> connect =
+            (_, _) => throw new InvalidOperationException("Never connects.");
+        var primary = new SocketsHttpHandler { ConnectCallback = connect };
+
+        Run(new SsrfPrimaryHandlerFilter("guarded", _ => true), Builder("guarded", primary));
+
+        Assert.Same(connect, primary.ConnectCallback);
     }
 
     private static void Run(SsrfPrimaryHandlerFilter filter, HttpMessageHandlerBuilder builder) =>
         filter.Configure(_ => { })(builder);
 
-    private static FakeBuilder Builder(string name, HttpMessageHandler primary) =>
-        new() { Name = name, PrimaryHandler = primary };
+    private static SsrfProtectionHandler GuardOf(HttpMessageHandlerBuilder builder) =>
+        builder.AdditionalHandlers.OfType<SsrfProtectionHandler>().Single();
+
+    private static FakeBuilder Builder(string name, HttpMessageHandler primary, bool guarded = true)
+    {
+        var builder = new FakeBuilder { Name = name, PrimaryHandler = primary };
+        if (guarded)
+        {
+            builder.AdditionalHandlers.Add(
+                new SsrfProtectionHandler(NullLogger<SsrfProtectionHandler>.Instance, builder.Services.GetRequiredService<SsrfResolver>()));
+        }
+
+        return builder;
+    }
 
     /// <summary>
-    /// A handler builder holding what a configuration sets, with no services of its own.
+    /// A handler builder holding what a configuration sets, with the guard's resolver as its only service.
     /// </summary>
     private sealed class FakeBuilder : HttpMessageHandlerBuilder
     {
-        private readonly ServiceProvider _services = new ServiceCollection().BuildServiceProvider();
+        private readonly ServiceProvider _services = new ServiceCollection().AddSingleton<SsrfResolver>().BuildServiceProvider();
 
         public override string? Name { get; set; }
 
@@ -121,7 +202,17 @@ public sealed class SsrfPrimaryHandlerFilterTests
         public override HttpMessageHandler Build() => CreateHandlerPipeline(PrimaryHandler, AdditionalHandlers);
     }
 
-    private sealed class HandingOn(HttpMessageHandler inner) : DelegatingHandler(inner);
+    private sealed class HandingOn : DelegatingHandler
+    {
+        public HandingOn()
+        {
+        }
+
+        public HandingOn(HttpMessageHandler inner)
+            : base(inner)
+        {
+        }
+    }
 
     private sealed class Answering : HttpMessageHandler
     {
