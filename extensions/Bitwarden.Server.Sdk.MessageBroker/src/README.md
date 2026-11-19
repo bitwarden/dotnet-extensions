@@ -210,5 +210,5 @@ The RabbitMQ tests run against the `rabbitmq` image unless `MESSAGING_TESTS_AMQP
 another AMQP 0-9-1 broker's image. CI runs them on LavinMQ as well:
 
 ```bash
-MESSAGING_TESTS_AMQP_IMAGE=cloudamqp/lavinmq:2.10.4 dotnet run -- --filter-class "*.RabbitBehaviorTests" --filter-class "*.RabbitCommandBehaviorTests"
+MESSAGING_TESTS_AMQP_IMAGE=cloudamqp/lavinmq:2.10.4@sha256:2d92aa41dda178e18ed1d64d3b48af47273a4c2134e82f61fcbc112797c378a9 dotnet run -- --filter-class "*.RabbitBehaviorTests" --filter-class "*.RabbitCommandBehaviorTests"
 ```
