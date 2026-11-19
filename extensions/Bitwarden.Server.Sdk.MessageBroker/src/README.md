@@ -72,7 +72,8 @@ The library does not provision RabbitMQ topology; operators pre-declare it (see
 expected shape is driven by two design choices:
 
 - **Quorum queues** for subscriber queues. The `x-delivery-count` header on quorum queues
-  (RabbitMQ 3.12+) is what `RabbitSubscriber` reads into `Envelope<TPayload, TCeiling>.DeliveryCount`. Classic
+  (RabbitMQ 3.12+, and LavinMQ, which sends it as a 32-bit integer where RabbitMQ sends a 64-bit one)
+  is what `RabbitSubscriber` reads into `Envelope<TPayload, TCeiling>.DeliveryCount`. Classic
   queues only expose a boolean `redelivered` flag, which is not enough to drive delivery-limit
   behavior.
 - **Topic exchanges** per topic, with one durable queue per subscription bound to the exchange
@@ -180,3 +181,10 @@ containers. Use `dotnet run` rather than `dotnet test`; this is an xUnit v3 proj
 
 The test suite covers all three backends via the shared `BehaviorTests` base class.
 Channel-specific tests (drain on shutdown, queue depth gauge) live in `ChannelBehaviorTests`.
+
+The RabbitMQ tests run against the `rabbitmq` image unless `MESSAGING_TESTS_AMQP_IMAGE` names
+another AMQP 0-9-1 broker's image. CI runs them on LavinMQ as well:
+
+```bash
+MESSAGING_TESTS_AMQP_IMAGE=cloudamqp/lavinmq:2.10.4@sha256:2d92aa41dda178e18ed1d64d3b48af47273a4c2134e82f61fcbc112797c378a9 dotnet run -- --filter-class "*.RabbitBehaviorTests"
+```
