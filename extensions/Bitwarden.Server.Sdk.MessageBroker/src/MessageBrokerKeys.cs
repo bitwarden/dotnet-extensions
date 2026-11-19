@@ -19,4 +19,14 @@ public static class MessageBrokerKeys
     public static string Publisher<TPayload>(string topic)
         where TPayload : IPayloadWireName<TPayload>
         => $"{topic}#{TPayload.WireName}";
+
+    /// <summary>
+    /// The service key under which an app registers the <c>Azure.Core.TokenCredential</c>
+    /// the message broker uses for an Azure Service Bus namespace
+    /// (<see cref="MessagingOptions.AzureServiceBusFullyQualifiedNamespace"/>):
+    /// <c>services.AddKeyedSingleton&lt;TokenCredential&gt;(MessageBrokerKeys.Credential, credential)</c>.
+    /// Required with a namespace. Keyed, so a credential registered for something else is never used
+    /// for the broker.
+    /// </summary>
+    public const string Credential = "Bitwarden.Server.Sdk.MessageBroker";
 }

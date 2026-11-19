@@ -12,7 +12,7 @@ internal sealed record ChannelConsumerDescriptor(Type MessageType, string Subscr
 /// <summary>
 /// Validates at startup that every channel subscriber has a corresponding
 /// <see cref="IMessageConsumer{TPayload, TCeiling}"/> hosted service. Only runs when the in-memory channel
-/// backend is active (no Azure Service Bus or Rabbit connection string configured).
+/// backend is active (neither Azure Service Bus, by connection string or namespace, nor RabbitMQ configured).
 /// </summary>
 internal sealed class ChannelConsumerValidationService(
     IOptions<MessagingOptions> options,
@@ -22,7 +22,7 @@ internal sealed class ChannelConsumerValidationService(
     public Task StartAsync(CancellationToken cancellationToken)
     {
         var opts = options.Value;
-        if (!string.IsNullOrEmpty(opts.AzureServiceBusConnectionString) ||
+        if (opts.UsesAzureServiceBus ||
             !string.IsNullOrEmpty(opts.RabbitUri))
             return Task.CompletedTask;
 
