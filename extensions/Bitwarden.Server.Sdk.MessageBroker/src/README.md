@@ -67,7 +67,7 @@ Setting both raises `OptionsValidationException` at startup via `MessagingOption
 | `ResubscribeLoop.cs`                                           | Keeps a hosted consumer subscribing again, with backoff, through broker outages  |
 | `RetryDelay.cs`                                                | The wait after a consumer throws, before the message is redelivered              |
 | `SubscriptionReadiness.cs`                                     | The readiness check: whether each hosted consumer is receiving                   |
-| `TopologyCheck.cs`                                             | The startup check that the topology a service needs exists                       |
+| `TopologyStartup.cs`                                           | Creates, or checks, the topology a service needs as it starts                    |
 | `ConsumerRetryOptions.cs`                                      | Per-subscription and per-queue retry settings; by default a failure isn't retried |
 | `IMessageEscrowStore.cs`                                       | Public interface for durable message escrow on shutdown                          |
 | `ChannelPublisher.cs` / `ChannelSubscriber.cs`                 | In-memory backend                                                                |
@@ -87,8 +87,9 @@ Setting both raises `OptionsValidationException` at startup via `MessagingOption
 
 ## RabbitMQ topology
 
-The library does not provision RabbitMQ topology; operators pre-declare it (see
-[BROKER-TOPOLOGY.md](BROKER-TOPOLOGY.md) for the required exchanges, queues, bindings, and policies). The
+A service creates its RabbitMQ topology as it starts when `AutoProvisionTopology` is on (unset, when it is
+self-hosted); otherwise operators pre-declare it (see [BROKER-TOPOLOGY.md](BROKER-TOPOLOGY.md) for the
+required exchanges, queues, bindings, and policies). The
 expected shape is driven by two design choices:
 
 - **Quorum queues** for subscriber queues. The `x-delivery-count` header on quorum queues
@@ -213,5 +214,5 @@ The RabbitMQ tests run against `rabbitmq:4.3.6`, the version the self-hosted ins
 another AMQP 0-9-1 broker's image. CI runs them on LavinMQ as well:
 
 ```bash
-MESSAGING_TESTS_AMQP_IMAGE=cloudamqp/lavinmq:2.10.4@sha256:2d92aa41dda178e18ed1d64d3b48af47273a4c2134e82f61fcbc112797c378a9 dotnet run -- --filter-class "*.RabbitBehaviorTests" --filter-class "*.RabbitCommandBehaviorTests" --filter-class "*.RabbitOutageTests" --filter-class "*.RabbitTopologyCheckTests"
+MESSAGING_TESTS_AMQP_IMAGE=cloudamqp/lavinmq:2.10.4@sha256:2d92aa41dda178e18ed1d64d3b48af47273a4c2134e82f61fcbc112797c378a9 dotnet run -- --filter-class "*.RabbitBehaviorTests" --filter-class "*.RabbitCommandBehaviorTests" --filter-class "*.RabbitOutageTests" --filter-class "*.RabbitTopologyCheckTests" --filter-class "*.RabbitProvisioningTests"
 ```

@@ -14,14 +14,17 @@ internal sealed class CommandQueueService : BackgroundService
     private readonly Dictionary<string, CommandFamilyHandler> _handlers;
     private readonly ILogger<CommandQueueService> _logger;
     private readonly SubscriptionReadiness _readiness;
+    private readonly TopologyGate _topology;
 
     public CommandQueueService(
         string queueName,
         ICommandQueueReceiver receiver,
         IEnumerable<CommandFamilyHandler> handlers,
         ILogger<CommandQueueService> logger,
-        SubscriptionReadiness readiness)
+        SubscriptionReadiness readiness,
+        TopologyGate topology)
     {
+        _topology = topology;
         _readiness = readiness;
         readiness.Expect(queueName);
         _queueName = queueName;
@@ -31,7 +34,7 @@ internal sealed class CommandQueueService : BackgroundService
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
-        ResubscribeLoop.RunAsync(ReceiveAsync, _logger, _queueName, _readiness, TimeProvider.System, stoppingToken);
+        ResubscribeLoop.RunAsync(ReceiveAsync, _logger, _queueName, _readiness, _topology, TimeProvider.System, stoppingToken);
 
     private async Task ReceiveAsync(Action onSubscribed, Action onMessage, CancellationToken stoppingToken)
     {

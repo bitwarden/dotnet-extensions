@@ -22,6 +22,7 @@ internal static class ResubscribeLoop
     /// <param name="logger">The logger for the consumer.</param>
     /// <param name="source">The topic subscription or command queue being consumed.</param>
     /// <param name="readiness">Told when the consumer is receiving and when it is failing.</param>
+    /// <param name="topology">Waited for before the first attempt.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="stoppingToken">The token that stops the loop.</param>
     internal static async Task RunAsync(
@@ -29,9 +30,22 @@ internal static class ResubscribeLoop
         ILogger logger,
         string source,
         SubscriptionReadiness readiness,
+        TopologyGate? topology,
         TimeProvider timeProvider,
         CancellationToken stoppingToken)
     {
+        if (topology is not null)
+        {
+            try
+            {
+                await topology.WaitAsync(stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
+
         var delay = InitialDelay;
         while (!stoppingToken.IsCancellationRequested)
         {

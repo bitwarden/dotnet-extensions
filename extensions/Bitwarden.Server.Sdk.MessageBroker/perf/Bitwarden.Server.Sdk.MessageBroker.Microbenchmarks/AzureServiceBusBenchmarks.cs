@@ -16,7 +16,7 @@ public class AzureServiceBusBenchmarks : MessageBrokerBenchmarks
 
     protected override async Task StartInfrastructureAsync()
     {
-        if (Environment.GetEnvironmentVariable("AZURE_SERVICE_BUS_CONNECTION_STRING") is not null)
+        if (System.Environment.GetEnvironmentVariable("AZURE_SERVICE_BUS_CONNECTION_STRING") is not null)
             return;
 
         _network = new NetworkBuilder().Build();
@@ -96,7 +96,7 @@ public class AzureServiceBusBenchmarks : MessageBrokerBenchmarks
 
     protected override Dictionary<string, string?> CreateConfig()
     {
-        var connectionString = Environment.GetEnvironmentVariable("AZURE_SERVICE_BUS_CONNECTION_STRING");
+        var connectionString = System.Environment.GetEnvironmentVariable("AZURE_SERVICE_BUS_CONNECTION_STRING");
         if (connectionString is null)
         {
             var port = _emulatorContainer!.GetMappedPublicPort(5672);

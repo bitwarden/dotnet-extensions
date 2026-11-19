@@ -15,6 +15,7 @@ internal sealed class ConsumerBackgroundService<TPayload, TCeiling, TConsumer> :
     where TCeiling : Payload<TPayload>.ICeiling
     where TConsumer : class, IMessageConsumer<TPayload, TCeiling>
 {
+    private readonly TopologyGate _topology;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ISubscriber<TPayload, TCeiling> _subscriber;
     private readonly ILogger _logger;
@@ -28,10 +29,12 @@ internal sealed class ConsumerBackgroundService<TPayload, TCeiling, TConsumer> :
     /// <param name="subscriptionKey">The <c>{topic}/{subscription}</c> being consumed.</param>
     /// <param name="readiness">The readiness the subscription reports to.</param>
     /// <param name="retry">The retry options, named by <paramref name="subscriptionKey"/>.</param>
+    /// <param name="topology">Opens once the service has provisioned its topology, when it does.</param>
     public ConsumerBackgroundService(
         IServiceScopeFactory scopeFactory, ISubscriber<TPayload, TCeiling> subscriber, ILogger logger, string subscriptionKey,
-        IOptionsMonitor<ConsumerRetryOptions> retry, SubscriptionReadiness readiness)
+        IOptionsMonitor<ConsumerRetryOptions> retry, SubscriptionReadiness readiness, TopologyGate topology)
     {
+        _topology = topology;
         _readiness = readiness;
         // Before the service runs, so the check never reports healthy before it starts.
         readiness.Expect(subscriptionKey);
@@ -43,7 +46,7 @@ internal sealed class ConsumerBackgroundService<TPayload, TCeiling, TConsumer> :
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
-        ResubscribeLoop.RunAsync(ReceiveAsync, _logger, _subscriptionKey, _readiness, TimeProvider.System, stoppingToken);
+        ResubscribeLoop.RunAsync(ReceiveAsync, _logger, _subscriptionKey, _readiness, _topology, TimeProvider.System, stoppingToken);
 
     private async Task ReceiveAsync(Action onSubscribed, Action onMessage, CancellationToken stoppingToken)
     {

@@ -103,23 +103,33 @@ else raises a validation error at startup.
 MessageBroker supports three brokers, chosen through configuration: Azure Service Bus, RabbitMQ and
 LavinMQ. Services don't depend on which one is in use.
 
-The library does not provision broker topology. For the Azure Service Bus, RabbitMQ and LavinMQ backends,
-the exchanges, queues, topics, subscriptions, and related filters / policies must be declared on
-the broker before the application starts. See
+A self-hosted service creates the topics, queues and subscriptions it needs as it starts; in the
+cloud, infrastructure-as-code creates them before release. `AutoProvisionTopology` switches either
+way.
+
+See
 [BROKER-TOPOLOGY.md](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/BROKER-TOPOLOGY.md)
 for the required shapes, defensive behavior when topology is misconfigured, and a worked
-`definitions.json` example.
+`definitions.json` example for provisioning it yourself.
 
 Every registration also declares the topology it needs as infrastructure requirements (kinds on
 `MessagingRequirements`), so provisioning can be generated from a service's startup; see
 [BROKER-TOPOLOGY.md](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/BROKER-TOPOLOGY.md#collecting-a-services-topology).
 
-Once a service first reaches its broker, it checks that every topic, subscription and queue it
-needs exists, and if not stops with exit code 1, naming what is missing; an unreachable broker
-doesn't stop it. Set
-`VerifyTopologyAtStartup` to `false` to turn the check off, for example in tests that declare their
-topology after the host starts. See
-[BROKER-TOPOLOGY.md](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/BROKER-TOPOLOGY.md#checking-the-topology-at-startup).
+Those requirements are also what a service creates or checks once it first reaches its broker:
+
+- **`AutoProvisionTopology`:** whether the service creates what is missing. It needs the rights to
+  create them, and holds them while it runs (on Azure Service Bus, the Manage right over the whole
+  namespace). Unset, a self-hosted service (`IBitwardenEnvironment.SelfHosted`) provisions and any
+  other doesn't.
+- **`VerifyTopologyAtStartup`:** whether a service that doesn't provision checks that its topology
+  exists. On by default; turn it off, for example, in tests that declare their topology after the host
+  starts.
+
+If an object is missing, or the service can't create it, the service logs one critical message naming
+each and stops with exit code 1. An unreachable broker doesn't stop it; it waits until the broker
+answers. See
+[BROKER-TOPOLOGY.md](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/BROKER-TOPOLOGY.md#creating-or-checking-the-topology-at-startup).
 
 ## Defining a payload
 

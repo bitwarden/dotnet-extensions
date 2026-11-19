@@ -15,33 +15,88 @@ LavinMQ. Services don't depend on which one is in use.
 | Self-host  | RabbitMQ 4.3.6    | Azure Service Bus, LavinMQ 2.10.4      |
 | Lite       | LavinMQ 2.10.4    | Azure Service Bus, RabbitMQ 4.3.6      |
 
-Topics, queues and subscriptions must exist before the services start. With a broker other than the
-default, the operator sets them up from the release's broker topology before each upgrade. A service
-that finds them missing stops at startup and names what is missing.
+A self-hosted service creates the topics, queues and subscriptions it needs as it starts, so a
+self-hosted install's broker needs no setup. In the cloud, infrastructure-as-code creates them before
+release. An operator can switch either way with
+`AutoProvisionTopology`; a service that doesn't create its topology checks it at startup, and stops,
+naming what is missing.
 
 RabbitMQ and LavinMQ share one backend in the library (the `Rabbit*` types, configured with
 `RabbitUri`); see [RabbitMQ and LavinMQ](#rabbitmq-and-lavinmq).
 
 ## Provisioning
 
-The library does not provision broker topology. The exchanges, queues, topics, subscriptions, and
-related filters and policies must be declared on the broker before the application starts —
-typically as part of the broker container's bootstrap or via infrastructure-as-code.
+A self-hosted service creates its own topology as it starts (see
+[Creating or checking the topology at startup](#creating-or-checking-the-topology-at-startup)). Otherwise
+the exchanges, queues, topics, subscriptions, and related filters and policies must be declared on the
+broker before the application starts, through infrastructure-as-code or the broker's definitions.
 
 A broker topic carries messages from many payload families. Publishers stamp every outgoing message with
 their family wire name (`IPayloadWireName<TPayload>.WireName`) so subscriptions can bind or filter
 down to the family they consume.
 
-## Checking the topology at startup
+## Creating or checking the topology at startup
 
-Once a service first reaches its broker, it checks that the topology its registrations need exists,
-from the same requirements listed under
-[Collecting a service's topology](#collecting-a-services-topology). If anything is missing, it logs
-one critical message naming each missing object and stops with exit code 1. A broker that can't be
-reached doesn't stop it: it logs a warning and checks again until the broker answers. Set
-`VerifyTopologyAtStartup` to `false` to turn the check off.
+Once a service first reaches its broker, it either creates the topology its registrations need or
+checks that it exists, from the same requirements listed under
+[Collecting a service's topology](#collecting-a-services-topology). Which one follows
+`AutoProvisionTopology`: unset, a self-hosted service (`IBitwardenEnvironment.SelfHosted`) creates its
+topology and any other checks it. If an object is missing, or the service can't create it, it logs one
+critical message naming each and stops with exit code 1. A broker that can't be reached doesn't stop
+it: it logs a warning and tries again until the broker answers.
 
-The check needs no rights beyond those the service already has (see
+### Creating it
+
+The service creates what is missing and leaves what exists alone, whoever made it, so topology an
+operator provisioned keeps its own settings, dead-lettering included:
+
+- its own topics;
+- its subscriptions, and on RabbitMQ and LavinMQ their bindings; on Azure Service Bus, a rule for
+  each family no rule of the subscription admits yet;
+- its command queues, and on RabbitMQ and LavinMQ their exchanges.
+
+It doesn't create the topics it subscribes to or the queues it sends to; their owners do, and a
+subscription whose topic doesn't exist yet waits for it. Its hosted consumers wait until it is done.
+Bindings and rules are made again on every start, so a family a release adds reaches an existing
+subscription; one the service may not make on an object it didn't create is left, with a warning.
+`MaxDeliveryCount` (default 10) is the delivery limit of what it creates.
+
+- **RabbitMQ and LavinMQ:** the shapes below, with one difference: each queue's delivery limit and
+  dead-lettering are queue arguments (`x-delivery-limit`, `x-dead-letter-exchange`,
+  `x-dead-letter-strategy`, `x-overflow`), not policies, because a service can't set policies over
+  AMQP. Each queue it creates dead-letters to an exchange and queue of its own, `dead-letter.{queue}`,
+  the names the example below uses. Arguments can't be changed on an existing queue; to change a limit
+  later, delete the queue or provision it yourself. The rights it needs are under
+  [Users and permissions](#users-and-permissions).
+- **Azure Service Bus:** the entities and settings described under
+  [Azure Service Bus](#azure-service-bus), with duplicate detection of ten minutes on topics and
+  command queues and a one-minute lock. It needs the Manage right: a connection string with a Manage
+  policy, or the Azure Service Bus Data Owner role. That right covers the whole namespace, and the
+  service holds it for as long as it runs (see [What provisioning costs](#what-provisioning-costs)).
+
+### What provisioning costs
+
+A service that creates its own topology holds the rights to create it for as long as it runs, as a
+self-hosted service holds the right to change its database schema. If it is compromised, so are those
+rights:
+
+- **RabbitMQ and LavinMQ:** `configure` lets it delete and recreate the objects it is granted it on,
+  losing their messages. Anchor the grants to its own names, as below, and it can harm only its own
+  objects. On LavinMQ it also needs `read` on every name (see
+  [Where RabbitMQ and LavinMQ differ](#where-rabbitmq-and-lavinmq-differ)), which lets it read every
+  queue.
+- **Azure Service Bus:** the Manage right lets it read, send to and delete every entity in the
+  namespace.
+
+Where that matters more than setting up nothing by hand, provision once, from the release's topology or
+by letting one start create it, then set `AutoProvisionTopology` to `false` and give each service only
+the rights under [Users and permissions](#users-and-permissions) and
+[Access with a managed identity](#access-with-a-managed-identity).
+
+### Checking it
+
+Set `VerifyTopologyAtStartup` to `false` to turn the check off. The check needs no rights beyond
+those the service already has (see
 [Users and permissions](#users-and-permissions) and
 [Access with a managed identity](#access-with-a-managed-identity)):
 
@@ -52,8 +107,8 @@ The check needs no rights beyond those the service already has (see
   such an object as missing or not permitted. It doesn't check bindings or policies.
 - **Azure Service Bus:** a peek at each of its subscriptions and its command queue, which needs only
   the receive rights it has. Its topics and the queues it only sends to can't be checked without the
-  Manage right, which no service should have; a missing one shows up as sends that fail with
-  `BrokerUnavailableException`.
+  Manage right, which a service that doesn't provision shouldn't have; a missing one shows up as sends
+  that fail with `BrokerUnavailableException`.
 
 ## Collecting a service's topology
 
@@ -80,13 +135,17 @@ Provisioning collects every service's list and checks it before granting anythin
   one: a non-owner could publish another service's events or read its commands.
 - **One owner per subscription.** Each topic and subscription pair appears under
   `messaging-subscription` for exactly one service, and its topic has an owner under
-  `messaging-topic`. Fail otherwise: two services on one subscription would take each other's
-  messages.
-- **No two declarations make the same broker object.** Fail if two declarations of any kinds produce
-  the same broker name, dead-letter exchanges and queues included. On RabbitMQ everything shares one
-  name space (a topic's exchange is `{topic}`, a subscription's queue `{topic}.{subscription}`, a
-  command queue and its exchange both `{queue}`), so the subscription `vault` on the topic
-  `notification` and the command queue `notification.vault` would be the same queue.
+  `messaging-topic`. Fail otherwise: two services on one subscription would each get receive rights
+  on it and take each other's messages.
+- **No two declarations make the same broker object.** Work out every name each declaration becomes
+  on the broker, and fail if two declarations of any kinds produce the same one. On RabbitMQ
+  everything shares one name space: a topic's exchange is `{topic}`, a subscription's queue is
+  `{topic}.{subscription}`, and a command queue and its exchange are both `{queue}`, so the
+  subscription `vault` on the topic `notification` and the command queue `notification.vault` would
+  be the same queue, and so would the subscription `b.c` on the topic `a` and the subscription `c`
+  on the topic `a.b`. The dead-letter exchange and queue of each subscription queue and command queue,
+  `dead-letter.{queue}`, count too: a command queue `x` and a subscription `x` on the topic
+  `dead-letter` would share `dead-letter.x`, so treat `dead-letter` as a reserved first name part.
 - **Send rights only where declared.** Grant send rights on a topic only to its owner, and on a
   queue only to the services that declare `messaging-command-send` for it.
 - **Senders match consumers.** Each `messaging-command-send` should name a family the queue's owner
@@ -183,8 +242,9 @@ where `UserCreatedPayload.WireName` is `"user.created"` and `UserDeletedPayload.
 
 - one topic exchange carries both families;
 - one quorum queue per subscription, bound with its family's wire name as routing key;
-- a dead-letter exchange and queue, whose names must not match a subscription queue's policy, or the
-  policy would apply to the dead-letter queue too and cycle its messages back through it;
+- a dead-letter exchange and queue for each subscription queue, `dead-letter.{queue}`, the names a
+  service that creates its own topology uses. Their names must not match a subscription queue's
+  policy, or the policy would apply to the dead-letter queue too and cycle its messages back through it;
 - one policy per subscription queue, matching its name exactly. A `delivery-limit` of 9 dead-letters
   a message after its tenth delivery.
 
@@ -199,26 +259,29 @@ see [Users and permissions](#users-and-permissions).
   ],
   "exchanges": [
     { "name": "user-events", "vhost": "/", "type": "topic", "durable": true, "auto_delete": false, "internal": false, "arguments": {} },
-    { "name": "dead-letter.user-events", "vhost": "/", "type": "fanout", "durable": true, "auto_delete": false, "internal": false, "arguments": {} }
+    { "name": "dead-letter.user-events.vault", "vhost": "/", "type": "fanout", "durable": true, "auto_delete": false, "internal": false, "arguments": {} },
+    { "name": "dead-letter.user-events.organizations", "vhost": "/", "type": "fanout", "durable": true, "auto_delete": false, "internal": false, "arguments": {} }
   ],
   "queues": [
     { "name": "user-events.vault", "vhost": "/", "durable": true, "auto_delete": false, "arguments": { "x-queue-type": "quorum" } },
     { "name": "user-events.organizations", "vhost": "/", "durable": true, "auto_delete": false, "arguments": { "x-queue-type": "quorum" } },
-    { "name": "dead-letter.user-events", "vhost": "/", "durable": true, "auto_delete": false, "arguments": { "x-queue-type": "quorum" } }
+    { "name": "dead-letter.user-events.vault", "vhost": "/", "durable": true, "auto_delete": false, "arguments": { "x-queue-type": "quorum" } },
+    { "name": "dead-letter.user-events.organizations", "vhost": "/", "durable": true, "auto_delete": false, "arguments": { "x-queue-type": "quorum" } }
   ],
   "bindings": [
     { "source": "user-events", "vhost": "/", "destination": "user-events.vault", "destination_type": "queue", "routing_key": "user.created", "arguments": {} },
     { "source": "user-events", "vhost": "/", "destination": "user-events.organizations", "destination_type": "queue", "routing_key": "user.deleted", "arguments": {} },
-    { "source": "dead-letter.user-events", "vhost": "/", "destination": "dead-letter.user-events", "destination_type": "queue", "routing_key": "", "arguments": {} }
+    { "source": "dead-letter.user-events.vault", "vhost": "/", "destination": "dead-letter.user-events.vault", "destination_type": "queue", "routing_key": "", "arguments": {} },
+    { "source": "dead-letter.user-events.organizations", "vhost": "/", "destination": "dead-letter.user-events.organizations", "destination_type": "queue", "routing_key": "", "arguments": {} }
   ],
   "policies": [
     {
       "vhost": "/", "name": "user-events.vault", "pattern": "^user-events\\.vault$", "apply-to": "queues", "priority": 0,
-      "definition": { "delivery-limit": 9, "dead-letter-exchange": "dead-letter.user-events", "dead-letter-strategy": "at-least-once", "overflow": "reject-publish" }
+      "definition": { "delivery-limit": 9, "dead-letter-exchange": "dead-letter.user-events.vault", "dead-letter-strategy": "at-least-once", "overflow": "reject-publish" }
     },
     {
       "vhost": "/", "name": "user-events.organizations", "pattern": "^user-events\\.organizations$", "apply-to": "queues", "priority": 0,
-      "definition": { "delivery-limit": 9, "dead-letter-exchange": "dead-letter.user-events", "dead-letter-strategy": "at-least-once", "overflow": "reject-publish" }
+      "definition": { "delivery-limit": 9, "dead-letter-exchange": "dead-letter.user-events.organizations", "dead-letter-strategy": "at-least-once", "overflow": "reject-publish" }
     }
   ]
 }
@@ -229,12 +292,27 @@ see [Users and permissions](#users-and-permissions).
 Give each service its own broker user, with only the rights its registrations declare (see
 [Collecting a service's topology](#collecting-a-services-topology)):
 
-- **configure:** none (`^$`). Services declare nothing; provisioning does.
+When the topology is provisioned for it:
+
+- **configure:** none (`^$`). It declares nothing.
 - **write:** its own topic exchanges, and the exchanges of the command queues it sends to.
 - **read:** its own subscription queues and its own command queue.
 
-Both brokers check these as regular expressions over resource names, so anchor them and escape the
-dots in names (`^user-events$`, `^notification\.commands$`).
+When it creates its own ([Creating it](#creating-it)), where `T` is each of its own topics, `S` each of
+its subscription queues (`{topic}.{subscription}`), `F` each topic it subscribes to, `Q` its command
+queue and `R` each queue it sends to:
+
+- **configure:** `T`, `S`, `dead-letter.S`, `Q`, `dead-letter.Q`.
+- **write:** `T`, `R`, `S`, `dead-letter.S`, `Q`, `dead-letter.Q`. A queue declared with a dead-letter
+  exchange needs `write` on that exchange, and binding a queue needs `write` on the queue.
+- **read:** `F`, `S`, `dead-letter.S`, `Q`, `dead-letter.Q`. Binding a queue needs `read` on the
+  exchange it binds to. On LavinMQ, `.*` instead (see
+  [Where RabbitMQ and LavinMQ differ](#where-rabbitmq-and-lavinmq-differ)).
+
+Both brokers check these as regular expressions over resource names, so anchor each name and escape
+its dots (`^user-events$`, `^notification\.commands$`,
+`^(user-events\.vault|dead-letter\.user-events\.vault)$`). A pattern such as `^dead-letter\.` would
+let a service delete every other service's dead-lettered messages.
 
 Remove the default `guest` user, or at least change its password and limit it, on both brokers:
 both official images accept `guest` from outside the container. A service sharing one administrator
@@ -270,6 +348,10 @@ name (`^notification\.commands$`). Don't grant service users `write` on the defa
 - **Permissions.** Both check `configure`, `write` and `read` against regular expressions over
   resource names, so the rights described under command queues apply to both. They differ on a
   passive declare of an object the user has no rights to: RabbitMQ refuses it (`403`) whether or not
-  the object exists, and LavinMQ answers `404` when it is missing.
+  the object exists, and LavinMQ answers as it would for anyone (`404` when it is missing). The
+  startup check reports a refusal as an object that is missing or not permitted. LavinMQ 2.10.4 also
+  refuses to declare a queue with a dead-letter exchange unless the user's `read` pattern matches any
+  name (`.*`); narrower patterns, even ones matching both the queue and its dead-letter exchange, are
+  refused, and RabbitMQ accepts them.
 
 CI runs the library's broker tests on both RabbitMQ 4.3.6 and LavinMQ 2.10.4.

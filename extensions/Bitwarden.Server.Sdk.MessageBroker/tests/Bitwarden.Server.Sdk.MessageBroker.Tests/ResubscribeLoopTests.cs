@@ -29,7 +29,7 @@ public class ResubscribeLoopTests
     private Task RunAsync(Func<Action, CancellationToken, Task> receiveAsync, CancellationToken stoppingToken) =>
         ResubscribeLoop.RunAsync(
             (_, onMessage, token) => receiveAsync(onMessage, token), _logger, "topic/subscription",
-            new SubscriptionReadiness(), _time, stoppingToken);
+            new SubscriptionReadiness(), null, _time, stoppingToken);
 
     [Fact]
     public async Task EachFailureInARowDoublesTheWait_UpToThirtySeconds()
