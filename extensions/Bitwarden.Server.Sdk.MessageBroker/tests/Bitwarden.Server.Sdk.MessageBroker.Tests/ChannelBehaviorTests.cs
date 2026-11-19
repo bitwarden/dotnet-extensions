@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 
@@ -32,11 +34,36 @@ public class ChannelBehaviorTests : BehaviorTests
     // the two pub-sub groups so CreateSecondaryInstanceAsync can return the same host.
     protected override Task<IHost> CreateInstanceAsync() => BuildHostAsync(services =>
     {
-        services.AddPublisher<MyItem>(TopicName);
-        services.AddSubscriber<MyItem>(TopicName, SubscriptionName);
-        services.AddSubscriber<MyItem>(TopicName, "pm");
-        services.AddSubscriber<MyItem>(TopicName, "sm");
+        services.AddPublisher<MyItemPayload, MyItem>(TopicName);
+        services.AddSubscriber<MyItemPayload, MyItem>(TopicName, SubscriptionName);
+        services.AddSubscriber<MyItemPayload, MyItem>(TopicName, "pm");
+        services.AddSubscriber<MyItemPayload, MyItem>(TopicName, "sm");
     });
+
+    // The in-memory backend counts deliveries against MessagingOptions.MaxDeliveryCount, then logs
+    // the message and discards it: it has no dead-letter queue.
+    protected override async Task<DeliveryLimitedSubscription> CreateDeliveryLimitedSubscriptionAsync()
+    {
+        var host = await BuildHostAsync(services =>
+        {
+            services.AddFakeLogging();
+            services.AddPublisher<MyItemPayload, MyItem>(TopicName);
+            services.AddSubscriber<MyItemPayload, MyItem>(TopicName, SubscriptionName);
+        });
+        var logs = host.Services.GetFakeLogCollector();
+        return new DeliveryLimitedSubscription(
+            host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey),
+            host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey),
+            host.Services.GetRequiredService<IOptions<MessagingOptions>>().Value.MaxDeliveryCount,
+            messageId =>
+            {
+                Assert.Contains(logs.GetSnapshot(), record =>
+                    record.Level == LogLevel.Warning
+                    && record.Message.Contains(messageId)
+                    && record.Message.Contains("exceeded the maximum delivery count"));
+                return Task.CompletedTask;
+            });
+    }
 
     // Channel does not support out-of-process communication; all participants share one host.
     protected override Task<IHost> CreateSecondaryInstanceAsync(IHost originalHost, string? subscriptionName = null) =>
@@ -48,12 +75,12 @@ public class ChannelBehaviorTests : BehaviorTests
         const int messageCount = 10;
 
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>(TopicName);
-        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItem>>(SubscriptionKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
         // Fill the channel before the subscriber starts so all messages sit buffered.
         for (var i = 0; i < messageCount; i++)
-            await publisher.PublishAsync(new MyItem(i), TestContext.Current.CancellationToken);
+            await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
 
         // Iterate without an external cancellation token — the enumerable must yield every
         // buffered message before completing when ApplicationStopping fires.
@@ -63,7 +90,7 @@ public class ChannelBehaviorTests : BehaviorTests
             await foreach (var envelope in subscriber.SubscribeAsync(CancellationToken.None))
             {
                 await envelope.CompleteAsync();
-                received.Add(envelope.Message.Id);
+                received.Add(envelope.Payload.Id);
             }
         }, TestContext.Current.CancellationToken);
 
@@ -84,14 +111,14 @@ public class ChannelBehaviorTests : BehaviorTests
         // depth rather than the sum of all pre-registered subscriptions.
         var host = await BuildHostAsync(services =>
         {
-            services.AddPublisher<MyItem>(TopicName);
-            services.AddSubscriber<MyItem>(TopicName, SubscriptionName);
+            services.AddPublisher<MyItemPayload, MyItem>(TopicName);
+            services.AddSubscriber<MyItemPayload, MyItem>(TopicName, SubscriptionName);
         });
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>(TopicName);
-        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItem>>(SubscriptionKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
         for (var i = 0; i < messageCount; i++)
-            await publisher.PublishAsync(new MyItem(i), TestContext.Current.CancellationToken);
+            await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(messageCount, ReadQueueDepth());
 
@@ -138,16 +165,16 @@ public class ChannelBehaviorTests : BehaviorTests
     public async Task UnsettledEnvelopeIsNotRequeued()
     {
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>(TopicName);
-        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItem>>(SubscriptionKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
-        await publisher.PublishAsync(new MyItem(1), TestContext.Current.CancellationToken);
-        await publisher.PublishAsync(new MyItem(2), TestContext.Current.CancellationToken);
+        await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
+        await publisher.Publish(new MyItem(2)).SendAsync(TestContext.Current.CancellationToken);
 
         // Receive the first without calling any settlement method.
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {
-            Assert.Equal(1, envelope.Message.Id);
+            Assert.Equal(1, envelope.Payload.Id);
             // Intentionally unsettled — no CompleteAsync, RequeueAsync, or DeadLetterAsync.
             break;
         }
@@ -155,7 +182,7 @@ public class ChannelBehaviorTests : BehaviorTests
         // The second message must be next; message 1 must not reappear.
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {
-            Assert.Equal(2, envelope.Message.Id);
+            Assert.Equal(2, envelope.Payload.Id);
             await envelope.CompleteAsync(TestContext.Current.CancellationToken);
             break;
         }
@@ -169,16 +196,16 @@ public class ChannelBehaviorTests : BehaviorTests
     public async Task DeadLetteredEnvelopeIsNotRequeued()
     {
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>(TopicName);
-        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItem>>(SubscriptionKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
-        await publisher.PublishAsync(new MyItem(1), TestContext.Current.CancellationToken);
-        await publisher.PublishAsync(new MyItem(2), TestContext.Current.CancellationToken);
+        await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
+        await publisher.Publish(new MyItem(2)).SendAsync(TestContext.Current.CancellationToken);
 
         // Receive and dead-letter the first.
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {
-            Assert.Equal(1, envelope.Message.Id);
+            Assert.Equal(1, envelope.Payload.Id);
             await envelope.DeadLetterAsync(cancellationToken: TestContext.Current.CancellationToken);
             break;
         }
@@ -186,7 +213,7 @@ public class ChannelBehaviorTests : BehaviorTests
         // The second message must be next; dead-lettered message 1 must not reappear.
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {
-            Assert.Equal(2, envelope.Message.Id);
+            Assert.Equal(2, envelope.Payload.Id);
             await envelope.CompleteAsync(TestContext.Current.CancellationToken);
             break;
         }
@@ -198,12 +225,12 @@ public class ChannelBehaviorTests : BehaviorTests
         const int messageCount = 5;
 
         var host = await CreateInstanceAsync();
-        var publisher = host.Services.GetRequiredKeyedService<IPublisher<MyItem>>(TopicName);
-        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItem>>(SubscriptionKey);
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
         // Fill the channel with messages before the subscriber starts.
         for (var i = 0; i < messageCount; i++)
-            await publisher.PublishAsync(new MyItem(i), TestContext.Current.CancellationToken);
+            await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
 
         // Cancel immediately — a user-owned token unrelated to ApplicationStopping.
         using var cts = new CancellationTokenSource();
@@ -215,7 +242,7 @@ public class ChannelBehaviorTests : BehaviorTests
             await foreach (var envelope in subscriber.SubscribeAsync(cts.Token))
             {
                 await envelope.CompleteAsync(TestContext.Current.CancellationToken);
-                received.Add(envelope.Message.Id);
+                received.Add(envelope.Payload.Id);
             }
         }
         catch (OperationCanceledException) { }

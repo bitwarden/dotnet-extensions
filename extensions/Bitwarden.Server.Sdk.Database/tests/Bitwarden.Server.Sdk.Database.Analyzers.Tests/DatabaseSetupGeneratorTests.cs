@@ -183,32 +183,74 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                 /// Registers MyDatabase migration services against the named options key "My".
                 /// </summary>
                 public static IServiceCollection AddMyDatabase(this IServiceCollection services)
+                    => services.AddMyDatabase(ConfigureProvider);
+
+                /// <summary>
+                /// Registers MyDatabase migration services against the named options key "My",
+                /// opening the context with the caller's provider configuration instead of the generated one.
+                /// </summary>
+                /// <param name="services">
+                /// The service collection to add to.
+                /// </param>
+                /// <param name="configureProvider">
+                /// Configures the EF Core provider for the engine that <see cref="DatabaseOptions.Provider"/> names, at
+                /// <see cref="DatabaseOptions.ConnectionString"/>. MyDatabase's migrations assembly is installed after
+                /// it runs, so each engine still gets only its own migrations.
+                /// </param>
+                public static IServiceCollection AddMyDatabase(
+                    this IServiceCollection services,
+                    global::System.Action<DatabaseOptions, DbContextOptionsBuilder> configureProvider)
                 {
+                    global::System.ArgumentNullException.ThrowIfNull(configureProvider);
                     services.Configure<SqlServerMigrationOptions>("My", o =>
                     {
                         o.ScriptPrefix = ScriptPrefix;
                     });
                     return services.AddDatabase<MyDatabaseContext, MyDatabaseMigrationsAssembly>("My",
-                        static (opts, builder) =>
-                        {
-                            switch (opts.Provider)
-                            {
-                                case DatabaseProvider.Sqlite:
-                                    builder.UseSqlite(opts.ConnectionString);
-                                    break;
-                                case DatabaseProvider.SqlServer:
-                                    builder.UseSqlServer(opts.ConnectionString);
-                                    break;
-                                case DatabaseProvider.PostgreSql:
-                                    builder.UseNpgsql(opts.ConnectionString);
-                                    break;
-                                case DatabaseProvider.MySql:
-                                    builder.UseMySql(opts.ConnectionString, ServerVersion.AutoDetect(opts.ConnectionString));
-                                    break;
-                                default:
-                                    throw new global::System.InvalidOperationException($"Provider {opts.Provider} is not supported by MyDatabase.");
-                            }
-                        });
+                        configureProvider);
+                }
+
+                private static void ConfigureProvider(DatabaseOptions opts, DbContextOptionsBuilder builder)
+                {
+                    switch (opts.Provider)
+                    {
+                        case DatabaseProvider.Sqlite:
+                            builder.UseSqlite(opts.ConnectionString);
+                            break;
+                        case DatabaseProvider.SqlServer:
+                            builder.UseSqlServer(opts.ConnectionString);
+                            break;
+                        case DatabaseProvider.PostgreSql:
+                            builder.UseNpgsql(opts.ConnectionString);
+                            break;
+                        case DatabaseProvider.MySql:
+                            builder.UseMySql(opts.ConnectionString, MySqlServerVersionFor(opts.ConnectionString));
+                            break;
+                        default:
+                            throw new global::System.InvalidOperationException($"Provider {opts.Provider} is not supported by MyDatabase.");
+                    }
+                }
+
+                // MySQL server versions, by the server's address, so each server is asked its version once per
+                // process rather than each time a context's options are built. A detection that throws stores
+                // nothing, so the next options build asks again. Builds that race on a server's first detection
+                // may each ask it; the first answer stored is the one kept.
+                private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<string, ServerVersion> _mySqlServerVersions = new();
+
+                private static ServerVersion MySqlServerVersionFor(string connectionString)
+                {
+                    var connection = new global::MySqlConnector.MySqlConnectionStringBuilder(connectionString);
+                    var server = new global::MySqlConnector.MySqlConnectionStringBuilder
+                    {
+                        Server = connection.Server,
+                        Port = connection.Port,
+                        ConnectionProtocol = connection.ConnectionProtocol,
+                        PipeName = connection.PipeName,
+                    }.ConnectionString;
+                    return _mySqlServerVersions.GetOrAdd(
+                        server,
+                        static (_, connectionString) => ServerVersion.AutoDetect(connectionString),
+                        connectionString);
                 }
             #endif
             }
@@ -493,32 +535,74 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                 /// Registers FooDatabase migration services against the named options key "Custom".
                 /// </summary>
                 public static IServiceCollection AddFooDatabase(this IServiceCollection services)
+                    => services.AddFooDatabase(ConfigureProvider);
+
+                /// <summary>
+                /// Registers FooDatabase migration services against the named options key "Custom",
+                /// opening the context with the caller's provider configuration instead of the generated one.
+                /// </summary>
+                /// <param name="services">
+                /// The service collection to add to.
+                /// </param>
+                /// <param name="configureProvider">
+                /// Configures the EF Core provider for the engine that <see cref="DatabaseOptions.Provider"/> names, at
+                /// <see cref="DatabaseOptions.ConnectionString"/>. FooDatabase's migrations assembly is installed after
+                /// it runs, so each engine still gets only its own migrations.
+                /// </param>
+                public static IServiceCollection AddFooDatabase(
+                    this IServiceCollection services,
+                    global::System.Action<DatabaseOptions, DbContextOptionsBuilder> configureProvider)
                 {
+                    global::System.ArgumentNullException.ThrowIfNull(configureProvider);
                     services.Configure<SqlServerMigrationOptions>("Custom", o =>
                     {
                         o.ScriptPrefix = ScriptPrefix;
                     });
                     return services.AddDatabase<FooDatabaseContext, FooDatabaseMigrationsAssembly>("Custom",
-                        static (opts, builder) =>
-                        {
-                            switch (opts.Provider)
-                            {
-                                case DatabaseProvider.Sqlite:
-                                    builder.UseSqlite(opts.ConnectionString);
-                                    break;
-                                case DatabaseProvider.SqlServer:
-                                    builder.UseSqlServer(opts.ConnectionString);
-                                    break;
-                                case DatabaseProvider.PostgreSql:
-                                    builder.UseNpgsql(opts.ConnectionString);
-                                    break;
-                                case DatabaseProvider.MySql:
-                                    builder.UseMySql(opts.ConnectionString, ServerVersion.AutoDetect(opts.ConnectionString));
-                                    break;
-                                default:
-                                    throw new global::System.InvalidOperationException($"Provider {opts.Provider} is not supported by FooDatabase.");
-                            }
-                        });
+                        configureProvider);
+                }
+
+                private static void ConfigureProvider(DatabaseOptions opts, DbContextOptionsBuilder builder)
+                {
+                    switch (opts.Provider)
+                    {
+                        case DatabaseProvider.Sqlite:
+                            builder.UseSqlite(opts.ConnectionString);
+                            break;
+                        case DatabaseProvider.SqlServer:
+                            builder.UseSqlServer(opts.ConnectionString);
+                            break;
+                        case DatabaseProvider.PostgreSql:
+                            builder.UseNpgsql(opts.ConnectionString);
+                            break;
+                        case DatabaseProvider.MySql:
+                            builder.UseMySql(opts.ConnectionString, MySqlServerVersionFor(opts.ConnectionString));
+                            break;
+                        default:
+                            throw new global::System.InvalidOperationException($"Provider {opts.Provider} is not supported by FooDatabase.");
+                    }
+                }
+
+                // MySQL server versions, by the server's address, so each server is asked its version once per
+                // process rather than each time a context's options are built. A detection that throws stores
+                // nothing, so the next options build asks again. Builds that race on a server's first detection
+                // may each ask it; the first answer stored is the one kept.
+                private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<string, ServerVersion> _mySqlServerVersions = new();
+
+                private static ServerVersion MySqlServerVersionFor(string connectionString)
+                {
+                    var connection = new global::MySqlConnector.MySqlConnectionStringBuilder(connectionString);
+                    var server = new global::MySqlConnector.MySqlConnectionStringBuilder
+                    {
+                        Server = connection.Server,
+                        Port = connection.Port,
+                        ConnectionProtocol = connection.ConnectionProtocol,
+                        PipeName = connection.PipeName,
+                    }.ConnectionString;
+                    return _mySqlServerVersions.GetOrAdd(
+                        server,
+                        static (_, connectionString) => ServerVersion.AutoDetect(connectionString),
+                        connectionString);
                 }
             #endif
             }
@@ -781,29 +865,49 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                 /// Registers MyDatabase migration services against the named options key "My".
                 /// </summary>
                 public static IServiceCollection AddMyDatabase(this IServiceCollection services)
+                    => services.AddMyDatabase(ConfigureProvider);
+
+                /// <summary>
+                /// Registers MyDatabase migration services against the named options key "My",
+                /// opening the context with the caller's provider configuration instead of the generated one.
+                /// </summary>
+                /// <param name="services">
+                /// The service collection to add to.
+                /// </param>
+                /// <param name="configureProvider">
+                /// Configures the EF Core provider for the engine that <see cref="DatabaseOptions.Provider"/> names, at
+                /// <see cref="DatabaseOptions.ConnectionString"/>. MyDatabase's migrations assembly is installed after
+                /// it runs, so each engine still gets only its own migrations.
+                /// </param>
+                public static IServiceCollection AddMyDatabase(
+                    this IServiceCollection services,
+                    global::System.Action<DatabaseOptions, DbContextOptionsBuilder> configureProvider)
                 {
+                    global::System.ArgumentNullException.ThrowIfNull(configureProvider);
                     services.Configure<SqlServerMigrationOptions>("My", o =>
                     {
                         o.ScriptPrefix = ScriptPrefix;
                     });
                     return services.AddDatabase<MyDatabaseContext, MyDatabaseMigrationsAssembly>("My",
-                        static (opts, builder) =>
-                        {
-                            switch (opts.Provider)
-                            {
-                                case DatabaseProvider.Sqlite:
-                                    builder.UseSqlite(opts.ConnectionString);
-                                    break;
-                                case DatabaseProvider.SqlServer:
-                                    builder.UseSqlServer(opts.ConnectionString);
-                                    break;
-                                case DatabaseProvider.PostgreSql:
-                                    builder.UseNpgsql(opts.ConnectionString);
-                                    break;
-                                default:
-                                    throw new global::System.InvalidOperationException($"Provider {opts.Provider} is not supported by MyDatabase.");
-                            }
-                        });
+                        configureProvider);
+                }
+
+                private static void ConfigureProvider(DatabaseOptions opts, DbContextOptionsBuilder builder)
+                {
+                    switch (opts.Provider)
+                    {
+                        case DatabaseProvider.Sqlite:
+                            builder.UseSqlite(opts.ConnectionString);
+                            break;
+                        case DatabaseProvider.SqlServer:
+                            builder.UseSqlServer(opts.ConnectionString);
+                            break;
+                        case DatabaseProvider.PostgreSql:
+                            builder.UseNpgsql(opts.ConnectionString);
+                            break;
+                        default:
+                            throw new global::System.InvalidOperationException($"Provider {opts.Provider} is not supported by MyDatabase.");
+                    }
                 }
             #endif
             }
@@ -1104,32 +1208,74 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                 /// Registers MyDatabase migration services against the named options key "My".
                 /// </summary>
                 public static IServiceCollection AddMyDatabase(this IServiceCollection services)
+                    => services.AddMyDatabase(ConfigureProvider);
+
+                /// <summary>
+                /// Registers MyDatabase migration services against the named options key "My",
+                /// opening the context with the caller's provider configuration instead of the generated one.
+                /// </summary>
+                /// <param name="services">
+                /// The service collection to add to.
+                /// </param>
+                /// <param name="configureProvider">
+                /// Configures the EF Core provider for the engine that <see cref="DatabaseOptions.Provider"/> names, at
+                /// <see cref="DatabaseOptions.ConnectionString"/>. MyDatabase's migrations assembly is installed after
+                /// it runs, so each engine still gets only its own migrations.
+                /// </param>
+                public static IServiceCollection AddMyDatabase(
+                    this IServiceCollection services,
+                    global::System.Action<DatabaseOptions, DbContextOptionsBuilder> configureProvider)
                 {
+                    global::System.ArgumentNullException.ThrowIfNull(configureProvider);
                     services.Configure<SqlServerMigrationOptions>("My", o =>
                     {
                         o.ScriptPrefix = ScriptPrefix;
                     });
                     return services.AddDatabase<MyDatabaseContext, MyDatabaseMigrationsAssembly>("My",
-                        static (opts, builder) =>
-                        {
-                            switch (opts.Provider)
-                            {
-                                case DatabaseProvider.Sqlite:
-                                    builder.UseSqlite(opts.ConnectionString);
-                                    break;
-                                case DatabaseProvider.SqlServer:
-                                    builder.UseSqlServer(opts.ConnectionString);
-                                    break;
-                                case DatabaseProvider.PostgreSql:
-                                    builder.UseNpgsql(opts.ConnectionString);
-                                    break;
-                                case DatabaseProvider.MySql:
-                                    builder.UseMySql(opts.ConnectionString, ServerVersion.AutoDetect(opts.ConnectionString));
-                                    break;
-                                default:
-                                    throw new global::System.InvalidOperationException($"Provider {opts.Provider} is not supported by MyDatabase.");
-                            }
-                        });
+                        configureProvider);
+                }
+
+                private static void ConfigureProvider(DatabaseOptions opts, DbContextOptionsBuilder builder)
+                {
+                    switch (opts.Provider)
+                    {
+                        case DatabaseProvider.Sqlite:
+                            builder.UseSqlite(opts.ConnectionString);
+                            break;
+                        case DatabaseProvider.SqlServer:
+                            builder.UseSqlServer(opts.ConnectionString);
+                            break;
+                        case DatabaseProvider.PostgreSql:
+                            builder.UseNpgsql(opts.ConnectionString);
+                            break;
+                        case DatabaseProvider.MySql:
+                            builder.UseMySql(opts.ConnectionString, MySqlServerVersionFor(opts.ConnectionString));
+                            break;
+                        default:
+                            throw new global::System.InvalidOperationException($"Provider {opts.Provider} is not supported by MyDatabase.");
+                    }
+                }
+
+                // MySQL server versions, by the server's address, so each server is asked its version once per
+                // process rather than each time a context's options are built. A detection that throws stores
+                // nothing, so the next options build asks again. Builds that race on a server's first detection
+                // may each ask it; the first answer stored is the one kept.
+                private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<string, ServerVersion> _mySqlServerVersions = new();
+
+                private static ServerVersion MySqlServerVersionFor(string connectionString)
+                {
+                    var connection = new global::MySqlConnector.MySqlConnectionStringBuilder(connectionString);
+                    var server = new global::MySqlConnector.MySqlConnectionStringBuilder
+                    {
+                        Server = connection.Server,
+                        Port = connection.Port,
+                        ConnectionProtocol = connection.ConnectionProtocol,
+                        PipeName = connection.PipeName,
+                    }.ConnectionString;
+                    return _mySqlServerVersions.GetOrAdd(
+                        server,
+                        static (_, connectionString) => ServerVersion.AutoDetect(connectionString),
+                        connectionString);
                 }
             #endif
             }
@@ -1397,7 +1543,7 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
             generated);
         Assert.Contains("case DatabaseProvider.MySql:", generated);
         Assert.Contains(
-            "builder.UseMySql(opts.ConnectionString, ServerVersion.AutoDetect(opts.ConnectionString));",
+            "builder.UseMySql(opts.ConnectionString, MySqlServerVersionFor(opts.ConnectionString));",
             generated);
         Assert.Contains("file sealed class MySqlContextFactory", generated);
         Assert.DoesNotContain("Pomelo", generated);
@@ -1619,7 +1765,7 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
         // The generated extension method, invoked exactly as a consuming host would.
         var extensions = assembly.GetType("My.App.MyDatabaseServiceCollectionExtensions");
         Assert.NotNull(extensions);
-        extensions.GetMethod("AddMyDatabase")!.Invoke(null, [services]);
+        extensions.GetMethod("AddMyDatabase", [typeof(IServiceCollection)])!.Invoke(null, [services]);
 
         await using var provider = services.BuildServiceProvider();
         await using var scope = provider.CreateAsyncScope();
@@ -2010,7 +2156,7 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
 
         var extensions = generated.GetType("My.App.MyDatabaseServiceCollectionExtensions");
         Assert.NotNull(extensions);
-        extensions.GetMethod("AddMyDatabase")!.Invoke(null, [services]);
+        extensions.GetMethod("AddMyDatabase", [typeof(IServiceCollection)])!.Invoke(null, [services]);
 
         return services.BuildServiceProvider();
     }

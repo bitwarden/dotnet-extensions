@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -192,6 +193,45 @@ public class AuthenticationServiceCollectionExtensionsTests
         Assert.Contains(myLog.Scopes.OfType<IEnumerable<KeyValuePair<string, object>>>(),
             scope => scope.Any(kvp => kvp.Key == "Subject" && kvp.Value is string stringVal && stringVal == "user-subject")
         );
+    }
+
+    [Fact]
+    public void AddBitwardenAuthentication_DoesNotRegisterDataProtection()
+    {
+        using var authHost = CreateAuthHost(out _);
+        using var appHost = CreateAppHost(authHost);
+
+        Assert.Null(appHost.Services.GetService<IDataProtectionProvider>());
+        Assert.DoesNotContain(appHost.Services.GetServices<IHostedService>(),
+            hostedService => hostedService.GetType().Namespace?.StartsWith("Microsoft.AspNetCore.DataProtection") == true);
+    }
+
+    [Fact]
+    public async Task AddBitwardenAuthentication_WithAddAuthentication_HeaderStillWorks()
+    {
+        using var authHost = CreateAuthHost(out var certificate);
+        await authHost.StartAsync(TestContext.Current.CancellationToken);
+        using var appHost = CreateAppHost(authHost, services =>
+        {
+            services.AddAuthentication()
+                .AddCookie();
+        });
+
+        await appHost.StartAsync(TestContext.Current.CancellationToken);
+
+        Assert.NotNull(appHost.Services.GetService<IDataProtectionProvider>());
+
+        var client = appHost.GetTestClient();
+
+        var accessToken = CreateAccessToken(certificate,
+            new JwtPayload(issuer: "http://localhost", audience: null, claims: null, notBefore: DateTime.UtcNow, expires: DateTime.UtcNow.AddDays(1)));
+
+        var request = new HttpRequestMessage(HttpMethod.Get, "/authed-user");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     private IHost CreateAppHost(
