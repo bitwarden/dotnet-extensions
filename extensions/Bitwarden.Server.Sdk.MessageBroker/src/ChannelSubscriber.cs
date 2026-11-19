@@ -3,7 +3,7 @@ using System.Threading.Channels;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-internal sealed class ChannelSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>
+internal sealed class ChannelSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>, ISignalsSubscribed<TPayload, TCeiling>
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
 {
@@ -18,9 +18,14 @@ internal sealed class ChannelSubscriber<TPayload, TCeiling> : ISubscriber<TPaylo
         _metrics = metrics;
     }
 
+    public IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync(CancellationToken cancellationToken) =>
+        SubscribeAsync(static () => { }, cancellationToken);
+
     public async IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync(
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+        Action onSubscribed, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        // In process, the subscription is there as soon as it is read.
+        onSubscribed();
         await foreach (var item in _reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
         {
             _metrics.RecordConsume(_topicName, TPayload.WireName, item.ConsumedVariantWireName);

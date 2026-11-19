@@ -7,7 +7,7 @@ using RabbitMQ.Client.Events;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>
+internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>, ISignalsSubscribed<TPayload, TCeiling>
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
 {
@@ -26,7 +26,11 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
         _metrics = metrics;
     }
 
-    public async IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    public IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync(CancellationToken cancellationToken) =>
+        SubscribeAsync(static () => { }, cancellationToken);
+
+    public async IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync(
+        Action onSubscribed, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // The host can close the connection while the stream is still being set up. That is a
         // shutdown, not a broker failure, so the stream ends as it does when the channel closes.
@@ -130,6 +134,8 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
         {
             yield break;
         }
+
+        onSubscribed();
 
         await foreach (var envelope in innerChannel.Reader.ReadAllAsync(cancellationToken))
         {

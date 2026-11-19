@@ -17,7 +17,7 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
         _queueName = queueName;
     }
 
-    public async IAsyncEnumerable<CommandQueueMessage> ReceiveAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<CommandQueueMessage> ReceiveAsync(Action onSubscribed, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ServiceBusReceiver receiver;
         try
@@ -34,6 +34,29 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
 
         using var stopWaiting = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _connection.Closed);
 
+        // A receive on a quiet queue waits for a message, so a successful peek signals subscribed.
+        var subscribed = false;
+        try
+        {
+            var peek = receiver.PeekMessageAsync(cancellationToken: cancellationToken);
+            _ = peek.ContinueWith(static t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+            await peek.WaitAsync(stopWaiting.Token);
+            subscribed = true;
+        }
+        catch (Exception ex) when (
+            (ex is OperationCanceledException or ObjectDisposedException or ServiceBusException)
+            && _connection.IsClosing
+            && !cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (ServiceBusException ex)
+        {
+            throw new BrokerDisconnectedException(_queueName, ex);
+        }
+        if (!subscribed)
+            yield break;
+        onSubscribed();
+
         while (!cancellationToken.IsCancellationRequested && !_connection.IsClosing)
         {
             // One message at a time, so stopping leaves at most one locked.
@@ -45,9 +68,10 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
                 _ = receive.ContinueWith(static t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
                 received = await receive.WaitAsync(stopWaiting.Token);
             }
-            catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or ServiceBusException
-                                       && _connection.IsClosing
-                                       && !cancellationToken.IsCancellationRequested)
+            catch (Exception ex) when (
+                (ex is OperationCanceledException or ObjectDisposedException or ServiceBusException)
+                && _connection.IsClosing
+                && !cancellationToken.IsCancellationRequested)
             {
                 // A shutdown, whatever the Azure SDK surfaced.
                 break;

@@ -18,7 +18,7 @@ internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
         _queueName = queueName;
     }
 
-    public async IAsyncEnumerable<CommandQueueMessage> ReceiveAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<CommandQueueMessage> ReceiveAsync(Action onSubscribed, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // The host closing the connection during setup is a shutdown, not a broker failure.
         using var setupCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _connection.Closed);
@@ -81,6 +81,8 @@ internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
         {
             yield break;
         }
+
+        onSubscribed();
 
         await foreach (var message in innerChannel.Reader.ReadAllAsync(cancellationToken))
             yield return message;

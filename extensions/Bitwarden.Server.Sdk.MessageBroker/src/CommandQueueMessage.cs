@@ -32,6 +32,9 @@ internal sealed class CommandQueueMessage
 /// <summary>Receives every message on one command queue, whatever its payload family.</summary>
 internal interface ICommandQueueReceiver
 {
-    /// <summary>Returns the queue's messages as they arrive, one unsettled message at a time.</summary>
-    IAsyncEnumerable<CommandQueueMessage> ReceiveAsync(CancellationToken cancellationToken);
+    /// <summary>
+    /// Returns the queue's messages as they arrive, one unsettled message at a time, calling
+    /// <paramref name="onSubscribed"/> once the receiver is in place, whether or not a message comes.
+    /// </summary>
+    IAsyncEnumerable<CommandQueueMessage> ReceiveAsync(Action onSubscribed, CancellationToken cancellationToken);
 }

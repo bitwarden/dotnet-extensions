@@ -441,6 +441,14 @@ integrate with any OpenTelemetry-compatible pipeline.
 | `messaging.client.consumed.messages`  | Counter | Messages delivered to a consumer, tagged with `messaging.destination.name`, `messaging.payload.family`, and `messaging.variant.name` (wire name of the highest received variant at or below the subscriber's ceiling).                             |
 | `messaging.channel.queued.messages`   | Gauge   | Current number of messages buffered in the in-memory channel, tagged with `messaging.destination.name` and `messaging.payload.family` (one series per family on a topic that carries several).                                                     |
 
+### Readiness
+
+A host that calls `AddHealthChecks()` gets a check named `Message broker subscriptions`, added by
+`AddMessageConsumer` and `AddCommandConsumer`. It reports Degraded, naming each hosted consumer that
+isn't receiving, and is never Unhealthy. It is tagged `monitoring`: a broker outage affects every
+instance alike, so leave it out of a readiness probe that filters by tag. The check never names the
+broker or an error's text, since the probe answers without a credential.
+
 ## Serialization
 
 Messages are serialized as JSON using `System.Text.Json`. Each variant is written as one element of

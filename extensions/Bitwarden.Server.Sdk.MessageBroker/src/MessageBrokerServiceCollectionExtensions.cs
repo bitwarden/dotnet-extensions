@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -205,7 +206,9 @@ public static class MessageBrokerServiceCollectionExtensions
                 sp.GetRequiredKeyedService<ISubscriber<TPayload, TCeiling>>(subscriptionKey),
                 sp.GetRequiredService<ILogger<ConsumerBackgroundService<TPayload, TCeiling, TConsumer>>>(),
                 subscriptionKey,
-                sp.GetRequiredService<IOptionsMonitor<ConsumerRetryOptions>>()));
+                sp.GetRequiredService<IOptionsMonitor<ConsumerRetryOptions>>(),
+                sp.GetRequiredService<SubscriptionReadiness>()));
+        AddSubscriptionHealthCheck(services);
         if (consumerIsNew)
             services.AddSingleton<IHostedService>(sp =>
                 sp.GetRequiredKeyedService<ConsumerBackgroundService<TPayload, TCeiling, TConsumer>>(subscriptionKey));
@@ -319,13 +322,20 @@ public static class MessageBrokerServiceCollectionExtensions
                 else
                     receiver = sp.GetRequiredKeyedService<ChannelCommandQueue>(queueName);
                 return new CommandQueueService(queueName, receiver, sp.GetServices<CommandFamilyHandler>(),
-                    sp.GetRequiredService<ILogger<CommandQueueService>>());
+                    sp.GetRequiredService<ILogger<CommandQueueService>>(), sp.GetRequiredService<SubscriptionReadiness>());
             });
             services.AddSingleton<IHostedService>(sp => sp.GetRequiredKeyedService<CommandQueueService>(queueName));
+            AddSubscriptionHealthCheck(services);
         }
 
         services.AddSingleton(new CommandQueueDeclaration(queueName, TPayload.WireName, IsConsumer: true));
         return services;
+    }
+
+    private static void AddSubscriptionHealthCheck(IServiceCollection services)
+    {
+        services.TryAddSingleton<SubscriptionReadiness>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<HealthCheckServiceOptions>, SubscriptionHealthCheckRegistration>());
     }
 
     // Sentinel registered in DI so each command queue gets one CommandQueueService.
