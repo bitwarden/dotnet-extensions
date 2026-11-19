@@ -15,4 +15,11 @@
     <Description>Idempotency keys, and the operations whose writes repeat the same keys, shared by Bitwarden services and their callers.</Description>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- CacheKey, the keyed derivation of the operations' write keys and identifiers. -->
+    <PackageReference Include="Bitwarden.Server.Sdk.CryptoPrimitives" Version="0.1.0" />
+    <!-- The host's environment decides whether the secret is required. -->
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.14" />
+  </ItemGroup>
+
 </Project>

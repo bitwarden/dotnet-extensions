@@ -12,6 +12,11 @@ namespace Bitwarden.Server.Sdk.Client;
 /// </remarks>
 internal static class Conventions
 {
+    /// <summary>
+    /// Whether a service's calls to the others must be <c>https://</c>: <c>Tls:RequireHttps</c>.
+    /// </summary>
+    public const string RequireHttpsKey = "Tls:RequireHttps";
+
     public static void Apply(BitwardenClientOptions options, IConfiguration configuration, string serviceName)
     {
         var section = $"{BitwardenClientOptions.Section}:{serviceName}";
@@ -39,10 +44,8 @@ internal static class Conventions
             // The same key the serving side reads, so one setting configures both directions.
             "Authentication:Schemes:Bearer:Authority") ?? string.Empty;
 
-        // The deployment's own rule, for every client alike (Bitwarden.Server.Sdk.Http.InternalTls).
-        options.RequireHttps = bool.TryParse(
-            configuration[$"{Bitwarden.Server.Sdk.Http.InternalTls.Section}:{nameof(Bitwarden.Server.Sdk.Http.InternalTls.RequireHttps)}"],
-            out var required) && required;
+        // The deployment's own rule, for every client alike; the Service host reads the same setting.
+        options.RequireHttps = bool.TryParse(configuration[RequireHttpsKey], out var required) && required;
 
         options.CallerSecret = First(configuration,
             $"{section}:CallerSecret",

@@ -66,6 +66,10 @@ public static class ProductClientServiceCollectionExtensions
                     http.BaseAddress = new Uri(options.BaseAddress.TrimEnd('/') + "/");
                 }
             });
+
+            // A product service is one of the deployment's own, so its conventional client trusts the internal
+            // authorities alone where any are named. A named client of the consumer's opts in itself.
+            builder.TrustInternalAuthorities();
         }
 
         return builder.AddHttpMessageHandler(() => new ProductCallHandler());
