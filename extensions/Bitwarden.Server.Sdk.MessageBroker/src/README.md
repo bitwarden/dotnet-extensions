@@ -67,6 +67,7 @@ Setting both raises `OptionsValidationException` at startup via `MessagingOption
 | `ResubscribeLoop.cs`                                           | Keeps a hosted consumer subscribing again, with backoff, through broker outages  |
 | `RetryDelay.cs`                                                | The wait after a consumer throws, before the message is redelivered              |
 | `SubscriptionReadiness.cs`                                     | The readiness check: whether each hosted consumer is receiving                   |
+| `TopologyCheck.cs`                                             | The startup check that the topology a service needs exists                       |
 | `ConsumerRetryOptions.cs`                                      | Per-subscription and per-queue retry settings; by default a failure isn't retried |
 | `IMessageEscrowStore.cs`                                       | Public interface for durable message escrow on shutdown                          |
 | `ChannelPublisher.cs` / `ChannelSubscriber.cs`                 | In-memory backend                                                                |
@@ -212,5 +213,5 @@ The RabbitMQ tests run against `rabbitmq:4.3.6`, the version the self-hosted ins
 another AMQP 0-9-1 broker's image. CI runs them on LavinMQ as well:
 
 ```bash
-MESSAGING_TESTS_AMQP_IMAGE=cloudamqp/lavinmq:2.10.4@sha256:2d92aa41dda178e18ed1d64d3b48af47273a4c2134e82f61fcbc112797c378a9 dotnet run -- --filter-class "*.RabbitBehaviorTests" --filter-class "*.RabbitCommandBehaviorTests" --filter-class "*.RabbitOutageTests"
+MESSAGING_TESTS_AMQP_IMAGE=cloudamqp/lavinmq:2.10.4@sha256:2d92aa41dda178e18ed1d64d3b48af47273a4c2134e82f61fcbc112797c378a9 dotnet run -- --filter-class "*.RabbitBehaviorTests" --filter-class "*.RabbitCommandBehaviorTests" --filter-class "*.RabbitOutageTests" --filter-class "*.RabbitTopologyCheckTests"
 ```

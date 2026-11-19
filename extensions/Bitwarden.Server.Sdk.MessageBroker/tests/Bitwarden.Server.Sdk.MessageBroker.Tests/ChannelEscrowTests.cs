@@ -273,7 +273,7 @@ public class ChannelEscrowTests
         // throwing from StartAsync (resilient startup).
         var host = new HostBuilder()
             .ConfigureAppConfiguration(c => c.AddInMemoryCollection(
-                new Dictionary<string, string?> { { "RabbitUri", "amqp://guest:guest@localhost:1/" } }))
+                new Dictionary<string, string?> { { "RabbitUri", "amqp://guest:guest@localhost:1/" }, { "VerifyTopologyAtStartup", "false" } }))
             .ConfigureServices(services =>
             {
                 services.AddKeyedSingleton<ISubscriber<MyItemPayload, MyItem>>("test/group", (_, _) => new NeverYieldingSubscriber());

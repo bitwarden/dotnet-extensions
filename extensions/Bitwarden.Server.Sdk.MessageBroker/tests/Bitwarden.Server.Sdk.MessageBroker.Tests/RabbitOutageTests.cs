@@ -70,7 +70,7 @@ public sealed class RabbitOutageTests : IAsyncLifetime
 
     private IHost BuildHost() => new HostBuilder()
         .ConfigureAppConfiguration(b => b.AddInMemoryCollection(
-            new Dictionary<string, string?> { ["RabbitUri"] = $"amqp://guest:guest@localhost:{_port}/" }))
+            new Dictionary<string, string?> { ["RabbitUri"] = $"amqp://guest:guest@localhost:{_port}/", ["VerifyTopologyAtStartup"] = "false" }))
         .ConfigureServices(services =>
         {
             services.AddMetrics();
@@ -186,7 +186,7 @@ public sealed class RabbitOutageTests : IAsyncLifetime
         // An address that doesn't answer, so each attempt to connect runs until its timeout.
         var host = new HostBuilder()
             .ConfigureAppConfiguration(b => b.AddInMemoryCollection(
-                new Dictionary<string, string?> { ["RabbitUri"] = "amqp://guest:guest@10.255.255.1:5672/" }))
+                new Dictionary<string, string?> { ["RabbitUri"] = "amqp://guest:guest@10.255.255.1:5672/", ["VerifyTopologyAtStartup"] = "false" }))
             .ConfigureServices(services =>
             {
                 services.AddMetrics();
@@ -217,7 +217,7 @@ public sealed class RabbitOutageTests : IAsyncLifetime
         // An address that doesn't answer, so each attempt to connect runs until its timeout.
         var host = new HostBuilder()
             .ConfigureAppConfiguration(b => b.AddInMemoryCollection(
-                new Dictionary<string, string?> { ["RabbitUri"] = "amqp://guest:guest@10.255.255.1:5672/" }))
+                new Dictionary<string, string?> { ["RabbitUri"] = "amqp://guest:guest@10.255.255.1:5672/", ["VerifyTopologyAtStartup"] = "false" }))
             .ConfigureServices(services =>
             {
                 services.AddHealthChecks();
