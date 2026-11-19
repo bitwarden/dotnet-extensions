@@ -1,3 +1,4 @@
+using Bitwarden.Server.Sdk.CryptoPrimitives;
 using Bitwarden.Server.Sdk.Idempotency;
 using Microsoft.Extensions.DependencyInjection;
 using static Bitwarden.Server.Sdk.Client.Tests.PipelineHarness;
@@ -78,7 +79,7 @@ public sealed class IdempotencyKeyHandlerTests
 
         async Task<List<string?>> RunAsync()
         {
-            using (IdempotentOperation.Begin("operation-1"))
+            using (IdempotentOperation.Begin("operation-1", CacheSecret.Development))
             {
                 Assert.Equal("operation-1", IdempotentOperation.Current);
                 using var one = await probe.SendAsync(HttpMethod.Post, Token);
@@ -106,12 +107,12 @@ public sealed class IdempotencyKeyHandlerTests
         await using var services = Services(callee);
         var probe = services.GetRequiredService<Probe>();
 
-        using (IdempotentOperation.Begin("operation-1"))
+        using (IdempotentOperation.Begin("operation-1", CacheSecret.Development))
         {
             using var one = await probe.SendAsync(HttpMethod.Post, Token);
         }
 
-        using (IdempotentOperation.Begin("operation-2"))
+        using (IdempotentOperation.Begin("operation-2", CacheSecret.Development))
         {
             using var two = await probe.SendAsync(HttpMethod.Post, Token);
         }
@@ -130,7 +131,7 @@ public sealed class IdempotencyKeyHandlerTests
 
         async Task<Dictionary<string, string?>> RunAsync(params string[] notes)
         {
-            using (IdempotentOperation.Begin("operation-1"))
+            using (IdempotentOperation.Begin("operation-1", CacheSecret.Development))
             {
                 foreach (var note in notes)
                 {
