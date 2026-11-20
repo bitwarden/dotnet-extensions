@@ -296,6 +296,74 @@ public abstract class BehaviorTests : IAsyncLifetime
     }
 
     [Fact(Timeout = 60 * 1000)]
+    public async Task CallerSuppliedMessageIdReachesTheSubscriber()
+    {
+        var host = await CreateInstanceAsync();
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+        var messageId = Guid.CreateVersion7().ToString();
+
+        var marker = Random.Shared.Next();
+        await publisher.Publish(new MyItem(marker)).SendAsync(messageId, TestContext.Current.CancellationToken);
+
+        await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
+        {
+            await envelope.CompleteAsync(TestContext.Current.CancellationToken);
+            if (envelope.Payload.Id != marker) continue;
+            Assert.Equal(messageId, envelope.MessageId);
+            break;
+        }
+    }
+
+    [Fact(Timeout = 60 * 1000)]
+    public async Task EachSendWithoutAnIdentifierGetsANewVersion7Guid()
+    {
+        var host = await CreateInstanceAsync();
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
+
+        var markers = new HashSet<int> { Random.Shared.Next(), Random.Shared.Next() };
+        foreach (var marker in markers)
+            await publisher.Publish(new MyItem(marker)).SendAsync(TestContext.Current.CancellationToken);
+
+        var ids = new List<string>();
+        await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
+        {
+            await envelope.CompleteAsync(TestContext.Current.CancellationToken);
+            if (!markers.Contains(envelope.Payload.Id)) continue;
+            ids.Add(envelope.MessageId);
+            if (ids.Count == markers.Count) break;
+        }
+
+        Assert.Equal(ids.Count, ids.Distinct().Count());
+        Assert.All(ids, id => Assert.Equal(7, Guid.Parse(id).Version));
+    }
+
+    [Theory(Timeout = 60 * 1000)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("注文-123")]
+    public async Task BlankOrNonAsciiMessageIdIsRefused(string messageId)
+    {
+        var host = await CreateInstanceAsync();
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => publisher.Publish(new MyItem(1)).SendAsync(messageId, TestContext.Current.CancellationToken));
+    }
+
+    [Fact(Timeout = 60 * 1000)]
+    public async Task OverlongMessageIdIsRefused()
+    {
+        var host = await CreateInstanceAsync();
+        var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
+        var messageId = new string('a', PublisherExtensions.MaxMessageIdLength + 1);
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => publisher.Publish(new MyItem(1)).SendAsync(messageId, TestContext.Current.CancellationToken));
+    }
+
+    [Fact(Timeout = 60 * 1000)]
     public async Task EarlyMessagesCanBeProcessed()
     {
         var host = await CreateInstanceAsync();
@@ -743,12 +811,13 @@ public abstract class BehaviorTests : IAsyncLifetime
         var subscriber = secondaryHost.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
         var before = activities.ToHashSet(ReferenceEqualityComparer.Instance);
-        await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
+        var messageId = Guid.CreateVersion7().ToString();
+        await publisher.Publish(new MyItem(1)).SendAsync(messageId, TestContext.Current.CancellationToken);
 
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {
             await envelope.CompleteAsync(TestContext.Current.CancellationToken);
-            break;
+            if (envelope.MessageId == messageId) break;
         }
 
         AssertConsumerSpans(activities, before);
@@ -757,9 +826,10 @@ public abstract class BehaviorTests : IAsyncLifetime
     protected virtual void AssertConsumerSpans(ConcurrentBag<Activity> activities, HashSet<object?> before)
     {
         var publishSpan = Assert.Single(activities, a => !before.Contains(a) && a.OperationName == $"{TopicName} publish");
-        var receiveSpan = Assert.Single(activities, a => !before.Contains(a) && a.OperationName == $"{TopicName} receive");
+        // A stray message's receive span has no link to this publish; look for the one that does.
+        var receiveSpan = Assert.Single(activities, a => !before.Contains(a) && a.OperationName == $"{TopicName} receive"
+            && a.ParentSpanId == publishSpan.SpanId);
         Assert.Equal(ActivityKind.Consumer, receiveSpan.Kind);
-        Assert.Equal(publishSpan.SpanId, receiveSpan.ParentSpanId);
     }
 
     /// <summary>

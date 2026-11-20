@@ -135,7 +135,10 @@ public abstract class Envelope<TPayload, TCeiling>
         }
     }
 
-    /// <summary>A unique identifier for the message assigned by the publisher.</summary>
+    /// <summary>
+    /// The identifier the publisher sent the message under. The same on every redelivery, and on a re-send that
+    /// passes it again.
+    /// </summary>
     public abstract string MessageId { get; }
 
     /// <summary>

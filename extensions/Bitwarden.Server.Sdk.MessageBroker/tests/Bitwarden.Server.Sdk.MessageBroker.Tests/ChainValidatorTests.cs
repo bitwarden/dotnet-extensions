@@ -144,7 +144,7 @@ public class ChainValidatorTests
         public IReadOnlyList<Payload<TPayload>.IVariant>? Sent { get; private set; }
 
         protected internal override Task SendAsync(
-            IReadOnlyList<Payload<TPayload>.IVariant> variants, CancellationToken cancellationToken)
+            IReadOnlyList<Payload<TPayload>.IVariant> variants, string messageId, CancellationToken cancellationToken)
         {
             Sent = variants;
             return Task.CompletedTask;
