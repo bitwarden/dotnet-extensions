@@ -196,6 +196,7 @@ public sealed class ContextHeaderTests
     [Theory]
     [InlineData("2001:0db8:0000:0000:0000:0000:0000:0001", "2001:db8::1")]
     [InlineData("::ffff:203.0.113.9", "203.0.113.9")]
+    [InlineData("::1", "::1")]
     public void TryParse_AnAddress_IsCanonical(string address, string canonical)
     {
         Assert.True(ContextHeader.TryParse($$"""{"v":1,"clientIp":"{{address}}"}""", out var read, out _));
@@ -242,6 +243,8 @@ public sealed class ContextHeaderTests
     [InlineData("""{"v":1,"clientIp":"127.1"}""")]
     [InlineData("""{"v":1,"clientIp":"017.0.0.1"}""")]
     [InlineData("""{"v":1,"clientIp":"0x7f.0.0.1"}""")]
+    [InlineData("""{"v":1,"clientIp":"::203.0.113.9"}""")]
+    [InlineData("""{"v":1,"clientIp":"::cb00:7109"}""")]
     // The unspecified address names no client.
     [InlineData("""{"v":1,"clientIp":"0.0.0.0"}""")]
     [InlineData("""{"v":1,"clientIp":"::"}""")]
@@ -313,6 +316,7 @@ public sealed class ContextHeaderTests
         new ContextValue { ClientIp = "127.1" },
         new ContextValue { ClientIp = "017.0.0.1" },
         new ContextValue { ClientIp = "0x7f.0.0.1" },
+        new ContextValue { ClientIp = "::203.0.113.9" },
         new ContextValue { ClientIp = "0.0.0.0" },
         new ContextValue { ClientIp = "::" },
         new ContextValue { DeviceType = "a device; with prose" },

@@ -22,6 +22,11 @@ stack of disposable entries. Disposing an entry restores the one it was begun in
 and does so only on the flow where that entry is current. Work forked inside an entry and not awaited shares the
 entry, so it keeps the value it started with after its parent disposes it.
 
+`RequestMemo` sits in the same kind of stack, with no knowledge of HTTP: its internal `RememberAsync` takes a key and a
+read, and the read says whether its answer is kept, shared only with callers already waiting, or neither. Identical
+reads in flight share one `TaskCompletionSource`; `Clear` swaps the dictionary, so a read that began before it is never
+kept. Bitwarden.Server.Sdk.Client is the only caller (`InternalsVisibleTo`); it builds the keys and the answers.
+
 A change must keep:
 
 - **The wire stable.** Header names, the `Bitwarden-Context` members and version, the token's type, claims and modes,
@@ -29,6 +34,7 @@ A change must keep:
   `ContextHeader.Version` and refuses a member it doesn't know, so a new member reaches every service's reader before
   any writer sends it: the package ships to every service together, or the member comes with a new version that every
   reader accepts first.
+- **A memo key holds no credential and is never logged,** and a memo ended or cleared keeps nothing.
 - **Strict reading.** A malformed value is refused whole, never partly believed, and a refusal never echoes the value.
 - **Nothing but service-name shapes in a chain.** `CallChain.IsServiceName` admits a lower-case name and refuses a
   GUID written as 32 hexadecimal digits or in hyphenated form, alone or inside a name. It does not refuse identifiers

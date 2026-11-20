@@ -2,7 +2,9 @@ namespace Bitwarden.Server.Sdk.Context;
 
 /// <summary>
 /// What an event says, as <see cref="ContextScope.BeginForEvent"/> establishes it: the event's context, reporting
-/// <see cref="IContext.IsEvent"/>.
+/// <see cref="IContext.IsEvent"/>. Its handler acts with its own authority, so the event's user and provider are
+/// recorded (<see cref="IContext.RecordedUserId"/>, <see cref="IContext.RecordedProviderId"/>) on a
+/// <see cref="CallerCredential.System"/> credential, never acting.
 /// </summary>
 /// <param name="inner">What the event says.</param>
 internal sealed class EventContext(IContext inner) : IContext
@@ -11,10 +13,10 @@ internal sealed class EventContext(IContext inner) : IContext
     public Guid? OrganizationId => inner.OrganizationId;
 
     /// <inheritdoc />
-    public Guid? UserId => inner.UserId;
+    public Guid? UserId => null;
 
     /// <inheritdoc />
-    public Guid? ProviderId => inner.ProviderId;
+    public Guid? ProviderId => null;
 
     /// <inheritdoc />
     public string? ClientIpAddress => inner.ClientIpAddress;
@@ -26,13 +28,13 @@ internal sealed class EventContext(IContext inner) : IContext
     public string? DeviceIdentifier => inner.DeviceIdentifier;
 
     /// <inheritdoc />
-    public CallerCredential? Credential => inner.Credential;
+    public CallerCredential? Credential => CallerCredential.System;
 
     /// <inheritdoc />
-    public Guid? RecordedUserId => inner.RecordedUserId;
+    public Guid? RecordedUserId => inner.UserId ?? inner.RecordedUserId;
 
     /// <inheritdoc />
-    public Guid? RecordedProviderId => inner.RecordedProviderId;
+    public Guid? RecordedProviderId => inner.ProviderId ?? inner.RecordedProviderId;
 
     /// <inheritdoc />
     public IReadOnlyList<Guid>? UserOrganizationIds => inner.UserOrganizationIds;

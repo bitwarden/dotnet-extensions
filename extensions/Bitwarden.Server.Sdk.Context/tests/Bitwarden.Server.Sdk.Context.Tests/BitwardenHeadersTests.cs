@@ -29,6 +29,12 @@ public sealed class BitwardenHeadersTests
     }
 
     [Fact]
+    public void ServiceOnly_AreTheContextHeadersAndTheCallChain()
+    {
+        Assert.Equal([.. BitwardenHeaders.All, BitwardenHeaders.CallChain], BitwardenHeaders.ServiceOnly);
+    }
+
+    [Fact]
     public void All_CarryNoXPrefix()
     {
         Assert.All(BitwardenHeaders.All, name => Assert.False(name.StartsWith("X-", StringComparison.OrdinalIgnoreCase)));
