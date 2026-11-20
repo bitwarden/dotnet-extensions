@@ -275,30 +275,27 @@ change is spread across releases instead:
 - **Drop a column in two releases.** In the first, remove the property from the model completely
   and delete the `DropColumn` EF generates from that release's migration. If the column is `NOT NULL`
   with no default, make that migration give it a default or make it nullable, since this release
-  no longer writes it. In the next release, drop it in a migration you write by hand. EF won't
-  generate one, because its snapshot already has no such column.
+  no longer writes it. In the next release, add a migration with `add-migration` (the package finds
+  migrations by the attributes in the file EF generates beside it) and write the `DropColumn` in it.
+  EF generates nothing for it, because its snapshot already has no such column.
 - **Drop a table the same way:** stop mapping it in one release, drop it in the next.
-- **Rename a column or table in three releases:** add the new one and write both; move reads to
-  the new one and stop writing the old; drop the old.
+- **Rename a column in four releases.** First, add the new column and write both, still reading the
+  old. Second, copy existing values into the new column in a migration (in batches on a large
+  table), read the new column, and keep writing both, since the release before still reads the old.
+  Then drop the old column in two releases, as above. A table is renamed the same way, with a new
+  table in place of the new column.
 
 Don't use a shadow property to stop a release using a column. A shadow property is still mapped, so
-EF selects it in entity queries and writes it on insert, exactly as it would a CLR property. It
-belongs in the middle release of a rename, while the release before it still reads the old column.
+EF selects it in entity queries and writes it on insert, exactly as it would a CLR property.
 
-The package's analyzer checks each migration's `Up` against these rules:
-
-- [`BW0026`](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#BW0026)
-  reports a step that breaks the previous release: a drop or rename of a table, column, schema or
-  sequence, a dropped primary key, a `NOT NULL` column added with no default, and an `AlterColumn`
-  that narrows the column (a new type or store type, a shorter length, lower precision or scale,
-  `NOT NULL`, a new collation, or a new computed expression).
-- [`BW0027`](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#BW0027)
-  reports a step that can refuse existing rows or the previous release's writes: a unique index, a
-  unique constraint or a check constraint.
-
-Neither reports a step on a table the same migration creates, and neither reads `Down`, `Sql` or a
-helper script. When a step is right, such as the hand-written drop in the second release, suppress
-the warning on the migration and say why.
+The package's analyzer checks each migration's `Up` against these rules.
+[`BW0026`](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#BW0026)
+reports a step that breaks the previous release, and
+[`BW0027`](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#BW0027) a
+constraint that existing rows or the previous release's writes may not satisfy. Their entries list
+the steps each covers. Neither reports a step on a table created earlier in the same `Up`, and
+neither reads `Down`, `Sql` or a helper script. When a step is right, such as the drop in the second
+release, suppress the warning on the migration and say why.
 
 `Migrations/PostgreSql/20261201000000_DropItemsLegacy.cs`:
 
@@ -320,11 +317,21 @@ public partial class DropItemsLegacy : Migration
 Migrations already applied in every environment when you adopt the analyzer can be suppressed the
 same way, with a justification saying so.
 
-#### Online migrations
+#### Building an index online
 
-Only SQL Server builds indexes online (`ONLINE = ON`, on Enterprise edition and Azure SQL). EF Core
-runs each migration in a transaction, and an online index build inside one still blocks writers
-until the transaction commits. Run the build outside the transaction.
+The `CreateIndex` EF generates blocks writes to the table while the index builds. Each engine has
+its own way to build one online:
+
+- **SQL Server:** `WITH (ONLINE = ON)`, on Enterprise and Developer editions, Azure SQL Database and
+  Azure SQL Managed Instance. Other editions refuse it.
+- **PostgreSQL:** `CREATE INDEX CONCURRENTLY`, which can't run inside a transaction.
+- **MySQL and MariaDB:** InnoDB adds a secondary index online by default.
+
+EF Core runs migrations in a transaction, and an online build inside one still holds a lock that
+blocks writers until the transaction commits. Run the build outside it with
+`suppressTransaction: true`. EF then commits the steps before the build, runs the build on its own,
+and records the migration afterwards, outside any transaction. If the migrator stops between the
+build and the record, the next run builds the index again, so write the build to be safe to repeat.
 
 `Migrations/SqlServer/20261201000000_IndexItemsName.cs`:
 
@@ -335,7 +342,15 @@ public partial class IndexItemsName : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
         => migrationBuilder.Sql(
-            "CREATE INDEX [IX_Items_Name] ON [Items] ([Name]) WITH (ONLINE = ON)",
+            """
+            IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Items_Name' AND object_id = OBJECT_ID(N'[Items]'))
+            BEGIN
+                IF SERVERPROPERTY('EngineEdition') IN (3, 5, 8)
+                    EXEC(N'CREATE INDEX [IX_Items_Name] ON [Items] ([Name]) WITH (ONLINE = ON)');
+                ELSE
+                    CREATE INDEX [IX_Items_Name] ON [Items] ([Name]);
+            END
+            """,
             suppressTransaction: true);
 
     protected override void Down(MigrationBuilder migrationBuilder)

@@ -290,17 +290,21 @@ on EF Core that serves rolling deployments spreads a breaking change across rele
 ## Migration step analyzer
 
 `MigrationStepAnalyzer` reports `BW0026` and `BW0027` on `MigrationBuilder` calls in an `Up`
-override on a type deriving from EF Core's `Migration`. It reads the call's constant arguments,
-which is what EF scaffolds, and treats an argument it can't evaluate as a change. A table the same
-`Up` creates (matched by name and schema) is skipped, since no earlier release knows it.
+override on a type deriving from EF Core's `Migration`. It walks the steps in source order, so a
+table counts as new only after its `CreateTable`, and a later `DropTable` or `RenameTable` of it
+updates that. It reads each call's constant arguments, which is what EF scaffolds; a left-out
+argument takes its parameter's default, and one passed a value that isn't a constant counts as a
+change. Store types are compared by name and sizes (`decimal(18,2)`, `timestamp(6) with time zone`),
+and a bounded type moving to its unbounded form (`text`, `longtext`, `longblob`) counts as widening.
 
 Known limitations:
 
 - `Sql`, `SqlFromHelperScript` and anything outside `MigrationBuilder` aren't read.
 - Steps in a helper method that `Up` calls aren't seen; only the `Up` body is.
-- Some providers scaffold an old value as an annotation rather than an `old*` argument. The
-  analyzer reads `.OldAnnotation("Relational:Collation", ...)`, which Pomelo's MySQL provider
-  uses; any other annotation counts as absent.
+- Of the annotations providers chain onto a step, only `Relational:Collation` (as an old value) and
+  `MySql:CharSet` are read. Pomelo's MySQL provider scaffolds both.
+- A change between related store types that widens, such as `varchar(100)` to `nvarchar(100)` on SQL
+  Server, is reported as a store type change.
 
 ## Possible future work
 

@@ -10,8 +10,8 @@ namespace Bitwarden.Server.Sdk.Database.Analyzers;
 /// Reports steps in an EF Core migration's <c>Up</c> that the release before it can't run against.
 /// During a rolling deployment the previous release keeps running on the migrated schema, so a
 /// column it reads must outlive it: a drop or a rename waits for the release after the one that
-/// stopped using it. Steps on a table the same migration creates are never reported, since no
-/// earlier release knows that table.
+/// stopped using it. Steps on a table created earlier in the same <c>Up</c> are never reported,
+/// since no earlier release knows that table.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
@@ -25,8 +25,8 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
         id: "BW0026",
         title: "Migration step breaks the previous release",
         messageFormat: "{0} breaks the previous release, which still runs against this schema while this "
-            + "release rolls out: {1}. Make the change over two releases, or suppress this with a "
-            + "justification naming the release that stopped using it.",
+            + "release rolls out: {1}. Spread the change across releases, or suppress this with a "
+            + "justification saying why the previous release is unaffected.",
         category: "Bitwarden.Database",
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
@@ -39,13 +39,28 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
     internal static readonly DiagnosticDescriptor MayRefuseWrites = new(
         id: "BW0027",
         title: "Migration step can refuse existing rows or the previous release's writes",
-        messageFormat: "{0} can refuse rows already in '{1}', or rows the previous release writes while "
+        messageFormat: "{0} can refuse rows already in {1}, or rows the previous release writes while "
             + "this release rolls out. Confirm both satisfy it, and suppress this with a justification "
             + "saying why.",
         category: "Bitwarden.Database",
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         helpLinkUri: string.Format(HelpUrlFormat, "BW0027"));
+
+    /// <summary>
+    /// Store types with no length limit, each with the bounded types it widens. Moving to one of
+    /// these from a bounded type removes the limit rather than narrowing the column.
+    /// </summary>
+    private static readonly ImmutableDictionary<string, ImmutableArray<string>> UnboundedTypes =
+        ImmutableDictionary.CreateRange(
+            StringComparer.OrdinalIgnoreCase,
+            [
+                // PostgreSQL
+                new KeyValuePair<string, ImmutableArray<string>>("text", ["character varying", "varchar", "character", "char"]),
+                // MySQL and MariaDB
+                new KeyValuePair<string, ImmutableArray<string>>("longtext", ["varchar", "char", "tinytext", "text", "mediumtext"]),
+                new KeyValuePair<string, ImmutableArray<string>>("longblob", ["varbinary", "binary", "tinyblob", "blob", "mediumblob"]),
+            ]);
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         ImmutableArray.Create(BreaksPreviousRelease, MayRefuseWrites);
@@ -78,21 +93,16 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
             return;
         }
 
+        // Steps are checked in source order, so a table counts as new only after its CreateTable:
+        // a drop or rename of a table before one of the same name is created still breaks the
+        // previous release.
         var steps = context.OperationBlocks
             .SelectMany(block => block.DescendantsAndSelf())
             .OfType<IInvocationOperation>()
             .Where(invocation => SymbolEqualityComparer.Default.Equals(invocation.TargetMethod.ContainingType, migrationBuilder))
-            .ToList();
+            .OrderBy(invocation => invocation.Syntax.SpanStart);
 
         var created = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var step in steps.Where(step => step.TargetMethod.Name == "CreateTable"))
-        {
-            if (Text(step, "name") is { Known: true, Value: { } name })
-            {
-                created.Add(TableKey(Text(step, "schema").Value, name));
-            }
-        }
-
         foreach (var step in steps)
         {
             Check(context, step, created);
@@ -101,14 +111,31 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
 
     private static void Check(OperationBlockAnalysisContext context, IInvocationOperation step, HashSet<string> created)
     {
-        var operation = step.TargetMethod.Name;
-        switch (operation)
+        switch (step.TargetMethod.Name)
         {
+            case "CreateTable":
+                if (Text(step, "name") is { Known: true, Value: { } name })
+                {
+                    created.Add(TableKey(Text(step, "schema").Value, name));
+                }
+
+                break;
             case "DropTable":
                 ReportUnlessCreated(context, step, created, "name", BreaksPreviousRelease, "it drops a table the previous release may still use");
+                Forget(step, created);
                 break;
             case "RenameTable":
+                var renamedNewTable = IsCreated(step, created, "name");
                 ReportUnlessCreated(context, step, created, "name", BreaksPreviousRelease, "the previous release still uses the old name");
+                Forget(step, created);
+                if (renamedNewTable && Text(step, "newName") is { Known: true, Value: { } newName })
+                {
+                    var newSchema = Argument(step, "newSchema") is { ArgumentKind: not ArgumentKind.DefaultValue }
+                        ? Text(step, "newSchema").Value
+                        : Text(step, "schema").Value;
+                    created.Add(TableKey(newSchema, newName));
+                }
+
                 break;
             case "DropColumn":
                 ReportUnlessCreated(context, step, created, "table", BreaksPreviousRelease, "it drops a column the previous release may still read or write");
@@ -151,13 +178,14 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
                 break;
             case "AddUniqueConstraint":
             case "AddCheckConstraint":
+            case "AddForeignKey":
                 ReportUnlessCreated(context, step, created, "table", MayRefuseWrites, null);
                 break;
         }
     }
 
     private static bool AddsRequiredColumnWithoutDefault(IInvocationOperation step)
-        => Flag(step, "nullable") is false
+        => Flag(step, "nullable") is not true
             && Flag(step, "rowVersion") is not true
             && IsAbsent(step, "defaultValue")
             && IsAbsent(step, "defaultValueSql")
@@ -165,8 +193,8 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
 
     /// <summary>
     /// Says how an <c>AlterColumn</c> narrows the column, or returns null when it only widens it or
-    /// changes nothing the previous release depends on. A value that isn't a constant counts as a
-    /// change, since it can't be compared.
+    /// changes nothing the previous release depends on. An argument passed a value that isn't a
+    /// constant counts as a change, since it can't be compared.
     /// </summary>
     private static string? NarrowingReason(IInvocationOperation step)
     {
@@ -177,29 +205,42 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
             return "it changes the column's type";
         }
 
-        if (Flag(step, "nullable") is false && Flag(step, "oldNullable") is not false)
+        if (Flag(step, "nullable") is not true && Flag(step, "oldNullable") is not false)
         {
             return "it makes the column NOT NULL, which the previous release may not write";
         }
 
-        if (Differs(Text(step, "collation"), OldCollation(step)))
+        if (Differs(Text(step, "collation"), OldAnnotation(step, "oldCollation", "Relational:Collation")))
         {
-            return "it changes the column's collation, which changes how values compare and rewrites the table on SQL Server";
+            return "it changes the column's collation, which changes how values compare and can rewrite the table";
+        }
+
+        if (Differs(NewAnnotation(step, "MySql:CharSet"), OldAnnotation(step, null, "MySql:CharSet")))
+        {
+            return "it changes the column's character set";
         }
 
         var storeType = Text(step, "type");
         var oldStoreType = Text(step, "oldType");
-        if (Differs(storeType, oldStoreType) && !IsLongerOfSameType(storeType.Value, oldStoreType.Value))
+        if (Differs(storeType, oldStoreType) && !IsWiderOfSameType(storeType.Value, oldStoreType.Value))
         {
             return "it changes the column's store type";
         }
 
-        if (Number(step, "maxLength") is { } maxLength && (Number(step, "oldMaxLength") is not { } oldMaxLength || maxLength < oldMaxLength))
+        var maxLength = Number(step, "maxLength");
+        var oldMaxLength = Number(step, "oldMaxLength");
+        if (!maxLength.Known || !oldMaxLength.Known
+            || (maxLength.Value is { } length && (oldMaxLength.Value is not { } oldLength || length < oldLength)))
         {
             return "it shortens the column";
         }
 
-        if (Number(step, "precision") < Number(step, "oldPrecision") || Number(step, "scale") < Number(step, "oldScale"))
+        var precision = Number(step, "precision");
+        var oldPrecision = Number(step, "oldPrecision");
+        var scale = Number(step, "scale");
+        var oldScale = Number(step, "oldScale");
+        if (!precision.Known || !oldPrecision.Known || !scale.Known || !oldScale.Known
+            || precision.Value < oldPrecision.Value || scale.Value < oldScale.Value)
         {
             return "it reduces the column's precision or scale";
         }
@@ -213,29 +254,32 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    /// The column's collation before the step. Some providers (Pomelo's MySQL provider among them)
-    /// scaffold it as a chained <c>.OldAnnotation("Relational:Collation", ...)</c> rather than the
-    /// <c>oldCollation</c> argument.
+    /// A value the step's chained <c>.Annotation(name, value)</c> sets, or a known null when there
+    /// is none.
     /// </summary>
-    private static (bool Known, string? Value) OldCollation(IInvocationOperation step)
-    {
-        if (Argument(step, "oldCollation") is { ArgumentKind: not ArgumentKind.DefaultValue })
-        {
-            return Text(step, "oldCollation");
-        }
+    private static (bool Known, string? Value) NewAnnotation(IInvocationOperation step, string annotation)
+        => ChainedAnnotation(step, "Annotation", annotation);
 
+    /// <summary>
+    /// The column's value before the step, from the <c>old*</c> argument when it is passed, or else
+    /// from a chained <c>.OldAnnotation(name, value)</c>. Pomelo's MySQL provider scaffolds the old
+    /// collation and character set as annotations.
+    /// </summary>
+    private static (bool Known, string? Value) OldAnnotation(IInvocationOperation step, string? parameter, string annotation)
+        => parameter is not null && Argument(step, parameter) is { ArgumentKind: not ArgumentKind.DefaultValue }
+            ? Text(step, parameter)
+            : ChainedAnnotation(step, "OldAnnotation", annotation);
+
+    private static (bool Known, string? Value) ChainedAnnotation(IInvocationOperation step, string method, string annotation)
+    {
         for (var parent = step.Parent; parent is IInvocationOperation chained; parent = chained.Parent)
         {
-            if (chained.TargetMethod.Name == "OldAnnotation"
+            if (chained.TargetMethod.Name == method
                 && chained.Arguments.Length == 2
-                && chained.Arguments[0].Value.ConstantValue is { HasValue: true, Value: "Relational:Collation" })
+                && chained.Arguments[0].Value.ConstantValue is { HasValue: true, Value: string name }
+                && name == annotation)
             {
-                var value = chained.Arguments[1].Value;
-                while (value is IConversionOperation conversion && !value.ConstantValue.HasValue)
-                {
-                    value = conversion.Operand;
-                }
-
+                var value = Unwrap(chained.Arguments[1].Value);
                 return value.ConstantValue is { HasValue: true, Value: null or string }
                     ? (true, (string?)value.ConstantValue.Value)
                     : (false, null);
@@ -246,38 +290,85 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    /// True when both store types name the same type and the new length is at least the old one,
-    /// <c>max</c> being longest: <c>nvarchar(100)</c> to <c>nvarchar(200)</c> or <c>nvarchar(max)</c>.
+    /// True when the new store type holds every value the old one does: the same type with each
+    /// size at least as large (<c>nvarchar(100)</c> to <c>nvarchar(200)</c> or <c>nvarchar(max)</c>,
+    /// <c>timestamp(3) with time zone</c> to <c>timestamp(6) with time zone</c>, <c>decimal(10,2)</c>
+    /// to <c>decimal(18,2)</c> keeping as many digits before the point), or a bounded type moving to
+    /// its unbounded form (<c>varchar(100)</c> to <c>longtext</c>, <c>character varying(100)</c> to
+    /// <c>text</c>).
     /// </summary>
-    private static bool IsLongerOfSameType(string? type, string? oldType)
+    private static bool IsWiderOfSameType(string? type, string? oldType)
     {
-        if (type is null || oldType is null || !TrySplit(type, out var name, out var length) || !TrySplit(oldType, out var oldName, out var oldLength))
+        if (type is null || oldType is null || !TryParse(oldType, out var oldName, out var oldSizes))
         {
             return false;
         }
 
-        return string.Equals(name, oldName, StringComparison.OrdinalIgnoreCase) && length >= oldLength;
-    }
-
-    private static bool TrySplit(string storeType, out string name, out long length)
-    {
-        name = storeType;
-        length = 0;
-        var open = storeType.IndexOf('(');
-        if (open < 0 || !storeType.EndsWith(")", StringComparison.Ordinal))
+        if (UnboundedTypes.TryGetValue(type.Trim(), out var widens) && widens.Contains(oldName, StringComparer.OrdinalIgnoreCase))
         {
-            return false;
-        }
-
-        name = storeType.Substring(0, open).Trim();
-        var inner = storeType.Substring(open + 1, storeType.Length - open - 2).Trim();
-        if (string.Equals(inner, "max", StringComparison.OrdinalIgnoreCase))
-        {
-            length = long.MaxValue;
             return true;
         }
 
-        return long.TryParse(inner, out length);
+        if (!TryParse(type, out var name, out var sizes)
+            || !string.Equals(name, oldName, StringComparison.OrdinalIgnoreCase)
+            || sizes.Length != oldSizes.Length)
+        {
+            return false;
+        }
+
+        if (sizes.Length == 2)
+        {
+            // Precision and scale: neither may shrink, nor may the digits before the point.
+            return sizes[0] >= oldSizes[0] && sizes[1] >= oldSizes[1] && sizes[0] - sizes[1] >= oldSizes[0] - oldSizes[1];
+        }
+
+        return sizes.Length == 1 && sizes[0] >= oldSizes[0];
+    }
+
+    /// <summary>
+    /// Splits a store type into its name (the text around the parentheses, so
+    /// <c>timestamp with time zone</c> for <c>timestamp(6) with time zone</c>) and its sizes,
+    /// <c>max</c> being the largest.
+    /// </summary>
+    private static bool TryParse(string storeType, out string name, out long[] sizes)
+    {
+        name = storeType.Trim();
+        sizes = [];
+        var open = storeType.IndexOf('(');
+        var close = open < 0 ? -1 : storeType.IndexOf(')', open);
+        if (open < 0 || close < 0)
+        {
+            return true;
+        }
+
+        name = (storeType.Substring(0, open).Trim() + " " + storeType.Substring(close + 1).Trim()).Trim();
+        var parts = storeType.Substring(open + 1, close - open - 1).Split(',');
+        sizes = new long[parts.Length];
+        for (var i = 0; i < parts.Length; i++)
+        {
+            var part = parts[i].Trim();
+            if (string.Equals(part, "max", StringComparison.OrdinalIgnoreCase))
+            {
+                sizes[i] = long.MaxValue;
+            }
+            else if (!long.TryParse(part, out sizes[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsCreated(IInvocationOperation step, HashSet<string> created, string tableParameter)
+        => Text(step, tableParameter) is { Known: true, Value: { } name } && created.Contains(TableKey(Text(step, "schema").Value, name));
+
+    private static void Forget(IInvocationOperation step, HashSet<string> created)
+    {
+        if (Text(step, "name") is { Known: true, Value: { } name })
+        {
+            created.Remove(TableKey(Text(step, "schema").Value, name));
+        }
     }
 
     private static void ReportUnlessCreated(
@@ -288,13 +379,13 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
         DiagnosticDescriptor descriptor,
         string? reason)
     {
-        var table = Text(step, tableParameter);
-        if (table is { Known: true, Value: { } name } && created.Contains(TableKey(Text(step, "schema").Value, name)))
+        if (IsCreated(step, created, tableParameter))
         {
             return;
         }
 
-        Report(context, step, descriptor, reason ?? table.Value ?? tableParameter);
+        var table = Text(step, tableParameter);
+        Report(context, step, descriptor, reason ?? (table.Value is { } name ? $"'{name}'" : "the table"));
     }
 
     private static void Report(OperationBlockAnalysisContext context, IInvocationOperation step, DiagnosticDescriptor descriptor, string detail)
@@ -329,15 +420,35 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
     private static IArgumentOperation? Argument(IInvocationOperation step, string parameter)
         => step.Arguments.FirstOrDefault(argument => argument.Parameter?.Name == parameter);
 
-    private static Optional<object?> Constant(IInvocationOperation step, string parameter)
+    private static IOperation Unwrap(IOperation value)
     {
-        var value = Argument(step, parameter)?.Value;
         while (value is IConversionOperation conversion && !value.ConstantValue.HasValue)
         {
             value = conversion.Operand;
         }
 
-        return value?.ConstantValue ?? new Optional<object?>(null);
+        return value;
+    }
+
+    /// <summary>
+    /// The argument's constant value. A left-out argument is a known null; an argument passed a
+    /// value that isn't a constant has no value.
+    /// </summary>
+    private static Optional<object?> Constant(IInvocationOperation step, string parameter)
+    {
+        var argument = Argument(step, parameter);
+        if (argument is null)
+        {
+            return new Optional<object?>(null);
+        }
+
+        // A left-out optional argument takes its parameter's declared default.
+        if (argument.ArgumentKind == ArgumentKind.DefaultValue && argument.Parameter is { HasExplicitDefaultValue: true } declared)
+        {
+            return new Optional<object?>(declared.ExplicitDefaultValue);
+        }
+
+        return Unwrap(argument.Value).ConstantValue;
     }
 
     /// <summary>
@@ -358,8 +469,11 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
     private static bool? Flag(IInvocationOperation step, string parameter)
         => Constant(step, parameter) is { HasValue: true, Value: bool value } ? value : null;
 
-    private static int? Number(IInvocationOperation step, string parameter)
-        => Constant(step, parameter) is { HasValue: true, Value: int value } ? value : null;
+    private static (bool Known, int? Value) Number(IInvocationOperation step, string parameter)
+    {
+        var constant = Constant(step, parameter);
+        return constant.HasValue && constant.Value is null or int ? (true, (int?)constant.Value) : (false, null);
+    }
 
     private static (bool Known, string? Value) Text(IInvocationOperation step, string parameter)
     {
