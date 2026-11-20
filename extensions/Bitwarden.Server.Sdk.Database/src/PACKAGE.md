@@ -265,6 +265,88 @@ the SQL Server script naming, so they can never be picked up as migrations DbUp 
 that doesn't resolve throws immediately, listing what is embedded, rather than failing part-way
 through a migration run.
 
+### Changing a schema the previous release still uses
+
+During a rolling deployment, instances of the previous release keep running against the schema the
+new release's migrations produce. A migration must not take away anything the previous release
+still reads or writes. EF Core migrations apply in order, all at once, with no phases, so a breaking
+change is spread across releases instead:
+
+- **Drop a column in two releases.** In the first, remove the property from the model completely
+  and delete the `DropColumn` EF generates from that release's migration. If the column is `NOT NULL`
+  with no default, make that migration give it a default or make it nullable, since this release
+  no longer writes it. In the next release, drop it in a migration you write by hand. EF won't
+  generate one, because its snapshot already has no such column.
+- **Drop a table the same way:** stop mapping it in one release, drop it in the next.
+- **Rename a column or table in three releases:** add the new one and write both; move reads to
+  the new one and stop writing the old; drop the old.
+
+Don't use a shadow property to stop a release using a column. A shadow property is still mapped, so
+EF selects it in entity queries and writes it on insert, exactly as it would a CLR property. It
+belongs in the middle release of a rename, while the release before it still reads the old column.
+
+The package's analyzer checks each migration's `Up` against these rules:
+
+- [`BW0026`](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#BW0026)
+  reports a step that breaks the previous release: a drop or rename of a table, column, schema or
+  sequence, a dropped primary key, a `NOT NULL` column added with no default, and an `AlterColumn`
+  that narrows the column (a new type or store type, a shorter length, lower precision or scale,
+  `NOT NULL`, a new collation, or a new computed expression).
+- [`BW0027`](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#BW0027)
+  reports a step that can refuse existing rows or the previous release's writes: a unique index, a
+  unique constraint or a check constraint.
+
+Neither reports a step on a table the same migration creates, and neither reads `Down`, `Sql` or a
+helper script. When a step is right, such as the hand-written drop in the second release, suppress
+the warning on the migration and say why.
+
+`Migrations/PostgreSql/20261201000000_DropItemsLegacy.cs`:
+
+```csharp
+using System.Diagnostics.CodeAnalysis;
+using Microsoft.EntityFrameworkCore.Migrations;
+
+[SuppressMessage("Bitwarden.Database", "BW0026", Justification = "Items.Legacy unmapped since 2026.11.0")]
+public partial class DropItemsLegacy : Migration
+{
+    protected override void Up(MigrationBuilder migrationBuilder)
+        => migrationBuilder.DropColumn(name: "Legacy", table: "Items");
+
+    protected override void Down(MigrationBuilder migrationBuilder)
+        => migrationBuilder.AddColumn<string>(name: "Legacy", table: "Items", nullable: true);
+}
+```
+
+Migrations already applied in every environment when you adopt the analyzer can be suppressed the
+same way, with a justification saying so.
+
+#### Online migrations
+
+Only SQL Server builds indexes online (`ONLINE = ON`, on Enterprise edition and Azure SQL). EF Core
+runs each migration in a transaction, and an online index build inside one still blocks writers
+until the transaction commits. Run the build outside the transaction.
+
+`Migrations/SqlServer/20261201000000_IndexItemsName.cs`:
+
+```csharp
+using Microsoft.EntityFrameworkCore.Migrations;
+
+public partial class IndexItemsName : Migration
+{
+    protected override void Up(MigrationBuilder migrationBuilder)
+        => migrationBuilder.Sql(
+            "CREATE INDEX [IX_Items_Name] ON [Items] ([Name]) WITH (ONLINE = ON)",
+            suppressTransaction: true);
+
+    protected override void Down(MigrationBuilder migrationBuilder)
+        => migrationBuilder.DropIndex(name: "IX_Items_Name", table: "Items");
+}
+```
+
+`AlterColumn` can rewrite a whole table on SQL Server, a collation change among others, holding a
+lock on it throughout. On a large table, add a new column, copy the data in batches, and switch
+over across releases instead.
+
 ## EF Core migrations for SQL Server
 
 By default SQL Server is migrated by DbUp from hand-authored scripts. A schema whose SQL Server

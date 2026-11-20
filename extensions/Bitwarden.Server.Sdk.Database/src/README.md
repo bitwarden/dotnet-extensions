@@ -282,10 +282,25 @@ Folding a phase folder into the main folder renames its scripts, so the journal 
 and applies them again. That is the intended behaviour rather than a flaw, and it is the second
 reason phase scripts have to be idempotent.
 
-EF Core providers stay phase-less. The phases exist for rolling deployments, which the EF-backed
-providers don't serve, and supporting them would mean filtering the entries the generated
-migrations-assembly hands to EF — EF applies whatever migrations it can see, so the phase would have
-to be resolved from `DbContextOptions` when the dispatcher is constructed.
+EF Core providers stay phase-less. Holding a migration back would mean filtering the entries the
+generated migrations-assembly hands to EF, against the order EF's model snapshot assumes. A schema
+on EF Core that serves rolling deployments spreads a breaking change across releases instead, and
+`MigrationStepAnalyzer` (below) reports the steps that would break the release before.
+
+## Migration step analyzer
+
+`MigrationStepAnalyzer` reports `BW0026` and `BW0027` on `MigrationBuilder` calls in an `Up`
+override on a type deriving from EF Core's `Migration`. It reads the call's constant arguments,
+which is what EF scaffolds, and treats an argument it can't evaluate as a change. A table the same
+`Up` creates (matched by name and schema) is skipped, since no earlier release knows it.
+
+Known limitations:
+
+- `Sql`, `SqlFromHelperScript` and anything outside `MigrationBuilder` aren't read.
+- Steps in a helper method that `Up` calls aren't seen; only the `Up` body is.
+- Some providers scaffold an old value as an annotation rather than an `old*` argument. The
+  analyzer reads `.OldAnnotation("Relational:Collation", ...)`, which Pomelo's MySQL provider
+  uses; any other annotation counts as absent.
 
 ## Possible future work
 
