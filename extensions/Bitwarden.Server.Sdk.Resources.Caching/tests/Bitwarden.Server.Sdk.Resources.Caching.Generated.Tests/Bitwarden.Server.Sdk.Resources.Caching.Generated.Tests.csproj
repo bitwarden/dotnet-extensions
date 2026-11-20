@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The cacheable reads' tests again, with the shelf service's handlers compiled by the request delegate generator,
+       as a service compiles its Map calls; the other suite leaves them to the framework's runtime factory. Every test
+       passing both ways is the evidence that a cacheable read, and what the platform refuses of one, are alike on both
+       of the framework's code paths. -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsAotCompatible>false</IsAotCompatible>
+    <RootNamespace>Bitwarden.Server.Sdk.Resources.Caching.Tests</RootNamespace>
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.Http.Generated;Microsoft.AspNetCore.OpenApi.Generated</InterceptorsNamespaces>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Bitwarden.Server.Sdk.Resources.Caching.Tests\ShelfHost.cs" />
+    <Compile Include="..\Bitwarden.Server.Sdk.Resources.Caching.Tests\ShelfQueries.cs" />
+    <Compile Include="..\Bitwarden.Server.Sdk.Resources.Caching.Tests\LoanChangeEndpoints.cs" />
+    <Compile Include="..\Bitwarden.Server.Sdk.Resources.Caching.Tests\RedisFixture.cs" />
+    <Compile Include="..\Bitwarden.Server.Sdk.Resources.Caching.Tests\CacheableQueryTests.cs" />
+    <Compile Include="..\Bitwarden.Server.Sdk.Resources.Caching.Tests\MultiKeyTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Testcontainers" Version="[4.16.0]" />
+    <PackageReference Include="xunit.v3.mtp-v2" Version="[3.2.2]" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="[18.12.0]" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="[10.0.14]" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="[10.0.13]" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.Testing" Version="[10.11.0]" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="[10.11.0]" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.Resources.Caching.csproj" />
+    <ProjectReference Include="..\..\..\Bitwarden.Server.Sdk.Client\src\Bitwarden.Server.Sdk.Client.csproj" />
+  </ItemGroup>
+
+</Project>
