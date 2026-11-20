@@ -155,4 +155,107 @@ public sealed class RequestMemoTests
         memo.Dispose();
         Assert.Null(await Task.Run(() => RequestMemo.Current, Token));
     }
+
+    [Theory]
+    [InlineData(-1, 0)]
+    [InlineData(0, -1)]
+    public void Begin_NegativeBound_Throws(int maxEntries, long maxBytes)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => RequestMemo.Begin(maxEntries, maxBytes));
+        Assert.Null(RequestMemo.Current);
+    }
+
+    // Past the bound on answers, a call is read as if there were no memo, and what is kept stays kept.
+    [Fact]
+    public async Task RememberAsync_PastMaxEntries_Bypassed()
+    {
+        using var memo = RequestMemo.Begin(maxEntries: 1, maxBytes: RequestMemo.DefaultMaxBytes);
+        var reads = 0;
+
+        await memo.RememberAsync("a", false, Counting(() => ++reads), Token);
+        var past = await memo.RememberAsync("b", false, Counting(() => ++reads), Token);
+        await memo.RememberAsync("b", false, Counting(() => ++reads), Token);
+        var kept = await memo.RememberAsync("a", false, Counting(() => ++reads), Token);
+
+        Assert.Equal(RequestMemoOutcome.Bypassed, past.Outcome);
+        Assert.Equal(3, reads);
+        Assert.Equal((1, RequestMemoOutcome.Hit), kept);
+    }
+
+    // An answer that doesn't fit the bound on bytes, or gives no size, is answered but not kept.
+    [Theory]
+    [InlineData(5)]
+    [InlineData(-1)]
+    public async Task RememberAsync_AnswerThatDoesNotFit_NotKept(long size)
+    {
+        using var memo = RequestMemo.Begin(maxEntries: 10, maxBytes: 4);
+        var reads = 0;
+        Func<CancellationToken, Task<RequestMemoRead<int>>> read =
+            _ => Task.FromResult(new RequestMemoRead<int>(++reads, size, RequestMemoKeep.Keep));
+
+        var first = await memo.RememberAsync("k", false, read, Token);
+        var second = await memo.RememberAsync("k", false, read, Token);
+
+        Assert.Equal((1, RequestMemoOutcome.Miss), first);
+        Assert.Equal((2, RequestMemoOutcome.Miss), second);
+    }
+
+    // Two identical calls in flight at once make one read between them.
+    [Fact]
+    public async Task RememberAsync_IdenticalCallsInFlight_Joined()
+    {
+        using var memo = RequestMemo.Begin();
+        var release = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reads = 0;
+
+        var first = memo.RememberAsync("k", false, async _ =>
+        {
+            reads++;
+            return new RequestMemoRead<int>(await release.Task, 4, RequestMemoKeep.Keep);
+        }, Token);
+        var second = memo.RememberAsync("k", false, Counting(() => ++reads), Token);
+        release.SetResult(9);
+
+        Assert.Equal((9, RequestMemoOutcome.Miss), await first);
+        Assert.Equal((9, RequestMemoOutcome.Joined), await second);
+        Assert.Equal(1, reads);
+    }
+
+    // A read that fails fails every caller waiting on it, and nothing is kept: the next call reads again.
+    [Fact]
+    public async Task RememberAsync_ReadFails_FailsItsWaitersAndKeepsNothing()
+    {
+        using var memo = RequestMemo.Begin();
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var first = memo.RememberAsync<int>("k", false, async _ =>
+        {
+            await release.Task;
+            throw new InvalidOperationException("refused");
+        }, Token);
+        var second = memo.RememberAsync("k", false, Counting(() => 7), Token);
+        release.SetResult();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => first);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => second);
+        Assert.Equal((8, RequestMemoOutcome.Miss), await memo.RememberAsync("k", false, Counting(() => 8), Token));
+    }
+
+    // A write seen while a read is in flight: the read still answers its caller, but its answer is never kept, and
+    // its bytes don't count against what the memo keeps after the write.
+    [Fact]
+    public async Task RememberAsync_ForgottenWhileInFlight_AnswerNotKept()
+    {
+        using var memo = RequestMemo.Begin(maxEntries: 10, maxBytes: 4);
+        var release = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var first = memo.RememberAsync("k", false, async _ =>
+            new RequestMemoRead<int>(await release.Task, 4, RequestMemoKeep.Keep), Token);
+        RequestMemo.Forget();
+        release.SetResult(1);
+
+        Assert.Equal((1, RequestMemoOutcome.Miss), await first);
+        Assert.Equal((2, RequestMemoOutcome.Miss), await memo.RememberAsync("k", false, Counting(() => 2), Token));
+        Assert.Equal((2, RequestMemoOutcome.Hit), await memo.RememberAsync("k", false, Counting(() => 3), Token));
+    }
 }
