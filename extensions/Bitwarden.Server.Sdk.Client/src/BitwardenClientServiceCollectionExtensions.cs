@@ -125,7 +125,8 @@ public static class BitwardenClientServiceCollectionExtensions
             //
             // 1. The fault handler: the call's one deadline, around everything below, and the translation of every
             //    failure into the exception it means.
-            // 2. The idempotency key, once, before any attempt, so every attempt of a write carries the same one.
+            // 2. The idempotency key, once, before any attempt, so every attempt of a write carries the same one. Inside
+            //    an operation it is derived from whom the call concerns, as the context handler writes it.
             //    Then the write reported to the operation running now, once per key (ServiceWriteHandler).
             // 3. The retries, within the deadline.
             // 4. and 5. The token and the context token, obtained from Identity for each attempt (held between them).
@@ -134,7 +135,11 @@ public static class BitwardenClientServiceCollectionExtensions
             .AddHttpMessageHandler(provider => new ServiceFaultHandler(
                 serviceName,
                 provider.GetRequiredService<IOptionsMonitor<BitwardenClientOptions>>().Get(serviceName).Timeout))
-            .AddHttpMessageHandler(() => new IdempotencyKeyHandler(keyed))
+            .AddHttpMessageHandler(provider =>
+            {
+                var scopes = provider.GetRequiredService<IServiceScopeFactory>();
+                return new IdempotencyKeyHandler(keyed, request => ContextHandler.Concerned(request, scopes));
+            })
             .AddHttpMessageHandler(provider => new ServiceWriteHandler(
                 serviceName,
                 [.. provider.GetRequiredService<IOptionsMonitor<BitwardenClientOptions>>().Get(serviceName).ReadingPaths]))
