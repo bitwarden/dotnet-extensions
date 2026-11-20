@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Bitwarden.Server.Sdk.Client;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -17,6 +18,55 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </remarks>
 public static class BitwardenClientServiceCollectionExtensions
 {
+    /// <summary>
+    /// Lets <typeparamref name="TClient"/> answer the reads its service declares cacheable from
+    /// that service's owned cache (<see cref="ICachedReads{TClient}"/>).
+    /// </summary>
+    /// <typeparam name="TClient">
+    /// The client implementation; its assembly must embed the service's contract as
+    /// <c>openapi.json</c>, which is where the declarations are read from.
+    /// </typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <param name="serviceName">The service being called, as its client registers it.</param>
+    /// <returns>The service collection.</returns>
+    /// <remarks>
+    /// Called by the client package a service publishes, beside <c>AddBitwardenClient</c>. With no
+    /// <c>Caching:Owned:Redis:Configuration</c> every read is a miss and the service is asked. With
+    /// one, outside <c>Development</c>, the host refuses to start when the connection names no Redis user of the
+    /// service's own.
+    /// </remarks>
+    public static IServiceCollection AddCachedReads<TClient>(this IServiceCollection services, string serviceName)
+        where TClient : class
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+
+        // At startup, not on the first read: a reader connected as Redis's default user, which could write what it
+        // reads, fails to start.
+        services.AddOptions<ServiceCacheUserCheck>()
+            .Configure<IConfiguration, IHostEnvironment>((check, configuration, environment) =>
+                check.OwnUser = ServiceCacheUserCheck.Require(
+                    configuration[Bitwarden.Server.Sdk.Resources.Caching.OwnedCacheEntry.ConnectionKey],
+                    Bitwarden.Server.Sdk.Resources.Caching.OwnedCacheEntry.ConnectionKey,
+                    environment.EnvironmentName))
+            .ValidateOnStart();
+
+        services.TryAddSingleton(provider => new CachedReadsConnectionHolder(
+            provider.GetRequiredService<IConfiguration>()[Bitwarden.Server.Sdk.Resources.Caching.OwnedCacheEntry.ConnectionKey],
+            provider.GetService<TimeProvider>()));
+
+        services.TryAddSingleton<ICachedReads<TClient>>(provider => new CachedReads<TClient>(
+            serviceName,
+            CacheableRead.FromAssembly(typeof(TClient).Assembly),
+            provider.GetRequiredService<CachedReadsConnectionHolder>().Connection,
+            provider.GetRequiredService<IOptionsMonitor<BitwardenClientOptions>>(),
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            provider.GetRequiredService<IConfiguration>(),
+            provider.GetRequiredService<ILogger<CachedReads<TClient>>>()));
+
+        return services;
+    }
+
     /// <summary>
     /// Registers <typeparamref name="TImplementation"/> as the client for a service.
     /// </summary>
@@ -129,7 +179,9 @@ public static class BitwardenClientServiceCollectionExtensions
             //    Then the write reported to the operation running now, once per key (ServiceWriteHandler).
             // 3. The retries, within the deadline.
             // 4. and 5. The token and the context token, obtained from Identity for each attempt (held between them).
-            // 6. The circuit breaker, innermost, so it counts attempts at the callee itself and never Identity's
+            // 6. The request memo (RequestMemoHandler), after the context is written, so its key is exactly what is
+            //    sent, and before anything is, so a remembered answer sends nothing.
+            // 7. The circuit breaker, innermost, so it counts attempts at the callee itself and never Identity's
             //    failures.
             .AddHttpMessageHandler(provider => new ServiceFaultHandler(
                 serviceName,
@@ -148,6 +200,10 @@ public static class BitwardenClientServiceCollectionExtensions
             .AddHttpMessageHandler(provider => new ContextHandler(
                 provider.GetRequiredService<IServiceScopeFactory>(),
                 provider.GetRequiredKeyedService<IServiceTokenProvider>(serviceName)))
+            .AddHttpMessageHandler(provider => new RequestMemoHandler(
+                serviceName,
+                provider.GetRequiredService<IOptionsMonitor<BitwardenClientOptions>>().Get(serviceName).CallerName,
+                provider.GetService<IConfiguration>()))
             .AddHttpMessageHandler(provider =>
                 new CircuitBreakerHandler(serviceName, provider.GetRequiredKeyedService<CalleeCircuit>(serviceName)));
     }

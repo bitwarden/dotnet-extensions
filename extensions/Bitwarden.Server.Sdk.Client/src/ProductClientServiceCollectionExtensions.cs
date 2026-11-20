@@ -72,6 +72,10 @@ public static class ProductClientServiceCollectionExtensions
             builder.TrustInternalAuthorities();
         }
 
-        return builder.AddHttpMessageHandler(() => new ProductCallHandler());
+        // The call's token first, then the request memo, which keys a call by a digest of that token.
+        return builder
+            .AddHttpMessageHandler(() => new ProductCallHandler())
+            .AddHttpMessageHandler(provider => new RequestMemoHandler(
+                serviceName, string.Empty, provider.GetService<IConfiguration>(), product: true));
     }
 }
