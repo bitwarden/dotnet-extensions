@@ -21,13 +21,16 @@ Bitwarden.Server.Sdk.Authorization, which runs first; this package only reads `H
 | `IpRateLimitMiddleware.cs`                     | Calls `IpRateLimiting` and short-circuits the pipeline on a refusal                          |
 | `MemoryRateLimitCounters.cs`                   | Fixed windows in a `ConcurrentDictionary`, swept at most once a minute                       |
 | `RedisRateLimitCounters.cs`                    | Fixed windows in Redis, with the failure threshold                                           |
+| `RateLimitSecret.cs`                           | Reads the secret the Redis counters derive their keys with, required outside `Development`   |
 | `PlatformIpRateLimitRefusal.cs`                | The default refusal body, the error document with code `too-many-requests`                   |
 | `IpRateLimitingServiceCollectionExtensions.cs` | Registers everything with `TryAdd`, choosing Redis or memory                                 |
 
 - **Buckets.** A rule's bucket joins its pattern, period, limit and sorted grants, so two rules differing only in their
   limit or grants never share a window. With endpoint limiting the method and normalized path follow, then the address.
-  Redis keys are `{service}:ip-rate-limit:` and the bucket's SHA-256, where the service is `IServiceIdentity.Name` or
-  else the host's application name, so two services with a rule for the same route don't count each other's requests.
+  Redis keys are `{service}:ip-rate-limit:` and the hex of `CacheKey.DeriveCacheKey(secret, "ip-rate-limit", bucket)`,
+  where the service is `IServiceIdentity.Name` or else the host's application name, so two services with a rule for
+  the same route don't count each other's requests. The secret is `RateLimitSecret`'s own, read where
+  the Redis counters are made, so a host missing it fails as the pipeline is built.
 - **One Redis step.** A Lua script increments the key and sets the window's expiry when the key has none, so a window
   can't be left without one.
 - **Normalizing the path.** Routing serves `/connect/token/` and `//connect/token` as `/connect/token`, so rules match

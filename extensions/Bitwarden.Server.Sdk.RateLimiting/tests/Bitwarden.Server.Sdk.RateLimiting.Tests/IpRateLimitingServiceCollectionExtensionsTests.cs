@@ -14,6 +14,9 @@ namespace Bitwarden.Server.Sdk.RateLimiting.Tests;
 /// </summary>
 public sealed class IpRateLimitingServiceCollectionExtensionsTests
 {
+    private static readonly string Secret =
+        Convert.ToBase64String(Enumerable.Repeat((byte)1, Bitwarden.Server.Sdk.CryptoPrimitives.CacheSecret.Length).ToArray());
+
     // The store: Redis given a connection string and enabled; this process's memory otherwise.
     [Theory]
     [InlineData(null, null, typeof(MemoryRateLimitCounters))]
@@ -26,9 +29,46 @@ public sealed class IpRateLimitingServiceCollectionExtensionsTests
         {
             ["globalSettings:distributedIpRateLimiting:redisConnectionString"] = connectionString,
             ["globalSettings:distributedIpRateLimiting:enabled"] = enabled,
+            [RateLimitSecret.SecretKey] = Secret,
         });
 
         Assert.IsType(expected, provider.GetRequiredService<IRateLimitCounters>());
+    }
+
+    // Counts in Redis need the rate-limit secret outside Development, so a host without it fails as its pipeline is
+    // built; counts in memory need none.
+    [Fact]
+    public void Redis_WithoutTheSecretOutsideDevelopment_Throws()
+    {
+        using var provider = Provider(new Dictionary<string, string?>
+        {
+            ["globalSettings:distributedIpRateLimiting:redisConnectionString"] = "localhost:6379",
+        });
+
+        var exception = Assert.Throws<InvalidOperationException>(() => provider.GetRequiredService<IRateLimitCounters>());
+
+        Assert.Contains(RateLimitSecret.SecretKey, exception.Message);
+    }
+
+    [Fact]
+    public void Redis_WithoutTheSecretInDevelopment_UsesTheDevelopmentSecret()
+    {
+        using var provider = Provider(
+            new Dictionary<string, string?>
+            {
+                ["globalSettings:distributedIpRateLimiting:redisConnectionString"] = "localhost:6379",
+            },
+            services => services.AddSingleton<IHostEnvironment>(new Environment { EnvironmentName = "Development" }));
+
+        Assert.IsType<RedisRateLimitCounters>(provider.GetRequiredService<IRateLimitCounters>());
+    }
+
+    [Fact]
+    public void Memory_WithoutTheSecretOutsideDevelopment_NeedsNone()
+    {
+        using var provider = Provider([]);
+
+        Assert.IsType<MemoryRateLimitCounters>(provider.GetRequiredService<IRateLimitCounters>());
     }
 
     // The in-memory store is the one registered as itself too, so a service's own limits can share it.

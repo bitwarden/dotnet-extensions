@@ -1,5 +1,6 @@
 using Bitwarden.Server.Sdk.Context;
 using Bitwarden.Server.Sdk.RateLimiting;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -15,7 +16,8 @@ public static class IpRateLimitingServiceCollectionExtensions
     /// <summary>
     /// Adds per-address request limits, read from <c>IpRateLimitOptions</c>, counted in this process or, with
     /// <c>globalSettings:distributedIpRateLimiting</c>, in a Redis every instance shares. Off when self-hosted or with
-    /// no rules.
+    /// no rules. Counts in Redis are keyed with <see cref="RateLimitSecret"/>, which outside <c>Development</c> must
+    /// be set.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <returns>The service collection.</returns>
@@ -26,7 +28,8 @@ public static class IpRateLimitingServiceCollectionExtensions
         services.AddOptions<DistributedIpRateLimitingOptions>().BindConfiguration(DistributedIpRateLimitingOptions.SectionName);
         services.TryAddSingleton(provider => new MemoryRateLimitCounters(provider.GetService<TimeProvider>() ?? TimeProvider.System));
         // Redis when distributed limiting is enabled and has a connection string, this process's
-        // memory otherwise.
+        // memory otherwise. Redis's keys need the rate-limit secret, read here: the middleware builds the
+        // counters as the pipeline is built, so a host missing it doesn't start.
         services.TryAddSingleton<IRateLimitCounters>(provider =>
         {
             var distributed = provider.GetRequiredService<IOptions<DistributedIpRateLimitingOptions>>().Value;
@@ -39,6 +42,9 @@ public static class IpRateLimitingServiceCollectionExtensions
             return new RedisRateLimitCounters(
                 RedisRateLimitCounters.Connect(distributed.RedisConnectionString),
                 provider.GetService<IServiceIdentity>()?.Name ?? provider.GetRequiredService<IHostEnvironment>().ApplicationName,
+                RateLimitSecret.ReadSecret(
+                    provider.GetRequiredService<IConfiguration>(),
+                    provider.GetRequiredService<IHostEnvironment>().EnvironmentName),
                 distributed,
                 provider.GetService<TimeProvider>() ?? TimeProvider.System,
                 provider.GetRequiredService<ILogger<RedisRateLimitCounters>>());
