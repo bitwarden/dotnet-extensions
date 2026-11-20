@@ -36,6 +36,12 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Common/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Common/tests/Bitwarden.Server.Sdk.Common.Tests/Bitwarden.Server.Sdk.Common.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Context/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Context/src/Bitwarden.Server.Sdk.Context.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Context/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Context/tests/Bitwarden.Server.Sdk.Context.Tests/Bitwarden.Server.Sdk.Context.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.CryptoPrimitives/">
     <Project Path="extensions/Bitwarden.Server.Sdk.CryptoPrimitives/src/Bitwarden.Server.Sdk.CryptoPrimitives.csproj" />
   </Folder>
@@ -107,6 +113,18 @@
   </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.PasswordHashing/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.PasswordHashing/tests/Bitwarden.Server.Sdk.PasswordHashing.Tests/Bitwarden.Server.Sdk.PasswordHashing.Tests.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.RateLimiting/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.RateLimiting/src/Bitwarden.Server.Sdk.RateLimiting.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.RateLimiting/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.RateLimiting/tests/Bitwarden.Server.Sdk.RateLimiting.Tests/Bitwarden.Server.Sdk.RateLimiting.Tests.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Resources.Caching.Abstractions/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Resources.Caching.Abstractions/src/Bitwarden.Server.Sdk.Resources.Caching.Abstractions.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Resources.Caching.Abstractions/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Resources.Caching.Abstractions/tests/Bitwarden.Server.Sdk.Resources.Caching.Abstractions.Tests/Bitwarden.Server.Sdk.Resources.Caching.Abstractions.Tests.csproj" />
   </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.RestrictedDependencies/">
     <Project Path="extensions/Bitwarden.Server.Sdk.RestrictedDependencies/src/Bitwarden.Server.Sdk.RestrictedDependencies.csproj" />
