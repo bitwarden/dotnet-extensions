@@ -114,6 +114,34 @@ public sealed class CacheWritesTests(RedisFixture redis) : IClassFixture<RedisFi
             record => record.Level == LogLevel.Warning && record.Message.Contains("CacheWrites.Proceed", StringComparison.Ordinal));
     }
 
+    // Only Redis failing to answer lets a change declared to proceed commit; any other failure is a fault, and the
+    // change fails with it.
+    [Theory]
+    [InlineData(typeof(TimeoutException), true)]
+    [InlineData(typeof(ObjectDisposedException), true)]
+    [InlineData(typeof(InvalidOperationException), false)]
+    public async Task Save_DeclaredToProceed_StoreFails_CommitsOnlyWhenRedisDidNotAnswer(Type failure, bool commits)
+    {
+        await using var host = await StartAsync(Unreachable, CacheWrites.Proceed, new FailingStore((Exception)Activator.CreateInstance(failure, "store")!));
+
+        var save = host.InScopeAsync(Library, async database =>
+        {
+            (await database.Loans.SingleAsync(loan => loan.Id == _loan, TestContext.Current.CancellationToken)).Returned = true;
+            await database.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+
+        if (commits)
+        {
+            await save;
+        }
+        else
+        {
+            Assert.IsType(failure, await Assert.ThrowsAnyAsync<Exception>(() => save));
+        }
+
+        Assert.Equal(commits, await ReturnedAsync(host));
+    }
+
     [Fact]
     public async Task Return_CacheReached_MarksTheVersionItReplacedDead()
     {
@@ -170,11 +198,16 @@ public sealed class CacheWritesTests(RedisFixture redis) : IClassFixture<RedisFi
         Assert.Contains(expected, refusal.Message);
     }
 
-    private async Task<ShelfHost> StartAsync(string cache, CacheWrites writes = CacheWrites.Refuse)
+    private async Task<ShelfHost> StartAsync(string cache, CacheWrites writes = CacheWrites.Refuse, IOwnedCacheStore? store = null)
     {
         var host = await ShelfHost.StartAsync(cache, services =>
         {
             services.AddFakeLogging();
+            if (store is not null)
+            {
+                services.AddSingleton(store);
+            }
+
             (writes == CacheWrites.Proceed
                     ? services.AddQuery<IGetLoanQuery, ProceedingLoanQuery>()
                     : services.AddQuery<IGetLoanQuery, GetLoanQuery>())
@@ -209,5 +242,22 @@ public sealed class CacheWritesTests(RedisFixture redis) : IClassFixture<RedisFi
         request.Headers.Add(BitwardenHeaders.Delegation, ShelfHost.SignedContextToken(Library, null));
 
         return await host.Client().SendAsync(request, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>
+    /// A store that holds nothing and fails every invalidation with the exception given.
+    /// </summary>
+    private sealed class FailingStore(Exception failure) : IOwnedCacheStore
+    {
+        public bool Enabled => true;
+
+        public Task<IReadOnlyDictionary<string, string>?> ReadAsync(string key) =>
+            Task.FromResult<IReadOnlyDictionary<string, string>?>(null);
+
+        public Task<bool> FillAsync(string key, long version, string? owner, string? data, TimeSpan lifetime) =>
+            Task.FromResult(false);
+
+        public Task InvalidateAsync(IReadOnlyCollection<Invalidation> invalidations, TimeSpan lifetime, TimeSpan arrivalLifetime) =>
+            Task.FromException(failure);
     }
 }

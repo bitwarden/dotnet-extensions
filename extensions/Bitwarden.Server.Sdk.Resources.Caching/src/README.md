@@ -59,6 +59,13 @@ Bitwarden.Server.Sdk.Client. Nothing here may let a cached copy answer a read th
   in the package records one; the handler discards one it finds, and is the package's only use of
   Bitwarden.Server.Sdk.MessageBroker.Sender.
 
+## Known limitations
+
+- **Database cascades.** Invalidation reads the change tracker (`CacheInvalidationInterceptor.Record`), and
+  `CacheBulkWriteGuard` refuses the bulk writes that bypass it, but nothing checks a foreign key whose `ON DELETE
+CASCADE` or `SET NULL` lets the database delete or change a cached row the context never loaded. Such a row's entry
+  stays readable until it expires; PACKAGE.md gives the workaround.
+
 ## Testing
 
 Tests are in `tests/Bitwarden.Server.Sdk.Resources.Caching.Tests` and need Docker, for Redis. A test class is named for

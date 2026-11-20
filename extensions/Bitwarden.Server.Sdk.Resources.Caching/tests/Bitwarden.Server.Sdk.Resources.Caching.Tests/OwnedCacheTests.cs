@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Bitwarden.Server.Sdk.Context;
 using Bitwarden.Server.Sdk.Data;
+using Bitwarden.Server.Sdk.Resources.Querying;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
@@ -275,6 +276,28 @@ public sealed class OwnedCacheTests(RedisFixture redis) : IClassFixture<RedisFix
         Assert.False(await Redis.KeyExistsAsync(BookKey));
         (await host.GetAsync($"/api/v1/books/{_book}", Ours)).Dispose();
         Assert.True(await Redis.KeyExistsAsync(BookKey));
+    }
+
+    // A change saved in a transaction is invalidated only as it commits: until then the entry is older than the change.
+    [Fact]
+    public async Task ReadInATransaction_AfterItsOwnSave_AnswersTheChangeNotTheEntry()
+    {
+        await using var host = await StartAsync();
+        (await host.GetAsync($"/api/v1/books/{_book}", Ours)).Dispose();
+        Assert.True(await Redis.KeyExistsAsync(BookKey));
+
+        using var scope = host.Services.CreateScope();
+        using var context = ContextScope.Begin(new StatedContext { OrganizationId = Ours });
+        var database = scope.ServiceProvider.GetRequiredService<ShelfContext>();
+        var query = scope.ServiceProvider.GetRequiredService<IGetBookQuery>();
+        await using var transaction = await database.Database.BeginTransactionAsync(TestContext.Current.CancellationToken);
+        (await database.Books.SingleAsync(row => row.Id == _book, TestContext.Current.CancellationToken)).Title = "Heretics of Dune";
+        await database.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var read = await query.ReadAsync(_book.ToString(), new Fields<Book>(["title"]), TestContext.Current.CancellationToken);
+
+        Assert.Equal("Heretics of Dune", read.Data!.Title);
+        await transaction.CommitAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]

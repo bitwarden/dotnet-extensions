@@ -84,6 +84,24 @@ public sealed class RedisAclTests(RedisAclTests.AclRedis redis) : IClassFixture<
         Assert.Contains($"no permissions to run the '{command}", refusal.Message);
     }
 
+    // Broadcast tracking pushes the name of every key any user writes, whatever the tracking user's key permissions;
+    // the synchronous script debugger blocks the server for every user.
+    [Theory]
+    [InlineData("client|tracking", new[] { "CLIENT", "TRACKING", "ON", "BCAST" })]
+    [InlineData("client|caching", new[] { "CLIENT", "CACHING", "YES" })]
+    [InlineData("client|trackinginfo", new[] { "CLIENT", "TRACKINGINFO" })]
+    [InlineData("client|getredir", new[] { "CLIENT", "GETREDIR" })]
+    [InlineData("script|debug", new[] { "SCRIPT", "DEBUG", "SYNC" })]
+    public async Task Service_CannotWatchKeysOrBlockTheServer(string command, string[] arguments)
+    {
+        await using var library = await ConnectionMultiplexer.ConnectAsync(redis.As("library-service"));
+
+        var refusal = await Assert.ThrowsAsync<RedisServerException>(
+            () => library.GetDatabase().ExecuteAsync(arguments[0], arguments[1..]));
+
+        Assert.Contains($"no permissions to run the '{command}'", refusal.Message);
+    }
+
     // FUNCTION FLUSH takes no key and empties the functions every user shares; Redis refuses it from a script anyway.
     [Fact]
     public async Task Service_CannotChangeSharedFunctions()

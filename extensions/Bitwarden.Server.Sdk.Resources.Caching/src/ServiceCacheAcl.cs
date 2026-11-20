@@ -22,9 +22,12 @@ namespace Bitwarden.Server.Sdk.Resources.Caching;
 /// taken away too: <c>SCAN</c> and <c>RANDOMKEY</c> return key names whatever the user's key
 /// permissions (an account's or an organization's identifier is in every key), <c>DBSIZE</c>
 /// is not needed (<c>INFO</c>'s keyspace section still gives the same count), and <c>FUNCTION</c> changes the functions every user shares, as
-/// <c>SCRIPT FLUSH</c> and <c>SCRIPT KILL</c> would the scripts. The keyless commands left are the
-/// connection family's and <c>INFO</c>, which the client library and the owner's eviction check
-/// read; none names a key. No channel but the one the client library watches for a primary
+/// <c>SCRIPT FLUSH</c> and <c>SCRIPT KILL</c> would the scripts. <c>CLIENT TRACKING</c> in broadcast
+/// mode pushes the name of every key any user writes, whatever the tracking user's key permissions,
+/// so tracking and its companions (<c>CLIENT CACHING</c>, <c>CLIENT TRACKINGINFO</c>,
+/// <c>CLIENT GETREDIR</c>) go, and <c>SCRIPT DEBUG</c>, whose synchronous mode blocks the server for
+/// every user. The keyless commands left are the rest of the connection family's and <c>INFO</c>,
+/// which the client library and the owner's eviction check read; none names a key. No channel but the one the client library watches for a primary
 /// changing: the service cache has no backplane, because clients keep no copy of their own.
 /// </para>
 /// <para>
@@ -42,7 +45,8 @@ public static class ServiceCacheAcl
     /// </summary>
     public const string Commands =
         "-@all +@read +@write +@scripting +@connection -@dangerous +info -script|flush -script|kill "
-        + "-scan -randomkey -dbsize -function -fcall -fcall_ro";
+        + "-scan -randomkey -dbsize -function -fcall -fcall_ro "
+        + "-client|tracking -client|caching -client|trackinginfo -client|getredir -script|debug";
 
     /// <summary>
     /// The channel StackExchange.Redis subscribes to for primary changes.

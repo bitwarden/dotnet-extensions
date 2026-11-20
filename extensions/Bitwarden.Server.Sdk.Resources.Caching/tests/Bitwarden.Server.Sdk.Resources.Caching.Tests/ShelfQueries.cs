@@ -42,6 +42,17 @@ public sealed class GetQuotaQuery(CacheableQueryServices services) : CacheableQu
 }
 
 /// <summary>
+/// An organization's quota, by the organization, read within the organization the request names.
+/// </summary>
+public sealed class OwnQuotaQuery(CacheableQueryServices services) : CacheableQuery<QuotaEntity, Quota>(services), IGetQuotaQuery
+{
+    protected override void Configure(CacheableQueryBuilder<QuotaEntity, Quota> query) => query
+        .KeyedBy(entity => entity.OrganizationId, "organization")
+        .Map(ShelfMapping.ToResource)
+        .PerCaller("contact");
+}
+
+/// <summary>
 /// Personal data cached across owners: refused.
 /// </summary>
 public sealed class QuotaWithContactQuery(CacheableQueryServices services) : CacheableQuery<QuotaEntity, Quota>(services), IGetQuotaQuery

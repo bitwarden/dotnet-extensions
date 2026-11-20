@@ -1,3 +1,5 @@
+using StackExchange.Redis;
+
 namespace Bitwarden.Server.Sdk.Resources.Caching;
 
 /// <summary>
@@ -38,6 +40,8 @@ internal interface IOwnedCacheStore
     /// <param name="arrivalLifetime">
     /// How long an arrival's tombstone lives (<see cref="Invalidation.Arrival"/>): the commit allowance.
     /// </param>
-    /// <exception cref="Exception">Redis couldn't be reached; the caller decides what the change does (<see cref="CacheWrites"/>).</exception>
+    /// <exception cref="RedisException">Redis couldn't be reached or refused the script; the caller decides what the change does (<see cref="CacheWrites"/>).</exception>
+    /// <exception cref="TimeoutException">Redis didn't answer in time; the caller decides as for a <see cref="RedisException"/>.</exception>
+    /// <exception cref="ObjectDisposedException">The connection is closing as the host stops; the caller decides as for a <see cref="RedisException"/>.</exception>
     Task InvalidateAsync(IReadOnlyCollection<Invalidation> invalidations, TimeSpan lifetime, TimeSpan arrivalLifetime);
 }

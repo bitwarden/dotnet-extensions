@@ -130,7 +130,10 @@ What the query gets:
 - **A slow read isn't kept.** A fill is skipped, and logged at debug, when more than `Caching:Owned:FillLimit` has
   passed since its database read began, measured on the reader's own clock.
 - **A read inside a transaction isn't kept.** Under snapshot or repeatable-read isolation the row it read can be as
-  old as the transaction, which the fill limit doesn't time. It is answered from the database and fills nothing.
+  old as the transaction, which the fill limit doesn't time. It is answered from the database, never from the entry,
+  which may be older than what the transaction saved, and fills nothing.
+- **"Nothing recorded" only where the read knows.** Under a key that is the owner, a read the request narrows to
+  another owner finds no row whether or not one is recorded, so it fills nothing.
 - **Published.** Every operation whose handler takes a cacheable query carries `x-bitwarden-cache` in the contract:
   key template, scope, the context the operation requires, the owner to check, the attributes an entry holds
   (`fields`), those worked out per caller (`perCaller`), the entry format (`format`), and the services whose own
@@ -290,7 +293,9 @@ public sealed class GetLabelQuery(CacheableQueryServices services) : CacheableQu
 - **Declared on what is cached, not judged per change.** `CacheWrites.Refuse`, the default, or `CacheWrites.Proceed`
   for a resource no reader grants or refuses anything by. A change touching anything declared `Refuse` is refused.
 - **Every writer, however it saves.** `SaveChangesAsync`, an explicit transaction or an erasure: no writer can forget
-  it. A commit refused and tried again on the same transaction is refused again unless the cache can be told then.
+  it. A commit refused and tried again on the same transaction is refused again unless the cache can be told then. A
+  context can't join a transaction another context began (`UseTransaction` throws `InvalidOperationException`): that
+  transaction commits through the other context, which knows nothing of this one's changes.
 - **Said at startup.** The host logs, for each table something cached is built from, which applies. Where
   declarations reading one table disagree, `Refuse` wins.
 
@@ -298,7 +303,8 @@ public sealed class GetLabelQuery(CacheableQueryServices services) : CacheableQu
 
 `ServiceCacheAcl.User` states the Redis ACL rule a service connects as: it writes only its own prefix and reads only
 the prefixes of the services it calls. The keyless commands key permissions don't confine (`SCAN`, `RANDOMKEY`,
-`DBSIZE`, `FUNCTION`) are taken away, so no service lists another's keys. In a provisioning tool, `CacheUsers.cs`:
+`DBSIZE`, `FUNCTION`, `CLIENT TRACKING`, `SCRIPT DEBUG`) are taken away, so no service lists or watches another's keys,
+or stalls the server. In a provisioning tool, `CacheUsers.cs`:
 
 ```csharp
 using Bitwarden.Server.Sdk.Resources.Caching;
@@ -331,6 +337,11 @@ public static class CacheUsers
 - **Raw SQL isn't checked**, as it can't be read reliably: `ExecuteSql`, `ExecuteSqlRaw` and their like must never
   write to a table a cache entry is built from. Such a write is never invalidated, and readers of the cache are served
   what it replaced until the entry expires.
+- **Database cascades aren't seen.** A row the database deletes or changes through a foreign key's `ON DELETE
+CASCADE` or `SET NULL` never passes through the change tracker, so its entry isn't invalidated and readers of the
+  cache are served it until it expires. Where a cached table, or one a cached read includes, depends on another
+  through such a key, load its rows into the context before deleting the row they depend on, so the change tracker
+  deletes or changes them itself.
 - **Switch clients off first.** Switching the cache off in a running deployment should be done on the clients first:
   an owner without Redis cannot invalidate what clients might still read.
 - **Not a cache a process keeps for itself.** The owner writes through version-checked scripts a general-purpose cache

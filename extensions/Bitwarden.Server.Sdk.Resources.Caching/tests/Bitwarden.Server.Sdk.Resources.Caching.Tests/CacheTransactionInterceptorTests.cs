@@ -119,6 +119,26 @@ public sealed class CacheTransactionInterceptorTests(RedisFixture redis) : IClas
         Assert.Equal("Dune", await TitleAsync(host));
     }
 
+    // A transaction commits through the interceptor of the context that began it, which knows nothing of what another
+    // context saved in it: joining one is refused, so no change commits with the cache never told.
+    [Fact]
+    public async Task UseTransaction_AnotherContextsTransaction_Refused()
+    {
+        await using var host = await StartAsync();
+
+        await host.InScopeAsync(Ours, async database =>
+        {
+            await using var transaction = await database.Database.BeginTransactionAsync(TestContext.Current.CancellationToken);
+            using var other = host.Services.CreateScope();
+            var joining = other.ServiceProvider.GetRequiredService<ShelfContext>();
+
+            var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() => joining.Database.UseTransactionAsync(
+                Microsoft.EntityFrameworkCore.Storage.DbContextTransactionExtensions.GetDbTransaction(transaction), TestContext.Current.CancellationToken));
+
+            Assert.Contains("can't join a transaction another context began", refusal.Message);
+        });
+    }
+
     [Fact]
     public async Task Fill_ReadLongerAgoThanTheFillLimit_Skipped()
     {

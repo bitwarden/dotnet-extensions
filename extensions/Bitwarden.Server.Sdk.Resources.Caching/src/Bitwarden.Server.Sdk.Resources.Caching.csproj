@@ -24,7 +24,7 @@
 
   <ItemGroup>
     <!-- Declared resources are read through the platform's standard read, invalidated from the
-         change tracker and the outbox, and published in the contract. -->
+         change tracker as each change commits, and published in the contract. -->
     <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Authorization\src\Bitwarden.Server.Sdk.Authorization.csproj" />
     <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Context\src\Bitwarden.Server.Sdk.Context.csproj" />
     <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Data\src\Bitwarden.Server.Sdk.Data.csproj" />

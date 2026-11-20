@@ -267,8 +267,9 @@ public abstract class CacheableQuery<TEntity, TResource> : ICacheableQuery
             && (fields.Names is null || fields.Names.Any(resource.PerCaller.Contains));
 
         // A read asking for nothing worked out per caller is answered from the service's own entry when it can be,
-        // with the checks a client makes.
-        if (!perCaller && await OwnEntryAsync(resource, entryKey, key, named, services) is { } own)
+        // with the checks a client makes. Not inside a transaction: what it saved is invalidated only as it commits, so
+        // the entry may be older than the transaction's own change.
+        if (!perCaller && _services.Database.Database.CurrentTransaction is null && await OwnEntryAsync(resource, entryKey, key, named, services) is { } own)
         {
             return own.Resource is { } cached ? new ResourceDocument<TResource> { Data = cached, Fields = fields.Names } : null;
         }
@@ -282,7 +283,8 @@ public abstract class CacheableQuery<TEntity, TResource> : ICacheableQuery
         // rows hold, the first is answered and nothing is written: either could be the one a later read finds first.
         // Inside a transaction nothing is written either: under snapshot or repeatable-read isolation the row read can be
         // as old as the transaction, and the fill limit times only the statement.
-        if (!duplicated && _services.Database.Database.CurrentTransaction is null)
+        if (!duplicated && _services.Database.Database.CurrentTransaction is null
+            && (entity is not null || AbsenceKnown(resource, key, named, services.GetRequiredService<IContext>())))
         {
             await CacheFill.FillAsync(services, resource, entryKey, key, owner, entity, mapped, readStarted, cancellationToken);
         }
@@ -296,6 +298,17 @@ public abstract class CacheableQuery<TEntity, TResource> : ICacheableQuery
 
         return new ResourceDocument<TResource> { Data = answer, Fields = fields.Names };
     }
+
+    /// <summary>
+    /// Whether finding no row means nothing is recorded under the key, for every caller. Under a key that is the owner,
+    /// row-level security narrows the read by the owner the request names, so a read naming another owner finds no row
+    /// whether or not one is recorded: only a read narrowed by the key itself, or one read across owners, knows.
+    /// </summary>
+    private static bool AbsenceKnown(CacheableResource<TEntity, TResource> resource, Guid key, Guid? named, IContext context) =>
+        !resource.KeyIsOwner
+        || resource.AcrossOwners
+        || named == key
+        || (resource.Owner is { } axis && Named(context, axis) == key);
 
     /// <summary>
     /// The service's own entry, when a client would answer from it: null for a miss, otherwise the resource or, under a

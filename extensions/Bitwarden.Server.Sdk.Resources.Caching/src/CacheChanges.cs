@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
+using StackExchange.Redis;
 
 namespace Bitwarden.Server.Sdk.Resources.Caching;
 
@@ -84,7 +85,7 @@ internal sealed class CacheChanges
         {
             await store.InvalidateAsync(entries, registry.TombstoneLifetime, times.CommitAllowance);
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (exception is RedisException or TimeoutException or ObjectDisposedException)
         {
             if (entries.Any(entry => entry.Refuse))
             {

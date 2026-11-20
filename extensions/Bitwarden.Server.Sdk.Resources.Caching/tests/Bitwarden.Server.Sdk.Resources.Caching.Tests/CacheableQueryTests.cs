@@ -117,6 +117,33 @@ public sealed class CacheableQueryTests(RedisFixture redis) : IClassFixture<Redi
             .ReadByKeyAsync(Theirs, cancellationToken: TestContext.Current.CancellationToken));
     }
 
+    // Under a key that is the owner, a read naming another owner finds no row because row-level security hides it, not
+    // because none is recorded: caching that as "nothing recorded" would answer the owner's own reads with it.
+    [Fact]
+    public async Task ReadByKey_ByAnotherOwner_CachesNothingAndTheOwnerStillReadsItsRow()
+    {
+        await using var host = await ShelfHost.StartAsync(redis.Service, services => services
+            .AddQuery<IGetQuotaQuery, OwnQuotaQuery>()
+            .AddOwnedCache<ShelfContext>());
+        var owner = Guid.NewGuid();
+        var key = $"{ShelfHost.ServiceName}:quota:by-organization:{owner}";
+        await host.InScopeAsync(owner, async database =>
+        {
+            database.Quotas.Add(new QuotaEntity { Id = Guid.NewGuid(), OrganizationId = owner, Limit = 2, Version = 1 });
+            await database.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+        await Redis.KeyDeleteAsync(key);
+
+        using (var another = await host.GetAsync($"/api/v1/quotas/{owner}?fields[quota]=limit", Theirs))
+        {
+            Assert.Equal(HttpStatusCode.NotFound, another.StatusCode);
+        }
+
+        Assert.False(await Redis.KeyExistsAsync(key));
+        using var own = await host.GetAsync($"/api/v1/quotas/{owner}?fields[quota]=limit", owner);
+        Assert.Equal(HttpStatusCode.OK, own.StatusCode);
+    }
+
     [Theory]
     [InlineData("filtered", "has endpoint filters")]
     [InlineData("with-more", "takes 'database'")]

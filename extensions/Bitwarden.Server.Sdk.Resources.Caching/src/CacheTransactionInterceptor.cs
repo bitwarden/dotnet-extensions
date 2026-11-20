@@ -41,6 +41,22 @@ internal sealed class CacheTransactionInterceptor(
         return ValueTask.FromResult(result);
     }
 
+    // A transaction another context began commits through that context's interceptor, which knows nothing of what this
+    // one saved: its changes would commit with the cache never told. Refused, so no writer can bypass invalidation.
+    public override DbTransaction TransactionUsed(DbConnection connection, TransactionEventData eventData, DbTransaction result) =>
+        throw SharedTransaction();
+
+    public override ValueTask<DbTransaction> TransactionUsedAsync(
+        DbConnection connection,
+        TransactionEventData eventData,
+        DbTransaction result,
+        CancellationToken cancellationToken = default) =>
+        throw SharedTransaction();
+
+    private static InvalidOperationException SharedTransaction() =>
+        new("A context with a service cache can't join a transaction another context began (UseTransaction): the cache "
+            + "would not be told of its changes as the transaction commits. Save through the context that began it.");
+
     public override InterceptionResult TransactionCommitting(
         DbTransaction transaction,
         TransactionEventData eventData,
