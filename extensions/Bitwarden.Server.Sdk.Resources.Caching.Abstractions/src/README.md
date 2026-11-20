@@ -10,10 +10,10 @@ clients that read it. See [PACKAGE.md](PACKAGE.md) for how to use it.
 Only what both the owner of a cache entry and its readers need. Nothing here connects to Redis or touches
 `HttpContext`: filling and reading entries belong in the packages that host a service and call one.
 
-`CacheSecretSetting` is here too: the one rule every secret that derives keys with `CacheKey` is read by, those of the
-idempotency keys, the shared rate-limit counts and a service's own keyed rows. It lives here so those readers share one
-rule through a small package that connects to nothing; it alone needs Microsoft.Extensions.Configuration.Abstractions
-and Bitwarden.Server.Sdk.CryptoPrimitives.
+`CacheSecretSetting` is here too: the rule for reading a secret that derives keys with `CacheKey`, such as one for
+idempotency keys, shared rate-limit counts or a service's own keyed rows. It lives in this small package, which
+connects to nothing, so a package that derives such keys can share the rule by referencing it; it alone needs
+Microsoft.Extensions.Configuration.Abstractions and Bitwarden.Server.Sdk.CryptoPrimitives.
 
 ## How it works
 

@@ -5,7 +5,7 @@ using Microsoft.Extensions.Primitives;
 namespace Bitwarden.Server.Sdk.Resources.Caching.Abstractions.Tests;
 
 /// <summary>
-/// The one rule every derived-key secret is read by: required outside Development, never the public development
+/// The rule a derived-key secret is read by: required outside Development, never the public development
 /// secret where required, and never quoted.
 /// </summary>
 public sealed class CacheSecretSettingTests

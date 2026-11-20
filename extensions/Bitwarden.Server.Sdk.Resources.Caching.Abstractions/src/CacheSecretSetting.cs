@@ -4,8 +4,8 @@ using Microsoft.Extensions.Configuration;
 namespace Bitwarden.Server.Sdk.Resources.Caching;
 
 /// <summary>
-/// Reads a <see cref="CacheSecret"/> from a setting: the one rule every secret that derives keys with
-/// <see cref="CacheKey.DeriveCacheKey(CacheSecret, ReadOnlySpan{string})"/> is read by.
+/// Reads a <see cref="CacheSecret"/> from a setting: the rule for a secret that derives keys with
+/// <see cref="CacheKey.DeriveCacheKey(CacheSecret, ReadOnlySpan{string})"/>.
 /// </summary>
 /// <remarks>
 /// <para>
