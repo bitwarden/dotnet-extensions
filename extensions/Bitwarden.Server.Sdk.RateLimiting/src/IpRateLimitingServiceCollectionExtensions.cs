@@ -17,7 +17,7 @@ public static class IpRateLimitingServiceCollectionExtensions
     /// Adds per-address request limits, read from <c>IpRateLimitOptions</c>, counted in this process or, with
     /// <c>globalSettings:distributedIpRateLimiting</c>, in a Redis every instance shares. Off when self-hosted or with
     /// no rules. Counts in Redis are keyed with <see cref="RateLimitSecret"/>, which outside <c>Development</c> must
-    /// be set.
+    /// be set whenever a Redis is configured and enabled, even while limits are off.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <returns>The service collection.</returns>

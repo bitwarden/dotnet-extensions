@@ -15,8 +15,8 @@ public interface IRateLimitCounters
     /// Counts one request in a window.
     /// </summary>
     /// <param name="bucket">
-    /// What is counted: the rule and the client address, for example. Redis holds it only as an
-    /// unsalted SHA-256 hash in a key that expires with its window.
+    /// What is counted: the rule and the client address, for example. Redis holds it only as a
+    /// digest keyed with <see cref="RateLimitSecret"/>, in a key that expires with its window.
     /// </param>
     /// <param name="limit">How many requests the window allows.</param>
     /// <param name="period">How long the window lasts from its first request.</param>

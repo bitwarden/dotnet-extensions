@@ -3,6 +3,10 @@ using System.Reflection;
 using Bitwarden.Server.Sdk.CryptoPrimitives;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using StackExchange.Redis;
 using static Bitwarden.Server.Sdk.RateLimiting.Tests.IpRateLimitingTests;
@@ -106,6 +110,38 @@ public sealed class RedisRateLimitCountersTests(RateLimitRedisFixture redis) : I
 
         string Expected(CacheSecret secret) =>
             $"{service}:ip-rate-limit:{Convert.ToHexStringLower(CacheKey.DeriveCacheKey(secret, "ip-rate-limit", "bucket").AsSpan())}";
+    }
+
+    // The secret a host configures is the one its counts' keys are derived with.
+    [Fact]
+    public async Task AHost_DerivesKeysWithTheConfiguredSecret()
+    {
+        var service = $"svc-{Guid.NewGuid():N}";
+        var configured = new CacheSecret(Enumerable.Repeat((byte)3, CacheSecret.Length).ToArray());
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["globalSettings:distributedIpRateLimiting:redisConnectionString"] = redis.ConnectionString,
+                [RateLimitSecret.SecretKey] = Convert.ToBase64String(Enumerable.Repeat((byte)3, CacheSecret.Length).ToArray()),
+            })
+            .Build();
+        await using var provider = new ServiceCollection()
+            .AddSingleton<IConfiguration>(configuration)
+            .AddSingleton<IHostEnvironment>(new ProductionHost(service))
+            .AddLogging()
+            .AddIpRateLimiting()
+            .BuildServiceProvider();
+
+        var counters = provider.GetRequiredService<IRateLimitCounters>();
+        Assert.True(await counters.TryTakeAsync("bucket", 1, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken));
+
+        await using var connection = await ConnectionMultiplexer.ConnectAsync(redis.ConnectionString);
+        var server = connection.GetServer(connection.GetEndPoints()[0]);
+        var key = Assert.Single(server.Keys(pattern: $"{service}:*"));
+
+        Assert.Equal(
+            $"{service}:ip-rate-limit:{Convert.ToHexStringLower(CacheKey.DeriveCacheKey(configured, "ip-rate-limit", "bucket").AsSpan())}",
+            key.ToString());
     }
 
     // Redis holds the address only inside a hash of what is counted, and every key expires.
@@ -312,6 +348,14 @@ public sealed class RedisRateLimitCountersTests(RateLimitRedisFixture redis) : I
                     throw new NotSupportedException(targetMethod?.Name);
             }
         }
+    }
+
+    private sealed class ProductionHost(string applicationName) : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = "Production";
+        public string ApplicationName { get; set; } = applicationName;
+        public string ContentRootPath { get; set; } = "/";
+        public IFileProvider ContentRootFileProvider { get; set; } = null!;
     }
 
     public class FailingDatabase : DispatchProxy

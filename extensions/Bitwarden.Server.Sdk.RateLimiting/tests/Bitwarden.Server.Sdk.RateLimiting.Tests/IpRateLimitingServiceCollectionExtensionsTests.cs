@@ -63,6 +63,22 @@ public sealed class IpRateLimitingServiceCollectionExtensionsTests
         Assert.IsType<RedisRateLimitCounters>(provider.GetRequiredService<IRateLimitCounters>());
     }
 
+    // A configured Redis needs the secret even while limits are off: the counters are built with the limiter, whatever
+    // its rules.
+    [Fact]
+    public void Redis_WithLimitsOffAndWithoutTheSecretOutsideDevelopment_Throws()
+    {
+        using var provider = Provider(new Dictionary<string, string?>
+        {
+            ["globalSettings:distributedIpRateLimiting:redisConnectionString"] = "localhost:6379",
+            ["IpRateLimitOptions:Enabled"] = "false",
+        });
+
+        var exception = Assert.Throws<InvalidOperationException>(() => provider.GetRequiredService<IpRateLimiting>());
+
+        Assert.Contains(RateLimitSecret.SecretKey, exception.Message);
+    }
+
     [Fact]
     public void Memory_WithoutTheSecretOutsideDevelopment_NeedsNone()
     {
