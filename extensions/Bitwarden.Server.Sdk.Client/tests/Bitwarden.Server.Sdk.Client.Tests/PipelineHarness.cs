@@ -23,7 +23,8 @@ internal static class PipelineHarness
         Scripted callee,
         TimeProvider? clock = null,
         Action<BitwardenClientOptions>? configure = null,
-        HttpMessageHandler? identity = null)
+        HttpMessageHandler? identity = null,
+        IReadOnlyDictionary<string, string?>? settings = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
@@ -34,6 +35,7 @@ internal static class PipelineHarness
                 [$"Services:{Callee}:CallerName"] = "caller",
                 [$"Services:{Callee}:CallerSecret"] = "made-up-for-tests",
             })
+            .AddInMemoryCollection(settings ?? new Dictionary<string, string?>())
             .Build());
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
