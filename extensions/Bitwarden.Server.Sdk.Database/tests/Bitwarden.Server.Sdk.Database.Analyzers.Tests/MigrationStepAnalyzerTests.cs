@@ -53,6 +53,10 @@ public class MigrationStepAnalyzerTests
     [InlineData("""migrationBuilder.{|BW0026:AlterColumn|}<decimal>(name: "Price", table: "Items", type: "decimal(18,4)", precision: 18, scale: 4, nullable: false, oldClrType: typeof(decimal), oldType: "decimal(18,2)", oldPrecision: 18, oldScale: 2);""")]
     [InlineData("""migrationBuilder.{|BW0026:AlterColumn|}<string>(name: "Code", table: "Items", type: "character varying(10)", maxLength: 10, nullable: false, oldClrType: typeof(string), oldType: "text");""")]
     [InlineData("""migrationBuilder.{|BW0026:AlterColumn|}<string>(name: "Name", table: "Items", type: "longtext", nullable: false, oldClrType: typeof(string), oldType: "longtext").Annotation("MySql:CharSet", "latin1").OldAnnotation("MySql:CharSet", "utf8mb4");""")]
+    // A size that isn't a number (PostGIS's geometry type and SRID) can't be shown to widen.
+    [InlineData("""migrationBuilder.{|BW0026:AlterColumn|}<string>(name: "Area", table: "Items", type: "geometry(Point,3857)", nullable: false, oldClrType: typeof(string), oldType: "geometry(Point,4326)");""")]
+    // A store type with no old type to compare against counts as a change.
+    [InlineData("""migrationBuilder.{|BW0026:AlterColumn|}<string>(name: "Name", table: "Items", type: "nvarchar(200)", nullable: false, oldClrType: typeof(string));""")]
     public async Task NarrowingColumn_IsReported(string step)
         => await RunAsync(Up(step));
 
