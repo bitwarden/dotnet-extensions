@@ -20,16 +20,13 @@ public sealed class ServiceCacheAclTests
     public void NamesAUser_OnlyWithAUserOfItsOwn(string configuration, bool expected) =>
         Assert.Equal(expected, ServiceCacheAcl.NamesAUser(configuration));
 
-    // Shared: this table is copied byte for byte into the tests of the three checks that refuse a Redis connection
-    // naming no user of the service's own, and a change to one check's behaviour fails the other two until it is copied
-    // over. The copies are in
-    // Bitwarden.Server.Sdk.Resources.Caching/tests/Bitwarden.Server.Sdk.Resources.Caching.Tests/ServiceCacheAclTests.cs
-    // (ServiceCacheAcl.RequireUser), Bitwarden.Server.Sdk.Client/tests/Bitwarden.Server.Sdk.Client.Tests/ServiceCacheUserCheckTests.cs
-    // (ServiceCacheUserCheck.Require) and
-    // Bitwarden.Server.Sdk.Idempotency/tests/Bitwarden.Server.Sdk.Idempotency.Tests/RedisUserCheckTests.cs
-    // (RedisUserCheck.Require). Each row is a connection string, the host's environment, and what the check answers:
-    // true for a user of the service's own or no connection, false where Development allows one without, and null for
-    // a refusal.
+    // Shared: this table, comment included, is the same in the tests of each check that refuses a Redis connection
+    // naming no user of the service's own: ServiceCacheAcl.RequireUser in Bitwarden.Server.Sdk.Resources.Caching,
+    // ServiceCacheUserCheck.Require in Bitwarden.Server.Sdk.Client and RedisUserCheck.Require in
+    // Bitwarden.Server.Sdk.Idempotency. Change the copies together: a table changed for one check then fails the others
+    // until they change too. Each row is a connection string, the host's environment, and what the check answers: true
+    // for a user of the service's own or no connection, false where Development allows one without, and null for a
+    // refusal.
     public static TheoryData<string?, string, bool?> RedisUserCases => new()
     {
         // No connection: nothing to check.

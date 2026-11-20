@@ -67,6 +67,9 @@ Bitwarden.Server.Sdk.Client. Nothing here may let a cached copy answer a read th
 
 - **What the model doesn't say.** The cascade check reads the Entity Framework model. A foreign key or trigger the
   database has and the model doesn't, or one whose delete behaviour differs from the model's, isn't seen.
+- **What the cascade check doesn't read.** It reads the foreign keys of the read's own entity type and of the types its
+  includes reach, with those they inherit: not keys declared only on a derived type, nor an owned type's own keys. A key
+  on a shadow property, or on a shared-type entity, can't be named by `CascadeCovered`, so it can only be reported.
 
 ## Testing
 

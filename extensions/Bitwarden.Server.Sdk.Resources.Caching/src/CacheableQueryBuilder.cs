@@ -85,6 +85,7 @@ public sealed class CacheableQueryBuilder<TEntity, TResource>
     /// on a key that isn't its include's own, refuses the host everywhere.
     /// </remarks>
     /// <exception cref="ArgumentException">The key isn't a property of the row, or the reason is blank.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="coverage"/> is no <see cref="CascadeCoverage"/>.</exception>
     public CacheableQueryBuilder<TEntity, TResource> CascadeCovered<TDependent>(
         Expression<Func<TDependent, object?>> foreignKey, CascadeCoverage coverage, string reason)
         where TDependent : class

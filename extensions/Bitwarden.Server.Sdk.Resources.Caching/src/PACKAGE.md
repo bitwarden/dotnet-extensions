@@ -286,7 +286,7 @@ public sealed class GetGroupQuery(CacheableQueryServices services) : CacheableQu
 {
     protected override void Configure(CacheableQueryBuilder<GroupEntity, Group> query) => query
         .Including(rows => rows.Include(group => group.Memberships))
-        .CascadeCovered<GroupMembershipEntity>(
+        .CascadeCovered<GroupMemberEntity>(
             link => link.GroupId,
             CascadeCoverage.ParentInvalidated,
             "a group's links go with the group, whose own deletion invalidates its entry")
@@ -296,10 +296,11 @@ public sealed class GetGroupQuery(CacheableQueryServices services) : CacheableQu
 
 - **`CascadeCoverage.ParentInvalidated`**: the key is the one an included navigation names its parent by, the cached
   row itself. Deleting the parent goes through the change tracker and invalidates its entry, so the included rows the
-  database then deletes are never read from it. Refused on any other key.
+  database then deletes or changes are never read from it. Refused on any other key.
 - **`CascadeCoverage.DependentsLoaded`**: every change that deletes the key's principal loads these rows into the
-  context first, so the change tracker deletes or changes them itself and their entries are invalidated. The package
-  can't see this; the reason names the code that does it.
+  context first, so the change tracker deletes or changes them itself and their entries are invalidated. Only true where
+  the principal is never deleted another way: not by a database cascade from a row it depends on, and not by an owner's
+  erasure that leaves these rows behind. The package can't see this; the reason names the code that does it.
 - **Undeclared.** In `Development`, and in `Testing` (a host under test), the host refuses to start. Elsewhere it logs one
   warning naming every undeclared key, and starts.
 - **Declared wrongly.** A declaration naming no such key of a table the read is built from, or `ParentInvalidated` on a

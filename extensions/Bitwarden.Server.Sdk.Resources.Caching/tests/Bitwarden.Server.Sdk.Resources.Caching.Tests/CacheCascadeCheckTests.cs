@@ -39,16 +39,21 @@ public sealed class CacheCascadeCheckTests(RedisFixture redis) : IClassFixture<R
         Assert.Contains("CascadeCovered", refusal.Message);
     }
 
+    // One warning names every undeclared key, of every read.
     [Fact]
     public async Task Start_UndeclaredCascade_Elsewhere_WarnsOnceAndStarts()
     {
         await using var host = await ShelfHost.StartAsync(
             null,
-            services => services.AddFakeLogging().AddQuery<IGetCopyQuery, GetCopyQuery>().AddOwnedCache<ShelfContext>(),
+            services => services.AddFakeLogging()
+                .AddQuery<IGetCopyQuery, GetCopyQuery>()
+                .AddQuery<IGetNoticeQuery, GetNoticeQuery>()
+                .AddOwnedCache<ShelfContext>(),
             "Production");
 
         var warning = Assert.Single(host.Services.GetFakeLogCollector().GetSnapshot(), record => record.Level == LogLevel.Warning);
         Assert.Contains("GetCopyQuery reads CopyEntity.BranchId (Cascade from BranchEntity)", warning.Message);
+        Assert.Contains("GetNoticeQuery reads NoticeEntity.BranchId (SetNull from BranchEntity)", warning.Message);
     }
 
     // A key whose cascade only the change tracker makes needs nothing: the database refuses the delete otherwise.
@@ -78,6 +83,16 @@ public sealed class CacheCascadeCheckTests(RedisFixture redis) : IClassFixture<R
     public void CascadeCovered_ByAnExpressionThatIsNoProperty_Refused() =>
         Assert.Throws<ArgumentException>(() => new CacheableQueryBuilder<CopyEntity, Copy>()
             .CascadeCovered<CopyEntity>(copy => copy.Title.Length, CascadeCoverage.DependentsLoaded, "no property"));
+
+    // A key of several properties is declared by them all, in the key's order.
+    [Fact]
+    public void CascadeCovered_SeveralProperties_KeptInOrder()
+    {
+        var builder = new CacheableQueryBuilder<CopyEntity, Copy>()
+            .CascadeCovered<CopyEntity>(copy => new { copy.OrganizationId, copy.BranchId }, CascadeCoverage.DependentsLoaded, "both");
+
+        Assert.Equal(["OrganizationId", "BranchId"], Assert.Single(builder.CascadeDeclarations).Properties);
+    }
 
     [Fact]
     public void CascadeCovered_WithoutAReason_Refused() =>
@@ -118,6 +133,31 @@ public sealed class CacheCascadeCheckTests(RedisFixture redis) : IClassFixture<R
         var entry = await Entry();
         Assert.Equal(loaded, entry.ContainsKey(OwnedCacheEntry.Gone));
         Assert.Equal(!loaded, entry.ContainsKey(OwnedCacheEntry.Data));
+    }
+
+    // Why a ClientCascade key needs no declaration: the database refuses to delete the principal while a row the
+    // change tracker didn't load still depends on it, so nothing is deleted behind the cache's back.
+    [Fact]
+    public async Task DeleteBranch_WithAStampNotLoaded_RefusedByTheDatabase()
+    {
+        await using var host = await ShelfHost.StartAsync(
+            null, services => services.AddQuery<IGetStampQuery, GetStampQuery>().AddOwnedCache<ShelfContext>());
+        var stamp = Guid.NewGuid();
+        await host.InScopeAsync(null, async database =>
+        {
+            database.Branches.Add(new BranchEntity { Id = _branch, Name = "Arrakeen" });
+            database.Stamps.Add(new StampEntity { Id = stamp, OrganizationId = Ours, BranchId = _branch, Version = 1 });
+            await database.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => host.InScopeAsync(Ours, async database =>
+        {
+            database.Branches.Remove(await database.Branches.SingleAsync(branch => branch.Id == _branch, TestContext.Current.CancellationToken));
+            await database.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }));
+
+        await host.InScopeAsync(null, async database =>
+            Assert.True(await database.Stamps.IgnoreQueryFilters().AnyAsync(row => row.Id == stamp, TestContext.Current.CancellationToken)));
     }
 
     private static IServiceCollection Register(IServiceCollection services, Type query)

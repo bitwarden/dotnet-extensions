@@ -110,7 +110,7 @@ internal static class CacheCascadeCheck
                 }
 
                 if (declaration.Coverage == CascadeCoverage.ParentInvalidated
-                    && matched.Any(key => !included.Any(navigation => navigation.ForeignKey == key && navigation.DeclaringEntityType == root)))
+                    && matched.Any(key => !included.Any(navigation => navigation.ForeignKey == key)))
                 {
                     throw new InvalidOperationException(
                         $"{resource.Query.Name} declares {Name(declaration.Dependent, declaration.Properties)} covered as "

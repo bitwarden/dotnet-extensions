@@ -19,8 +19,9 @@ public enum CascadeCoverage
 
     /// <summary>
     /// Every change that deletes the key's principal loads these rows into the context first, so the change tracker
-    /// deletes or changes them itself and their entries are invalidated. Not something the package can check: the
-    /// declaration's reason names the code that does it.
+    /// deletes or changes them itself and their entries are invalidated. Only true where the principal is never deleted
+    /// another way: not by a database cascade from a row it depends on, and not by an owner's erasure that leaves these
+    /// rows behind. Not something the package can check: the declaration's reason names the code that does it.
     /// </summary>
     DependentsLoaded = 2,
 }
