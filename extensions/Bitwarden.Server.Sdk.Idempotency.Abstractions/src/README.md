@@ -9,7 +9,8 @@ to use it.
 
 Only what both the side that sends a write and the side that receives it need. Nothing here touches `HttpContext` or
 `HttpClient`, and nothing here sends or honors the header. It depends on Bitwarden.Server.Sdk.CryptoPrimitives, whose
-`CacheKey` derives every key and identifier, and on Microsoft.Extensions.Hosting.Abstractions, for the environment that
+`CacheKey` derives every key and identifier, on Bitwarden.Server.Sdk.Resources.Caching.Abstractions, whose
+`CacheSecretSetting` reads the secret, and on Microsoft.Extensions.Hosting.Abstractions, for the environment that
 decides whether the secret is required. Derive with `CacheKey` alone: compose no digest of your own from
 `System.Security.Cryptography`. The plain SHA-256 in `IdempotentOperation` stands for a write's body in its
 derivation, so a large body is hashed once rather than encoded, and shortens a long name in `ForMessage` and `ForJob`;
@@ -46,10 +47,12 @@ The count is in invariant decimal digits. The identifier's version and variant b
 order RFC 9562 writes. `CacheKey` encodes text as strict UTF-8, so a lone surrogate throws `EncoderFallbackException`,
 which `KeyForWrite` and `DeriveId` turn into an `ArgumentException` that doesn't quote the text.
 
-`IdempotencySecret.ReadSecret` follows `OwnedAnswerKey.ReadSecret` in Resources.Caching.Abstractions: it compares the
-environment name as `IHostEnvironment.IsDevelopment` does, and its messages name the setting, never the value. The
-secret is not the cache's answer secret: a cache's secret is shared by every service that reads the cache, while only
-the service that derived an idempotency key ever derives it again.
+`IdempotencySecret.ReadSecret` reads the secret with `CacheSecretSetting.Read` from Resources.Caching.Abstractions, the
+one rule for every secret that derives keys with `CacheKey`: it compares the environment name as
+`IHostEnvironment.IsDevelopment` does, and its messages name the setting, never the value. The secret serves this
+purpose alone, never another use of `CacheKey`, such as a cache's secret, so a leak of one exposes no other's keys. A
+cache's secret is shared by every service that reads the cache, while only the service that derived an idempotency key
+ever derives it again.
 
 ## Testing
 

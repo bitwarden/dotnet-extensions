@@ -1,4 +1,5 @@
 using Bitwarden.Server.Sdk.CryptoPrimitives;
+using Bitwarden.Server.Sdk.Resources.Caching;
 using Microsoft.Extensions.Configuration;
 
 namespace Bitwarden.Server.Sdk.Idempotency;
@@ -26,9 +27,6 @@ public sealed class IdempotencySecret
     /// The configuration key of the secret: base64 of <see cref="CacheSecret.Length"/> bytes.
     /// </summary>
     public const string SecretKey = "Idempotency:Secret";
-
-    // Compared as IHostEnvironment.IsDevelopment compares it.
-    private const string DevelopmentEnvironment = "Development";
 
     // Internal, so every secret an operation begins with went through ReadSecret's checks.
     internal IdempotencySecret(CacheSecret value, string serviceName)
@@ -83,36 +81,6 @@ public sealed class IdempotencySecret
     {
         ArgumentNullException.ThrowIfNull(environmentName);
 
-        var required = !string.Equals(environmentName, DevelopmentEnvironment, StringComparison.OrdinalIgnoreCase);
-
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            if (required)
-            {
-                throw new InvalidOperationException($"{SecretKey} must be set outside {DevelopmentEnvironment}.");
-            }
-
-            return CacheSecret.Development;
-        }
-
-        CacheSecret secret;
-        try
-        {
-            secret = CacheSecret.FromString(value);
-        }
-        catch (FormatException)
-        {
-            // Not chained: the inner exception's message may quote the text it could not read.
-            throw new InvalidOperationException($"{SecretKey} is not base64 of {CacheSecret.Length} bytes.");
-        }
-
-        // The development secret is public, so configuring it gives no more protection than none.
-        if (required && secret == CacheSecret.Development)
-        {
-            throw new InvalidOperationException(
-                $"{SecretKey} may not be the development secret outside {DevelopmentEnvironment}.");
-        }
-
-        return secret;
+        return CacheSecretSetting.Read(value, SecretKey, CacheSecretSetting.RequiredIn(environmentName));
     }
 }
