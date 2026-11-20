@@ -1,18 +1,30 @@
 using System.Buffers;
+using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
+/// <summary>
+/// Wire format is a JSON array of variants with an inline discriminator:
+/// <c>[{"$type":"&lt;FullName&gt;", ...variant fields}]</c>. SystemTextJson's polymorphism support does the
+/// tagging and dispatch — the derived-type table is enumerated from
+/// <see cref="IPayloadVariants{TSelf}.Variants"/> at first use. Unknown discriminators are skipped
+/// so a subscriber can survive a publisher with a different set of versions. Any other malformation surfaces as
+/// <see cref="JsonException"/>.
+/// </summary>
 internal sealed class SystemTextJsonMessageSerializer : IMessageSerializer
 {
-    private readonly JsonSerializerOptions _jsonOptions;
+    private readonly JsonSerializerOptions _userOptions;
+    private readonly ConcurrentDictionary<Type, JsonSerializerOptions> _optionsByPayload = new();
 
     public SystemTextJsonMessageSerializer(IOptionsMonitor<MessageBrokerSerializerOptions> optionsMonitor, string name)
     {
-        _jsonOptions = optionsMonitor.Get(name).JsonSerializerOptions;
-        if (_jsonOptions.TypeInfoResolver is null)
+        _userOptions = optionsMonitor.Get(name).JsonSerializerOptions;
+        if (_userOptions.TypeInfoResolver is null)
         {
             throw new InvalidOperationException(
                 $"No TypeInfoResolver is configured for message broker queue '{name}'. " +
@@ -21,16 +33,125 @@ internal sealed class SystemTextJsonMessageSerializer : IMessageSerializer
         }
     }
 
-    public void Serialize<T>(T message, IBufferWriter<byte> destination)
+    public void SerializeVariants<TPayload>(
+        IEnumerable<Payload<TPayload>.IVariant> variants,
+        IBufferWriter<byte> destination)
+        where TPayload : Payload<TPayload>, IPayloadVariants<TPayload>
     {
-        var typeInfo = (JsonTypeInfo<T>)_jsonOptions.GetTypeInfo(typeof(T));
+        var typeInfo = GetVariantTypeInfo<TPayload>();
         using var writer = new Utf8JsonWriter(destination);
-        JsonSerializer.Serialize(writer, message, typeInfo);
+        writer.WriteStartArray();
+        foreach (var variant in variants)
+            JsonSerializer.Serialize(writer, variant, typeInfo);
+        writer.WriteEndArray();
     }
 
-    public T? Deserialize<T>(ReadOnlySpan<byte> source)
+    public IReadOnlyList<Payload<TPayload>.IVariant> DeserializeVariants<TPayload>(ReadOnlySpan<byte> source)
+        where TPayload : Payload<TPayload>, IPayloadVariants<TPayload>
     {
-        var typeInfo = (JsonTypeInfo<T>)_jsonOptions.GetTypeInfo(typeof(T));
-        return JsonSerializer.Deserialize(source, typeInfo);
+        var typeInfo = GetVariantTypeInfo<TPayload>();
+        var knownWireNames = GetKnownWireNames<TPayload>();
+
+        var reader = new Utf8JsonReader(source);
+        var document = JsonElement.ParseValue(ref reader);
+        if (document.ValueKind != JsonValueKind.Array)
+            throw new JsonException("Expected a JSON array of variants.");
+
+        // Filter on the discriminator before calling Deserialize. The polymorphism options have
+        // IgnoreUnrecognizedTypeDiscriminators set, but STJ's documented fallback in that mode is
+        // to deserialize as the base type — here that is an interface, which the default converter
+        // refuses with NotSupportedException. Checking $type against TPayload.Variants ourselves
+        // keeps the rolling-deploy contract (unknown variants are skipped, known ones succeed)
+        // intact regardless of how STJ decides to handle its own fallback semantics. A missing or
+        // non-string $type is malformation, not forward-compat drift, so it throws.
+        var result = new List<Payload<TPayload>.IVariant>();
+        foreach (var element in document.EnumerateArray())
+        {
+            if (!element.TryGetProperty("$type", out var discriminator))
+                throw new JsonException("Variant entry is missing the '$type' discriminator.");
+            if (discriminator.ValueKind != JsonValueKind.String)
+                throw new JsonException("The '$type' discriminator must be a string.");
+            if (!knownWireNames.Contains(discriminator.GetString()!))
+                continue;
+            if (element.Deserialize(typeInfo) is { } variant) result.Add(variant);
+        }
+        return result;
+    }
+
+    private static HashSet<string> GetKnownWireNames<TPayload>()
+        where TPayload : Payload<TPayload>, IPayloadVariants<TPayload>
+        => KnownWireNamesCache<TPayload>.Set;
+
+    // One hash set per closed TPayload. TPayload.Variants is enumerated once per process at
+    // first use instead of per deserialization call.
+    private static class KnownWireNamesCache<TPayload>
+        where TPayload : Payload<TPayload>, IPayloadVariants<TPayload>
+    {
+        internal static readonly HashSet<string> Set =
+            [.. TPayload.Variants.Select(v => v.WireName)];
+    }
+
+    private JsonTypeInfo<Payload<TPayload>.IVariant> GetVariantTypeInfo<TPayload>()
+        where TPayload : Payload<TPayload>, IPayloadVariants<TPayload>
+    {
+        var options = _optionsByPayload.GetOrAdd(typeof(TPayload), _ => BuildOptions<TPayload>());
+        return (JsonTypeInfo<Payload<TPayload>.IVariant>)options.GetTypeInfo(typeof(Payload<TPayload>.IVariant));
+    }
+
+    private JsonSerializerOptions BuildOptions<TPayload>()
+        where TPayload : Payload<TPayload>, IPayloadVariants<TPayload>
+    {
+        var clone = new JsonSerializerOptions(_userOptions);
+        var polymorphic = new PolymorphicVariantResolver(typeof(Payload<TPayload>.IVariant), TPayload.Variants);
+        clone.TypeInfoResolver = JsonTypeInfoResolver.Combine(polymorphic, clone.TypeInfoResolver);
+        return clone;
+    }
+}
+
+/// <summary>
+/// Resolves a polymorphism-configured <see cref="JsonTypeInfo"/> for one variant interface and
+/// delegates every other type to the next resolver in the chain. The derived-type table is fixed
+/// at construction; concrete variants are still served by the user's source-gen context.
+/// </summary>
+internal sealed class PolymorphicVariantResolver(
+    Type variantInterface,
+    IReadOnlyList<(Type Type, string WireName)> variants)
+    : IJsonTypeInfoResolver
+{
+    private readonly Type _variantInterface = variantInterface;
+    private readonly IReadOnlyList<(Type Type, string WireName)> _variants = variants;
+    private readonly Lock _lock = new();
+    private JsonTypeInfo? _cached;
+
+    // JsonTypeInfo.CreateJsonTypeInfo is marked RequiresDynamicCode, but here it is only used to
+    // build a polymorphism umbrella over an interface — SystemTextJson never introspects the interface for
+    // members. Each derived variant is served by the user's own source-gen context via the
+    // resolver chain, so AOT / trimming remain valid end-to-end.
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "CreateJsonTypeInfo is used only to attach polymorphism metadata to an interface; concrete variants come from the user's source-gen context.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "CreateJsonTypeInfo is used only to attach polymorphism metadata to an interface; concrete variants come from the user's source-gen context.")]
+    public JsonTypeInfo? GetTypeInfo(Type type, JsonSerializerOptions options)
+    {
+        if (type != _variantInterface) return null;
+
+        // A resolver may be called with any options instance, but this one is bound to a specific
+        // per-TPayload clone the serializer built. Cache once and hand back the same JsonTypeInfo.
+        lock (_lock)
+        {
+            if (_cached is not null) return _cached;
+            var info = JsonTypeInfo.CreateJsonTypeInfo(_variantInterface, options);
+            var poly = new JsonPolymorphismOptions
+            {
+                TypeDiscriminatorPropertyName = "$type",
+                IgnoreUnrecognizedTypeDiscriminators = true,
+                UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization,
+            };
+            foreach (var (variantType, wireName) in _variants)
+                poly.DerivedTypes.Add(new JsonDerivedType(variantType, wireName));
+            info.PolymorphismOptions = poly;
+            _cached = info;
+            return info;
+        }
     }
 }

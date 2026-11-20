@@ -4,7 +4,9 @@ namespace Bitwarden.Server.Sdk.MessageBroker;
 /// An in-flight message captured during host shutdown, ready to be durably stored and replayed
 /// after the process restarts.
 /// </summary>
-/// <param name="MessageId">Unique identifier assigned by the publisher.</param>
+/// <param name="MessageId">
+/// The identifier the publisher sent the message under. A re-send that passes it again carries the same one.
+/// </param>
 /// <param name="TraceId">W3C traceparent of the publish span, or <see langword="null"/> if unavailable.</param>
 /// <param name="DeliveryCount">Number of times this message has been delivered before escrow.</param>
 /// <param name="Payload">
@@ -37,7 +39,7 @@ public interface IMessageEscrowStore
     ///     still in the channel.
     ///   </item>
     ///   <item>
-    ///     Each handler whose <see cref="Envelope{T}.RequeueAsync"/> finds the channel sealed
+    ///     Each handler whose <see cref="Envelope{TPayload, TCeiling}.RequeueAsync"/> finds the channel sealed
     ///     writes a single-message batch; this can happen once per straggler message, both
     ///     during host shutdown and outside it (any requeue after the writer is sealed).
     ///   </item>

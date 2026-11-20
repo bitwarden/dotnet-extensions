@@ -3,6 +3,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -53,6 +54,30 @@ public class DatabaseServiceCollectionExtensionsTests
         Assert.Equal(
             "vault",
             new SqlConnectionStringBuilder(context.Database.GetConnectionString()).InitialCatalog);
+    }
+
+    [Fact]
+    public void AddDatabase_ProviderConfigurationThatReplacesTheMigrationsAssembly_RegistrationsAssemblyStillWins()
+    {
+        // The generated Add{Schema} overload hands a caller's provider configuration through, so the
+        // registration's migrations assembly has to be the one EF uses whatever that configuration does.
+        var services = new ServiceCollection();
+        services.Configure<DatabaseOptions>("Vault", opts =>
+        {
+            opts.Provider = DatabaseProvider.Sqlite;
+            opts.ConnectionString = "Data Source=:memory:";
+        });
+        services.AddDatabase<TestDbContext, WidgetMigrationsAssembly>(
+            "Vault",
+            static (opts, builder) => builder
+                .UseSqlite(opts.ConnectionString)
+                .ReplaceService<IMigrationsAssembly, EmptyMigrationsAssembly>());
+
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<TestDbContext>();
+
+        Assert.Equal([CreateWidgets.MigrationId, SeedWidgets.MigrationId], context.Database.GetMigrations());
     }
 
     [Fact]
