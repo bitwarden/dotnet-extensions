@@ -182,6 +182,66 @@ public sealed class RequestMemoTests
         Assert.Equal((1, RequestMemoOutcome.Hit), kept);
     }
 
+    // At the bound on answers, a fresh read of an answer already kept replaces it: the stale one is never answered again.
+    [Fact]
+    public async Task RememberAsync_FreshAtMaxEntries_ReplacesTheKeptAnswer()
+    {
+        using var memo = RequestMemo.Begin(maxEntries: 1, maxBytes: RequestMemo.DefaultMaxBytes);
+        var reads = 0;
+
+        await memo.RememberAsync("k", false, Counting(() => ++reads), Token);
+        var fresh = await memo.RememberAsync("k", true, Counting(() => ++reads), Token);
+        var after = await memo.RememberAsync("k", false, Counting(() => ++reads), Token);
+
+        Assert.Equal((2, RequestMemoOutcome.Miss), fresh);
+        Assert.Equal((2, RequestMemoOutcome.Hit), after);
+    }
+
+    // Parallel reads of different answers never take the memo past its bound on answers.
+    [Fact]
+    public async Task RememberAsync_ParallelReadsAtMaxEntries_KeepNoMoreThanTheBound()
+    {
+        using var memo = RequestMemo.Begin(maxEntries: 4, maxBytes: RequestMemo.DefaultMaxBytes);
+        var release = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = 0;
+
+        var reads = Enumerable.Range(0, 64).Select(i => Task.Run(() => memo.RememberAsync($"k{i}", false, async _ =>
+        {
+            Interlocked.Increment(ref started);
+            return new RequestMemoRead<int>(await release.Task, 4, RequestMemoKeep.Keep);
+        }, Token), Token)).ToArray();
+        while (Volatile.Read(ref started) < 64)
+        {
+            await Task.Delay(1, Token);
+        }
+
+        release.SetResult(1);
+        var outcomes = await Task.WhenAll(reads);
+
+        Assert.Equal(4, outcomes.Count(outcome => outcome.Outcome == RequestMemoOutcome.Miss));
+    }
+
+    // A fresh read that replaces one still in flight: the replaced read's answer isn't kept, so its bytes never count.
+    [Fact]
+    public async Task RememberAsync_FreshReplacesAReadInFlight_TheReplacedReadsBytesNotCounted()
+    {
+        using var memo = RequestMemo.Begin(maxEntries: 10, maxBytes: 8);
+        var release = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var first = memo.RememberAsync("k", false, async _ =>
+            new RequestMemoRead<int>(await release.Task, 4, RequestMemoKeep.Keep), Token);
+        var fresh = await memo.RememberAsync("k", true, Counting(() => 2), Token);
+        release.SetResult(1);
+        await first;
+
+        await memo.RememberAsync("other", false, Counting(() => 3), Token);
+        var kept = await memo.RememberAsync("other", false, Counting(() => 4), Token);
+
+        Assert.Equal((2, RequestMemoOutcome.Miss), fresh);
+        Assert.Equal((2, RequestMemoOutcome.Hit), await memo.RememberAsync("k", false, Counting(() => 5), Token));
+        Assert.Equal((3, RequestMemoOutcome.Hit), kept);
+    }
+
     // An answer that doesn't fit the bound on bytes, or gives no size, is answered but not kept.
     [Theory]
     [InlineData(5)]
