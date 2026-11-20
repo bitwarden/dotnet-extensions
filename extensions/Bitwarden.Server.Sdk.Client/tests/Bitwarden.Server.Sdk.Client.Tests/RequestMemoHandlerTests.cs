@@ -135,6 +135,24 @@ public sealed class RequestMemoHandlerTests
         Assert.Equal(3, callee.Attempts.Count);
     }
 
+    [Theory]
+    [InlineData("OPTIONS")]
+    [InlineData("TRACE")]
+    public async Task SafeMethodThatIsntARead_ForgetsNothingAndIsntRemembered(string method)
+    {
+        var callee = new Scripted(Ok);
+        await using var services = Services(callee);
+        var probe = services.GetRequiredService<Probe>();
+        using var memo = RequestMemo.Begin();
+
+        using var first = await probe.SendAsync(HttpMethod.Get, Token);
+        using var safe = await probe.SendAsync(new HttpMethod(method), Token);
+        using var again = await probe.SendAsync(new HttpMethod(method), Token);
+        using var second = await probe.SendAsync(HttpMethod.Get, Token);
+
+        Assert.Equal(3, callee.Attempts.Count);
+    }
+
     [Fact]
     public async Task Get_AfterAWriteThatFailed_SentAgain()
     {

@@ -336,8 +336,8 @@ it; don't pass answers around, or keep them in a field, to save a call.
   refusal, a `5xx`, a `429`, a timeout or a failure to connect is never kept, so the next call is sent.
 - **Identical calls in flight at once** (`Task.WhenAll`) are sent once and both answered; if that call fails, both
   fail, and nothing is kept.
-- **A write forgets everything.** Any other method sent through a service client makes the request forget all it
-  remembered, before it is sent and again once it is answered or has failed; so does a save to the service's own
+- **A write forgets everything.** A write (any method but `GET`, `HEAD`, `OPTIONS` and `TRACE`) sent through a service
+  client makes the request forget all it remembered, before it is sent and again once it is answered or has failed; so does a save to the service's own
   database (Bitwarden.Server.Sdk.Data). A request always sees its own writes.
 - **The owners' caches too.** A read answered from a callee's cache (`ICachedReads`) is remembered the same way, so a
   repeated read waits on Redis no more than a repeated call waits on the service. Whether the remembered entry answers
