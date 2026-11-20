@@ -20,6 +20,7 @@ namespace Bitwarden.Server.Sdk.Client;
 /// <param name="scopes">A scope per read, for the context it is made in.</param>
 /// <param name="configuration">Switches one resource's reads off without a release.</param>
 /// <param name="logger">Records a cache that could not be read; never what it held.</param>
+/// <param name="metrics">Counts where each read's entry came from while a request memo is current.</param>
 internal sealed class CachedReads<TClient>(
     string service,
     IReadOnlyDictionary<string, CacheableRead> reads,
@@ -27,7 +28,8 @@ internal sealed class CachedReads<TClient>(
     IOptionsMonitor<BitwardenClientOptions> options,
     IServiceScopeFactory scopes,
     IConfiguration configuration,
-    ILogger<CachedReads<TClient>> logger) : ICachedReads<TClient>
+    ILogger<CachedReads<TClient>> logger,
+    RequestMemoMetrics metrics) : ICachedReads<TClient>
 {
     /// <summary>
     /// How long a read may wait on Redis, on the connection's clock, before the service is asked instead.
@@ -182,7 +184,7 @@ internal sealed class CachedReads<TClient>(
             },
             cancellationToken);
 
-        RequestMemoMetrics.Counted(service, RequestMemoMetrics.CacheSource, outcome);
+        metrics.Counted(service, RequestMemoMetrics.CacheSource, outcome);
 
         return entry;
     }
@@ -206,7 +208,9 @@ internal sealed class CachedReads<TClient>(
                 ? (null, false)
                 : (fields.ToDictionary(field => field.Name.ToString(), field => field.Value.ToString(), StringComparer.Ordinal), false);
         }
-        catch (Exception exception) when (exception is RedisException or TimeoutException or ObjectDisposedException)
+        // A connection string StackExchange.Redis can't parse throws ArgumentException on every read: a miss, as an
+        // unreachable Redis is.
+        catch (Exception exception) when (exception is RedisException or TimeoutException or ObjectDisposedException or ArgumentException)
         {
             connection!.Failed();
             logger.LogDebug(exception, "Could not read the service cache for {Service}; asking it instead.", service);
@@ -270,7 +274,8 @@ internal sealed class CachedReads<TClient>(
                 ? owner
                 : null;
         }
-        catch (JsonException)
+        // Not JSON, or an object naming a property twice, which JsonObject refuses with ArgumentException when read.
+        catch (Exception exception) when (exception is JsonException or ArgumentException)
         {
             return null;
         }
@@ -319,7 +324,8 @@ internal sealed class CachedReads<TClient>(
 
             return resource.ToJsonString();
         }
-        catch (JsonException)
+        // Not JSON, or an object naming a property twice, which JsonObject refuses with ArgumentException when read.
+        catch (Exception exception) when (exception is JsonException or ArgumentException)
         {
             return null;
         }

@@ -51,6 +51,10 @@ public static class BitwardenClientServiceCollectionExtensions
                     environment.EnvironmentName))
             .ValidateOnStart();
 
+        // Counts what the request memo answered, on the host's meter factory.
+        services.AddMetrics();
+        services.TryAddSingleton<RequestMemoMetrics>();
+
         services.TryAddSingleton(provider => new CachedReadsConnectionHolder(
             provider.GetRequiredService<IConfiguration>()[Bitwarden.Server.Sdk.Resources.Caching.OwnedCacheEntry.ConnectionKey],
             provider.GetService<TimeProvider>()));
@@ -62,7 +66,8 @@ public static class BitwardenClientServiceCollectionExtensions
             provider.GetRequiredService<IOptionsMonitor<BitwardenClientOptions>>(),
             provider.GetRequiredService<IServiceScopeFactory>(),
             provider.GetRequiredService<IConfiguration>(),
-            provider.GetRequiredService<ILogger<CachedReads<TClient>>>()));
+            provider.GetRequiredService<ILogger<CachedReads<TClient>>>(),
+            provider.GetRequiredService<RequestMemoMetrics>()));
 
         return services;
     }
@@ -99,6 +104,10 @@ public static class BitwardenClientServiceCollectionExtensions
 
         // Read once: the operations the callee's contract, embedded in the client package, marks as honouring keys.
         var keyed = KeyedOperations.FromAssembly(typeof(TImplementation).Assembly);
+
+        // Counts what the request memo answered, on the host's meter factory.
+        services.AddMetrics();
+        services.TryAddSingleton<RequestMemoMetrics>();
 
         // Bounded for every token request, a renewal no call waits on included; a call's deadline bounds it too. Identity
         // is one of the deployment's own services, so the token client trusts the internal authorities alone.
@@ -203,7 +212,8 @@ public static class BitwardenClientServiceCollectionExtensions
             .AddHttpMessageHandler(provider => new RequestMemoHandler(
                 serviceName,
                 provider.GetRequiredService<IOptionsMonitor<BitwardenClientOptions>>().Get(serviceName).CallerName,
-                provider.GetService<IConfiguration>()))
+                provider.GetService<IConfiguration>(),
+                provider.GetRequiredService<RequestMemoMetrics>()))
             .AddHttpMessageHandler(provider =>
                 new CircuitBreakerHandler(serviceName, provider.GetRequiredKeyedService<CalleeCircuit>(serviceName)));
     }

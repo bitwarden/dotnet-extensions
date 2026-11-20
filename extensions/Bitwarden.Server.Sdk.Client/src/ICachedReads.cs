@@ -19,12 +19,14 @@ namespace Bitwarden.Server.Sdk.Client;
 ///   <item><description>the scope the operation demands is one this client's credential holds;</description></item>
 ///   <item><description>every attribute asked for is one the cache holds (none the service works out per caller; with no fieldset, every attribute), and the contract's entry format is this client's;</description></item>
 ///   <item><description>the call names the organization, user and provider the operation requires, and none it forbids;</description></item>
+///   <item><description>a context this service asserts naming a person is one the operation admits from this service (<c>assertedBy</c>);</description></item>
 ///   <item><description>the entry is not a tombstone, and is in a format this client knows;</description></item>
-///   <item><description>the entry's owner is the one the call names (the organization this call would send).</description></item>
+///   <item><description>the entry's owner is the one the call names (the organization this call would send), or, for a read the service makes across owners (<c>acrossOwners</c>), any well-formed owner.</description></item>
 /// </list>
 /// <para>
-/// Any doubt is a miss: an unknown operation, an unreadable entry, Redis unreachable or slow. The
-/// service is always right; the cache may only agree with it.
+/// Any doubt is a miss: an unknown operation, an unreadable entry, Redis unreachable or slow, or the resource's reads
+/// switched off (<c>Caching:Owned:Resources:{owner}:{name}:Enabled</c>). The service is always right; the cache may
+/// only agree with it.
 /// </para>
 /// </remarks>
 public interface ICachedReads<TClient>
@@ -83,8 +85,8 @@ public interface ICachedReads<TClient>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>A hit, "nothing recorded", or a miss.</returns>
     /// <remarks>
-    /// The checks are those of every read: the scope, the fields, the context the operation requires and forbids, and
-    /// the entry's owner. Once the composed answer stands, <see cref="Answered"/> uses up the statement the call it
+    /// The checks are those of every read: the scope, the fields, the context the operation requires and forbids, an
+    /// asserted context's admission, and the entry's owner. Once the composed answer stands, <see cref="Answered"/> uses up the statement the call it
     /// replaces would have used; when it doesn't, the call is made, and uses it.
     /// </remarks>
     Task<CachedAnswer> ReadAsync(

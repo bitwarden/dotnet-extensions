@@ -408,8 +408,8 @@ client holds, no attribute asked for is one the callee works out per caller (`pe
 for every attribute, and hits only where there are none), the contract's and the entry's format are this client's, the
 call names the organization, user and provider the operation requires, a context the call asserts naming a person
 comes from a service the operation admits it from (`assertedBy`), the entry is not a tombstone, and its owner is the one
-the call names. A call's context is asserted exactly where `ContextHandler` exchanges its context token from this
-service's own token: an `OutgoingCall` statement naming somebody else or making the call the system's, or no request
+the call names. A call's context is asserted, on this service's own word, exactly where the call itself
+would assert it: an `OutgoingCall` statement naming somebody else or making the call the system's, or no request
 behind the call (a message handler, a job); a call continuing the request's own person is delegated. A hit with no fields is the whole entry; with fields, only those. Anything else, and any doubt (Redis
 unreachable or slower than 250 ms), is a miss, and after Redis fails every read skips the cache for 5 seconds. A hit
 uses up an `OutgoingCall` statement as the call would have. Nothing in this package writes to Redis.

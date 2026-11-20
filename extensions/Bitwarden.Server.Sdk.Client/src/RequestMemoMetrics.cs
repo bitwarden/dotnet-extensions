@@ -7,7 +7,7 @@ namespace Bitwarden.Server.Sdk.Client;
 /// Counts what the request memo answered: each call a service client made while a memo was current, and each read of an
 /// owner's cache beside it, by where its answer came from. Never what was asked or answered.
 /// </summary>
-internal static class RequestMemoMetrics
+internal sealed class RequestMemoMetrics
 {
     /// <summary>
     /// The meter's name, collected with the platform's other <c>Bitwarden.*</c> meters.
@@ -44,15 +44,18 @@ internal static class RequestMemoMetrics
     /// </summary>
     internal const string CacheSource = "cache";
 
-    private static readonly Meter Meter = new(MeterName);
+    private readonly Counter<long> _reads;
 
-    private static readonly Counter<long> Reads = Meter.CreateCounter<long>(
-        ReadsName,
-        unit: "{read}",
-        description: "Calls to other services, and reads of their caches, made while a request memo was current, by where the answer came from.");
+    public RequestMemoMetrics(IMeterFactory meters)
+    {
+        _reads = meters.Create(MeterName).CreateCounter<long>(
+            ReadsName,
+            unit: "{read}",
+            description: "Calls to other services, and reads of their caches, made while a request memo was current, by where the answer came from.");
+    }
 
-    public static void Counted(string service, string source, RequestMemoOutcome outcome) =>
-        Reads.Add(
+    public void Counted(string service, string source, RequestMemoOutcome outcome) =>
+        _reads.Add(
             1,
             new KeyValuePair<string, object?>(ServiceTag, service),
             new KeyValuePair<string, object?>(SourceTag, source),

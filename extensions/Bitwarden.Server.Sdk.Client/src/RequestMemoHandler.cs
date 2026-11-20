@@ -35,11 +35,17 @@ namespace Bitwarden.Server.Sdk.Client;
 /// <param name="serviceName">The callee, as its client is registered: for the metrics.</param>
 /// <param name="caller">This service's name as its credential gives it, for the key.</param>
 /// <param name="configuration">Read for <see cref="RequestMemo.EnabledKey"/> on every call.</param>
+/// <param name="metrics">Counts where each answer came from.</param>
 /// <param name="product">
 /// Whether the client is a product service's (<see cref="ProductClient"/>), which calls with the token it is given: then
 /// only a request that is part of a product call is remembered, keyed by a digest of that token.
 /// </param>
-internal sealed class RequestMemoHandler(string serviceName, string caller, IConfiguration? configuration, bool product = false)
+internal sealed class RequestMemoHandler(
+    string serviceName,
+    string caller,
+    IConfiguration? configuration,
+    RequestMemoMetrics metrics,
+    bool product = false)
     : DelegatingHandler
 {
     /// <summary>
@@ -107,7 +113,7 @@ internal sealed class RequestMemoHandler(string serviceName, string caller, ICon
             token => ReadAsync(request, memo.MaxBytes, token),
             cancellationToken);
 
-        RequestMemoMetrics.Counted(serviceName, RequestMemoMetrics.CallSource, outcome);
+        metrics.Counted(serviceName, RequestMemoMetrics.CallSource, outcome);
 
         return answer.Respond(request);
     }
