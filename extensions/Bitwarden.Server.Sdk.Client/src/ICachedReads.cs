@@ -1,5 +1,3 @@
-using Bitwarden.Server.Sdk.Resources.Caching;
-
 namespace Bitwarden.Server.Sdk.Client;
 
 /// <summary>
@@ -19,14 +17,16 @@ namespace Bitwarden.Server.Sdk.Client;
 /// </para>
 /// <list type="number">
 ///   <item><description>the scope the operation demands is one this client's credential holds;</description></item>
-///   <item><description>every attribute asked for is one the cache holds;</description></item>
+///   <item><description>every attribute asked for is one the cache holds (none the service works out per caller; with no fieldset, every attribute), and the contract's entry format is this client's;</description></item>
 ///   <item><description>the call names the organization, user and provider the operation requires, and none it forbids;</description></item>
-///   <item><description>the entry is not a tombstone;</description></item>
-///   <item><description>the entry's owner is the one the call names (the organization this call would send).</description></item>
+///   <item><description>a context this service asserts naming a person is one the operation admits from this service (<c>assertedBy</c>);</description></item>
+///   <item><description>the entry is not a tombstone, and is in a format this client knows;</description></item>
+///   <item><description>the entry's owner is the one the call names (the organization this call would send), or, for a read the service makes across owners (<c>acrossOwners</c>), any well-formed owner.</description></item>
 /// </list>
 /// <para>
-/// Any doubt is a miss: an unknown operation, an unreadable entry, Redis unreachable or slow. The
-/// service is always right; the cache may only agree with it.
+/// Any doubt is a miss: an unknown operation, an unreadable entry, Redis unreachable or slow, or the resource's reads
+/// switched off (<c>Caching:Owned:Resources:{owner}:{name}:Enabled</c>). The service is always right; the cache may
+/// only agree with it.
 /// </para>
 /// </remarks>
 public interface ICachedReads<TClient>
@@ -36,7 +36,7 @@ public interface ICachedReads<TClient>
     /// </summary>
     /// <param name="operationId">The read's operation in the owner's contract.</param>
     /// <param name="key">The identifier, or the unique key, read.</param>
-    /// <param name="fields">The attributes the caller wants, by their published names.</param>
+    /// <param name="fields">The attributes the caller wants, by their published names; none for every attribute.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>A hit, "nothing recorded", or a miss.</returns>
     /// <remarks>
@@ -50,56 +50,55 @@ public interface ICachedReads<TClient>
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Answers a collection question the service indexes (<c>x-bitwarden-index</c>) from the cache,
-    /// if it safely can: the whole answer, or nothing.
+    /// Answers a read of <c>current</c> from the cache if it safely can: its key is the party the call carries, as the
+    /// contract's key template names it (<c>{organization}</c>, <c>{user}</c>, <c>{provider}</c>).
     /// </summary>
-    /// <param name="operationId">The list operation that answers the question in the owner's contract.</param>
-    /// <param name="question">The question's name: <c>widgets-of</c>.</param>
-    /// <param name="subject">The principal the question is about, which the call must name.</param>
-    /// <param name="fields">The attributes the caller wants of each resource.</param>
+    /// <param name="operationId">The read's operation in the owner's contract.</param>
+    /// <param name="fields">The attributes the caller wants, by their published names; none for every attribute.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>
-    /// Each resource object of the answer, with only the attributes asked for; null when the cache
-    /// cannot answer, and the service must be asked.
-    /// </returns>
+    /// <returns>A hit, "nothing recorded", or a miss.</returns>
     /// <remarks>
-    /// The index is the owner's answer for this principal: it is read
-    /// only for a call whose context names that principal, and as the question requires the rest of
-    /// the context. Every resource it names must be cached, not a tombstone, hold the fields asked for,
-    /// and still answer the question (its subject and the question's values), or the whole read is a
-    /// miss. The resources' own owner is not compared with the call's: the question crosses owners,
-    /// and the index is the owner's decision about which of them this principal sees.
+    /// Uses up an <see cref="OutgoingCall"/> statement on a hit, as
+    /// <see cref="ReadAsync(string, Guid, IReadOnlyCollection{string}, CancellationToken)"/> does.
     /// </remarks>
-    Task<IReadOnlyList<string>?> ReadIndexAsync(
+    Task<CachedAnswer> ReadCurrentAsync(
         string operationId,
-        string question,
-        Guid subject,
         IReadOnlyCollection<string> fields,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Answers a question the service answers whole (<c>x-bitwarden-answer</c>) from the cache, if it
-    /// safely can: the action's response body, "nothing" for its <c>404</c>, or a miss.
+    /// What the next call to the service would carry, its <see cref="OutgoingCall"/> statement included, without using
+    /// the statement up: for a client deciding which of its owner's reads answers a call.
     /// </summary>
-    /// <param name="operationId">The action that answers it in the owner's contract.</param>
-    /// <param name="answer">The answer's name: <c>widget-by-name</c>.</param>
-    /// <param name="key">
-    /// The key, as the owner compares it: an identifier, or for an answer keyed by text the normalised
-    /// text, which is digested here (<see cref="OwnedAnswerKey.Of(string, string, Bitwarden.Server.Sdk.CryptoPrimitives.CacheSecret)"/>) and never sent to Redis as written.
-    /// </param>
+    /// <returns>The organization, person and provider.</returns>
+    OutgoingCallContext NextCall();
+
+    /// <summary>
+    /// Answers a read from the cache as it would for a call carrying <paramref name="call"/>, using up no statement:
+    /// for a client composing one answer from several of its owner's reads, each checked against the parties the
+    /// answer is about, which the client derives from <see cref="NextCall"/> and what the reads before it answered.
+    /// </summary>
+    /// <param name="operationId">The read's operation in the owner's contract.</param>
+    /// <param name="key">The identifier or key, for <c>{key}</c>; null for a read of <c>current</c>.</param>
+    /// <param name="fields">The attributes wanted; none for every attribute.</param>
+    /// <param name="call">The parties the read is checked against and keyed by.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>
-    /// A hit carrying the body in <see cref="CachedAnswer.Resource"/>, "nothing recorded" when the
-    /// service answered <c>404</c>, or a miss.
-    /// </returns>
+    /// <returns>A hit, "nothing recorded", or a miss.</returns>
     /// <remarks>
-    /// Read only where the client's credential holds the action's scope and the call's context is
-    /// what the action demands. An answer has no owner to compare: the action answers any holder of
-    /// its scope about anything its key names.
+    /// The checks are those of every read: the scope, the fields, the context the operation requires and forbids, an
+    /// asserted context's admission, and the entry's owner. Once the composed answer stands, <see cref="Answered"/> uses up the statement the call it
+    /// replaces would have used; when it doesn't, the call is made, and uses it.
     /// </remarks>
-    Task<CachedAnswer> ReadAnswerAsync(
+    Task<CachedAnswer> ReadAsync(
         string operationId,
-        string answer,
-        string key,
+        Guid? key,
+        IReadOnlyCollection<string> fields,
+        OutgoingCallContext call,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Uses up the <see cref="OutgoingCall"/> statement, if any, for an answer composed from the cache in place of the
+    /// call it would have covered.
+    /// </summary>
+    void Answered();
 }

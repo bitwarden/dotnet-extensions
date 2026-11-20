@@ -273,6 +273,62 @@ public static class OutgoingCall
         Begin(null, Check(organization, nameof(organization)), withoutProvider: true);
 
     /// <summary>
+    /// Sends every call made before the returned value is disposed, even one the request memo
+    /// (<see cref="Bitwarden.Server.Sdk.Context.RequestMemo"/>) already holds the answer to, and reads the owner's cache
+    /// again rather than what the request read of it; the new answers replace the remembered ones.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Unlike the statements above, it names nobody, covers every call made inside it rather than one, combines with
+    /// any of them, and may be used in a product service.
+    /// </para>
+    /// <para>
+    /// For a deliberate re-read: after a write the platform can't see changed what another service answers, or each
+    /// time round a loop that waits for another service's answer to move. An operation that does nothing but poll is
+    /// better marked <see cref="Bitwarden.Server.Sdk.Context.WithoutRequestMemoAttribute"/>.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// using (OutgoingCall.Fresh())
+    /// {
+    ///     entitlements = await billing.GetEntitlementsAsync(organization, cancellationToken);
+    /// }
+    /// </code>
+    /// </example>
+    /// <returns>Ends it, restoring whatever was in effect before, when disposed.</returns>
+    public static IDisposable Fresh()
+    {
+        var previous = FreshAmbient.Value;
+        FreshAmbient.Value = true;
+
+        return new RestoreFresh(previous);
+    }
+
+    /// <summary>
+    /// Whether the call being sent is inside <see cref="Fresh"/>.
+    /// </summary>
+    internal static bool IsFresh => FreshAmbient.Value;
+
+    private static readonly AsyncLocal<bool> FreshAmbient = new();
+
+    private sealed class RestoreFresh(bool previous) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            FreshAmbient.Value = previous;
+            _disposed = true;
+        }
+    }
+
+    /// <summary>
     /// Takes what is stated for the call being sent, or null when nothing is.
     /// </summary>
     /// <exception cref="InvalidOperationException">The statement was already used by an earlier call.</exception>

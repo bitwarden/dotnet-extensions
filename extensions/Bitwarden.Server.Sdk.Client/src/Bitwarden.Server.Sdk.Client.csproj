@@ -16,7 +16,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- The host's environment decides whether the answer secret is required. -->
+    <!-- The host's environment decides whether the service cache's login must name a user of its own. -->
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.14" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.14" />
     <!-- Creates and signs client assertions. -->

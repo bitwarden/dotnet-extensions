@@ -101,12 +101,10 @@ internal sealed class ContextHandler(IServiceScopeFactory scopes, IServiceTokenP
         // waits on this call can tell (OutgoingCallChain).
         OutgoingCallChain.Write(request, scope.ServiceProvider);
 
-        // The request's proof only for a call carrying the request's own context: a statement that
-        // names somebody else, or makes the call the system's, is this service's word alone.
-        var requestContext = scope.ServiceProvider.GetService<IContext>();
-        var subject = Continues(stated, requestContext?.UserId, requestContext?.OrganizationId)
-            ? scope.ServiceProvider.GetService<ICallerProof>()?.SubjectToken
-            : null;
+        var subject = SubjectToken(scope.ServiceProvider, stated);
+
+        // The decision, never the token: the request memo keys a call by whether its context is delegated or asserted.
+        request.Options.Set(Asserted, subject is null);
 
         ServiceFaultHandler.Obtaining(request, "a context token");
         var signed = await tokens.GetContextTokenAsync(
@@ -122,6 +120,29 @@ internal sealed class ContextHandler(IServiceScopeFactory scopes, IServiceTokenP
 
         return await base.SendAsync(request, cancellationToken);
     }
+
+    /// <summary>
+    /// What the call's context token is exchanged from: the request's proof for a call carrying the request's own
+    /// context, so it stays delegated, chained to the person; null where the call is this service's own word (a
+    /// statement naming somebody else or making the call the system's, or no request at all), so the context is asserted
+    /// on this service's own token. The one decision, for the call and for a read of the cache in its place.
+    /// </summary>
+    /// <param name="services">A scope's services, for the request's context and its proof.</param>
+    /// <param name="stated">What an <see cref="OutgoingCall"/> statement names, if any.</param>
+    internal static string? SubjectToken(IServiceProvider services, OutgoingCall.Stated? stated)
+    {
+        var requestContext = services.GetService<IContext>();
+
+        return Continues(stated, requestContext?.UserId, requestContext?.OrganizationId)
+            ? services.GetService<ICallerProof>()?.SubjectToken
+            : null;
+    }
+
+    /// <summary>
+    /// Whether the call's context is asserted on this service's own word (true) or delegated, chained to the person
+    /// (false): written on every call, for the request memo's key (<see cref="RequestMemoHandler"/>).
+    /// </summary>
+    internal static readonly HttpRequestOptionsKey<bool> Asserted = new("Bitwarden.Client.Asserted");
 
     /// <summary>
     /// The statement the call's first attempt took, for its retries.
