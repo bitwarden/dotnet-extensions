@@ -225,30 +225,35 @@ public sealed class RequestMemo : IDisposable
                 return ((T)answer!, settled ? RequestMemoOutcome.Hit : RequestMemoOutcome.Joined);
             }
 
-            if (entries.Count >= _maxEntries)
+            var entry = new Entry();
+            bool full;
+            bool taken;
+            lock (_gate)
+            {
+                // Checked and inserted together, so parallel reads never take the memo past its bound. A fresh read of
+                // an answer already held replaces it, so it never leaves the old answer behind for being at the bound.
+                var held = entries.TryGetValue(key, out var replaced);
+                full = !held && entries.Count >= _maxEntries;
+                taken = held && !fresh;
+                if (!full && !taken)
+                {
+                    entries[key] = entry;
+                    if (replaced is not null)
+                    {
+                        Release(entries, replaced);
+                    }
+                }
+            }
+
+            if (full)
             {
                 return ((await read(cancellationToken)).Value, RequestMemoOutcome.Bypassed);
             }
 
-            var entry = new Entry();
-            Entry? replaced = null;
-            if (fresh)
-            {
-                entries.AddOrUpdate(key, entry, (_, previous) =>
-                {
-                    replaced = previous;
-                    return entry;
-                });
-            }
-            else if (!entries.TryAdd(key, entry))
+            if (taken)
             {
                 // Somebody else began the same read a moment ago: wait on theirs.
                 continue;
-            }
-
-            if (replaced is not null)
-            {
-                Release(entries, replaced);
             }
 
             RequestMemoRead<T> result;
@@ -268,7 +273,7 @@ public sealed class RequestMemo : IDisposable
 
             switch (result.Keep)
             {
-                case RequestMemoKeep.Keep when Reserve(entries, entry, result.Size):
+                case RequestMemoKeep.Keep when Reserve(entries, key, entry, result.Size):
                     entry.Answer.TrySetResult(result.Value);
                     break;
                 case RequestMemoKeep.Keep:
@@ -287,13 +292,15 @@ public sealed class RequestMemo : IDisposable
     }
 
     /// <summary>
-    /// Counts an answer against the bound on bytes, if it fits and the memo hasn't forgotten since the read began.
+    /// Counts an answer against the bound on bytes, if it fits, the memo hasn't forgotten since the read began, and no
+    /// fresh read has replaced it.
     /// </summary>
-    private bool Reserve(ConcurrentDictionary<string, Entry> entries, Entry entry, long size)
+    private bool Reserve(ConcurrentDictionary<string, Entry> entries, string key, Entry entry, long size)
     {
         lock (_gate)
         {
-            if (!ReferenceEquals(entries, _entries) || _ended || size < 0 || _bytes + size > _maxBytes)
+            if (!ReferenceEquals(entries, _entries) || _ended || size < 0 || _bytes + size > _maxBytes
+                || !entries.TryGetValue(key, out var current) || !ReferenceEquals(current, entry))
             {
                 return false;
             }
