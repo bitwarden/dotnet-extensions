@@ -7,7 +7,8 @@ concerns or carries that across a call to another service.
 
 Who and what a call between Bitwarden services concerns, and how the call carries it: `IContext` (the organization,
 user and provider an operation is about, and where the request came from), `ContextScope` for work that arrives
-without a request, and the headers, formats and token names that carry the context from one service to the next. It has no dependencies.
+without a request, and the headers, formats and token names that carry the context from one service to the next, and the memo of what one
+request asked other services (`RequestMemo`). It has no dependencies.
 
 ## Installing
 
@@ -126,6 +127,39 @@ public static class LoopBack
 Noticing a call back is advisory: the chain is the calling service's word, so use it to log or refuse a loop, never to
 skip a lock or a check.
 
+### Remember what a unit of work asked other services
+
+`RequestMemo` holds what one unit of work has already asked other services, so the same call made again is answered
+from memory. A service host begins one for each inbound HTTP request, and the service clients
+(Bitwarden.Server.Sdk.Client) remember every `GET` and `HEAD` they send while one is current; how, and what is kept, is
+in that package's
+[Ask once in a request](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Client/src/PACKAGE.md#ask-once-in-a-request).
+
+Work that arrives without a request has none. Begin one around one item of it (one message, one organization a job
+visits), never around a loop over many. In `WidgetSweep.cs`:
+
+```csharp
+using Bitwarden.Server.Sdk.Context;
+
+public sealed class WidgetSweep(IWidgetBilling billing)
+{
+    public async Task RunAsync(IReadOnlyList<Guid> organizations, CancellationToken cancellationToken)
+    {
+        foreach (var organization in organizations)
+        {
+            using var memo = RequestMemo.Begin();
+            await billing.RecalculateAsync(organization, cancellationToken);
+        }
+    }
+}
+```
+
+An operation that polls or waits on another service's answer to move is marked `[WithoutRequestMemo]`, and its request
+has none. `RequestMemo.Forget()` makes the current memo forget everything; the clients call it on every write they
+send, and Bitwarden.Server.Sdk.Data on every save. `Caching:RequestMemo:Enabled` (`RequestMemo.EnabledKey`) set to
+`false` turns the memo off for measurement; `Caching:RequestMemo:MaxEntries` (256) and `Caching:RequestMemo:MaxBytes`
+(4 MiB) bound what one memo keeps.
+
 ## Gotchas and constraints
 
 - **Audit and targeting fields don't authorize.** `Credential`, `RecordedUserId` and `RecordedProviderId` are for
@@ -144,11 +178,13 @@ skip a lock or a check.
   passes. Checking each name against the services it knows, before writing a chain that arrived from another
   service to a span, a metric tag or a log, is the host's responsibility; this package checks the shape only. The
   chain is not signed and grants nothing.
+- **A memo is held in memory for one unit of work.** Nothing in it outlives the work or reaches another caller, and
+  work started inside it and not awaited finds it ended once the work is done.
 - **Keeping the context trustworthy is the service's job.** The headers are only as good as these three rules:
-  - The edge strips every header in `BitwardenHeaders.ServiceOnly` from requests arriving from outside.
-  - A product service, which people call, refuses those headers.
-  - A domain service, which other services call, trusts what the calling service says, as the signed
-    `Bitwarden-Delegation` token carries it.
+    - The edge strips every header in `BitwardenHeaders.ServiceOnly` from requests arriving from outside.
+    - A product service, which people call, refuses those headers.
+    - A domain service, which other services call, trusts what the calling service says, as the signed
+      `Bitwarden-Delegation` token carries it.
 
 ## Types
 
@@ -165,3 +201,4 @@ skip a lock or a check.
 | `CallChain`                                         | The services a request passed through, to notice a call back           |
 | `IRequestNamedOwner`, `IOrganizationCreation`       | Owners an operation names itself, for its outgoing calls               |
 | `IServiceIdentity`, `TokenAudience`                 | Which service this is, and which token audience it accepts             |
+| `RequestMemo`, `WithoutRequestMemoAttribute`        | What a unit of work asked other services, asked once; an opt-out       |
