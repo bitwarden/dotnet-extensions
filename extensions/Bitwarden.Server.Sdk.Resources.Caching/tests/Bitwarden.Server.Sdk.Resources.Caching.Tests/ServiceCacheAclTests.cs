@@ -20,32 +20,88 @@ public sealed class ServiceCacheAclTests
     public void NamesAUser_OnlyWithAUserOfItsOwn(string configuration, bool expected) =>
         Assert.Equal(expected, ServiceCacheAcl.NamesAUser(configuration));
 
-    [Theory]
-    [InlineData("localhost:6379,password=secret-value", "Production")]
-    [InlineData("localhost:6379,user=default,password=secret-value", "Production")]
-    [InlineData("localhost:6379", "Staging")]
-    [InlineData("localhost:6379", "Testing")]
-    public void RequireUser_OutsideDevelopment_WithoutAUserOfItsOwn_RefusedWithoutTheConnectionString(string configuration, string environment)
+    // Shared: this table is copied byte for byte into the tests of the three checks that refuse a Redis connection
+    // naming no user of the service's own, and a change to one check's behaviour fails the other two until it is copied
+    // over. The copies are in
+    // Bitwarden.Server.Sdk.Resources.Caching/tests/Bitwarden.Server.Sdk.Resources.Caching.Tests/ServiceCacheAclTests.cs
+    // (ServiceCacheAcl.RequireUser), Bitwarden.Server.Sdk.Client/tests/Bitwarden.Server.Sdk.Client.Tests/ServiceCacheUserCheckTests.cs
+    // (ServiceCacheUserCheck.Require) and
+    // Bitwarden.Server.Sdk.Idempotency/tests/Bitwarden.Server.Sdk.Idempotency.Tests/RedisUserCheckTests.cs
+    // (RedisUserCheck.Require). Each row is a connection string, the host's environment, and what the check answers:
+    // true for a user of the service's own or no connection, false where Development allows one without, and null for
+    // a refusal.
+    public static TheoryData<string?, string, bool?> RedisUserCases => new()
     {
-        var refusal = Assert.Throws<InvalidOperationException>(() => ServiceCacheAcl.RequireUser(configuration, Setting, environment));
+        // No connection: nothing to check.
+        { null, "Production", true },
+        { "", "Production", true },
+        { " ", "Production", true },
+        { null, "Development", true },
 
+        // A user of the service's own. Option names are read without regard to case; user names are compared with
+        // it, as Redis compares them, so "Default" is a user of its own, not Redis's default.
+        { "localhost:6379,user=shelf-service,password=secret-value", "Production", true },
+        { "localhost:6379,User=shelf-service,password=secret-value", "Production", true },
+        { "localhost:6379,user=Default,password=secret-value", "Production", true },
+        { "localhost:6379,user=shelf-service,password=secret-value", "Development", true },
+
+        // No user, or Redis's default user, outside Development.
+        { "localhost:6379", "Production", null },
+        { "localhost:6379,password=secret-value", "Production", null },
+        { "localhost:6379,user=default,password=secret-value", "Production", null },
+        { "localhost:6379,user=,password=secret-value", "Production", null },
+        { "localhost:6379,user= ,password=secret-value", "Production", null },
+
+        // A user named twice: the last one is the one the parser keeps.
+        { "localhost:6379,user=shelf-service,user=default,password=secret-value", "Production", null },
+        { "localhost:6379,user=default,user=shelf-service,password=secret-value", "Production", true },
+
+        // A user only a URI would name: the parser reads no user from one.
+        { "redis://shelf-service:secret-value@localhost:6379", "Production", null },
+
+        // A string the parser refuses names no user, even one that sets a user.
+        { "localhost:6379,user=shelf-service,connectTimeout=secret-value", "Production", null },
+
+        // Every environment but Development is outside it.
+        { "localhost:6379", "Staging", null },
+        { "localhost:6379", "Testing", null },
+        { "localhost:6379", "", null },
+
+        // In Development, without a user of its own: allowed, but not its own. Compared as IsDevelopment compares it.
+        { "localhost:6379", "Development", false },
+        { "localhost:6379", "development", false },
+        { "localhost:6379,user=default,password=secret-value", "Development", false },
+        { "localhost:6379,user=shelf-service,connectTimeout=secret-value", "Development", false },
+    };
+
+    [Theory]
+    [MemberData(nameof(RedisUserCases))]
+    public void RequireUser_AnswersAsEveryCopyDoes(string? configuration, string environment, bool? expected)
+    {
+        if (expected is { } answer)
+        {
+            Assert.Equal(answer, ServiceCacheAcl.RequireUser(configuration, Setting, environment));
+            return;
+        }
+
+        // Refused, naming the setting and never echoing the connection string.
+        var refusal = Assert.Throws<InvalidOperationException>(() => ServiceCacheAcl.RequireUser(configuration, Setting, environment));
         Assert.Contains(Setting, refusal.Message);
         Assert.DoesNotContain("secret-value", refusal.Message);
         Assert.DoesNotContain("localhost", refusal.Message);
+        Assert.DoesNotContain("shelf-service", refusal.Message);
     }
-
-    [Theory]
-    [InlineData("Development")]
-    [InlineData("development")]
-    public void RequireUser_InDevelopment_WithoutAUser_AllowedButSaysSo(string environment) =>
-        Assert.False(ServiceCacheAcl.RequireUser("localhost:6379", Setting, environment));
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    [InlineData("localhost:6379,user=shelf-service,password=secret-value")]
-    public void RequireUser_WithAUserOrNoCache_Allowed(string? configuration) =>
-        Assert.True(ServiceCacheAcl.RequireUser(configuration, Setting, "Production"));
+    [InlineData(" ")]
+    public void RequireUser_WithoutASettingName_Refused(string? setting) =>
+        Assert.ThrowsAny<ArgumentException>(() => ServiceCacheAcl.RequireUser("localhost:6379", setting!, "Production"));
+
+    [Fact]
+    public void RequireUser_WithoutAnEnvironment_Refused() =>
+        Assert.Throws<ArgumentNullException>(() => ServiceCacheAcl.RequireUser("localhost:6379", Setting, null!));
 
     [Fact]
     public void WarnWithoutUser_WarnsWithoutTheConnectionString()

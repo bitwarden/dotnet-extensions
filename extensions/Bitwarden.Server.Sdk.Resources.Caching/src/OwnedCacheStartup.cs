@@ -6,20 +6,23 @@ using Microsoft.Extensions.Logging;
 namespace Bitwarden.Server.Sdk.Resources.Caching;
 
 /// <summary>
-/// Checks, as the host starts, that every tombstone outlives what it must refuse and that every included navigation can
-/// be invalidated, and says what a change to each table the cache is built from does when the cache can't be told.
+/// Checks, as the host starts, that every tombstone outlives what it must refuse, that every included navigation can
+/// be invalidated and that every database cascade through a table the cache is built from is declared, and says what a
+/// change to each table the cache is built from does when the cache can't be told.
 /// </summary>
 /// <typeparam name="TContext">The service's database.</typeparam>
 /// <param name="registry">The declared resources.</param>
 /// <param name="store">Whether there is a cache.</param>
 /// <param name="times">The fill limit and the commit allowance.</param>
 /// <param name="scopes">A scope to read the database's command timeout from.</param>
+/// <param name="environment">Whether an undeclared database cascade refuses the host or is logged.</param>
 /// <param name="logger">Where each table's setting is said.</param>
 internal sealed class OwnedCacheStartup<TContext>(
     OwnedCacheRegistry registry,
     IOwnedCacheStore store,
     OwnedCacheTimes times,
     IServiceScopeFactory scopes,
+    IHostEnvironment environment,
     ILogger<OwnedCacheStartup<TContext>> logger) : IHostedService
     where TContext : DbContext
 {
@@ -37,6 +40,7 @@ internal sealed class OwnedCacheStartup<TContext>(
         // without, as the guard against writes in bulk reads the same tables either way.
         var tables = registry.Tables(database);
         RequireOnlyRowOwnership(registry, database);
+        CacheCascadeCheck.Check(registry.Resources, database, environment, logger);
 
         if (!store.Enabled)
         {

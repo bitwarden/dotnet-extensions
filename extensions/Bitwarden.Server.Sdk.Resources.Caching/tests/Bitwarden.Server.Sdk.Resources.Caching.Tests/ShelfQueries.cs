@@ -143,6 +143,20 @@ public sealed class GetShelfQuery(CacheableQueryServices services) : CacheableQu
 {
     protected override void Configure(CacheableQueryBuilder<ShelfEntity, Shelf> query) => query
         .Including(rows => rows.Include(row => row.Placements))
+        .CascadeCovered<PlacementEntity>(
+            placement => placement.ShelfId,
+            CascadeCoverage.ParentInvalidated,
+            "a shelf's placements go with the shelf, whose own deletion invalidates its entry")
+        .Map(ShelfMapping.ToResource);
+}
+
+/// <summary>
+/// A shelf read with its placements, not saying why the database deleting them with their shelf leaves nothing stale.
+/// </summary>
+public sealed class UncoveredShelfQuery(CacheableQueryServices services) : CacheableQuery<ShelfEntity, Shelf>(services), IGetShelfQuery
+{
+    protected override void Configure(CacheableQueryBuilder<ShelfEntity, Shelf> query) => query
+        .Including(rows => rows.Include(row => row.Placements))
         .Map(ShelfMapping.ToResource);
 }
 
@@ -225,6 +239,76 @@ public sealed class GetArchiveQuery(CacheableQueryServices services) : Cacheable
     protected override void Configure(CacheableQueryBuilder<ArchiveEntity, Archive> query) => query
         .Unowned()
         .Map(entity => new Archive { Id = entity.Id.ToString(), Name = entity.Name, Version = entity.Version.ToString() });
+}
+
+public interface IGetCopyQuery
+{
+    Task<ResourceDocument<Copy>> ReadAsync(string id, Fields<Copy> fields = default, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// A copy, which the database deletes with its branch, with no declaration.
+/// </summary>
+public sealed class GetCopyQuery(CacheableQueryServices services) : CacheableQuery<CopyEntity, Copy>(services), IGetCopyQuery
+{
+    protected override void Configure(CacheableQueryBuilder<CopyEntity, Copy> query) => query.Map(ShelfMapping.ToResource);
+}
+
+/// <summary>
+/// A copy whose branch is only ever deleted with its copies loaded.
+/// </summary>
+public sealed class LoadedCopyQuery(CacheableQueryServices services) : CacheableQuery<CopyEntity, Copy>(services), IGetCopyQuery
+{
+    protected override void Configure(CacheableQueryBuilder<CopyEntity, Copy> query) => query
+        .CascadeCovered<CopyEntity>(copy => copy.BranchId, CascadeCoverage.DependentsLoaded, "closing a branch loads its copies first")
+        .Map(ShelfMapping.ToResource);
+}
+
+/// <summary>
+/// A copy declared covered by its parent's entry, which it has none of: refused.
+/// </summary>
+public sealed class ParentlessCopyQuery(CacheableQueryServices services) : CacheableQuery<CopyEntity, Copy>(services), IGetCopyQuery
+{
+    protected override void Configure(CacheableQueryBuilder<CopyEntity, Copy> query) => query
+        .CascadeCovered<CopyEntity>(copy => copy.BranchId, CascadeCoverage.ParentInvalidated, "the branch's entry")
+        .Map(ShelfMapping.ToResource);
+}
+
+/// <summary>
+/// A copy declaring a cascade through a property that is no foreign key: refused.
+/// </summary>
+public sealed class StrayCascadeCopyQuery(CacheableQueryServices services) : CacheableQuery<CopyEntity, Copy>(services), IGetCopyQuery
+{
+    protected override void Configure(CacheableQueryBuilder<CopyEntity, Copy> query) => query
+        .CascadeCovered<CopyEntity>(copy => copy.BranchId, CascadeCoverage.DependentsLoaded, "closing a branch loads its copies first")
+        .CascadeCovered<CopyEntity>(copy => copy.Title, CascadeCoverage.DependentsLoaded, "no such key")
+        .Map(ShelfMapping.ToResource);
+}
+
+public interface IGetNoticeQuery
+{
+    Task<ResourceDocument<Notice>> ReadAsync(string id, Fields<Notice> fields = default, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// A notice, whose branch the database sets null when the branch goes, with no declaration.
+/// </summary>
+public sealed class GetNoticeQuery(CacheableQueryServices services) : CacheableQuery<NoticeEntity, Notice>(services), IGetNoticeQuery
+{
+    protected override void Configure(CacheableQueryBuilder<NoticeEntity, Notice> query) => query.Map(ShelfMapping.ToResource);
+}
+
+public interface IGetStampQuery
+{
+    Task<ResourceDocument<Stamp>> ReadAsync(string id, Fields<Stamp> fields = default, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// A stamp, which only the change tracker deletes with its branch: nothing to declare.
+/// </summary>
+public sealed class GetStampQuery(CacheableQueryServices services) : CacheableQuery<StampEntity, Stamp>(services), IGetStampQuery
+{
+    protected override void Configure(CacheableQueryBuilder<StampEntity, Stamp> query) => query.Map(ShelfMapping.ToResource);
 }
 
 public static class ShelfQueries

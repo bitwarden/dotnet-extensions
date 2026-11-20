@@ -32,6 +32,8 @@ public sealed class CacheableQueryBuilder<TEntity, TResource>
 
     internal List<string> PerCallerAttributes { get; } = [];
 
+    internal List<CascadeDeclaration> CascadeDeclarations { get; } = [];
+
     internal Owner? Current { get; private set; }
 
     /// <summary>
@@ -63,6 +65,49 @@ public sealed class CacheableQueryBuilder<TEntity, TResource>
     public CacheableQueryBuilder<TEntity, TResource> Including(Func<IQueryable<TEntity>, IQueryable<TEntity>> shape)
     {
         Read.Including(shape);
+        return this;
+    }
+
+    /// <summary>
+    /// Declares a foreign key through which the database deletes or changes rows this read is built from, and why that
+    /// leaves no entry stale.
+    /// </summary>
+    /// <typeparam name="TDependent">The row the key belongs to: the read's own, or one it includes.</typeparam>
+    /// <param name="foreignKey">The key's property (<c>link =&gt; link.GroupId</c>), or properties in order
+    /// (<c>link =&gt; new { link.A, link.B }</c>).</param>
+    /// <param name="coverage">Why no entry is left stale.</param>
+    /// <param name="reason">The reason in words, for the reader of the declaration.</param>
+    /// <returns>The builder.</returns>
+    /// <remarks>
+    /// As the host starts, every foreign key whose delete behaviour is <c>Cascade</c> or <c>SetNull</c> on a table the
+    /// read is built from must be declared. One undeclared refuses the host in <c>Development</c> and <c>Testing</c>,
+    /// and is logged as a warning elsewhere. A declaration naming no such key, or <see cref="CascadeCoverage.ParentInvalidated"/>
+    /// on a key that isn't its include's own, refuses the host everywhere.
+    /// </remarks>
+    /// <exception cref="ArgumentException">The key isn't a property of the row, or the reason is blank.</exception>
+    public CacheableQueryBuilder<TEntity, TResource> CascadeCovered<TDependent>(
+        Expression<Func<TDependent, object?>> foreignKey, CascadeCoverage coverage, string reason)
+        where TDependent : class
+    {
+        ArgumentNullException.ThrowIfNull(foreignKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+
+        if (!Enum.IsDefined(coverage))
+        {
+            throw new ArgumentOutOfRangeException(nameof(coverage), coverage, null);
+        }
+
+        var row = foreignKey.Parameters[0];
+        var body = foreignKey.Body is UnaryExpression { NodeType: ExpressionType.Convert } boxed ? boxed.Operand : foreignKey.Body;
+        IReadOnlyList<Expression> members = body is NewExpression composite ? composite.Arguments : [body];
+        var properties = members
+            .Select(member => member is MemberExpression { Member: System.Reflection.PropertyInfo property } read && read.Expression == row
+                ? property.Name
+                : throw new ArgumentException(
+                    $"A cascade is declared by the foreign key's properties of {typeof(TDependent).Name}, not {member}.", nameof(foreignKey)))
+            .ToList();
+
+        CascadeDeclarations.Add(new CascadeDeclaration(typeof(TDependent), properties, coverage, reason));
         return this;
     }
 

@@ -28,7 +28,7 @@ Bitwarden.Server.Sdk.Client. Nothing here may let a cached copy answer a read th
 | `RedisOwnedCacheStore.cs`                                   | The version-checked Redis scripts, and the eviction policy check.                                              |
 | `OwnedCacheTimes.cs`, `OwnedCacheStartup.cs`                | The fill limit and commit allowance, and the startup checks of them and of query filters.                      |
 | `ServiceCacheAcl.cs`, `ServiceCacheUserCheck.cs`            | The Redis ACL rule per service, and the startup check that a connection names a user of its own.               |
-| `RetiredCacheInvalidationHandler.cs`                        | Discards a `cache.invalidate` message found in an outbox, so its dispatch completes.                           |
+| `CacheCascadeCheck.cs`                                      | Finds the database cascades a cached read's tables depend on, and refuses or warns about undeclared ones.      |
 
 - **Invalidation before commit.** Every save outside a transaction is made to open one, even for a single statement,
   so every change commits through `TransactionCommitting`, after its statements have run. A change that rolls back
@@ -55,16 +55,18 @@ Bitwarden.Server.Sdk.Client. Nothing here may let a cached copy answer a read th
   rule; a tool writing an ACL file without .NET reads them from the source. Redis refuses a write to a key the user may
   only read, and a script runs under the caller's key permissions, so the owner's scripts cannot reach another prefix.
   The only channel granted is the one StackExchange.Redis watches for a primary changing: there is no backplane.
-- **The `cache.invalidate` message.** `AddOwnedCache` registers a handler for it on a context with an outbox. Nothing
-  in the package records one; the handler discards one it finds, and is the package's only use of
-  Bitwarden.Server.Sdk.MessageBroker.Sender.
+- **Database cascades.** Invalidation reads the change tracker (`CacheInvalidationInterceptor.Record`), which never
+  sees a row the database deletes or changes through `ON DELETE CASCADE` or `SET NULL`. `CacheCascadeCheck` reads every
+  such foreign key from the model, on the read's own table and those it includes, at startup, with a cache or without,
+  and matches each against the read's declarations (`CascadeCoverage`). `ParentInvalidated` is checked against the
+  model: the key must be the include's own. `DependentsLoaded` can't be, so it carries a reason. Undeclared keys refuse
+  the host in `Development` and `Testing`, and are logged once elsewhere, so a deployment whose model gains a key
+  isn't stopped by it.
 
 ## Known limitations
 
-- **Database cascades.** Invalidation reads the change tracker (`CacheInvalidationInterceptor.Record`), and
-  `CacheBulkWriteGuard` refuses the bulk writes that bypass it, but nothing checks a foreign key whose `ON DELETE
-CASCADE` or `SET NULL` lets the database delete or change a cached row the context never loaded. Such a row's entry
-  stays readable until it expires; PACKAGE.md gives the workaround.
+- **What the model doesn't say.** The cascade check reads the Entity Framework model. A foreign key or trigger the
+  database has and the model doesn't, or one whose delete behaviour differs from the model's, isn't seen.
 
 ## Testing
 
@@ -89,6 +91,8 @@ A change must keep:
   commits. The dead version is one the database vouches for: a concurrency token, or a version the database moves.
 - **No write the cache can't see.** A write in bulk to a table an entry is built from is refused unless it is an owner's
   erasure, and a change to an included row moves its parent's version.
+- **No cascade undeclared.** A foreign key that lets the database delete or change a row an entry is built from is
+  declared on the read, and `ParentInvalidated` is accepted only where it is true.
 - **Startup refusals.** A cached copy that could not be authorized as the service authorizes the read stops the service.
 - **The key and field formats.** They are shared with clients deployed apart from the owner. A change to what an entry
   holds or how changes `OwnedCacheEntry.CurrentFormat`, so clients that don't know it miss rather than misread.

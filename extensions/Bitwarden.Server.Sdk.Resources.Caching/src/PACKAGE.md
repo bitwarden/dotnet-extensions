@@ -15,8 +15,7 @@ How an entry is stored and keyed is in
 [Bitwarden.Server.Sdk.Resources.Caching.Abstractions](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Resources.Caching.Abstractions/src/PACKAGE.md),
 which the owner and its clients share. This package depends on it, on Bitwarden.Server.Sdk.Data (the declared read,
 row-level security, versions and erasure), Bitwarden.Server.Sdk.Resources, Bitwarden.Server.Sdk.Authorization,
-Bitwarden.Server.Sdk.Context, Bitwarden.Server.Sdk.Errors and StackExchange.Redis. Through Bitwarden.Server.Sdk.Data
-it uses Bitwarden.Server.Sdk.MessageBroker.Sender, only to discard a `cache.invalidate` message found in the outbox.
+Bitwarden.Server.Sdk.Context, Bitwarden.Server.Sdk.Errors and StackExchange.Redis.
 
 ## Installing
 
@@ -269,6 +268,45 @@ refused with `InvalidOperationException` as Entity Framework compiles them, with
 save them, in batches where there are many. An owner's erasure (`OwnerErasure.EraseAsync`), which tells the cache
 itself, is let through, and every version of each row it deletes is marked dead.
 
+### Declare what a database cascade changes
+
+A row the database deletes or changes through a foreign key's `ON DELETE CASCADE` or `SET NULL` never passes through
+the change tracker, so nothing would invalidate the entries built from it. As the host starts, every table a cacheable
+read is built from (its own, and those its read includes) is checked for a foreign key whose delete behaviour is
+`Cascade` or `SetNull`. Each such key must be declared on the read with `.CascadeCovered(...)`, naming the key and why
+no entry is left stale.
+
+`GetGroupQuery.cs`:
+
+```csharp
+using Bitwarden.Server.Sdk.Resources.Caching;
+using Microsoft.EntityFrameworkCore;
+
+public sealed class GetGroupQuery(CacheableQueryServices services) : CacheableQuery<GroupEntity, Group>(services)
+{
+    protected override void Configure(CacheableQueryBuilder<GroupEntity, Group> query) => query
+        .Including(rows => rows.Include(group => group.Memberships))
+        .CascadeCovered<GroupMembershipEntity>(
+            link => link.GroupId,
+            CascadeCoverage.ParentInvalidated,
+            "a group's links go with the group, whose own deletion invalidates its entry")
+        .Map(GroupMapping.ToResource);
+}
+```
+
+- **`CascadeCoverage.ParentInvalidated`**: the key is the one an included navigation names its parent by, the cached
+  row itself. Deleting the parent goes through the change tracker and invalidates its entry, so the included rows the
+  database then deletes are never read from it. Refused on any other key.
+- **`CascadeCoverage.DependentsLoaded`**: every change that deletes the key's principal loads these rows into the
+  context first, so the change tracker deletes or changes them itself and their entries are invalidated. The package
+  can't see this; the reason names the code that does it.
+- **Undeclared.** In `Development`, and in `Testing` (a host under test), the host refuses to start. Elsewhere it logs one
+  warning naming every undeclared key, and starts.
+- **Declared wrongly.** A declaration naming no such key of a table the read is built from, or `ParentInvalidated` on a
+  key that isn't its include's own, refuses the host in every environment.
+- **`ClientCascade` and `ClientSetNull`** need nothing: the database refuses to delete a principal with rows still
+  depending on it, so a cascade the change tracker didn't make never happens.
+
 ### Choose what happens when the cache can't be told
 
 A change the cache can't be told of before it commits (Redis down or timing out) would leave its entries readable by
@@ -337,11 +375,6 @@ public static class CacheUsers
 - **Raw SQL isn't checked**, as it can't be read reliably: `ExecuteSql`, `ExecuteSqlRaw` and their like must never
   write to a table a cache entry is built from. Such a write is never invalidated, and readers of the cache are served
   what it replaced until the entry expires.
-- **Database cascades aren't seen.** A row the database deletes or changes through a foreign key's `ON DELETE
-CASCADE` or `SET NULL` never passes through the change tracker, so its entry isn't invalidated and readers of the
-  cache are served it until it expires. Where a cached table, or one a cached read includes, depends on another
-  through such a key, load its rows into the context before deleting the row they depend on, so the change tracker
-  deletes or changes them itself.
 - **Switch clients off first.** Switching the cache off in a running deployment should be done on the clients first:
   an owner without Redis cannot invalidate what clients might still read.
 - **Not a cache a process keeps for itself.** The owner writes through version-checked scripts a general-purpose cache
@@ -352,11 +385,12 @@ CASCADE` or `SET NULL` never passes through the change tracker, so its entry isn
 
 ## Types
 
-| Type                                        | What it is                                                                     |
-| ------------------------------------------- | ------------------------------------------------------------------------------ |
-| `CacheableQuery<TEntity, TResource>`        | The base class of a cacheable read; its read methods are the platform's.       |
-| `CacheableQueryBuilder<TEntity, TResource>` | Declares the read: map, key, owner, includes, per-caller attributes, lifetime. |
-| `CacheableQueryServices`                    | What a query reads with, given per request by `AddOwnedCache`.                 |
-| `CacheWrites`                               | What a change does when the cache can't be told of it: `Refuse` or `Proceed`.  |
-| `ServiceCacheAcl`                           | The Redis ACL rule each service connects as.                                   |
-| `AddOwnedCache<TContext>()`                 | Gives the service its cache, on `IServiceCollection`.                          |
+| Type                                        | What it is                                                                               |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `CacheableQuery<TEntity, TResource>`        | The base class of a cacheable read; its read methods are the platform's.                 |
+| `CacheableQueryBuilder<TEntity, TResource>` | Declares the read: map, key, owner, includes, per-caller attributes, lifetime.           |
+| `CacheableQueryServices`                    | What a query reads with, given per request by `AddOwnedCache`.                           |
+| `CacheWrites`                               | What a change does when the cache can't be told of it: `Refuse` or `Proceed`.            |
+| `CascadeCoverage`                           | Why a database cascade leaves no entry stale: `ParentInvalidated` or `DependentsLoaded`. |
+| `ServiceCacheAcl`                           | The Redis ACL rule each service connects as.                                             |
+| `AddOwnedCache<TContext>()`                 | Gives the service its cache, on `IServiceCollection`.                                    |

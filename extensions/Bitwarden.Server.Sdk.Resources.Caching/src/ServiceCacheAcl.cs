@@ -192,6 +192,7 @@ public static class ServiceCacheAcl
     /// Redis of its own, provisioned with a user per service; only a developer's own Redis has no users, and that runs
     /// in <c>Development</c>.
     /// </remarks>
+    /// <exception cref="ArgumentException">No setting name, or no environment name.</exception>
     /// <exception cref="InvalidOperationException">A connection is set, names no user of its own, and the host is not in <c>Development</c>.</exception>
     public static bool RequireUser(string? configuration, string setting, string environmentName)
     {

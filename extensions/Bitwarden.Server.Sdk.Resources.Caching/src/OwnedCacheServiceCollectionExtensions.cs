@@ -1,5 +1,4 @@
 using Bitwarden.Server.Sdk.Data;
-using Bitwarden.Server.Sdk.MessageBroker.Sender;
 using Bitwarden.Server.Sdk.Resources.Caching;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.EntityFrameworkCore;
@@ -87,13 +86,6 @@ public static class OwnedCacheServiceCollectionExtensions
             provider.GetRequiredService<CacheTransactionInterceptor>(),
             CacheBulkWriteGuard.Instance));
 
-        // A cache.invalidate message waiting in the outbox is discarded, so its dispatch completes
-        // (RetiredCacheInvalidation). Only a context with an outbox has one.
-        if (typeof(IMessageOutboxContext).IsAssignableFrom(typeof(TContext)))
-        {
-            RetiredHandler.MakeGenericMethod(typeof(TContext)).Invoke(null, [services]);
-        }
-
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, OwnedCacheStartup<TContext>>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IErasureObserver, CacheErasureObserver>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<Bitwarden.Server.Sdk.Resources.Endpoints.IStandardEndpointCheck, CacheContractCheck>());
@@ -101,11 +93,4 @@ public static class OwnedCacheServiceCollectionExtensions
 
         return services;
     }
-
-    private static readonly System.Reflection.MethodInfo RetiredHandler = typeof(OwnedCacheServiceCollectionExtensions)
-        .GetMethod(nameof(AddRetiredHandler), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
-
-    private static void AddRetiredHandler<TContext>(IServiceCollection services)
-        where TContext : DbContext, IMessageOutboxContext =>
-        services.AddLocalHandler<CacheInvalidatePayload, CacheInvalidate, TContext, RetiredCacheInvalidationHandler>();
 }

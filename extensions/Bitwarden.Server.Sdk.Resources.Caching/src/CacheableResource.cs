@@ -19,6 +19,7 @@ internal sealed class CacheableResource<TEntity, TResource> : ICacheableResource
         var read = Read;
         Lifetime = declared.CachedFor;
         WhenUnreachable = declared.WhenUnreachable;
+        Cascades = [.. declared.CascadeDeclarations];
         ResourceType = ResourceTypes.For(typeof(TResource));
 
         var properties = typeof(TResource)
@@ -117,6 +118,8 @@ internal sealed class CacheableResource<TEntity, TResource> : ICacheableResource
     public TimeSpan Lifetime { get; }
 
     public CacheWrites WhenUnreachable { get; }
+
+    public IReadOnlyList<CascadeDeclaration> Cascades { get; }
 
     public ReadOwnership Ownership => Read.Ownership;
 

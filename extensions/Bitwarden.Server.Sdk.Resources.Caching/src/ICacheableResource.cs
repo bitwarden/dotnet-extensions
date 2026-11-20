@@ -58,6 +58,11 @@ internal interface ICacheableResource
     CacheWrites WhenUnreachable { get; }
 
     /// <summary>
+    /// The database cascades the read declares, through foreign keys of the tables it is built from.
+    /// </summary>
+    IReadOnlyList<CascadeDeclaration> Cascades { get; }
+
+    /// <summary>
     /// How the rows are owned.
     /// </summary>
     ReadOwnership Ownership { get; }

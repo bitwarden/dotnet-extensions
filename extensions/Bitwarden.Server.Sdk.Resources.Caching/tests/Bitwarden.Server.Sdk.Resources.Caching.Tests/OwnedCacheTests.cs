@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text;
 using System.Text.Json;
 using Bitwarden.Server.Sdk.Context;
 using Bitwarden.Server.Sdk.Data;
@@ -89,23 +88,6 @@ public sealed class OwnedCacheTests(RedisFixture redis) : IClassFixture<RedisFix
         Assert.Equal("3", entry[OwnedCacheEntry.Version]);
         Assert.Equal("1", entry[OwnedCacheEntry.Gone]);
         Assert.False(entry.ContainsKey(OwnedCacheEntry.Data));
-    }
-
-    // A cache.invalidate message waiting in an outbox, in either shape a service may have recorded, is discarded: its
-    // change committed long ago, and its entries were invalidated then or have expired since.
-    [Theory]
-    [InlineData("""[{"$type":"v1","Invalidations":[{"Key":"shelf-service:book:K","Version":7}],"Answers":null}]""")]
-    [InlineData("""[{"$type":"v1","Invalidations":[],"Generations":[{"Key":"shelf-service:gen:g","Change":"C"}],"Answers":[{"Key":"shelf-service:answer:a:K","Change":"C"}]}]""")]
-    public async Task Handle_RetiredInvalidationMessage_DiscardsIt(string body)
-    {
-        await using var host = await StartAsync();
-        var key = $"{ShelfHost.ServiceName}:book:{Guid.NewGuid()}";
-        var store = host.Services.GetRequiredService<IOwnedCacheStore>();
-        Assert.True(await store.FillAsync(key, 6, null, "{\"six\":true}", TimeSpan.FromMinutes(1)));
-
-        await host.HandleRetiredAsync(Encoding.UTF8.GetBytes(body.Replace("shelf-service:book:K", key, StringComparison.Ordinal)));
-
-        Assert.Equal("{\"six\":true}", (await Entry(key))[OwnedCacheEntry.Data]);
     }
 
     [Fact]
@@ -443,8 +425,6 @@ public sealed class OwnedCacheTests(RedisFixture redis) : IClassFixture<RedisFix
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.False(await Redis.KeyExistsAsync(BookKey));
-        await host.InScopeAsync(null, async database =>
-            Assert.False(await database.Set<MessageBroker.Sender.OutboxMessage>().AnyAsync(TestContext.Current.CancellationToken)));
     }
 
     // Outside Development, entries only the owner may write need a Redis user of the owner's own.

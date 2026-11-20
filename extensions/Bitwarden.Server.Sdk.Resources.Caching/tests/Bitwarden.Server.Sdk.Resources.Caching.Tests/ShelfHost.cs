@@ -3,8 +3,6 @@ using Bitwarden.Server.Sdk.Authorization;
 using Bitwarden.Server.Sdk.Context;
 using Bitwarden.Server.Sdk.Data;
 using Bitwarden.Server.Sdk.Errors;
-using Bitwarden.Server.Sdk.MessageBroker;
-using Bitwarden.Server.Sdk.MessageBroker.Sender;
 using Bitwarden.Server.Sdk.Resources.Querying;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
@@ -12,7 +10,6 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
@@ -179,6 +176,17 @@ public sealed class ShelfHost : IAsyncDisposable
     }
 
     /// <summary>
+    /// Runs <paramref name="work"/> with the services of a scope acting for <paramref name="organization"/>: a
+    /// query's own read, with no endpoint in front of it.
+    /// </summary>
+    public async Task InServiceScopeAsync(Guid organization, Func<IServiceProvider, Task> work)
+    {
+        using var scope = Services.CreateScope();
+        using var context = ContextScope.Begin(new StatedContext { OrganizationId = organization });
+        await work(scope.ServiceProvider);
+    }
+
+    /// <summary>
     /// Runs <paramref name="work"/> in a scope acting for <paramref name="organization"/>.
     /// </summary>
     public async Task InScopeAsync(Guid? organization, Func<ShelfContext, Task> work)
@@ -186,35 +194,6 @@ public sealed class ShelfHost : IAsyncDisposable
         using var scope = Services.CreateScope();
         using var context = organization is { } named ? ContextScope.Begin(new StatedContext { OrganizationId = named }) : null;
         await work(scope.ServiceProvider.GetRequiredService<ShelfContext>());
-    }
-
-    /// <summary>
-    /// Runs the handler of the retired <c>cache.invalidate</c> message on one an outbox recorded, as the dispatcher would.
-    /// </summary>
-    public async Task HandleRetiredAsync(byte[] recorded)
-    {
-        var message = (CacheInvalidate)Assert.Single(Services
-            .GetRequiredKeyedService<IMessageSerializer>(MessageBrokerKeys.Publisher<CacheInvalidatePayload>(MessageOutbox.Local))
-            .DeserializeVariants<CacheInvalidatePayload>(recorded));
-
-        using var scope = Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<RetiredCacheInvalidationHandler>()
-            .HandleAsync(new Recorded(message), TestContext.Current.CancellationToken);
-    }
-
-    private sealed class Recorded(CacheInvalidate invalidation) : Envelope<CacheInvalidatePayload, CacheInvalidate>([invalidation])
-    {
-        public override string MessageId { get; } = Guid.CreateVersion7().ToString();
-
-        public override string? TraceId => null;
-
-        public override int DeliveryCount => 1;
-
-        protected override Task CompleteAsyncCore(CancellationToken cancellationToken) => Task.CompletedTask;
-
-        protected override Task RequeueCoreAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-        protected override Task DeadLetterAsyncCore(string? reason, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     public async ValueTask DisposeAsync()
@@ -279,18 +258,6 @@ public sealed class ShelfHost : IAsyncDisposable
             });
 
             declare(services);
-
-            // No dispatcher: a test runs the handler itself (HandleRetiredAsync), and the dispatcher would otherwise race
-            // it to the message.
-            for (var i = services.Count - 1; i >= 0; i--)
-            {
-                if (services[i].ServiceType == typeof(IHostedService)
-                    && services[i].ImplementationType is { IsGenericType: true } dispatcher
-                    && dispatcher.Name.StartsWith("OutboxDispatcher", StringComparison.Ordinal))
-                {
-                    services.RemoveAt(i);
-                }
-            }
         }
 
         protected override void MapEndpoints(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder endpoints)
@@ -465,6 +432,64 @@ public sealed class PlacementEntity
 }
 
 /// <summary>
+/// A library branch: nothing cached is built from it, but the database deletes or changes rows that are when it goes.
+/// </summary>
+public sealed class BranchEntity
+{
+    public Guid Id { get; set; }
+
+    public string Name { get; set; } = null!;
+}
+
+/// <summary>
+/// A copy of a book held by a branch, which the database deletes with its branch.
+/// </summary>
+[OwnedBy(Owner.Organization)]
+public sealed class CopyEntity
+{
+    public Guid Id { get; set; }
+
+    public Guid OrganizationId { get; set; }
+
+    public Guid BranchId { get; set; }
+
+    public string Title { get; set; } = null!;
+
+    public int Version { get; set; }
+}
+
+/// <summary>
+/// A notice a branch posted, which the database keeps without its branch when the branch goes.
+/// </summary>
+[OwnedBy(Owner.Organization)]
+public sealed class NoticeEntity
+{
+    public Guid Id { get; set; }
+
+    public Guid OrganizationId { get; set; }
+
+    public Guid? BranchId { get; set; }
+
+    public int Version { get; set; }
+}
+
+/// <summary>
+/// A branch's stamp, which only the change tracker deletes with its branch: the database refuses the branch's delete
+/// while one it didn't load remains.
+/// </summary>
+[OwnedBy(Owner.Organization)]
+public sealed class StampEntity
+{
+    public Guid Id { get; set; }
+
+    public Guid OrganizationId { get; set; }
+
+    public Guid BranchId { get; set; }
+
+    public int Version { get; set; }
+}
+
+/// <summary>
 /// A borrower barred from borrowing: a table nothing cached is built from.
 /// </summary>
 public sealed class SuspensionEntity
@@ -560,6 +585,21 @@ public sealed record Shelf : Resource
     public IReadOnlyList<string> Titles { get; init; } = [];
 }
 
+public sealed record Copy : Resource
+{
+    public string Title { get; init; } = null!;
+}
+
+public sealed record Notice : Resource
+{
+    public Guid? Branch { get; init; }
+}
+
+public sealed record Stamp : Resource
+{
+    public Guid Branch { get; init; }
+}
+
 public sealed record Guarded : Resource
 {
     public string Note { get; init; } = null!;
@@ -593,6 +633,27 @@ internal static class ShelfMapping
         Version = entity.CacheVersion.ToString(),
     };
 
+    public static Copy ToResource(CopyEntity entity) => new()
+    {
+        Id = entity.Id.ToString(),
+        Title = entity.Title,
+        Version = entity.Version.ToString(),
+    };
+
+    public static Notice ToResource(NoticeEntity entity) => new()
+    {
+        Id = entity.Id.ToString(),
+        Branch = entity.BranchId,
+        Version = entity.Version.ToString(),
+    };
+
+    public static Stamp ToResource(StampEntity entity) => new()
+    {
+        Id = entity.Id.ToString(),
+        Branch = entity.BranchId,
+        Version = entity.Version.ToString(),
+    };
+
     public static Shelf ToResource(ShelfEntity entity) => new()
     {
         Id = entity.Id.ToString(),
@@ -611,7 +672,7 @@ internal static class ShelfMapping
 }
 
 public sealed class ShelfContext(DbContextOptions<ShelfContext> options, IRowOwnership ownership)
-    : DbContext(options), IRestrictedContext, IMessageOutboxContext
+    : DbContext(options), IRestrictedContext
 {
     public DbSet<BookEntity> Books => Set<BookEntity>();
 
@@ -631,6 +692,14 @@ public sealed class ShelfContext(DbContextOptions<ShelfContext> options, IRowOwn
 
     public DbSet<ArchiveEntity> Archives => Set<ArchiveEntity>();
 
+    public DbSet<BranchEntity> Branches => Set<BranchEntity>();
+
+    public DbSet<CopyEntity> Copies => Set<CopyEntity>();
+
+    public DbSet<NoticeEntity> Notices => Set<NoticeEntity>();
+
+    public DbSet<StampEntity> Stamps => Set<StampEntity>();
+
     public Guid CurrentOrganization => ownership.RequireOrganization();
 
     public Guid CurrentUser => ownership.RequireUser();
@@ -640,7 +709,12 @@ public sealed class ShelfContext(DbContextOptions<ShelfContext> options, IRowOwn
         modelBuilder.Entity<QuotaEntity>().HasIndex(quota => quota.OrganizationId).IsUnique();
         modelBuilder.Entity<ShelfEntity>().HasMany(shelf => shelf.Placements).WithOne().HasForeignKey(placement => placement.ShelfId);
         modelBuilder.Entity<ArchiveEntity>().HasQueryFilter(archive => !archive.Archived);
-        MessageOutbox.Apply(modelBuilder);
+
+        // A branch's copies go with it in the database, its notices lose it, and its stamps hold it up: three delete
+        // behaviours for the cascade check.
+        modelBuilder.Entity<CopyEntity>().HasOne<BranchEntity>().WithMany().HasForeignKey(copy => copy.BranchId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<NoticeEntity>().HasOne<BranchEntity>().WithMany().HasForeignKey(notice => notice.BranchId).OnDelete(DeleteBehavior.SetNull);
+        modelBuilder.Entity<StampEntity>().HasOne<BranchEntity>().WithMany().HasForeignKey(stamp => stamp.BranchId).OnDelete(DeleteBehavior.ClientCascade);
         RowLevelSecurity.Apply(modelBuilder, this);
     }
 }
