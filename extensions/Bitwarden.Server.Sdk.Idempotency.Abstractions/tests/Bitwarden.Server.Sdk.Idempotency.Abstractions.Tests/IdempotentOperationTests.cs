@@ -6,20 +6,14 @@ public sealed class IdempotentOperationTests
 {
     private const string Address = "https://callee/api/v1/things";
 
-    private const string ServiceName = "test-service";
-
-    private static readonly KeyValuePair<string, string>[] NoContext = [];
-
     // A test secret, 32 bytes of 0x01, which the golden vectors below are computed with.
-    private static readonly IdempotencySecret Secret = new(new CacheSecret(Enumerable.Repeat((byte)1, CacheSecret.Length).ToArray()), ServiceName);
-
-    private static readonly IdempotencySecret Development = new(CacheSecret.Development, ServiceName);
+    private static readonly CacheSecret Secret = new(Enumerable.Repeat((byte)1, CacheSecret.Length).ToArray());
 
     [Fact]
     public void OutsideAnOperation_NothingIsDerived()
     {
         Assert.Null(IdempotentOperation.Current);
-        Assert.Null(IdempotentOperation.KeyForWrite("POST", Address, "{}"u8, NoContext));
+        Assert.Null(IdempotentOperation.KeyForWrite("POST", Address, "{}"u8));
         Assert.Null(IdempotentOperation.DeriveId("purpose"));
     }
 
@@ -32,9 +26,9 @@ public sealed class IdempotentOperationTests
             using var operation = IdempotentOperation.Begin("operation-1", Secret);
             return (
                 [
-                    IdempotentOperation.KeyForWrite("POST", Address, "{\"a\":1}"u8, NoContext),
-                    IdempotentOperation.KeyForWrite("POST", Address, "{\"a\":1}"u8, NoContext),
-                    IdempotentOperation.KeyForWrite("DELETE", Address, [], NoContext),
+                    IdempotentOperation.KeyForWrite("POST", Address, "{\"a\":1}"u8),
+                    IdempotentOperation.KeyForWrite("POST", Address, "{\"a\":1}"u8),
+                    IdempotentOperation.KeyForWrite("DELETE", Address, []),
                 ],
                 IdempotentOperation.DeriveId("mail"));
         }
@@ -56,7 +50,7 @@ public sealed class IdempotentOperationTests
         string?[] Run(params string[] bodies)
         {
             using var operation = IdempotentOperation.Begin("operation-1", Secret);
-            return [.. bodies.Select(body => IdempotentOperation.KeyForWrite("POST", Address, System.Text.Encoding.UTF8.GetBytes(body), NoContext))];
+            return [.. bodies.Select(body => IdempotentOperation.KeyForWrite("POST", Address, System.Text.Encoding.UTF8.GetBytes(body)))];
         }
 
         var first = Run("a", "b");
@@ -73,7 +67,7 @@ public sealed class IdempotentOperationTests
         string? Run(string body)
         {
             using var operation = IdempotentOperation.Begin("operation-1", Secret);
-            return IdempotentOperation.KeyForWrite("PUT", Address, System.Text.Encoding.UTF8.GetBytes(body), NoContext);
+            return IdempotentOperation.KeyForWrite("PUT", Address, System.Text.Encoding.UTF8.GetBytes(body));
         }
 
         Assert.NotEqual(Run("one"), Run("two"));
@@ -85,7 +79,7 @@ public sealed class IdempotentOperationTests
         (string? Key, Guid? Id) Run(string key)
         {
             using var operation = IdempotentOperation.Begin(key, Secret);
-            return (IdempotentOperation.KeyForWrite("POST", Address, [], NoContext), IdempotentOperation.DeriveId("mail"));
+            return (IdempotentOperation.KeyForWrite("POST", Address, []), IdempotentOperation.DeriveId("mail"));
         }
 
         var one = Run("operation-1");
@@ -137,7 +131,7 @@ public sealed class IdempotentOperationTests
         inner.Dispose();
 
         Assert.Null(IdempotentOperation.Current);
-        Assert.Null(IdempotentOperation.KeyForWrite("POST", Address, [], NoContext));
+        Assert.Null(IdempotentOperation.KeyForWrite("POST", Address, []));
         Assert.Null(IdempotentOperation.DeriveId("mail"));
     }
 
@@ -185,12 +179,6 @@ public sealed class IdempotentOperationTests
     }
 
     [Fact]
-    public void Begin_ANullSecret_IsRefused()
-    {
-        Assert.Throws<ArgumentNullException>(() => IdempotentOperation.Begin("operation-1", null!));
-    }
-
-    [Fact]
     public void Begin_AKeyOfTheMaximumLength_Begins()
     {
         using var operation = IdempotentOperation.Begin(new string('k', IdempotentOperation.MaximumKeyLength), Secret);
@@ -221,7 +209,7 @@ public sealed class IdempotentOperationTests
     {
         var envelope = Guid.NewGuid();
 
-        Assert.Equal($"msg:Some.Handler:{envelope}", IdempotentOperation.ForMessage("Some.Handler", envelope));
+        Assert.Equal($"Some.Handler:{envelope}", IdempotentOperation.ForMessage("Some.Handler", envelope));
     }
 
     [Fact]
@@ -250,7 +238,7 @@ public sealed class IdempotentOperationTests
     [Fact]
     public void ForMessage_AStringIdentifier_IsTheHandlerAndTheIdentifier()
     {
-        Assert.Equal("msg:Some.Handler:device-1.0192", IdempotentOperation.ForMessage("Some.Handler", "device-1.0192"));
+        Assert.Equal("Some.Handler:device-1.0192", IdempotentOperation.ForMessage("Some.Handler", "device-1.0192"));
     }
 
     [Fact]
@@ -278,20 +266,11 @@ public sealed class IdempotentOperationTests
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    [InlineData(" ")]
+    [InlineData("a message")]
     [InlineData("café")]
-    public void ForMessage_AnIdentifierBlankOrNotAscii_IsRefused(string? messageId)
+    public void ForMessage_AnIdentifierThatIsNotVisibleAscii_IsRefused(string? messageId)
     {
         Assert.ThrowsAny<ArgumentException>(() => IdempotentOperation.ForMessage("Some.Handler", messageId!));
-    }
-
-    // Any identifier a message broker allows is taken: one with a space or a control character is shortened to its hash.
-    [Theory]
-    [InlineData("a message", "msg:Some.Handler:f53c09ca39717a45c62d9aca8f8113eddbfd5f81dcab0b33b1c1834075225e68")]
-    public void ForMessage_AnIdentifierThatIsAsciiButNotVisible_IsShortenedToItsHash(string messageId, string expected)
-    {
-        Assert.Equal(expected, IdempotentOperation.ForMessage("Some.Handler", messageId));
-        Assert.NotEqual(expected, IdempotentOperation.ForMessage("Some.Handler", "a\tmessage"));
     }
 
     [Fact]
@@ -311,25 +290,6 @@ public sealed class IdempotentOperationTests
         Assert.ThrowsAny<ArgumentException>(() => IdempotentOperation.ForJob(job!, DateTimeOffset.UnixEpoch));
     }
 
-    // A message's key and a job's never match, and only the identifier or the due time can hold a colon, so a key reads
-    // back one way.
-    [Fact]
-    public void ForMessageAndForJob_NeverShareAKey()
-    {
-        var dueAt = DateTimeOffset.FromUnixTimeMilliseconds(1_700_000_000_000);
-
-        Assert.NotEqual(IdempotentOperation.ForJob("purge", dueAt), IdempotentOperation.ForMessage("purge", "1700000000000"));
-        Assert.Equal("msg:Some.Handler:a:b", IdempotentOperation.ForMessage("Some.Handler", "a:b"));
-    }
-
-    [Fact]
-    public void ForMessageAndForJob_ANameWithAColon_IsRefused()
-    {
-        Assert.Equal("handler", Assert.Throws<ArgumentException>(() => IdempotentOperation.ForMessage("A:B", Guid.NewGuid())).ParamName);
-        Assert.Equal("handler", Assert.Throws<ArgumentException>(() => IdempotentOperation.ForMessage("A:B", "c")).ParamName);
-        Assert.Equal("job", Assert.Throws<ArgumentException>(() => IdempotentOperation.ForJob("a:b", DateTimeOffset.UnixEpoch)).ParamName);
-    }
-
     [Fact]
     public void ForJob_IsTheJobAndTheOccurrence()
     {
@@ -342,8 +302,8 @@ public sealed class IdempotentOperationTests
     [Fact]
     public void KeyForWrite_ANullMethodOrAddress_IsRefused()
     {
-        Assert.Throws<ArgumentNullException>(() => IdempotentOperation.KeyForWrite(null!, Address, [], NoContext));
-        Assert.Throws<ArgumentNullException>(() => IdempotentOperation.KeyForWrite("POST", null!, [], NoContext));
+        Assert.Throws<ArgumentNullException>(() => IdempotentOperation.KeyForWrite(null!, Address, []));
+        Assert.Throws<ArgumentNullException>(() => IdempotentOperation.KeyForWrite("POST", null!, []));
     }
 
     // A field that holds a newline can't pass for two fields: each is its own element of the tuple. Each write is the
@@ -354,7 +314,7 @@ public sealed class IdempotentOperationTests
         string? Run(string method, string address)
         {
             using var operation = IdempotentOperation.Begin("operation-1", Secret);
-            return IdempotentOperation.KeyForWrite(method, address, [], NoContext);
+            return IdempotentOperation.KeyForWrite(method, address, []);
         }
 
         Assert.NotEqual(Run("POST", "https://callee/a\nhttps://callee/b"), Run("POST\nhttps://callee/a", "https://callee/b"));
@@ -370,10 +330,10 @@ public sealed class IdempotentOperationTests
             using var operation = IdempotentOperation.Begin("operation-1", Secret);
             if (first)
             {
-                IdempotentOperation.KeyForWrite("POST", "https://callee/a\nhttps://callee/b", [], NoContext);
+                IdempotentOperation.KeyForWrite("POST", "https://callee/a\nhttps://callee/b", []);
             }
 
-            return IdempotentOperation.KeyForWrite("POST\nhttps://callee/a", "https://callee/b", [], NoContext);
+            return IdempotentOperation.KeyForWrite("POST\nhttps://callee/a", "https://callee/b", []);
         }
 
         Assert.Equal(Run(first: false), Run(first: true));
@@ -383,137 +343,54 @@ public sealed class IdempotentOperationTests
     // run after an upgrade that derives other keys does its writes twice. CacheKey is HMAC-SHA-256 over each parameter
     // length-prefixed; computed with Python's hmac:
     //
-    //   import hashlib, hmac, struct, uuid
+    //   import base64, hashlib, hmac, struct, uuid
     //
     //   def derive(secret, *params):
     //       data = b"".join(struct.pack(">Q", len(p.encode())) + p.encode() for p in params)
     //       return hmac.new(secret, data, hashlib.sha256).digest()
     //
-    //   def write_key(secret, service, op, method, address, body, ordinal, context=()):
-    //       headers = [f"{k}:{v}" for k, v in sorted((k.lower(), v) for k, v in context)]
-    //       return derive(secret, "bitwarden.idempotency.write-key.v1", service, op, method, address,
-    //                     hashlib.sha256(body).hexdigest(), str(ordinal), *headers).hex()
+    //   def write_key(secret, op, method, address, body, ordinal):
+    //       return derive(secret, "idempotency-key", op, method, address, base64.b64encode(body).decode(),
+    //                     str(ordinal)).hex()
     //
-    //   def derive_id(secret, service, op, purpose, ordinal, subject=None):
-    //       b = bytearray(derive(secret, "bitwarden.idempotency.derived-id.v1", service, op, purpose, str(ordinal),
-    //                            *([subject] if subject else []))[:16])
+    //   def derive_id(secret, op, purpose, ordinal):
+    //       b = bytearray(derive(secret, "derived-id", op, purpose, str(ordinal))[:16])
     //       b[6] = (b[6] & 0x0F) | 0x80
     //       b[8] = (b[8] & 0x3F) | 0x80
     //       return uuid.UUID(bytes=bytes(b))
     //
-    //   write_key(bytes([1]) * 32, "test-service", "operation-1", "POST", "https://callee/api/v1/things", b'{"a":1}', 0)
+    //   write_key(bytes([1]) * 32, "operation-1", "POST", "https://callee/api/v1/things", b'{"a":1}', 0)
     [Fact]
     public void KeyForWrite_MatchesTheGoldenVectors()
     {
         using var operation = IdempotentOperation.Begin("operation-1", Secret);
 
         Assert.Equal(
-            "034f2cf02db5fb7c7c34888be4f7f743a5659276c5f2b1f4fea1e8a6fb93c464",
-            IdempotentOperation.KeyForWrite("POST", Address, "{\"a\":1}"u8, NoContext));
+            "09d3c98cc4a66200112729e26948214a5f43541e7b215891d4f382524fe2e371",
+            IdempotentOperation.KeyForWrite("POST", Address, "{\"a\":1}"u8));
         Assert.Equal(
-            "2afb3dbfc2df1d8ecb0ea572322456f60e59134e03f282b00e62fee928386308",
-            IdempotentOperation.KeyForWrite("POST", Address, "{\"a\":1}"u8, NoContext));
+            "d6aaa92d20bfc83545490d84a04866ba50819e3ed7d3e635489c6c7ad2a81257",
+            IdempotentOperation.KeyForWrite("POST", Address, "{\"a\":1}"u8));
         Assert.Equal(
-            "a5c6ba8837c17e7384966f4e94cc979aeaf8ed06a2d9588886a840a5faa21ce4",
-            IdempotentOperation.KeyForWrite("DELETE", Address, [], NoContext));
-    }
-
-    private static readonly KeyValuePair<string, string>[] UserA =
-    [
-        new("Bitwarden-User", "b0000000-0000-4000-8000-000000000001"),
-        new("Bitwarden-Organization", "a0000000-0000-4000-8000-000000000001"),
-    ];
-
-    private static readonly KeyValuePair<string, string>[] UserB =
-    [
-        new("Bitwarden-User", "b0000000-0000-4000-8000-000000000002"),
-        new("Bitwarden-Organization", "a0000000-0000-4000-8000-000000000001"),
-    ];
-
-    // Identical writes for different users keep their keys whichever order a run makes them in, so a run again can't
-    // be answered with another user's write.
-    [Fact]
-    public void KeyForWrite_IdenticalWritesForDifferentUsers_KeepTheirKeysInEitherOrder()
-    {
-        static (string? A, string? B) Run(bool aFirst)
-        {
-            using var operation = IdempotentOperation.Begin("operation-1", Secret);
-            if (aFirst)
-            {
-                var a = IdempotentOperation.KeyForWrite("POST", Address, "{}"u8, UserA);
-                return (a, IdempotentOperation.KeyForWrite("POST", Address, "{}"u8, UserB));
-            }
-
-            var b = IdempotentOperation.KeyForWrite("POST", Address, "{}"u8, UserB);
-            return (IdempotentOperation.KeyForWrite("POST", Address, "{}"u8, UserA), b);
-        }
-
-        var first = Run(aFirst: true);
-
-        Assert.NotEqual(first.A, first.B);
-        Assert.Equal(first, Run(aFirst: false));
-    }
-
-    [Fact]
-    public void KeyForWrite_TheContextsOrderAndNameCase_DontMatter()
-    {
-        static string? Key(IEnumerable<KeyValuePair<string, string>> context)
-        {
-            using var operation = IdempotentOperation.Begin("operation-1", Secret);
-            return IdempotentOperation.KeyForWrite("POST", Address, "{}"u8, context);
-        }
-
-        Assert.Equal(Key(UserA), Key(UserA.Reverse()));
-        Assert.Equal(Key(UserA), Key(UserA.Select(header => new KeyValuePair<string, string>(header.Key.ToUpperInvariant(), header.Value))));
-        Assert.NotEqual(Key(UserA), Key(NoContext));
-    }
-
-    [Theory]
-    [InlineData("", "value")]
-    [InlineData(" ", "value")]
-    [InlineData("Bitwarden:User", "value")]
-    public void KeyForWrite_AContextHeaderNameBlankOrWithAColon_IsRefused(string name, string value)
-    {
-        using var operation = IdempotentOperation.Begin("operation-1", Secret);
-
-        Assert.Throws<ArgumentException>(() => IdempotentOperation.KeyForWrite("POST", Address, [], [new(name, value)]));
-    }
-
-    [Fact]
-    public void KeyForWrite_AContextHeaderGivenTwice_IsRefused()
-    {
-        using var operation = IdempotentOperation.Begin("operation-1", Secret);
-
-        Assert.Throws<ArgumentException>(() => IdempotentOperation.KeyForWrite(
-            "POST", Address, [], [new("Bitwarden-User", "a"), new("bitwarden-user", "b")]));
-    }
-
-    // Computed with write_key above and the context given.
-    [Fact]
-    public void KeyForWrite_WithAContext_MatchesTheGoldenVector()
-    {
-        using var operation = IdempotentOperation.Begin("operation-1", Secret);
-
-        Assert.Equal(
-            "deb229b81c958892b1a43b73aae121939ee851aaeac158d5d1a20c6955935aac",
-            IdempotentOperation.KeyForWrite("POST", Address, "{\"a\":1}"u8, UserA));
+            "e8a1c8020e4a51c1b5806bc57e6d702b790595062692961c0b47bc30e8b7bc47",
+            IdempotentOperation.KeyForWrite("DELETE", Address, []));
     }
 
     // Computed with write_key above and bytes(32), the development secret.
     [Fact]
     public void KeyForWrite_WithTheDevelopmentSecret_MatchesTheGoldenVectors()
     {
-        using var operation = IdempotentOperation.Begin("operation-1", Development);
+        using var operation = IdempotentOperation.Begin("operation-1", CacheSecret.Development);
 
         Assert.Equal(
-            "af9868431215ab545aacaeca33aa2067cd44e5bf0122cb5d70ef0c3e33393591",
-            IdempotentOperation.KeyForWrite("POST", Address, "{\"a\":1}"u8, NoContext));
+            "348129896b11e0c49df43fb09bfedc69e5497733728841064e4297067818a157",
+            IdempotentOperation.KeyForWrite("POST", Address, "{\"a\":1}"u8));
         Assert.Equal(
-            "7d547e99e0731d8bcf9da6dbea6e228e96f80ede198ca16a58adcae54ee14150",
-            IdempotentOperation.KeyForWrite("POST", Address, "{\"a\":1}"u8, NoContext));
+            "e89e083351cf1733e683dbed192780931f9a81c3342b6399f80e2892aa45ca78",
+            IdempotentOperation.KeyForWrite("POST", Address, "{\"a\":1}"u8));
         Assert.Equal(
-            "47f6d8be935ed6d1bb1a10182b78164e6774bfb2e892c4f22398a06b3492dc50",
-            IdempotentOperation.KeyForWrite("DELETE", Address, [], NoContext));
+            "c798a9ea483104db7cb531e2b7cfe8bca02d2eb56201136013b0417e0c7eac4c",
+            IdempotentOperation.KeyForWrite("DELETE", Address, []));
     }
 
     // Computed with derive_id above.
@@ -522,55 +399,18 @@ public sealed class IdempotentOperationTests
     {
         using var operation = IdempotentOperation.Begin("operation-1", Secret);
 
-        Assert.Equal(Guid.Parse("b8a70743-caef-837b-b4ae-95bf9cf1f5b7"), IdempotentOperation.DeriveId("mail"));
-        Assert.Equal(Guid.Parse("712c682f-3a6a-8a4e-80f3-62e7379fbedc"), IdempotentOperation.DeriveId("mail"));
-    }
-
-    // Identifiers for different subjects keep their values whichever order a run asks for them in.
-    [Fact]
-    public void DeriveId_ForDifferentSubjects_KeepTheirIdsInEitherOrder()
-    {
-        const string A = "b0000000-0000-4000-8000-000000000001";
-        const string B = "b0000000-0000-4000-8000-000000000002";
-
-        static (Guid? A, Guid? B) Run(bool aFirst)
-        {
-            using var operation = IdempotentOperation.Begin("operation-1", Secret);
-            if (aFirst)
-            {
-                var a = IdempotentOperation.DeriveId("welcome-mail", A);
-                return (a, IdempotentOperation.DeriveId("welcome-mail", B));
-            }
-
-            var b = IdempotentOperation.DeriveId("welcome-mail", B);
-            return (IdempotentOperation.DeriveId("welcome-mail", A), b);
-        }
-
-        var first = Run(aFirst: true);
-
-        Assert.NotEqual(first.A, first.B);
-        Assert.Equal(first, Run(aFirst: false));
-    }
-
-    // Computed with derive_id above and the subject given.
-    [Fact]
-    public void DeriveId_WithASubject_MatchesTheGoldenVector()
-    {
-        using var operation = IdempotentOperation.Begin("operation-1", Secret);
-
-        Assert.Equal(
-            Guid.Parse("f49fa438-e9f1-8b52-bdae-f5dbaf1d3277"),
-            IdempotentOperation.DeriveId("mail", "b0000000-0000-4000-8000-000000000001"));
+        Assert.Equal(Guid.Parse("7979dfd0-6f07-8e5c-aab1-8e2f1a7168fe"), IdempotentOperation.DeriveId("mail"));
+        Assert.Equal(Guid.Parse("4a16d020-83f5-8209-b270-67ee3b0f4f77"), IdempotentOperation.DeriveId("mail"));
     }
 
     // Computed with derive_id above and bytes(32), the development secret.
     [Fact]
     public void DeriveId_WithTheDevelopmentSecret_MatchesTheGoldenVectors()
     {
-        using var operation = IdempotentOperation.Begin("operation-1", Development);
+        using var operation = IdempotentOperation.Begin("operation-1", CacheSecret.Development);
 
-        Assert.Equal(Guid.Parse("badb7528-0334-8594-ba51-bf86d6e656ff"), IdempotentOperation.DeriveId("mail"));
-        Assert.Equal(Guid.Parse("ff5bbd20-5d94-8f37-b8a5-4b751c767164"), IdempotentOperation.DeriveId("mail"));
+        Assert.Equal(Guid.Parse("696037ed-5f96-888c-8e1d-af430c918e66"), IdempotentOperation.DeriveId("mail"));
+        Assert.Equal(Guid.Parse("b380fe9f-4669-8a46-953f-732b3c909243"), IdempotentOperation.DeriveId("mail"));
     }
 
     // The secret keys every derivation: the same operation under another secret derives other keys and identifiers,
@@ -578,31 +418,14 @@ public sealed class IdempotentOperationTests
     [Fact]
     public void AnotherSecret_DerivesOtherKeysAndIds()
     {
-        static (string? Key, Guid? Id) Run(IdempotencySecret secret)
+        static (string? Key, Guid? Id) Run(CacheSecret secret)
         {
             using var operation = IdempotentOperation.Begin("operation-1", secret);
-            return (IdempotentOperation.KeyForWrite("POST", Address, "{}"u8, NoContext), IdempotentOperation.DeriveId("mail"));
+            return (IdempotentOperation.KeyForWrite("POST", Address, "{}"u8), IdempotentOperation.DeriveId("mail"));
         }
 
         var mine = Run(Secret);
-        var other = Run(new IdempotencySecret(new CacheSecret(Enumerable.Repeat((byte)2, CacheSecret.Length).ToArray()), ServiceName));
-
-        Assert.NotEqual(mine.Key, other.Key);
-        Assert.NotEqual(mine.Id, other.Id);
-    }
-
-    // Two services that end up with the same secret still derive keys and identifiers of their own.
-    [Fact]
-    public void AnotherService_DerivesOtherKeysAndIds()
-    {
-        static (string? Key, Guid? Id) Run(IdempotencySecret secret)
-        {
-            using var operation = IdempotentOperation.Begin("operation-1", secret);
-            return (IdempotentOperation.KeyForWrite("POST", Address, "{}"u8, NoContext), IdempotentOperation.DeriveId("mail"));
-        }
-
-        var mine = Run(Secret);
-        var other = Run(new IdempotencySecret(Secret.Value, "other-service"));
+        var other = Run(new CacheSecret(Enumerable.Repeat((byte)2, CacheSecret.Length).ToArray()));
 
         Assert.NotEqual(mine.Key, other.Key);
         Assert.NotEqual(mine.Id, other.Id);
@@ -615,9 +438,9 @@ public sealed class IdempotentOperationTests
     {
         using var operation = IdempotentOperation.Begin("operation-1", Secret);
 
-        var refused = Assert.Throws<ArgumentException>(() => IdempotentOperation.KeyForWrite("POST", "https://callee/\ud800", [], NoContext));
+        var refused = Assert.Throws<ArgumentException>(() => IdempotentOperation.KeyForWrite("POST", "https://callee/\ud800", []));
         Assert.Null(refused.InnerException);
-        Assert.Throws<ArgumentException>(() => IdempotentOperation.KeyForWrite("PO\udc00ST", Address, [], NoContext));
+        Assert.Throws<ArgumentException>(() => IdempotentOperation.KeyForWrite("PO\udc00ST", Address, []));
     }
 
     [Fact]
@@ -636,7 +459,7 @@ public sealed class IdempotentOperationTests
         var envelope = Guid.Parse("0b8a3c1e-5d2f-4e6a-9b7c-1d2e3f405162");
 
         Assert.Equal(
-            "msg:7501aff06f185bd2ac47a4a687343ce3d91d52c9e5022364b36fd1b7ed6fddee:0b8a3c1e-5d2f-4e6a-9b7c-1d2e3f405162",
+            "7501aff06f185bd2ac47a4a687343ce3d91d52c9e5022364b36fd1b7ed6fddee:0b8a3c1e-5d2f-4e6a-9b7c-1d2e3f405162",
             IdempotentOperation.ForMessage(new string('h', 300), envelope));
     }
 
@@ -648,9 +471,9 @@ public sealed class IdempotentOperationTests
         var envelope = Guid.Parse("0b8a3c1e-5d2f-4e6a-9b7c-1d2e3f405162");
 
         Assert.Equal(
-            "msg:031f14841107e114e08449dad28e000922d751460acb9dc00763623128a63ee5:0b8a3c1e-5d2f-4e6a-9b7c-1d2e3f405162",
-            IdempotentOperation.ForMessage(new string('h', 160), envelope));
-        Assert.Equal($"msg:{new string('h', 159)}:{envelope}", IdempotentOperation.ForMessage(new string('h', 159), envelope));
+            "168eec374dd458d9643109ccbb3b7b83f0d5badf98745a5b84ec2a0a432e12a4:0b8a3c1e-5d2f-4e6a-9b7c-1d2e3f405162",
+            IdempotentOperation.ForMessage(new string('h', 164), envelope));
+        Assert.Equal($"{new string('h', 163)}:{envelope}", IdempotentOperation.ForMessage(new string('h', 163), envelope));
     }
 
     [Fact]
@@ -659,7 +482,7 @@ public sealed class IdempotentOperationTests
         var envelope = Guid.Parse("0b8a3c1e-5d2f-4e6a-9b7c-1d2e3f405162");
 
         Assert.Equal(
-            "msg:6245da155660b3cc7381fd353fa4dbda49838684fc300f11032acd7912cadbd9:0b8a3c1e-5d2f-4e6a-9b7c-1d2e3f405162",
+            "6245da155660b3cc7381fd353fa4dbda49838684fc300f11032acd7912cadbd9:0b8a3c1e-5d2f-4e6a-9b7c-1d2e3f405162",
             IdempotentOperation.ForMessage("H\u00e4ndler", envelope));
     }
 }

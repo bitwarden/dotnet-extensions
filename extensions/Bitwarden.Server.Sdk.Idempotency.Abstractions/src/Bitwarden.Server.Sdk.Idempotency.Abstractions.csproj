@@ -16,10 +16,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Idempotency.Abstractions.Tests" />
-  </ItemGroup>
-
-  <ItemGroup>
     <!-- CacheKey, the keyed derivation of the operations' write keys and identifiers. -->
     <PackageReference Include="Bitwarden.Server.Sdk.CryptoPrimitives" Version="0.1.0" />
     <!-- The host's environment decides whether the secret is required. -->
