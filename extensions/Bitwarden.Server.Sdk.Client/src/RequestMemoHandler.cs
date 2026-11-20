@@ -24,8 +24,10 @@ namespace Bitwarden.Server.Sdk.Client;
 /// gets as its own. An answer whose body is larger than the memo's bound is passed through and not kept.
 /// </para>
 /// <para>
-/// Any other method forgets everything the request remembered, before it is sent and again once it is answered or has
-/// failed, so the request always sees its own writes and never keeps an answer read while one was in flight.
+/// <c>OPTIONS</c> and <c>TRACE</c> are passed through: safe, so they forget nothing, and never remembered. Any other
+/// method (<c>POST</c>, <c>PUT</c>, <c>PATCH</c>, <c>DELETE</c>) is a write: it forgets everything the request
+/// remembered, before it is sent and again once it is answered or has failed, so the request always sees its own
+/// writes and never keeps an answer read while one was in flight.
 /// </para>
 /// <para>
 /// Never on Identity's token endpoint (whose calls go through their own client and don't pass here) nor any other
@@ -81,6 +83,13 @@ internal sealed class RequestMemoHandler(
         if (RequestMemo.Current is not { } memo
             || request.RequestUri is not { IsAbsoluteUri: true } address
             || address.AbsolutePath.Contains("/connect/", StringComparison.OrdinalIgnoreCase))
+        {
+            return await base.SendAsync(request, cancellationToken);
+        }
+
+        // OPTIONS and TRACE are safe methods (RFC 9110, section 9.2.1), so they change nothing a read could have seen;
+        // their answers describe the target rather than read it, so they aren't remembered either.
+        if (request.Method == HttpMethod.Options || request.Method == HttpMethod.Trace)
         {
             return await base.SendAsync(request, cancellationToken);
         }
