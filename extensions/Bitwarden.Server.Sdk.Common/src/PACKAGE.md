@@ -2,8 +2,7 @@
 
 ## About
 
-The types still shared here: request-scoped memos, and the attributes that mark a field as Protected
-Data or as personal data. The error document, its codes and the standard exceptions are in
+The types still shared here: the attributes that mark a field as Protected Data or as personal data. The error document, its codes and the standard exceptions are in
 Bitwarden.Server.Sdk.Errors, and the context headers, values and tokens are in
 Bitwarden.Server.Sdk.Context.
 
@@ -14,18 +13,6 @@ dotnet add package Bitwarden.Server.Sdk.Common
 ```
 
 ## Usage
-
-### Remember a lookup for the rest of a request
-
-If several parts of one request need the same fact, look it up once:
-
-```csharp
-services.AddRequestMemo();
-
-var grants = await memo.RememberAsync("grants", organizationId, userId, () => LoadGrantsAsync(userId));
-```
-
-The remembered value is thrown away when the request ends, and is never shared between callers.
 
 ### Mark a field that holds encrypted data
 
@@ -51,7 +38,6 @@ value is never decrypted. `EncryptedStringFormat.IsWellFormed` makes the same ch
 
 ## Types
 
-| Type                                          | Purpose                                                   |
-| --------------------------------------------- | --------------------------------------------------------- |
-| `RequestMemo`                                 | Facts read once in a request and remembered until it ends |
-| `EncryptedAttribute`, `PersonalDataAttribute` | Mark a field as Protected Data or as personal data        |
+| Type                                          | Purpose                                            |
+| --------------------------------------------- | -------------------------------------------------- |
+| `EncryptedAttribute`, `PersonalDataAttribute` | Mark a field as Protected Data or as personal data |
