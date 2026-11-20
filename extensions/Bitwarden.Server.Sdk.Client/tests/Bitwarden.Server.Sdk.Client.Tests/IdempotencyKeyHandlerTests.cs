@@ -1,5 +1,6 @@
-using Bitwarden.Server.Sdk.CryptoPrimitives;
+using Bitwarden.Server.Sdk.Context;
 using Bitwarden.Server.Sdk.Idempotency;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using static Bitwarden.Server.Sdk.Client.Tests.PipelineHarness;
 
@@ -79,7 +80,7 @@ public sealed class IdempotencyKeyHandlerTests
 
         async Task<List<string?>> RunAsync()
         {
-            using (IdempotentOperation.Begin("operation-1", CacheSecret.Development))
+            using (IdempotentOperation.Begin("operation-1", Secret))
             {
                 Assert.Equal("operation-1", IdempotentOperation.Current);
                 using var one = await probe.SendAsync(HttpMethod.Post, Token);
@@ -107,12 +108,12 @@ public sealed class IdempotencyKeyHandlerTests
         await using var services = Services(callee);
         var probe = services.GetRequiredService<Probe>();
 
-        using (IdempotentOperation.Begin("operation-1", CacheSecret.Development))
+        using (IdempotentOperation.Begin("operation-1", Secret))
         {
             using var one = await probe.SendAsync(HttpMethod.Post, Token);
         }
 
-        using (IdempotentOperation.Begin("operation-2", CacheSecret.Development))
+        using (IdempotentOperation.Begin("operation-2", Secret))
         {
             using var two = await probe.SendAsync(HttpMethod.Post, Token);
         }
@@ -131,7 +132,7 @@ public sealed class IdempotencyKeyHandlerTests
 
         async Task<Dictionary<string, string?>> RunAsync(params string[] notes)
         {
-            using (IdempotentOperation.Begin("operation-1", CacheSecret.Development))
+            using (IdempotentOperation.Begin("operation-1", Secret))
             {
                 foreach (var note in notes)
                 {
@@ -151,4 +152,76 @@ public sealed class IdempotencyKeyHandlerTests
         Assert.Equal(first["""{"note":"b"}"""], again["""{"note":"b"}"""]);
         Assert.DoesNotContain(again["""{"note":"c"}"""], first.Values);
     }
+
+    // Inside an operation a write's key is derived from whom it concerns, as the call carries it: two writes alike but
+    // for whom keep their own keys whatever order a run makes them in, and each is the key the operation derives from the
+    // headers the callee received.
+    [Fact]
+    public async Task AnOperation_KeysEachWriteByWhomItConcerns()
+    {
+        var callee = new Scripted(Ok);
+        await using var services = Services(callee);
+        var probe = services.GetRequiredService<Probe>();
+        var ann = Guid.NewGuid();
+        var bob = Guid.NewGuid();
+        var organization = Guid.NewGuid();
+
+        async Task<Dictionary<string, string?>> RunAsync(params Guid[] users)
+        {
+            using (IdempotentOperation.Begin("operation-1", Secret))
+            {
+                foreach (var user in users)
+                {
+                    using (OutgoingCall.About(user, organization))
+                    {
+                        using var response = await probe.SendAsync(HttpMethod.Post, Token, body: new { note = "same" });
+                    }
+                }
+            }
+
+            var keys = callee.Attempts.ToDictionary(attempt => attempt.User!, attempt => attempt.Key);
+            Assert.All(callee.Attempts, attempt => Assert.Equal(organization.ToString(), attempt.Organization));
+            callee.Attempts.Clear();
+            return keys;
+        }
+
+        var first = await RunAsync(ann, bob);
+        var again = await RunAsync(bob, ann);
+
+        Assert.Equal(first, again);
+        Assert.NotEqual(first[ann.ToString()], first[bob.ToString()]);
+
+        using (IdempotentOperation.Begin("operation-1", Secret))
+        {
+            Assert.Equal(
+                first[ann.ToString()],
+                IdempotentOperation.KeyForWrite(
+                    "POST",
+                    "http://callee.invalid/things",
+                    """{"note":"same"}"""u8,
+                    [new(BitwardenHeaders.Organization, organization.ToString()), new(BitwardenHeaders.User, ann.ToString())]));
+        }
+    }
+
+    // Every attempt of a write carries the headers its key was derived from, worked out once for the call.
+    [Fact]
+    public async Task AnOperation_EveryAttemptCarriesWhomItsKeyNames()
+    {
+        var callee = new Scripted(StillRunning, Ok);
+        await using var services = Services(callee);
+        var user = Guid.NewGuid();
+
+        using (IdempotentOperation.Begin("operation-1", Secret))
+        using (OutgoingCall.AboutUser(user))
+        {
+            using var response = await services.GetRequiredService<Probe>().SendAsync(HttpMethod.Post, Token);
+        }
+
+        Assert.Equal(2, callee.Attempts.Count);
+        Assert.Single(callee.Attempts.Select(attempt => (attempt.Key, attempt.User)).Distinct());
+        Assert.Equal(user.ToString(), callee.Attempts.First().User);
+    }
+
+    private static readonly IdempotencySecret Secret =
+        IdempotencySecret.ReadSecret(new ConfigurationBuilder().Build(), "Development", "tests");
 }
