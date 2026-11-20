@@ -5,10 +5,9 @@
 ## About
 
 Declarations a Bitwarden service's model and its data layer share: which fields hold ciphertext (`[Encrypted]`) or
-personal data (`[PersonalData]`), the owner every restricted query is narrowed to (`IRowOwnership`), and facts read
-once per request (`RequestMemo`). It references only Bitwarden.Server.Sdk.Context, Bitwarden.Server.Sdk.Errors and
-Microsoft.Extensions.DependencyInjection.Abstractions, so a model can declare these without depending on a database or
-on the packages that host a service.
+personal data (`[PersonalData]`), and the owner every restricted query is narrowed to (`IRowOwnership`). It references
+only Bitwarden.Server.Sdk.Context, Bitwarden.Server.Sdk.Errors and Microsoft.Extensions.DependencyInjection.Abstractions,
+so a model can declare these without depending on a database or on the packages that host a service.
 
 ## Installing
 
@@ -26,8 +25,6 @@ dotnet add package Bitwarden.Server.Sdk.Data.Abstractions
 - **The owner comes from the request.** `DefaultRowOwnership` reads the owner from `IContext`, which
   Bitwarden.Server.Sdk.Authorization registers. Bitwarden.Server.Sdk.Service registers `DefaultRowOwnership` as the
   `IRowOwnership` of every service. A service whose rows are owned by something else registers its own.
-- **A memo lives for one request.** Each fact is keyed by its name, the organization and the subject, so it is never
-  shared across callers.
 
 ## Usage
 
@@ -83,38 +80,12 @@ with `403`, when the request names no such owner. A missing header is refused ra
 Use them for rows that always have an owner of that kind, and the nullable `Organization()`, `User()` and `Provider()`
 only for rows a person or an organization may own.
 
-### Remember a lookup for the rest of a request
-
-Register the memo once, then ask it for a fact. It is read the first time and remembered until the request ends.
-`WidgetGrants.cs`:
-
-```csharp
-using Bitwarden.Server.Sdk.Data;
-using Microsoft.Extensions.DependencyInjection;
-
-public static class WidgetGrantsRegistration
-{
-    public static IServiceCollection AddWidgetGrants(this IServiceCollection services) =>
-        services.AddRequestMemo().AddScoped<WidgetGrants>();
-}
-
-public sealed class WidgetGrants(RequestMemo memo, IWidgetRows rows)
-{
-    public Task<IReadOnlyList<Guid>> CollectionsAsync(Guid organization, Guid member) =>
-        memo.RememberAsync("collections", organization, member, () => rows.ReadCollectionsAsync(organization, member));
-}
-```
-
-A scope opened for the same request can use the request's facts by calling `Share(requestMemo)` on its own memo.
-
 ## Gotchas and constraints
 
 - **Every `[Encrypted]` needs a bound.** A `MaxLength` that isn't positive throws `InvalidOperationException` when the
   attribute validates, and Bitwarden.Server.Sdk.Resources refuses it on a resource.
 - **The shape check isn't proof of ciphertext.** It can't tell real ciphertext from random bytes of the right shape: it
   keeps out plaintext a client sent by mistake, not a client that means to send something else.
-- **Call `Forget()` after a write** that could change a remembered fact.
-- **A memo is not thread-safe:** a request's work runs one step at a time.
 
 ## Types
 
@@ -124,4 +95,3 @@ A scope opened for the same request can use the request's facts by calling `Shar
 | `EncryptedStringFormat`                | Whether a string is shaped like an encrypted string, without decoding it |
 | `PersonalDataAttribute`                | Marks an attribute as personal data about an identifiable person         |
 | `IRowOwnership`, `DefaultRowOwnership` | The owner a restricted query is narrowed to, refusing when there is none |
-| `RequestMemo`, `AddRequestMemo()`      | Facts read once in a request and remembered until it ends                |

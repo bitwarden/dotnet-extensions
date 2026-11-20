@@ -14,7 +14,8 @@ narrows its queries through `IRowOwnership`.
 
 Nothing that touches the transport or the database: no `HttpContext`, no Entity Framework. Keep the dependencies to
 Context (`DefaultRowOwnership` reads `IContext`), Errors (it refuses with `ForbiddenException`) and
-Microsoft.Extensions.DependencyInjection.Abstractions (for `AddRequestMemo()`).
+Microsoft.Extensions.DependencyInjection.Abstractions (which no code here uses; dropping it changes the lock file of
+every package and service that depends on this one).
 
 ## How it works
 
