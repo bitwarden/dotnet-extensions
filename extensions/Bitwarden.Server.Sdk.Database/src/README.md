@@ -282,10 +282,29 @@ Folding a phase folder into the main folder renames its scripts, so the journal 
 and applies them again. That is the intended behaviour rather than a flaw, and it is the second
 reason phase scripts have to be idempotent.
 
-EF Core providers stay phase-less. The phases exist for rolling deployments, which the EF-backed
-providers don't serve, and supporting them would mean filtering the entries the generated
-migrations-assembly hands to EF — EF applies whatever migrations it can see, so the phase would have
-to be resolved from `DbContextOptions` when the dispatcher is constructed.
+EF Core providers stay phase-less. Holding a migration back would mean filtering the entries the
+generated migrations-assembly hands to EF, against the order EF's model snapshot assumes. A schema
+on EF Core that serves rolling deployments spreads a breaking change across releases instead, and
+`MigrationStepAnalyzer` (below) reports the steps that would break the release before.
+
+## Migration step analyzer
+
+`MigrationStepAnalyzer` reports `BW0026` and `BW0027` on `MigrationBuilder` calls in an `Up`
+override on a type deriving from EF Core's `Migration`. It walks the steps in source order, so a
+table counts as new only after its `CreateTable`, and a later `DropTable` or `RenameTable` of it
+updates that. It reads each call's constant arguments, which is what EF scaffolds; a left-out
+argument takes its parameter's default, and one passed a value that isn't a constant counts as a
+change. Store types are compared by name and sizes (`decimal(18,2)`, `timestamp(6) with time zone`),
+and a bounded type moving to its unbounded form (`text`, `longtext`, `longblob`) counts as widening.
+
+Known limitations:
+
+- `Sql`, `SqlFromHelperScript` and anything outside `MigrationBuilder` aren't read.
+- Steps in a helper method that `Up` calls aren't seen; only the `Up` body is.
+- Of the annotations providers chain onto a step, only `Relational:Collation` (as an old value) and
+  `MySql:CharSet` are read. Pomelo's MySQL provider scaffolds both.
+- A change between related store types that widens, such as `varchar(100)` to `nvarchar(100)` on SQL
+  Server, is reported as a store type change.
 
 ## Possible future work
 

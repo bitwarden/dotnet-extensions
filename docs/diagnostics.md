@@ -679,3 +679,53 @@ public class OrderDatabaseContext(DbContextOptions<OrderDatabaseContext> options
 ```
 
 **Fix:** Set `DesignTimeServices` to a type implementing `IDatabaseDesignTimeServices` that registers the constructor's dependencies.
+
+## BW0026
+
+**Title:** Migration step breaks the previous release
+**Severity:** Warning
+**Category:** Bitwarden.Database
+**Package:** `Bitwarden.Server.Sdk.Database`
+**Code fix available:** No
+
+### Summary
+
+Reported on a step in an EF Core migration's `Up` that the previous release can't run against while the new release rolls out: dropping or renaming a table, column, schema or sequence, dropping a primary key, adding a `NOT NULL` column with no default, or an `AlterColumn` that narrows the column (a new type or store type, a shorter length, lower precision or scale, `NOT NULL`, a new collation or character set, or a new computed expression). Steps on a table created earlier in the same `Up` aren't reported.
+
+### Example
+
+```csharp
+public partial class RemoveItemsLegacy : Migration
+{
+    protected override void Up(MigrationBuilder migrationBuilder)
+        // BW0026: the previous release may still read or write Legacy
+        => migrationBuilder.DropColumn(name: "Legacy", table: "Items");
+}
+```
+
+**Fix:** Spread the change across releases, as the package's [guide](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Database/src/PACKAGE.md#changing-a-schema-the-previous-release-still-uses) describes: drop a column in the release after the one that stopped using it, and rename one by adding the new column, copying values into it, and dropping the old. Suppress the warning on the migration that takes the last step with `[SuppressMessage("Bitwarden.Database", "BW0026", Justification = "...")]`, saying why the previous release is unaffected.
+
+## BW0027
+
+**Title:** Migration step can refuse existing rows or the previous release's writes
+**Severity:** Warning
+**Category:** Bitwarden.Database
+**Package:** `Bitwarden.Server.Sdk.Database`
+**Code fix available:** No
+
+### Summary
+
+Reported on a unique index, unique constraint, check constraint or foreign key added in an EF Core migration's `Up` to a table not created earlier in the same `Up`. Rows already in the table, or rows the previous release writes while the new release rolls out, may not satisfy it, and the migration or those writes would then fail.
+
+### Example
+
+```csharp
+public partial class UniqueItemNames : Migration
+{
+    protected override void Up(MigrationBuilder migrationBuilder)
+        // BW0027: existing rows may share a name
+        => migrationBuilder.CreateIndex(name: "IX_Items_Name", table: "Items", column: "Name", unique: true);
+}
+```
+
+**Fix:** Confirm that existing rows and the previous release's writes satisfy the rule, then suppress the warning on the migration with `[SuppressMessage("Bitwarden.Database", "BW0027", Justification = "...")]` saying why.
