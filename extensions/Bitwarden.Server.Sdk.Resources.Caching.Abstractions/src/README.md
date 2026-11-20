@@ -8,8 +8,7 @@ clients that read it. See [PACKAGE.md](PACKAGE.md) for how to use it.
 ## What belongs here
 
 Only what both the owner of a cache entry and its readers need. Nothing here connects to Redis or touches
-`HttpContext`: filling entries is in Bitwarden.Server.Sdk.Resources.Caching and reading them in
-Bitwarden.Server.Sdk.Client.
+`HttpContext`: filling and reading entries belong in the packages that host a service and call one.
 
 `CacheSecretSetting` is here too: the one rule every secret that derives keys with `CacheKey` is read by, those of the
 idempotency keys, the shared rate-limit counts and a service's own keyed rows. It lives here so those readers share one

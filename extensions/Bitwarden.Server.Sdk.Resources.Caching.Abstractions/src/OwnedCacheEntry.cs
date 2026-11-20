@@ -6,8 +6,8 @@ namespace Bitwarden.Server.Sdk.Resources.Caching;
 /// </summary>
 /// <remarks>
 /// <para>
-/// One Redis hash per resource, under <c>{service}:{resource type}:{identifier or key}</c>. Only the
-/// owning service writes under its own prefix. The fields:
+/// One Redis hash per resource, under <c>{service}:{resource type}:{identifier or key}</c>. A host writes
+/// only under its own service's prefix. The fields:
 /// </para>
 /// <list type="table">
 ///   <item>
@@ -42,9 +42,9 @@ namespace Bitwarden.Server.Sdk.Resources.Caching;
 ///   </item>
 /// </list>
 /// <para>
-/// The owner sits beside the data, so a reader checks it without trusting the payload. A tombstone
-/// is a miss to a reader and refuses a fill of any older version, so a slow read can't put back a
-/// value that a later change replaced.
+/// The owner sits beside the data, so a reader checks it without trusting the payload. A reader
+/// treats a tombstone as a miss, and a host refuses a fill of any older version, so a slow read can't
+/// put back a value that a later change replaced.
 /// </para>
 /// <para>
 /// This cache needs Redis itself, not any <c>IDistributedCache</c>: a fill reads the stored version and
@@ -58,7 +58,7 @@ public static class OwnedCacheEntry
     /// The configuration key of the service cache's Redis connection.
     /// </summary>
     /// <remarks>
-    /// When unset there is no service cache: owners fill nothing and clients always ask the service.
+    /// When unset there is no service cache: a host fills nothing and a client always asks the service.
     /// </remarks>
     public const string ConnectionKey = "Caching:Owned:Redis:Configuration";
 
@@ -66,7 +66,7 @@ public static class OwnedCacheEntry
     /// The section a resource's switch lives in: <c>Caching:Owned:Resources:{service}:{type}:Enabled</c>.
     /// </summary>
     /// <remarks>
-    /// <c>false</c> stops the owner filling that resource and its clients reading it,
+    /// <c>false</c> tells the owner's host not to fill that resource and its clients not to read it,
     /// so they ask the owner. Unset: it is cached.
     /// </remarks>
     public const string ResourcesSection = "Caching:Owned:Resources";

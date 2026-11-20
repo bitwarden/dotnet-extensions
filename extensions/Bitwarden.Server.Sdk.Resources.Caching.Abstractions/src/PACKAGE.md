@@ -18,17 +18,17 @@ dotnet add package Bitwarden.Server.Sdk.Resources.Caching.Abstractions
 
 ## Configuration
 
-| Setting                                            | Read by                     | Default | What it does                                                                                                                  |
-| -------------------------------------------------- | --------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `Caching:Owned:Redis:Configuration`                | A service host and a client | None    | The service cache's Redis connection. Unset, there is no service cache: owners fill nothing and clients always ask the owner. |
-| `Caching:Owned:Resources:{service}:{name}:Enabled` | A service host and a client | `true`  | `false` stops the owner filling that resource, and its clients reading it, so they ask the owner.                             |
+| Setting                                            | Read by                     | Default | What it does                                                                                                                     |
+| -------------------------------------------------- | --------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `Caching:Owned:Redis:Configuration`                | A service host and a client | None    | The service cache's Redis connection. Unset, there is no service cache: a host fills nothing and a client always asks the owner. |
+| `Caching:Owned:Resources:{service}:{type}:Enabled` | A service host and a client | `true`  | `false` tells the owner's host not to fill that resource, and its clients not to read it, so they ask the owner.                 |
 
 The keys are public constants: `OwnedCacheEntry.ConnectionKey` and `OwnedCacheEntry.ResourcesSection`.
 
 ## Key concepts
 
 - **The owner fills, its callers read.** The service that owns the data fills entries under its own prefix,
-  `OwnedCacheEntry.Prefix(service)`, and only it writes there. `OwnedCacheEntry` holds the key layout, the hash fields
+  `OwnedCacheEntry.Prefix(service)`, and a host writes only there. `OwnedCacheEntry` holds the key layout, the hash fields
   and the settings.
 - **Each resource is one Redis hash:**
 
@@ -113,8 +113,8 @@ base64 of 32 bytes throws everywhere. Each message names the setting, never its 
 ## Gotchas and constraints
 
 - **Check the owner beside the data.** A reader checks `o` itself and never trusts the payload for whose row it is.
-- **A tombstone is a miss.** It also refuses a fill of any older version, so a slow read can't put back a value a later
-  change replaced.
+- **A tombstone is a miss.** A host also refuses a fill of any older version under it, so a slow read can't put back a
+  value a later change replaced.
 - **What an entry holds is the owner's choice.** This package names the fields, not what goes in `d`. An owner fills an
   entry only with attributes every reader of the cache may see: it is Data at Rest in Redis, readable by anyone with
   read access to the owner's prefix.

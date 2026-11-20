@@ -44,6 +44,19 @@ public sealed class OwnedCacheEntryTests
         Assert.Equal("resourceType", exception.ParamName);
     }
 
+    // Redis keys are case-sensitive, so only the exact reserved segment would mix with the service's other keys.
+    [Fact]
+    public void Template_AReservedTypeInAnotherCase_IsAllowed()
+    {
+        Assert.Equal("widget-service:Answer:{key}", OwnedCacheEntry.Template("widget-service", "Answer"));
+    }
+
+    [Fact]
+    public void Key_NullTemplate_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(() => OwnedCacheEntry.Key(null!, Id, null, null, null));
+    }
+
     [Fact]
     public void Template_ATypeOnlyLikeTheAnswersType_IsAllowed()
     {

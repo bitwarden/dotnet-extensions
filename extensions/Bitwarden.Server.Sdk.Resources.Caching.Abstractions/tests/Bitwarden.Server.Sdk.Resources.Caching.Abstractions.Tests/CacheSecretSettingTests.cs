@@ -53,7 +53,7 @@ public sealed class CacheSecretSettingTests
         var unset = Assert.Throws<InvalidOperationException>(() =>
             CacheSecretSetting.Read(Configuration(null), Key, "Production", "when counts are shared in Redis"));
         var development = Assert.Throws<InvalidOperationException>(() =>
-            CacheSecretSetting.Read(Configuration(CacheSecret.Development.ToString()), Key, "Production", "when counts are shared in Redis"));
+            CacheSecretSetting.Read(Configuration(Base64(CacheSecret.Development)), Key, "Production", "when counts are shared in Redis"));
 
         Assert.Equal($"{Key} must be set when counts are shared in Redis outside Development.", unset.Message);
         Assert.Equal(
@@ -64,7 +64,7 @@ public sealed class CacheSecretSettingTests
     [Fact]
     public void Read_TheDevelopmentSecretOutsideDevelopment_Throws()
     {
-        var value = CacheSecret.Development.ToString();
+        var value = Base64(CacheSecret.Development);
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
             CacheSecretSetting.Read(Configuration(value), Key, "Production"));
@@ -78,7 +78,7 @@ public sealed class CacheSecretSettingTests
     {
         Assert.Equal(
             CacheSecret.Development,
-            CacheSecretSetting.Read(Configuration(CacheSecret.Development.ToString()), Key, "Development"));
+            CacheSecretSetting.Read(Configuration(Base64(CacheSecret.Development)), Key, "Development"));
     }
 
     // A caller may narrow when it is required: not required, an unset or development secret is allowed anywhere.
@@ -86,7 +86,7 @@ public sealed class CacheSecretSettingTests
     public void Read_NotRequired_AllowsUnsetAndTheDevelopmentSecret()
     {
         Assert.Equal(CacheSecret.Development, CacheSecretSetting.Read(null, Key, required: false));
-        Assert.Equal(CacheSecret.Development, CacheSecretSetting.Read(CacheSecret.Development.ToString(), Key, required: false));
+        Assert.Equal(CacheSecret.Development, CacheSecretSetting.Read(Base64(CacheSecret.Development), Key, required: false));
     }
 
     [Theory]
@@ -94,7 +94,7 @@ public sealed class CacheSecretSettingTests
     [InlineData("Production")]
     public void Read_ReadsBase64(string environment)
     {
-        Assert.Equal(Secret, CacheSecretSetting.Read(Configuration(Secret.ToString()), Key, environment));
+        Assert.Equal(Secret, CacheSecretSetting.Read(Configuration(Base64(Secret)), Key, environment));
     }
 
     // Neither the message nor an inner exception quotes what was configured.
@@ -120,6 +120,21 @@ public sealed class CacheSecretSettingTests
         Assert.ThrowsAny<ArgumentException>(() => CacheSecretSetting.Read(Configuration(null), " ", "Production"));
         Assert.ThrowsAny<ArgumentException>(() => CacheSecretSetting.Read(null, "", required: true));
     }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void Read_NoWhatMakesItRequired_NamesNothingElse(string? requiredWhen)
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            CacheSecretSetting.Read(Configuration(null), Key, "Production", requiredWhen));
+
+        Assert.Equal($"{Key} must be set outside Development.", exception.Message);
+    }
+
+    // Built from the bytes, not CacheSecret.ToString, which need not write the secret out.
+    private static string Base64(CacheSecret secret) => Convert.ToBase64String(secret.AsSpan());
 
     private static IConfiguration Configuration(string? secret) => new SecretOnly(secret);
 
