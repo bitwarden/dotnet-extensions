@@ -51,8 +51,9 @@ code here writes to Redis.
   asserted (`ContextHandler.Asserted`, set on every call) and `CallerName`; a call missing that decision isn't
   remembered. A product client's call is keyed by a SHA-256 digest of its bearer token instead, so no credential is held
   as a key, and only a request `ProductCallHandler` took is remembered. `MemoizedResponse` buffers the body up to the
-  memo's byte bound; a longer body is passed on through a stream that replays what was read, and not kept. Any other
-  method clears the memo before it is sent and in a `finally`, so an answer read while a write was in flight is never
+  memo's byte bound; a longer body is passed on through a stream that replays what was read, and not kept. `OPTIONS` and
+  `TRACE` pass through, neither remembered nor clearing the memo; any other method clears it before it is sent and in a
+  `finally`, so an answer read while a write was in flight is never
   kept. Inside the retries, so a failed attempt is never remembered for the retry after it. `CachedReads` remembers
   each Redis entry (or its absence, never a Redis failure) under `cache {service} {key}` in the same memo, and checks
   it against each call as before. `RequestMemo.RememberAsync` (Bitwarden.Server.Sdk.Context, internal to this package)
