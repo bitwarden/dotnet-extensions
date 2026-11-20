@@ -57,19 +57,8 @@ internal sealed class ContextHandler(IServiceScopeFactory scopes, IServiceTokenP
 
         // Taken before anything is written, so a misuse refuses the call rather than sending it
         // with half its headers.
-        // Once per call, not per attempt: a retry sends the same call, and a statement covers exactly one.
-        OutgoingCall.Stated? stated;
-        if (request.Options.TryGetValue(Taken, out var held) && held is { } taken)
-        {
-            stated = taken.Value;
-        }
-        else
-        {
-            stated = OutgoingCall.Take();
-            request.Options.Set(Taken, new TakenStatement(stated));
-        }
-
-        var (organization, user, provider) = OutgoingContext.Of(scope.ServiceProvider, stated);
+        var stated = Statement(request);
+        var (organization, user, provider) = Whom(request, scope.ServiceProvider, stated);
         var carried = OutgoingContext.Carried(scope.ServiceProvider, stated);
 
         foreach (var header in BitwardenHeaders.All)
@@ -77,20 +66,9 @@ internal sealed class ContextHandler(IServiceScopeFactory scopes, IServiceTokenP
             request.Headers.Remove(header);
         }
 
-        if (organization is { } named)
+        foreach (var (name, value) in Headers(organization, user, provider))
         {
-            request.Headers.TryAddWithoutValidation(BitwardenHeaders.Organization, named.ToString());
-        }
-
-        if (user is { } acting)
-        {
-            request.Headers.TryAddWithoutValidation(BitwardenHeaders.User, acting.ToString());
-        }
-
-        // Only when the context has one: an operation takes a provider only where it declares so.
-        if (provider is { } through)
-        {
-            request.Headers.TryAddWithoutValidation(BitwardenHeaders.Provider, through.ToString());
+            request.Headers.TryAddWithoutValidation(name, value);
         }
 
         // Always, if only to say which version it speaks.
@@ -122,6 +100,74 @@ internal sealed class ContextHandler(IServiceScopeFactory scopes, IServiceTokenP
     }
 
     /// <summary>
+    /// The plain headers saying whom the call concerns, by name and value, exactly as this handler writes them: what an
+    /// operation's idempotency key for the call is derived from (<see cref="IdempotencyKeyHandler"/>), which runs before
+    /// this handler.
+    /// </summary>
+    /// <param name="request">The call. Its statement is taken now, as its first attempt would take it.</param>
+    /// <param name="scopes">Supplies the scope the current operation is running in.</param>
+    internal static IReadOnlyList<KeyValuePair<string, string>> Concerned(HttpRequestMessage request, IServiceScopeFactory scopes)
+    {
+        using var scope = scopes.CreateScope();
+
+        var (organization, user, provider) = Whom(request, scope.ServiceProvider, Statement(request));
+
+        return Headers(organization, user, provider);
+    }
+
+    // Once per call, not per attempt: a retry sends the same call, and a statement covers exactly one.
+    private static OutgoingCall.Stated? Statement(HttpRequestMessage request)
+    {
+        if (request.Options.TryGetValue(Taken, out var held) && held is { } taken)
+        {
+            return taken.Value;
+        }
+
+        var stated = OutgoingCall.Take();
+        request.Options.Set(Taken, new TakenStatement(stated));
+
+        return stated;
+    }
+
+    // Once per call too, so the headers every attempt writes are the ones the call's idempotency key was derived from.
+    private static (Guid? Organization, Guid? User, Guid? Provider) Whom(
+        HttpRequestMessage request, IServiceProvider services, OutgoingCall.Stated? stated)
+    {
+        if (request.Options.TryGetValue(Concerns, out var held) && held is { } concerns)
+        {
+            return concerns.Value;
+        }
+
+        var whom = OutgoingContext.Of(services, stated);
+        request.Options.Set(Concerns, new Concern(whom));
+
+        return whom;
+    }
+
+    private static List<KeyValuePair<string, string>> Headers(Guid? organization, Guid? user, Guid? provider)
+    {
+        var headers = new List<KeyValuePair<string, string>>(3);
+
+        if (organization is { } named)
+        {
+            headers.Add(new(BitwardenHeaders.Organization, named.ToString()));
+        }
+
+        if (user is { } acting)
+        {
+            headers.Add(new(BitwardenHeaders.User, acting.ToString()));
+        }
+
+        // Only when the context has one: an operation takes a provider only where it declares so.
+        if (provider is { } through)
+        {
+            headers.Add(new(BitwardenHeaders.Provider, through.ToString()));
+        }
+
+        return headers;
+    }
+
+    /// <summary>
     /// What the call's context token is exchanged from: the request's proof for a call carrying the request's own
     /// context, so it stays delegated, chained to the person; null where the call is this service's own word (a
     /// statement naming somebody else or making the call the system's, or no request at all), so the context is asserted
@@ -150,6 +196,13 @@ internal sealed class ContextHandler(IServiceScopeFactory scopes, IServiceTokenP
     private static readonly HttpRequestOptionsKey<TakenStatement?> Taken = new("Bitwarden.Client.Statement");
 
     private sealed record TakenStatement(OutgoingCall.Stated? Value);
+
+    /// <summary>
+    /// Whom the call concerns, worked out on its first attempt or by its idempotency key, for the attempts.
+    /// </summary>
+    private static readonly HttpRequestOptionsKey<Concern?> Concerns = new("Bitwarden.Client.Concerns");
+
+    private sealed record Concern((Guid? Organization, Guid? User, Guid? Provider) Value);
 
     /// <summary>
     /// Whether a call carries the request's own person, and so stays chained to what proved them: no statement; the two
