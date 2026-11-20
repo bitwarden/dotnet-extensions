@@ -13,9 +13,17 @@ public sealed class IdempotencySecretServiceCollectionExtensionsTests
     [Fact]
     public void AddIdempotencySecret_ReadsTheConfiguredSecret()
     {
-        var secret = Resolve(new ServiceCollection().AddIdempotencySecret(), IdempotencySecretTests.Configuration(Secret.ToString()), "Production");
+        var secret = Resolve(new ServiceCollection().AddIdempotencySecret(), IdempotencySecretTests.Configuration(IdempotencySecretTests.Base64(Secret)), "Production");
 
         Assert.Equal(Secret, secret.Value);
+    }
+
+    [Fact]
+    public void AddIdempotencySecret_NamesTheServiceAsTheHostDoes()
+    {
+        var secret = Resolve(new ServiceCollection().AddIdempotencySecret(), IdempotencySecretTests.Configuration(null), "Development");
+
+        Assert.Equal("test", secret.ServiceName);
     }
 
     [Fact]
@@ -26,8 +34,8 @@ public sealed class IdempotencySecretServiceCollectionExtensionsTests
         Assert.Equal(CacheSecret.Development, secret.Value);
     }
 
-    // A container built without a host has no environment, and is treated as not Development; one without
-    // configuration has no secret.
+    // A container built without a host has no environment, so is treated as not Development and has no service name;
+    // one without configuration has no secret.
     [Fact]
     public void AddIdempotencySecret_WithNoEnvironmentOrConfiguration_RequiresASecret()
     {
@@ -43,11 +51,32 @@ public sealed class IdempotencySecretServiceCollectionExtensionsTests
     public void AddIdempotencySecret_KeepsASecretAlreadyRegistered()
     {
         var services = new ServiceCollection();
-        services.AddSingleton(new IdempotencySecret(Secret));
+        services.AddSingleton(new IdempotencySecret(Secret, "test-service"));
         services.AddIdempotencySecret();
 
         var descriptor = Assert.Single(services, d => d.ServiceType == typeof(IdempotencySecret));
         Assert.Equal(Secret, Assert.IsType<IdempotencySecret>(descriptor.ImplementationInstance).Value);
+    }
+
+    // The host reads the secret as it starts its hosted services, so a service deployed without one fails to start.
+    [Fact]
+    public void AddIdempotencySecret_ChecksTheSecretAsTheHostStarts()
+    {
+        var services = new ServiceCollection().AddIdempotencySecret();
+        var check = Assert.Single(services, d => d.ServiceType == typeof(IHostedService));
+
+        Assert.Throws<InvalidOperationException>(() =>
+            check.ImplementationFactory!(new Provider(IdempotencySecretTests.Configuration(null), "Production", services)));
+        Assert.IsAssignableFrom<IHostedService>(
+            check.ImplementationFactory!(new Provider(IdempotencySecretTests.Configuration(IdempotencySecretTests.Base64(Secret)), "Production", services)));
+    }
+
+    [Fact]
+    public void AddIdempotencySecret_Twice_ChecksOnce()
+    {
+        var services = new ServiceCollection().AddIdempotencySecret().AddIdempotencySecret();
+
+        Assert.Single(services, d => d.ServiceType == typeof(IHostedService));
     }
 
     private static IdempotencySecret Resolve(IServiceCollection services, IConfiguration? configuration, string? environment)
@@ -58,11 +87,15 @@ public sealed class IdempotencySecretServiceCollectionExtensionsTests
         return (IdempotencySecret)descriptor.ImplementationFactory!(new Provider(configuration, environment));
     }
 
-    private sealed class Provider(IConfiguration? configuration, string? environment) : IServiceProvider
+    // Resolves the configuration and environment given, and IdempotencySecret from its registration in services.
+    private sealed class Provider(IConfiguration? configuration, string? environment, IServiceCollection? services = null)
+        : IServiceProvider
     {
         public object? GetService(Type serviceType) =>
             serviceType == typeof(IConfiguration) ? configuration
             : serviceType == typeof(IHostEnvironment) && environment is not null ? new Environment(environment)
+            : serviceType == typeof(IdempotencySecret) && services is not null
+                ? services.Single(d => d.ServiceType == typeof(IdempotencySecret)).ImplementationFactory!(this)
             : null;
     }
 
