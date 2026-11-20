@@ -8,12 +8,12 @@ namespace Bitwarden.Server.Sdk.Client;
 /// <remarks>
 /// <para>
 /// A host handling an event establishes what the event says as the context of handling it
-/// (<see cref="ContextScope.BeginForEvent"/>), so the person it names is whoever's request published it. A call that
-/// carries them as the person acting is this service's word about that person (an asserted context), which a callee
-/// accepts only where it declares it does for this service, and which says the consumer acts for somebody it has no
-/// request from. So while an event is handled, a call is the service's own (an <c>AsSystem</c> statement), or names
-/// its person outright (<see cref="OutgoingCall.AboutUser"/>, <see cref="OutgoingCall.About"/>), or carries no person
-/// because the event names none.
+/// (<see cref="ContextScope.BeginForEvent"/>): the person it names, whoever's request published it, is recorded there
+/// (<see cref="IContext.RecordedUserId"/>), never acting, so a call with no statement is the service's own. A call that
+/// carried them as the person acting would be this service's word about that person (an asserted context), which a
+/// callee accepts only where it declares it does for this service. So while an event is handled, a call is the
+/// service's own (no statement, or an <c>AsSystem</c> one), or names its person outright
+/// (<see cref="OutgoingCall.AboutUser"/>, <see cref="OutgoingCall.About"/>).
 /// </para>
 /// <para>
 /// A statement that names no person but is not the system's (<see cref="OutgoingCall.AboutOrganization"/>,
@@ -35,16 +35,10 @@ internal static class EventActor
             return null;
         }
 
-        if (stated is not null)
-        {
-            return "A call made while handling an event is inside an OutgoingCall statement that names no person and is "
+        return stated is not null
+            ? "A call made while handling an event is inside an OutgoingCall statement that names no person and is "
                 + "not the system's (AboutOrganization, AboutOrganizationWithoutProvider or WithoutProvider), so it keeps "
-                + "the person whose request published the event as the one acting. " + Remedy;
-        }
-
-        return ContextScope.Current?.UserId is not null
-            ? "A call made while handling an event carries the person whose request published the event as the one "
-                + "acting, because no OutgoingCall statement says otherwise. " + Remedy
+                + "the person whose request published the event as the one acting. " + Remedy
             : null;
     }
 

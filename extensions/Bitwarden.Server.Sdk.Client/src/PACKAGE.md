@@ -443,9 +443,10 @@ a sparse fieldset from a generated attributes class, keeping the attributes its 
   `InvalidOperationException`.
 - **No statements in a product service**, but for `AboutCreatedOrganization` on an operation declared to create one
   (`IOrganizationCreation`) and `WithoutProvider`: the call throws and sends nothing.
-- **Not on an event's actor.** While a service handles an event (`ContextScope.IsEvent`), a call is the service's own
-  (an `AsSystem` statement), names its person outright, or carries no person because the event names none. Any other
-  call is logged as a warning, or refused before it is sent with `OutgoingCall:RefuseEventActor`.
+- **Not on an event's actor.** While a service handles an event (`ContextScope.IsEvent`), the event's context records
+  its actor and names nobody acting, so a call with no statement is the service's own. A call is that, an `AsSystem`
+  statement, or one naming its person outright; one inside a statement that names nobody and is not the system's
+  (`AboutOrganization`, say) is logged as a warning, or refused before it is sent with `OutgoingCall:RefuseEventActor`.
 - **A write without a key is retried only when its connection never opened** (refused, a name that didn't resolve, a
   proxy that wouldn't tunnel). What that means for the operation is in Bitwarden.Server.Sdk.Idempotency's
   [Opt an operation in](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Idempotency/src/PACKAGE.md#opt-an-operation-in).
