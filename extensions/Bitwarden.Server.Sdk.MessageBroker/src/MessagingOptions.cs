@@ -18,11 +18,15 @@ public class MessagingOptions
     /// </summary>
     public string? AzureServiceBusFullyQualifiedNamespace { get; set; }
 
-    /// <summary>Whether Azure Service Bus is configured, by connection string or by namespace.</summary>
+    /// <summary>
+    /// Whether Azure Service Bus is configured, by connection string or by namespace.
+    /// </summary>
     internal bool UsesAzureServiceBus =>
         !string.IsNullOrEmpty(AzureServiceBusConnectionString) || !string.IsNullOrEmpty(AzureServiceBusFullyQualifiedNamespace);
 
-    /// <summary>The Rabbit connection URI. When set and Azure Service Bus is not, Rabbit is used; when neither is set, an in-memory channel is used.</summary>
+    /// <summary>
+    /// The Rabbit connection URI. When set and Azure Service Bus is not, Rabbit is used; when neither is set, an in-memory channel is used.
+    /// </summary>
     public string? RabbitUri { get; set; }
 
     /// <summary>
