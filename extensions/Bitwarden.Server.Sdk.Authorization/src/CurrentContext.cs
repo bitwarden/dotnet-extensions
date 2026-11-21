@@ -20,7 +20,7 @@ namespace Bitwarden.Server.Sdk.Authorization;
 /// its <c>organization</c> claim, the provider a provider session's <c>provider</c> claim, the
 /// credential the kind of token it is; the client's address is the connection's, through the
 /// proxies it trusts; the device is the session's signed <c>device</c> claim, then the client's
-/// <c>Device-Identifier</c> header. It refuses the four context headers before
+/// <c>Device-Identifier</c> header. It refuses every header only services send before
 /// authentication (<see cref="ContextRefusal"/>), so there is nothing here to ignore.
 /// </para>
 /// <para>

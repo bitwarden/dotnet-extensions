@@ -44,6 +44,12 @@ filters do around a controller action.
 
 - **A declaration the package can check when endpoints are built is checked there,** through
   `RequireStandards()`, rather than on the first request.
+- **A page's maximum travels with its size.** `[MaximumPageSize]` is read when `PageSize` binds and
+  carried in `PageSize.Maximum`; `Page(PageNumber, PageSize)` and `CursorPage(PageSize)` take it as
+  the page's `SizeLimit`, which bounds `Size` and the farthest page number (so `Skip` can't
+  overflow). `PageNumber` reads the same attribute off the `PageSize` parameter beside it, and
+  `PagingDocumentTransformer` publishes it. `Page.MaximumSize` (200) is the maximum when an
+  operation declares none.
 - **Handlers behave the same with and without the request delegate generator.** The generated code
   and `RequestDelegateFactory` differ at the edges, so both paths are tested (see Testing).
 

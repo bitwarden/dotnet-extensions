@@ -157,10 +157,7 @@ internal static class RequestParameters
 
         if (type == typeof(Querying.PageNumber) || type == typeof(Querying.PageSize) || type == typeof(Querying.PageAfter))
         {
-            return Querying.PageBinding.Bind(
-                type,
-                request.Query,
-                parameter.GetCustomAttributes<DefaultValueAttribute>().Select(attribute => attribute.Value).OfType<int>().Cast<int?>().FirstOrDefault());
+            return Querying.PageBinding.Bind(type, request.Query, parameter);
         }
 
         return type.GetGenericTypeDefinition() == typeof(Querying.Filter<>)

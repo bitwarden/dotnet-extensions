@@ -62,7 +62,7 @@ internal static class ApiDocumentation
     /// </param>
     /// <param name="isProductService">
     /// Whether the service is a product service, which people call with their own session. Such a
-    /// service refuses the context headers (<see cref="BitwardenHeaders.All"/>), so the
+    /// service refuses the headers only services send (<see cref="BitwardenHeaders.ServiceOnly"/>), so the
     /// document offers the session alone.
     /// </param>
     public static void Configure(OpenApiOptions options, string serviceName, Uri? tokenUrl, bool isProductService = false)

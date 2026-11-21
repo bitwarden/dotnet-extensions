@@ -666,7 +666,7 @@ public abstract class Service
     ///   </description></item>
     ///   <item><description>
     ///     For a product service (one marked <see cref="ProductServiceAttribute"/>), refusing a
-    ///     request that carries any of the context headers (<see cref="BitwardenHeaders.All"/>).
+    ///     request that carries any header only services send (<see cref="BitwardenHeaders.ServiceOnly"/>).
     ///   </description></item>
     ///   <item><description>
     ///     <c>UseSwaggerUI()</c> at <c>/docs</c>: the service's API documentation, rendered from
@@ -744,7 +744,8 @@ public abstract class Service
         app.UseIpRateLimiting();
 
         // Before anything reads the context, and before authentication, so the answer is the same
-        // whatever the token: a product service refuses the four context headers, one list.
+        // whatever the token: a product service refuses every header only services send
+        // (BitwardenHeaders.ServiceOnly), one list.
         // See ProductServiceAttribute.
         if (_isProductService)
         {
@@ -798,6 +799,14 @@ public abstract class Service
         if (!_isProductService)
         {
             app.UseContextHeaders();
+        }
+
+        // A product service authorizes a person from their standing as it is now, not as their session was issued: read
+        // once, after the session is validated and before anything authorizes, and a person who no longer holds what
+        // their session names is refused. The service must register an ICurrentStanding, or it fails to start.
+        if (_isProductService)
+        {
+            app.UseCurrentStanding();
         }
 
         app.UseAuthorization();
