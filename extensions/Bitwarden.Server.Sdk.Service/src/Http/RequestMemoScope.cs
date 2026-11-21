@@ -1,5 +1,6 @@
 using Bitwarden.Server.Sdk.Context;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Configuration;
 
 namespace Bitwarden.Server.Sdk.Service;
@@ -10,8 +11,8 @@ namespace Bitwarden.Server.Sdk.Service;
 /// </summary>
 /// <remarks>
 /// <para>
-/// None for an operation marked <see cref="WithoutRequestMemoAttribute"/>, none for a WebSocket (a connection lives far
-/// longer than any answer stays true), and none while <see cref="RequestMemo.EnabledKey"/> is <c>false</c>. The bounds
+/// None for an operation marked <see cref="WithoutRequestMemoAttribute"/>, none for a request that upgrades its
+/// connection, a WebSocket among them (a connection lives far longer than any answer stays true), and none while <see cref="RequestMemo.EnabledKey"/> is <c>false</c>. The bounds
 /// are <see cref="RequestMemo.MaxEntriesKey"/> and <see cref="RequestMemo.MaxBytesKey"/>, read once when the service
 /// starts.
 /// </para>
@@ -36,7 +37,7 @@ internal sealed class RequestMemoScope(RequestDelegate next, IConfiguration conf
     public async Task InvokeAsync(HttpContext http)
     {
         if (string.Equals(configuration[RequestMemo.EnabledKey], "false", StringComparison.OrdinalIgnoreCase)
-            || http.WebSockets.IsWebSocketRequest
+            || Upgrades(http)
             || http.GetEndpoint()?.Metadata.GetMetadata<WithoutRequestMemoAttribute>() is not null)
         {
             await next(http);
@@ -46,4 +47,12 @@ internal sealed class RequestMemoScope(RequestDelegate next, IConfiguration conf
         using var memo = RequestMemo.Begin(_maxEntries, _maxBytes);
         await next(http);
     }
+
+    // Read from the server's own features: IsWebSocketRequest is set only once UseWebSockets has run, and the platform's
+    // pipeline doesn't run it (a SignalR hub runs it inside its own endpoint, after this). HTTP/1.1 upgrades the
+    // connection; HTTP/2 opens a WebSocket with an extended CONNECT.
+    private static bool Upgrades(HttpContext http) =>
+        http.Features.Get<IHttpUpgradeFeature>()?.IsUpgradableRequest == true
+        || http.Features.Get<IHttpExtendedConnectFeature>()?.IsExtendedConnect == true
+        || http.WebSockets.IsWebSocketRequest;
 }
