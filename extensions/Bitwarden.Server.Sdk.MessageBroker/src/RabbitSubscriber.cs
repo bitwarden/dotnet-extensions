@@ -9,7 +9,9 @@ namespace Microsoft.Extensions.DependencyInjection;
 
 internal static class RabbitSubscriber
 {
-    /// <summary>The queue a subscription reads on RabbitMQ and LavinMQ, bound to its topic's exchange.</summary>
+    /// <summary>
+    /// The queue a subscription reads on RabbitMQ and LavinMQ, bound to its topic's exchange.
+    /// </summary>
     internal static string QueueName(string topic, string subscription) => $"{topic}.{subscription}";
 
     /// <summary>

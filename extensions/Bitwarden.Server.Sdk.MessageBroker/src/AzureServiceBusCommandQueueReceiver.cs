@@ -3,7 +3,9 @@ using Azure.Messaging.ServiceBus;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-/// <summary>Receives every message on an Azure Service Bus queue.</summary>
+/// <summary>
+/// Receives every message on an Azure Service Bus queue.
+/// </summary>
 internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceiver
 {
     private readonly AzureServiceBusConnection _connection;

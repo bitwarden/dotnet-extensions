@@ -22,13 +22,17 @@ internal sealed class SubscriptionReadiness
 {
     private readonly ConcurrentDictionary<string, string?> _sources = new(StringComparer.Ordinal);
 
-    /// <summary>A consumer that has not started receiving yet.</summary>
+    /// <summary>
+    /// A consumer that has not started receiving yet.
+    /// </summary>
     public void Expect(string source) =>
         _sources.TryAdd(source, $"'{source}' has not started receiving yet.");
 
     public void Receiving(string source) => _sources[source] = null;
 
-    /// <summary>Its stream failed; it is subscribing again.</summary>
+    /// <summary>
+    /// Its stream failed; it is subscribing again.
+    /// </summary>
     public void Failing(string source) =>
         _sources[source] = $"'{source}' cannot receive from the message broker, and is trying again.";
 
@@ -39,7 +43,9 @@ internal sealed class SubscriptionReadiness
     }
 }
 
-/// <summary>Reports the consumers' state to the host's health checks.</summary>
+/// <summary>
+/// Reports the consumers' state to the host's health checks.
+/// </summary>
 internal sealed class SubscriptionHealthCheck(SubscriptionReadiness readiness) : IHealthCheck
 {
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default) =>
@@ -53,7 +59,9 @@ internal sealed class SubscriptionHealthCheckRegistration : IConfigureOptions<He
 {
     public const string Name = "Message broker subscriptions";
 
-    /// <summary>The tag for shared state, as <c>HealthCheckTags.Monitoring</c> in Bitwarden.Server.Sdk.HealthChecks.</summary>
+    /// <summary>
+    /// The tag for shared state, as <c>HealthCheckTags.Monitoring</c> in Bitwarden.Server.Sdk.HealthChecks.
+    /// </summary>
     public const string MonitoringTag = "monitoring";
 
     public void Configure(HealthCheckServiceOptions options) =>
