@@ -22,34 +22,6 @@ namespace Bitwarden.Server.Sdk.Resources;
 public static class StandardResponses
 {
     /// <summary>
-    /// The body of a read by identifier the platform serves (<c>AddStandardRead</c>).
-    /// </summary>
-    /// <typeparam name="T">The resource.</typeparam>
-    /// <returns>Never returns: the platform answers before the handler's body would run.</returns>
-    /// <remarks>
-    /// <para>
-    /// A resource declared with the platform's read is read by identifier one way only, the
-    /// declaration's, so the answer a cache holds for it is the answer the service gives. The
-    /// handler stays, because it is where the route, the operation and its documentation are
-    /// declared; its body is never run, and this says so where a reader would otherwise look for
-    /// the rule.
-    /// </para>
-    /// <example>
-    /// <code>
-    /// [StandardReadOne]
-    /// public static Task&lt;ResourceDocument&lt;Group&gt;&gt; GetGroup(string id, Fields&lt;Group&gt; fields = default)
-    ///     => ServedByPlatform&lt;Group&gt;();
-    /// </code>
-    /// </example>
-    /// </remarks>
-    /// <exception cref="System.Diagnostics.UnreachableException">Always: the platform did not answer.</exception>
-    public static Task<ResourceDocument<T>> ServedByPlatform<T>()
-        where T : Resource =>
-        throw new System.Diagnostics.UnreachableException(
-            $"{typeof(T).Name} is read by identifier by the platform, but no standard read is declared for it. "
-            + "The host declares a standard read for it, which answers before this handler is reached.");
-
-    /// <summary>
     /// Builds the response to a create.
     /// </summary>
     /// <param name="resource">The resource that was created, including its assigned ID.</param>
