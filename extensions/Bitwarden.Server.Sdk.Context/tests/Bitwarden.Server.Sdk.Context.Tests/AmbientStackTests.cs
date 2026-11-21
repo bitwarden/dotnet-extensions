@@ -80,6 +80,41 @@ public sealed class AmbientStackTests
         Assert.Equal("parent", await child);
     }
 
+    // Whichever flow disposes an entry first, the flow that pushed it still restores what came before.
+    [Fact]
+    public async Task Dispose_OnAForkedFlowFirst_StillRestoresTheFlowThatPushedIt()
+    {
+        var stack = new AmbientStack<string>();
+
+        using (stack.Push("outer"))
+        {
+            var entry = stack.Push("inner");
+
+            await Task.Run(entry.Dispose, TestContext.Current.CancellationToken);
+            Assert.Equal("inner", stack.Current);
+
+            entry.Dispose();
+            Assert.Equal("outer", stack.Current);
+        }
+
+        Assert.Null(stack.Current);
+    }
+
+    [Fact]
+    public void Dispose_Twice_RestoresOnce()
+    {
+        var stack = new AmbientStack<string>();
+
+        using (stack.Push("outer"))
+        {
+            var entry = stack.Push("inner");
+            entry.Dispose();
+            entry.Dispose();
+
+            Assert.Equal("outer", stack.Current);
+        }
+    }
+
     // A forked flow that pushes and disposes an entry of its own returns to the value it started with, even after the
     // parent disposed that value's entry.
     [Fact]

@@ -13,6 +13,10 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Context.Tests" />
+    <!-- The service clients remember their calls in the request memo (RequestMemo.RememberAsync). -->
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Client" />
+    <!-- Its tests prove a save makes the memo forget what it remembered. -->
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Data.Tests" />
   </ItemGroup>
 
   <PropertyGroup>
