@@ -46,7 +46,9 @@ internal sealed class AzureServiceBusConnection : IAsyncDisposable
         Client = new ServiceBusClient(value.AzureServiceBusFullyQualifiedNamespace, Credential);
     }
 
-    /// <summary>The credential the client was built with, or null when it uses a connection string.</summary>
+    /// <summary>
+    /// The credential the client was built with, or null when it uses a connection string.
+    /// </summary>
     internal TokenCredential? Credential { get; }
 
     public async ValueTask DisposeAsync()

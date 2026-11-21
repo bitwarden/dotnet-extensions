@@ -6,7 +6,9 @@ using RabbitMQ.Client.Events;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-/// <summary>Receives every message on a RabbitMQ command queue, which senders reach through its own exchange.</summary>
+/// <summary>
+/// Receives every message on a RabbitMQ command queue, which senders reach through its own exchange.
+/// </summary>
 internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
 {
     private readonly RabbitConnection _connection;
