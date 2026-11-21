@@ -67,6 +67,52 @@ public interface ICachedReads<TClient>
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Answers a page of a cached read-many from the cache if it safely can: of every resource of the party the call
+    /// carries, which its key template names (<c>{user}</c>), the page asked for, sliced in the entry's order.
+    /// </summary>
+    /// <param name="operationId">The read-many's operation in the owner's contract.</param>
+    /// <param name="pageNumber">The page, from one.</param>
+    /// <param name="pageSize">How many the page holds.</param>
+    /// <param name="fields">The attributes wanted, by their published names; none for every attribute.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>
+    /// A hit, whose <see cref="CachedAnswer.Resource"/> is the array of the page's resources and whose
+    /// <see cref="CachedAnswer.Total"/> is how many the party has in all, or a miss.
+    /// </returns>
+    /// <remarks>
+    /// The checks are those of every read, the call's party against the entry's owner among them. A party with more
+    /// rows than an entry holds has no entry, so every read of theirs is the service's. Uses up an
+    /// <see cref="OutgoingCall"/> statement on a hit.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">The page number or size is less than one.</exception>
+    Task<CachedAnswer> ReadManyAsync(
+        string operationId,
+        int pageNumber,
+        int pageSize,
+        IReadOnlyCollection<string> fields,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Answers every resource of a cached read-many from the cache if it safely can: the whole entry of the party the
+    /// call carries, read as one page as large as the owner's contract says an entry may be (<c>atMost</c>).
+    /// </summary>
+    /// <param name="operationId">The read-many's operation in the owner's contract.</param>
+    /// <param name="fields">The attributes wanted, by their published names; none for every attribute.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>
+    /// A hit, whose <see cref="CachedAnswer.Resource"/> is the array of every resource of the party, or a miss: also
+    /// for an operation the contract publishes as no read-many.
+    /// </returns>
+    /// <remarks>
+    /// The size comes from the contract, never from the caller, so a hit is never part of the list. The checks are
+    /// those of <see cref="ReadManyAsync"/>.
+    /// </remarks>
+    Task<CachedAnswer> ReadAllAsync(
+        string operationId,
+        IReadOnlyCollection<string> fields,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// What the next call to the service would carry, its <see cref="OutgoingCall"/> statement included, without using
     /// the statement up: for a client deciding which of its owner's reads answers a call.
     /// </summary>
