@@ -28,7 +28,7 @@ dotnet add package Bitwarden.Server.Sdk.Idempotency
 | `Idempotency:Retention`           | `00:10:00` | How long a completed write's answer is kept for its key. A repeat after that is done again.                                       |
 | `Idempotency:Lease`               | `00:02:00` | How long a write in progress holds its key. A repeat after that, should the instance running it have stopped, is done again.      |
 | `Idempotency:MaximumBytes`        | `1048576`  | The largest request body fingerprinted, and the largest answer kept. See "Gotchas and constraints".                               |
-| `Idempotency:Redis:Configuration` | None       | The Redis records are kept in. With it, and a shared data protection key ring, records are kept there; otherwise in this process. |
+| `Idempotency:Redis:Configuration` | None       | The Redis records are kept in. With it, and a shared data protection key ring, records are kept there; otherwise in this process. Outside `Development`, it must name a Redis user of the service's own (`user=...`), or the host refuses to start. |
 
 - **A Redis shared with other services.** Records are kept as `{service}:idempotency:{SHA-256 of the caller, the key
 and the context's owners}`. Every key starts with `{service}:`, so a Redis user that may write only the service's
@@ -157,6 +157,10 @@ second answer carries `Idempotency-Replayed: true`, and the handler ran once.
   `PersistKeysToFileSystem` on a volume every instance mounts). Otherwise each instance keeps its own in memory, and a
   repeat that reaches another instance runs again.
 - **A record this instance can't open** is taken as still running and refused `409`, never run past.
+- **A Redis user of the service's own.** Records are sealed, so no other service can read or forge one, but as Redis's
+  default user any holder of the connection could claim the service's keys or overwrite its records and so refuse its
+  writes. Outside `Development` a host whose `Idempotency:Redis:Configuration` names no user, or names `default`,
+  refuses to start, without echoing the connection string.
 - **While Redis is away**, a keyed write runs as if it carried no key.
 - **Past `MaximumBytes`**, a request runs as if it carried no key, and an answer is not kept, so its repeat runs again.
 - **A host without Bitwarden.Server.Sdk.Resources' error handler** answers a different request with the same key `500`
