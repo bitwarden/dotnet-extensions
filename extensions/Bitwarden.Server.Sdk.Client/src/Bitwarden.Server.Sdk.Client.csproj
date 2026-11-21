@@ -33,7 +33,7 @@
     <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Http\src\Bitwarden.Server.Sdk.Http.csproj" />
     <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Idempotency.Abstractions\src\Bitwarden.Server.Sdk.Idempotency.Abstractions.csproj" />
     <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Resources.Caching.Abstractions\src\Bitwarden.Server.Sdk.Resources.Caching.Abstractions.csproj" />
-    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Sagas\src\Bitwarden.Server.Sdk.Sagas.csproj" />
+    <PackageReference Include="Bitwarden.Server.Sdk.Sagas" Version="0.1.0" />
   </ItemGroup>
 
   <ItemGroup>
