@@ -156,12 +156,11 @@ public sealed class WidgetLookup(IWidgetClient widgets)
 | `unauthenticated`                                                                                                               | `UnauthenticatedException`                                                                       |
 | `forbidden`                                                                                                                     | `ForbiddenException`                                                                             |
 | `not-implemented`                                                                                                               | `NotImplementedException`                                                                        |
-| `key-rotation-in-progress` (a `409` or a `503`)                                                                                 | `RelayedRefusalException`, carrying the status and errors to answer on unchanged                 |
 | `field-required`, `invalid-type`, `invalid-value`, `invalid-shape`, `malformed-json`, `already-exists`, `invalid-resource-type` | `InvalidRequestException`, or `RequestRefusedException` when a `422` carries more than one error |
 | anything else                                                                                                                   | `ServiceCallException`                                                                           |
 
-A callee that can't be reached, doesn't answer within `Timeout`, or answers `502`, `503` or `504` (but for a key
-rotation) is a `ServiceUnavailableException` naming it. The deadline covers the tokens the call obtains too. The
+A callee that can't be reached, doesn't answer within `Timeout`, or answers `502`, `503` or `504` is a
+`ServiceUnavailableException` naming it. The deadline covers the tokens the call obtains too. The
 authorization server failing then is a `ServiceUnavailableException` naming `identity`, such as
 `The identity service could not be reached for a token for calls to widget-service.`, and the call never reaches the
 callee. The authorization server refusing the credential is a `ServiceCallException` with status `500`, this service's
