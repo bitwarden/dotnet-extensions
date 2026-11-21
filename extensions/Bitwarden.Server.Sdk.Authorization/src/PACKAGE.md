@@ -75,7 +75,7 @@ builder.Services.AddBitwardenAuthentication();
 builder.Services.AddCallerAuthorization(isProductService);
 
 // A product service also registers where a person's current standing is read (ICurrentStanding): the service that
-// owns the standing provides it in its client package. Without one, a product service doesn't start.
+// owns the standing provides it in its client package. Without one, UseCurrentStanding() fails when the app starts.
 
 var app = builder.Build();
 
@@ -222,8 +222,7 @@ authorization, once per request:
 | Neither, or no person (an organization credential) | Nothing                                                        | Never                                                                                        |
 
 The `404` is the platform's answer for an organization the person isn't a member of; the `403` is its answer when the
-person is no longer the administering provider's staff. Operations open to anybody ask nothing. In tests,
-Bitwarden.Server.Sdk.Service.Testing's `TestStanding` stands in for the standing's owner.
+person is no longer the administering provider's staff. Operations open to anybody ask nothing.
 
 ### Accept other callers and owners
 
