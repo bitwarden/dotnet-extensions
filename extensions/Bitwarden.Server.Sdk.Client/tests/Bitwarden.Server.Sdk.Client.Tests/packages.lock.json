@@ -60,6 +60,11 @@
           "Microsoft.Extensions.Options": "10.0.9"
         }
       },
+      "Bitwarden.Server.Sdk.Sagas": {
+        "type": "Transitive",
+        "resolved": "0.1.0",
+        "contentHash": "ORDsj0JHKUGoX1ocNOKa2zqrgt15jmBrWW/EEhpaRaGY+BZ/1n8tpNp2cwSpwyJqXhiznhEkvU1RKtD7kdobxw=="
+      },
       "BouncyCastle.Cryptography": {
         "type": "Transitive",
         "resolved": "2.7.0",
@@ -461,7 +466,7 @@
           "Bitwarden.Server.Sdk.Http": "[0.1.0, )",
           "Bitwarden.Server.Sdk.Idempotency.Abstractions": "[0.1.0, )",
           "Bitwarden.Server.Sdk.Resources.Caching.Abstractions": "[0.1.0, )",
-          "Bitwarden.Server.Sdk.Sagas": "[0.2.0, )",
+          "Bitwarden.Server.Sdk.Sagas": "[0.1.0, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.14, )",
           "Microsoft.Extensions.Http": "[10.0.14, )",
           "Microsoft.IdentityModel.JsonWebTokens": "[8.23.0, )",
@@ -495,9 +500,6 @@
           "Bitwarden.Server.Sdk.CryptoPrimitives": "[0.1.0, )",
           "Microsoft.Extensions.Configuration.Abstractions": "[10.0.14, )"
         }
-      },
-      "bitwarden.server.sdk.sagas": {
-        "type": "Project"
       }
     }
   }
