@@ -11,7 +11,7 @@ LavinMQ. Services don't depend on which one is in use.
 
 | Deployment | Default broker    | Can instead use                        |
 | ---------- | ----------------- | -------------------------------------- |
-| Cloud      | Azure Service Bus | —                                      |
+| Cloud      | Azure Service Bus | Nothing else                           |
 | Self-host  | RabbitMQ 4.3.6    | Azure Service Bus, LavinMQ 2.10.4      |
 | Lite       | LavinMQ 2.10.4    | Azure Service Bus, RabbitMQ 4.3.6      |
 
