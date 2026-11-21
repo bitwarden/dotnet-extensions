@@ -57,7 +57,9 @@ internal sealed class TopologyCheckService(
     IHostApplicationLifetime lifetime,
     ILogger<TopologyCheckService> logger) : BackgroundService
 {
-    /// <summary>Sets the process exit code; tests replace it so a stopped test host doesn't fail the run.</summary>
+    /// <summary>
+    /// Sets the process exit code; tests replace it so a stopped test host doesn't fail the run.
+    /// </summary>
     internal Action<int> SetExitCode { get; set; } = code => Environment.ExitCode = code;
 
     internal TimeProvider TimeProvider { get; set; } = TimeProvider.System;
