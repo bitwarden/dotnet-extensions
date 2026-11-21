@@ -42,12 +42,12 @@ internal static class ConfigEndpoints
     internal const string SettingsSection = "Service:Settings";
 
     /// <summary>
-    /// Whether registration mails a verification link, under the name the identity service reads it by.
+    /// Whether registration mails a verification link, under the name the server reads it by.
     /// </summary>
     internal const string EmailVerificationKey = "globalSettings:enableEmailVerification";
 
     /// <summary>
-    /// Whether following an invite link needs a verified address, under the name the organization service reads it by.
+    /// Whether following an invite link needs a verified address, under the name the server reads it by.
     /// </summary>
     internal const string OpenInviteLinkEmailVerificationKey = "globalSettings:enableOpenInviteLinkEmailVerification";
 
