@@ -175,6 +175,9 @@ public abstract class Service
     /// </summary>
     private IReadOnlyList<string> _browserOrigins = [];
 
+    // Whether the process was started only to describe itself: its contract, or the infrastructure it declares.
+    private bool Describing => OpenApiExport.Requested(Args, out _) || InfrastructureExport.Requested(Args, out _);
+
     /// <summary>
     /// Runs the full startup sequence and returns the configured, un-started application.
     /// </summary>
@@ -214,7 +217,7 @@ public abstract class Service
 
         // A process started only to describe itself still has to start, so that endpoints mapped
         // directly reach the document, but it must not also do the service's work.
-        var describing = OpenApiExport.Requested(Args, out _);
+        var describing = Describing;
         var platformWork = describing ? OpenApiExport.HostedServices(builder.Services) : [];
 
         ConfigureServices(builder.Services);
@@ -252,11 +255,21 @@ public abstract class Service
     /// <remarks>
     /// Equivalent to <c>Build().Run()</c>. This is the normal entry point from <c>Program</c>.
     /// Given <c>--emit-openapi &lt;path&gt;</c> it writes the service's contract to that path and
-    /// returns instead of serving, which is how the committed document is refreshed.
+    /// returns instead of serving, which is how the committed document is refreshed; given
+    /// <c>--emit-infrastructure &lt;path&gt;</c>, the infrastructure it declares (<see cref="InfrastructureExport"/>).
     /// </remarks>
     public void Run()
     {
         var app = Build();
+
+        // Asked for the infrastructure it declares. Read from the built application's registrations, without starting
+        // it, as the contract below is.
+        if (InfrastructureExport.Requested(Args, out var manifestPath))
+        {
+            InfrastructureExport.WriteAsync(app, manifestPath).GetAwaiter().GetResult();
+            app.Logger.LogInformation("Wrote the infrastructure manifest to {Path}.", Path.GetFullPath(manifestPath));
+            return;
+        }
 
         // Asked for the contract rather than the service. Answered from the built application
         // without starting it, so nothing the service depends on at runtime has to be reachable
@@ -379,7 +392,9 @@ public abstract class Service
     ///     Per-address request limits, off when self-hosted or with no rules.
     ///   </description></item>
     ///   <item><description>
-    ///     Idempotency keys: a write another service sends with an <c>Idempotency-Key</c> is done at most once.
+    ///     Idempotency keys: a write another service sends with an <c>Idempotency-Key</c> is done at most once;
+    ///     and <see cref="IdempotencySecret"/>, from <c>Idempotency:Secret</c>, which this service's own operations
+    ///     derive the keys they send with.
     ///   </description></item>
     ///   <item><description>
     ///     The audience check: a token is accepted only by the service it is addressed to.
@@ -468,7 +483,7 @@ public abstract class Service
         InternalTlsTrust.Add(builder.Services, builder.Configuration);
         // And what it serves (Tls:*): its certificate from settings, no plain-HTTP listener with Tls:RequireHttps but the
         // health port, and only the probes there.
-        InternalTlsServer.Add(builder.Services, builder.Configuration, describing: OpenApiExport.Requested(Args, out _));
+        InternalTlsServer.Add(builder.Services, builder.Configuration, describing: Describing);
 
         // Per-address request limits in the IpRateLimitOptions shape (Bitwarden.Server.Sdk.RateLimiting's IpRateLimiting):
         // off when self-hosted or with no rules.
@@ -477,6 +492,15 @@ public abstract class Service
         // A write another service sends with an Idempotency-Key is done at most once:
         // its record in the service cache when there is one, so every instance shares it, else in this process.
         builder.Services.AddIdempotencyKeys(builder.Configuration);
+        // And the secret this service's own operations derive the keys they send with (Idempotency:Secret), read as the
+        // host starts, so a service deployed without one fails to start rather than failing its first operation. Not
+        // while it only describes itself: the check is a start-up validation, as ValidateOnStart is, and a contract
+        // doesn't depend on a secret. A package that registers the secret later (messaging, jobs) has its check dropped
+        // with the rest of the service's background work (OpenApiExport.Isolate).
+        if (!Describing)
+        {
+            builder.Services.AddIdempotencySecret();
+        }
 
         // Singleton: it reads IContext and holds nothing. A
         // service whose rows are scoped by something other than an organization or a user
@@ -499,7 +523,7 @@ public abstract class Service
         // Traces, metrics and logs over OTLP, named by this service. Not exported while the process
         // only describes itself.
         Observability.Telemetry.Add(
-            builder.Services, builder.Configuration, Name, export: !OpenApiExport.Requested(Args, out _));
+            builder.Services, builder.Configuration, Name, export: !Describing);
 
         // Feature flags, for every service: LaunchDarkly when Features:LaunchDarkly:SdkKey is
         // set, Features:FlagValues otherwise. The context's kinds, keys and attributes are fixed
@@ -609,6 +633,11 @@ public abstract class Service
     ///     sees the client's leaving on a request that isn't safe.
     ///   </description></item>
     ///   <item><description>
+    ///     The request's memo of what it asked other services (<see cref="RequestMemoScope"/>,
+    ///     <see cref="Context.RequestMemo"/>), so its clients send a repeated read once. None for an operation marked
+    ///     <see cref="Context.WithoutRequestMemoAttribute"/>, nor while <c>Caching:RequestMemo:Enabled</c> is <c>false</c>.
+    ///   </description></item>
+    ///   <item><description>
     ///     The connection's address and scheme as a trusted proxy saw them
     ///     (<see cref="ForwardedClientAddress"/>, <c>ForwardedHeaders:KnownProxies</c> and
     ///     <c>KnownNetworks</c>), before anything reads the connection.
@@ -678,6 +707,10 @@ public abstract class Service
     {
         // Before anything takes the request's cancellation: a write runs to the end once sent.
         app.UseMiddleware<FinishedWrites>();
+
+        // Before anything that could call another service: the request's memo of what it asked them (RequestMemo), so a
+        // repeated read is sent once. After routing, which the host runs first, so an operation can decline it.
+        app.UseMiddleware<RequestMemoScope>();
 
         // Before anything reads the connection: the address a trusted proxy was connected from,
         // and the scheme it was connected over, and nothing a client wrote.
