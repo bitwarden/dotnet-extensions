@@ -131,17 +131,47 @@ public sealed class CurrentStandingCheckTests
     [Fact]
     public async Task Invoke_OperationOpenToAnybody_AsksNothing()
     {
-        var http = await InvokeAsync(Session(Organization), new AllowAnonymousAttribute());
+        var http = await InvokeAsync(Session(Organization), metadata: [new AllowAnonymousAttribute()]);
 
         Assert.Null(CallerStanding.Of(http));
         Assert.Empty(_standing.Asked);
     }
 
-    private async Task<HttpContext> InvokeAsync(ClaimsPrincipal user, params object[] metadata)
+    // No operation matched, so nothing is authorized and nothing needs a standing.
+    [Fact]
+    public async Task Invoke_NoEndpoint_AsksNothing()
+    {
+        var http = await InvokeAsync(Session(Organization), routed: false);
+
+        Assert.Null(CallerStanding.Of(http));
+        Assert.Empty(_standing.Asked);
+    }
+
+    // A client that goes away stops the reading too.
+    [Fact]
+    public async Task Invoke_PassesTheRequestsCancellation()
+    {
+        using var aborted = new CancellationTokenSource();
+
+        await InvokeAsync(Session(Organization), aborted: aborted);
+
+        Assert.Equal(aborted.Token, _standing.Cancellation);
+    }
+
+    private async Task<HttpContext> InvokeAsync(
+        ClaimsPrincipal user,
+        object[]? metadata = null,
+        bool routed = true,
+        CancellationTokenSource? aborted = null)
     {
         var services = new ServiceCollection().AddSingleton<ICurrentStanding>(_standing).BuildServiceProvider();
-        var http = new DefaultHttpContext { User = user, RequestServices = services };
-        http.SetEndpoint(new Endpoint(null, new EndpointMetadataCollection(metadata), "GetWidget"));
+        var http = new DefaultHttpContext { User = user, RequestServices = services, RequestAborted = aborted?.Token ?? default };
+
+        if (routed)
+        {
+            http.SetEndpoint(new Endpoint(null, new EndpointMetadataCollection(metadata ?? []), "GetWidget"));
+        }
+
         var reached = false;
 
         var check = new CurrentStandingCheck(_ => { reached = true; return Task.CompletedTask; }, services.GetRequiredService<IServiceProviderIsService>());
@@ -183,9 +213,12 @@ public sealed class CurrentStandingCheckTests
 
         public List<string> Asked { get; } = [];
 
+        public CancellationToken Cancellation { get; private set; }
+
         public Task<MemberStanding?> MembershipAsync(Guid person, Guid organization, CancellationToken cancellationToken = default)
         {
             Asked.Add("membership");
+            Cancellation = cancellationToken;
             Assert.Equal((Person, Organization), (person, organization));
             return Task.FromResult(Membership);
         }
