@@ -175,7 +175,7 @@ public sealed class OpenApiExportTests
     [Fact]
     public async Task Start_WithoutAnIdempotencySecret_Refuses()
     {
-        await using var app = new ExportedWithoutSecret([]).Build();
+        await using var app = new ServedWithoutSecret().Build();
 
         var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() => app.StartAsync(TestContext.Current.CancellationToken));
 
@@ -296,6 +296,24 @@ public sealed class OpenApiExportTests
             builder.Configuration["Tls:RequireHttps"] = "true";
             return builder;
         }
+
+        protected override void MapEndpoints(IEndpointRouteBuilder endpoints) =>
+            endpoints.MapGroup("api/v1/spanners").WithStandards().MapGet("{id}", SpannersEndpoints.GetSpanner);
+    }
+
+    // Registers nothing of its own, so the only check on the secret is the one Service registers when serving.
+    private sealed class ServedWithoutSecret() : Service("export-probe", "Export Probe", [])
+    {
+        protected override WebApplicationBuilder CreateBuilder()
+        {
+            var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
+            builder.WebHost.UseTestServer();
+            return builder;
+        }
+
+        // Last, so it wins over every source the tests' hosts read the secret from.
+        protected override void ConfigureConfiguration(IConfigurationManager configuration) =>
+            configuration.AddInMemoryCollection([new("Idempotency:Secret", "")]);
 
         protected override void MapEndpoints(IEndpointRouteBuilder endpoints) =>
             endpoints.MapGroup("api/v1/spanners").WithStandards().MapGet("{id}", SpannersEndpoints.GetSpanner);

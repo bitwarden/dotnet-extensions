@@ -2,8 +2,11 @@ using System.Net;
 using Bitwarden.Server.Sdk.Context;
 using Bitwarden.Server.Sdk.Service.Tests.TestHost;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Bitwarden.Server.Sdk.Service.Tests;
 
@@ -86,6 +89,24 @@ public sealed class RequestMemoScopeTests
         Assert.Equal(2, service.Recorded.Downstream.Count);
     }
 
+    // A request that upgrades its connection, as a WebSocket's does, has none: the connection outlives any answer. Read
+    // from the server's upgrade feature, which a WebSocket request carries before anything has run UseWebSockets.
+    [Fact]
+    public async Task Request_UpgradingItsConnection_SentEachTime()
+    {
+        await using var service = await SessionHost.StartAsync(
+            productService: false,
+            endpoints: Map,
+            services: services => services.AddSingleton<IStartupFilter, UpgradableRequests>());
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/memo/twice");
+        request.Headers.Add(UpgradableRequests.Header, "websocket");
+        using var response = await service.Client().SendAsync(request, Token);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(2, service.Recorded.Downstream.Count);
+    }
+
     [Fact]
     public async Task Request_SwitchedOff_SentEachTime()
     {
@@ -165,5 +186,35 @@ public sealed class RequestMemoScopeTests
         await downstream.CallAsync(cancellationToken);
         await downstream.CallAsync(cancellationToken);
         return Results.Ok();
+    }
+
+    /// <summary>
+    /// Marks a request carrying <see cref="Header"/> as one that can upgrade its connection, as the server marks a
+    /// WebSocket's, before the platform's pipeline runs.
+    /// </summary>
+    private sealed class UpgradableRequests : IStartupFilter
+    {
+        public const string Header = "X-Test-Upgrade";
+
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+        {
+            app.Use((http, rest) =>
+            {
+                if (http.Request.Headers.ContainsKey(Header))
+                {
+                    http.Features.Set<IHttpUpgradeFeature>(new Upgradable());
+                }
+
+                return rest(http);
+            });
+            next(app);
+        };
+    }
+
+    private sealed class Upgradable : IHttpUpgradeFeature
+    {
+        public bool IsUpgradableRequest => true;
+
+        public Task<Stream> UpgradeAsync() => throw new NotSupportedException();
     }
 }
