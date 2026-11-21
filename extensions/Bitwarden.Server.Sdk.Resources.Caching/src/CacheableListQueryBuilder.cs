@@ -22,7 +22,7 @@ namespace Bitwarden.Server.Sdk.Resources.Caching;
 /// for the party the row had before it and the one it has after, is all that can make the entry stale.
 /// </para>
 /// </remarks>
-public sealed class CacheableReadManyBuilder<TEntity, TResource>
+public sealed class CacheableListQueryBuilder<TEntity, TResource>
     where TEntity : class
     where TResource : Resource
 {
@@ -31,7 +31,7 @@ public sealed class CacheableReadManyBuilder<TEntity, TResource>
     /// </summary>
     public const int DefaultAtMost = Querying.Page.MaximumSize;
 
-    internal CacheableReadManyBuilder()
+    internal CacheableListQueryBuilder()
     {
     }
 
@@ -67,7 +67,7 @@ public sealed class CacheableReadManyBuilder<TEntity, TResource>
     /// that party, and a client checks it against the party its call carries. Any change to a row invalidates the
     /// entries of the party the column named before the change and the one it names after.
     /// </remarks>
-    public CacheableReadManyBuilder<TEntity, TResource> KeyedBy(Expression<Func<TEntity, Guid?>> key, Owner party) =>
+    public CacheableListQueryBuilder<TEntity, TResource> KeyedBy(Expression<Func<TEntity, Guid?>> key, Owner party) =>
         Keyed(key, party);
 
     /// <summary>
@@ -76,7 +76,7 @@ public sealed class CacheableReadManyBuilder<TEntity, TResource>
     /// <param name="key">The column naming the party.</param>
     /// <param name="party">The party the context names.</param>
     /// <returns>The builder.</returns>
-    public CacheableReadManyBuilder<TEntity, TResource> KeyedBy(Expression<Func<TEntity, Guid>> key, Owner party) =>
+    public CacheableListQueryBuilder<TEntity, TResource> KeyedBy(Expression<Func<TEntity, Guid>> key, Owner party) =>
         Keyed(key, party);
 
     /// <summary>
@@ -88,7 +88,7 @@ public sealed class CacheableReadManyBuilder<TEntity, TResource>
     /// Invalidation ignores it: a row that moves into the condition or out of it changes the entry as surely as one
     /// that changes within it, so any change to a row of the party invalidates it.
     /// </remarks>
-    public CacheableReadManyBuilder<TEntity, TResource> Where(Expression<Func<TEntity, bool>> rows)
+    public CacheableListQueryBuilder<TEntity, TResource> Where(Expression<Func<TEntity, bool>> rows)
     {
         ArgumentNullException.ThrowIfNull(rows);
         Rows = rows;
@@ -101,7 +101,7 @@ public sealed class CacheableReadManyBuilder<TEntity, TResource>
     /// </summary>
     /// <param name="order">Orders the rows.</param>
     /// <returns>The builder.</returns>
-    public CacheableReadManyBuilder<TEntity, TResource> OrderBy(Func<IQueryable<TEntity>, IOrderedQueryable<TEntity>> order)
+    public CacheableListQueryBuilder<TEntity, TResource> OrderBy(Func<IQueryable<TEntity>, IOrderedQueryable<TEntity>> order)
     {
         ArgumentNullException.ThrowIfNull(order);
         Order = order;
@@ -114,7 +114,7 @@ public sealed class CacheableReadManyBuilder<TEntity, TResource>
     /// <param name="map">The mapping. It may not capture anything.</param>
     /// <returns>The builder.</returns>
     /// <exception cref="InvalidOperationException">The map captures state.</exception>
-    public CacheableReadManyBuilder<TEntity, TResource> Map(Func<TEntity, TResource> map)
+    public CacheableListQueryBuilder<TEntity, TResource> Map(Func<TEntity, TResource> map)
     {
         ArgumentNullException.ThrowIfNull(map);
 
@@ -135,7 +135,7 @@ public sealed class CacheableReadManyBuilder<TEntity, TResource>
     /// </summary>
     /// <param name="scope">The scope.</param>
     /// <returns>The builder.</returns>
-    public CacheableReadManyBuilder<TEntity, TResource> Scope(string scope)
+    public CacheableListQueryBuilder<TEntity, TResource> Scope(string scope)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(scope);
         ReadScope = scope;
@@ -149,7 +149,7 @@ public sealed class CacheableReadManyBuilder<TEntity, TResource>
     /// <see cref="DefaultAtMost"/> unless declared.</param>
     /// <returns>The builder.</returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="rows"/> is less than one.</exception>
-    public CacheableReadManyBuilder<TEntity, TResource> AtMost(int rows)
+    public CacheableListQueryBuilder<TEntity, TResource> AtMost(int rows)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(rows, 1);
         Most = rows;
@@ -172,7 +172,7 @@ public sealed class CacheableReadManyBuilder<TEntity, TResource>
     /// </remarks>
     /// <exception cref="ArgumentException">The key isn't a property of the row, or the reason is blank.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="coverage"/> is no <see cref="CascadeCoverage"/>.</exception>
-    public CacheableReadManyBuilder<TEntity, TResource> CascadeCovered<TDependent>(
+    public CacheableListQueryBuilder<TEntity, TResource> CascadeCovered<TDependent>(
         Expression<Func<TDependent, object?>> foreignKey, CascadeCoverage coverage, string reason)
         where TDependent : class
     {
@@ -185,7 +185,7 @@ public sealed class CacheableReadManyBuilder<TEntity, TResource>
     /// </summary>
     /// <param name="lifetime">The lifetime. Ten minutes unless declared.</param>
     /// <returns>The builder.</returns>
-    public CacheableReadManyBuilder<TEntity, TResource> Lifetime(TimeSpan lifetime)
+    public CacheableListQueryBuilder<TEntity, TResource> Lifetime(TimeSpan lifetime)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(lifetime, TimeSpan.Zero);
         CachedFor = lifetime;
@@ -197,7 +197,7 @@ public sealed class CacheableReadManyBuilder<TEntity, TResource>
     /// </summary>
     /// <param name="writes"><see cref="CacheWrites.Refuse"/> unless declared.</param>
     /// <returns>The builder.</returns>
-    public CacheableReadManyBuilder<TEntity, TResource> WhenCacheUnreachable(CacheWrites writes)
+    public CacheableListQueryBuilder<TEntity, TResource> WhenCacheUnreachable(CacheWrites writes)
     {
         if (!Enum.IsDefined(writes))
         {
@@ -208,7 +208,7 @@ public sealed class CacheableReadManyBuilder<TEntity, TResource>
         return this;
     }
 
-    private CacheableReadManyBuilder<TEntity, TResource> Keyed(LambdaExpression key, Owner party)
+    private CacheableListQueryBuilder<TEntity, TResource> Keyed(LambdaExpression key, Owner party)
     {
         ArgumentNullException.ThrowIfNull(key);
 

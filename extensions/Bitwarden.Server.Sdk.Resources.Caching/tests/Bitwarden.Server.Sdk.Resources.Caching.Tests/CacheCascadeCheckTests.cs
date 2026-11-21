@@ -81,7 +81,7 @@ public sealed class CacheCascadeCheckTests(RedisFixture redis) : IClassFixture<R
 
     // A cached read-many is built from rows as a read of one is, so it is held to the same declarations.
     [Fact]
-    public async Task Start_CachedReadManyWithAnUndeclaredCascade_Refused()
+    public async Task Start_CachedListWithAnUndeclaredCascade_Refused()
     {
         var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() => ShelfHost.StartAsync(
             null, services => services.AddQuery<IListCopies, OrganizationsCopiesList>().AddOwnedCache<ShelfContext>()));
@@ -90,7 +90,7 @@ public sealed class CacheCascadeCheckTests(RedisFixture redis) : IClassFixture<R
     }
 
     [Fact]
-    public async Task Start_CachedReadManyWithItsCascadeDeclared_Starts()
+    public async Task Start_CachedListWithItsCascadeDeclared_Starts()
     {
         await using var host = await ShelfHost.StartAsync(
             null, services => services.AddQuery<IListCopies, LoadedOrganizationsCopiesList>().AddOwnedCache<ShelfContext>());
@@ -98,7 +98,7 @@ public sealed class CacheCascadeCheckTests(RedisFixture redis) : IClassFixture<R
 
     // A read-many includes nothing, so no parent's entry can cover its rows.
     [Fact]
-    public async Task Start_CachedReadManyDeclaringItsCascadeParentInvalidated_RefusedEverywhere()
+    public async Task Start_CachedListDeclaringItsCascadeParentInvalidated_RefusedEverywhere()
     {
         var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() => ShelfHost.StartAsync(
             null,
@@ -109,10 +109,10 @@ public sealed class CacheCascadeCheckTests(RedisFixture redis) : IClassFixture<R
     }
 
     [Fact]
-    public void CascadeCovered_OnACachedReadMany_Kept() =>
+    public void CascadeCovered_OnACachedList_Kept() =>
         Assert.Equal(
             ["BranchId"],
-            Assert.Single(new CacheableReadManyBuilder<CopyEntity, Copy>()
+            Assert.Single(new CacheableListQueryBuilder<CopyEntity, Copy>()
                 .CascadeCovered<CopyEntity>(copy => copy.BranchId, CascadeCoverage.DependentsLoaded, "loaded").CascadeDeclarations).Properties);
 
     [Fact]

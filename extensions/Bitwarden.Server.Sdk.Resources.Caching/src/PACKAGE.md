@@ -7,7 +7,7 @@ calling it.
 
 A Bitwarden service's own cache in Redis: the resources a domain service lets other services read from Redis instead
 of calling it. A read of one becomes cacheable by extending `CacheableQuery<TEntity, TResource>`, and a list in the one
-shape a list is cached in by extending `CacheableReadMany<TEntity, TResource>`. The owning service is the
+shape a list is cached in by extending `CacheableListQuery<TEntity, TResource>`. The owning service is the
 only writer: it fills an entry when it serves a read, invalidates it just before each change commits, and publishes in
 its contract what a client may read and how to check it. Its clients read the entries through
 Bitwarden.Server.Sdk.Client's `ICachedReads<TClient>`.
@@ -249,7 +249,7 @@ A list is cached in one shape only. **A list can be cached only if it has its ow
 comes from one table with a fixed `Where` and a fixed order, holds at most a declared number of rows, and is
 invalidated by any write to a row of that table, for the caller the row had before and the one it has after.**
 
-A domain service declares one by extending `CacheableReadMany`. The declaration is all a developer writes: whose rows
+A domain service declares one by extending `CacheableListQuery`. The declaration is all a developer writes: whose rows
 (the party a request's context names, across every owner its rows belong to), which, in what order, how each is shaped,
 the scope, and how many at most. The platform runs the query, keeps the entry, pages it and invalidates it.
 
@@ -268,9 +268,9 @@ public interface IListOpenLoansQuery
 }
 
 public sealed class ListOpenLoansQuery(CacheableQueryServices services)
-    : CacheableReadMany<LoanEntity, OpenLoan>(services), IListOpenLoansQuery
+    : CacheableListQuery<LoanEntity, OpenLoan>(services), IListOpenLoansQuery
 {
-    protected override void Configure(CacheableReadManyBuilder<LoanEntity, OpenLoan> list) => list
+    protected override void Configure(CacheableListQueryBuilder<LoanEntity, OpenLoan> list) => list
         .KeyedBy(row => row.Borrower, Owner.User)              // the person in context's loans, in every library
         .Where(row => !row.Returned)                           // the same for every caller
         .OrderBy(rows => rows.OrderBy(row => row.Title).ThenBy(row => row.Id))
@@ -401,7 +401,7 @@ public sealed class GetGroupQuery(CacheableQueryServices services) : CacheableQu
   warning naming every undeclared key, and starts.
 - **Declared wrongly.** A declaration naming no such key of a table the read is built from, or `ParentInvalidated` on a
   key that isn't its include's own, refuses the host in every environment.
-- **Cached read-manys** are checked the same way, on their own table: `CacheableReadManyBuilder.CascadeCovered(...)`
+- **Cached read-manys** are checked the same way, on their own table: `CacheableListQueryBuilder.CascadeCovered(...)`
   declares a key. A read-many includes nothing, so only `DependentsLoaded` applies.
 - **`ClientCascade` and `ClientSetNull`** need nothing: the database refuses to delete a principal with rows still
   depending on it, so a cascade the change tracker didn't make never happens.
@@ -490,8 +490,8 @@ public static class CacheUsers
 | ---------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `CacheableQuery<TEntity, TResource>`           | The base class of a cacheable read; its read methods are the platform's.                 |
 | `CacheableQueryBuilder<TEntity, TResource>`    | Declares the read: map, key, owner, includes, per-caller attributes, lifetime.           |
-| `CacheableReadMany<TEntity, TResource>`        | The base class of a cached read-many; its read and its pages are the platform's.         |
-| `CacheableReadManyBuilder<TEntity, TResource>` | Declares the read-many: party, condition, order, map, scope, most rows.                  |
+| `CacheableListQuery<TEntity, TResource>`        | The base class of a cached read-many; its read and its pages are the platform's.         |
+| `CacheableListQueryBuilder<TEntity, TResource>` | Declares the read-many: party, condition, order, map, scope, most rows.                  |
 | `CacheableQueryServices`                       | What a query reads with, given per request by `AddOwnedCache`.                           |
 | `CacheWrites`                                  | What a change does when the cache can't be told of it: `Refuse` or `Proceed`.            |
 | `CascadeCoverage`                              | Why a database cascade leaves no entry stale: `ParentInvalidated` or `DependentsLoaded`. |

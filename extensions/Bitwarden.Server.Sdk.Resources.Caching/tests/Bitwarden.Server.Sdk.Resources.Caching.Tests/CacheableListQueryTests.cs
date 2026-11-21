@@ -14,7 +14,7 @@ namespace Bitwarden.Server.Sdk.Resources.Caching.Tests;
 /// read, paged from, and marked dead at every version by any change to one of the borrower's loans, just before it
 /// commits.
 /// </summary>
-public sealed partial class CacheableReadManyTests(RedisFixture redis) : IClassFixture<RedisFixture>, IAsyncLifetime
+public sealed partial class CacheableListQueryTests(RedisFixture redis) : IClassFixture<RedisFixture>, IAsyncLifetime
 {
     private const string Path = "/api/v1/open-loans";
 
@@ -315,7 +315,7 @@ public sealed partial class CacheableReadManyTests(RedisFixture redis) : IClassF
             new HashSet<string?> { "borrower", "organization", "title" },
             cache.GetProperty("fields").EnumerateArray().Select(value => value.GetString()).ToHashSet());
         Assert.Empty(cache.GetProperty("perCaller").EnumerateArray());
-        Assert.Equal(CacheableReadManyBuilder<LoanEntity, OpenLoan>.DefaultAtMost, cache.GetProperty("readMany").GetProperty("atMost").GetInt32());
+        Assert.Equal(CacheableListQueryBuilder<LoanEntity, OpenLoan>.DefaultAtMost, cache.GetProperty("readMany").GetProperty("atMost").GetInt32());
         Assert.Equal(["some-service"], cache.GetProperty("assertedBy").EnumerateArray().Select(value => value.GetString()));
     }
 
@@ -456,7 +456,7 @@ public sealed partial class CacheableReadManyTests(RedisFixture redis) : IClassF
 
     [Fact]
     public void AtMost_LessThanOne_Refused() =>
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CacheableReadManyBuilder<LoanEntity, OpenLoan>().AtMost(0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CacheableListQueryBuilder<LoanEntity, OpenLoan>().AtMost(0));
 
     private async Task<ShelfHost> StartAsync(
         IReadOnlyDictionary<string, string?>? settings = null,

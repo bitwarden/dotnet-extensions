@@ -145,7 +145,7 @@ internal interface ICacheableResource
     bool KeyIsOwner { get; }
 
     /// <summary>
-    /// What a cached read-many declares (<see cref="CacheableReadMany{TEntity,TResource}"/>); null for a read of one.
+    /// What a cached read-many declares (<see cref="CacheableListQuery{TEntity,TResource}"/>); null for a read of one.
     /// </summary>
-    CachedReadMany? ReadMany { get; }
+    CachedList? ReadMany { get; }
 }

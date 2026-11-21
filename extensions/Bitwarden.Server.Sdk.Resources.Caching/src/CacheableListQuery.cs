@@ -31,7 +31,7 @@ namespace Bitwarden.Server.Sdk.Resources.Caching;
 /// <see cref="ReadAsync"/>'s.
 /// </para>
 /// </remarks>
-public abstract class CacheableReadMany<TEntity, TResource> : ICacheableQuery
+public abstract class CacheableListQuery<TEntity, TResource> : ICacheableQuery
     where TEntity : class
     where TResource : Resource
 {
@@ -41,7 +41,7 @@ public abstract class CacheableReadMany<TEntity, TResource> : ICacheableQuery
     /// Gives the read what it reads with.
     /// </summary>
     /// <param name="services">The service's database, its cache and the request.</param>
-    protected CacheableReadMany(CacheableQueryServices services)
+    protected CacheableListQuery(CacheableQueryServices services)
     {
         ArgumentNullException.ThrowIfNull(services);
         _services = services;
@@ -55,7 +55,7 @@ public abstract class CacheableReadMany<TEntity, TResource> : ICacheableQuery
     /// <remarks>
     /// Runs once for the type, on an instance whose constructor hasn't run.
     /// </remarks>
-    protected abstract void Configure(CacheableReadManyBuilder<TEntity, TResource> list);
+    protected abstract void Configure(CacheableListQueryBuilder<TEntity, TResource> list);
 
     /// <summary>
     /// A page of the rows of the party the context names: from the service's own entry where a client would answer from
@@ -90,16 +90,16 @@ public abstract class CacheableReadMany<TEntity, TResource> : ICacheableQuery
 
     ICacheableResource ICacheableQuery.Declare()
     {
-        var builder = new CacheableReadManyBuilder<TEntity, TResource>();
+        var builder = new CacheableListQueryBuilder<TEntity, TResource>();
         Configure(builder);
-        return new CacheableReadManyResource<TEntity, TResource>(GetType(), builder);
+        return new CacheableListResource<TEntity, TResource>(GetType(), builder);
     }
 
     /// <summary>
     /// Every row of the party, from the entry or the database, or null when the party has more than the declared most.
     /// </summary>
     private async Task<IReadOnlyList<TResource>?> AllAsync(
-        CacheableReadManyResource<TEntity, TResource> resource,
+        CacheableListResource<TEntity, TResource> resource,
         Guid key,
         CancellationToken cancellationToken)
     {
@@ -141,7 +141,7 @@ public abstract class CacheableReadMany<TEntity, TResource> : ICacheableQuery
 
             await store.FillAsync(
                 entryKey,
-                CacheableReadManyResource<TEntity, TResource>.FilledVersion,
+                CacheableListResource<TEntity, TResource>.FilledVersion,
                 Owner(party, key),
                 data.ToJsonString(),
                 resource.Lifetime);
@@ -154,7 +154,7 @@ public abstract class CacheableReadMany<TEntity, TResource> : ICacheableQuery
     /// A page of a party with more rows than an entry holds, from the database: never cached.
     /// </summary>
     private async Task<Paged<TResource>> PageAsync(
-        CacheableReadManyResource<TEntity, TResource> resource,
+        CacheableListResource<TEntity, TResource> resource,
         Guid key,
         Page page,
         CancellationToken cancellationToken)
@@ -166,11 +166,11 @@ public abstract class CacheableReadMany<TEntity, TResource> : ICacheableQuery
     }
 
     // Past row-level security, as a read across owners is, and narrowed instead to the party in context alone.
-    private IQueryable<TEntity> Rows(CacheableReadManyResource<TEntity, TResource> resource, Guid key) =>
+    private IQueryable<TEntity> Rows(CacheableListResource<TEntity, TResource> resource, Guid key) =>
         resource.Under(_services.Database.Set<TEntity>().AsNoTracking().IgnoreQueryFilters(), key);
 
-    private CacheableReadManyResource<TEntity, TResource> Declared() =>
-        (CacheableReadManyResource<TEntity, TResource>)_services.Services.GetRequiredService<CacheableQueries>().For(GetType());
+    private CacheableListResource<TEntity, TResource> Declared() =>
+        (CacheableListResource<TEntity, TResource>)_services.Services.GetRequiredService<CacheableQueries>().For(GetType());
 
     private static Guid? Named(IContext context, Owner axis) => axis switch
     {

@@ -18,8 +18,8 @@ Bitwarden.Server.Sdk.Client. Nothing here may let a cached copy answer a read th
 | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `CacheableQuery.cs`                                         | The read path: own entry, else the row through the context, then the fill and the per-caller attributes.       |
 | `CacheableQueryBuilder.cs`, `CacheableResource.cs`          | The declaration, and the resource it settles to: keys, owner, version column, includes, lifetime.              |
-| `CacheableReadMany.cs`, `CacheableReadManyBuilder.cs`       | A cached read-many: its declaration, and its read, own entry first, else the rows, then the fill and the page. |
-| `CacheableReadManyResource.cs`, `CachedReadMany.cs`         | The read-many it settles to: party, condition, unique order, scope, most rows; the key every change kills.     |
+| `CacheableListQuery.cs`, `CacheableListQueryBuilder.cs`       | A cached read-many: its declaration, and its read, own entry first, else the rows, then the fill and the page. |
+| `CacheableListResource.cs`, `CachedList.cs`         | The read-many it settles to: party, condition, unique order, scope, most rows; the key every change kills.     |
 | `CacheableQueries.cs`                                       | Finds the queries among the registrations by type, and checks the queries of one table agree.                  |
 | `CacheContract.cs`, `CacheContractCheck.cs`                 | Settles what each operation taking a query demands, and refuses at startup what a client could not repeat.     |
 | `CacheContractTransformer.cs`                               | Writes `x-bitwarden-cache` into the OpenAPI operation.                                                         |
@@ -84,7 +84,7 @@ Bitwarden.Server.Sdk.Client. Nothing here may let a cached copy answer a read th
 ## Testing
 
 Tests are in `tests/Bitwarden.Server.Sdk.Resources.Caching.Tests` and need Docker, for Redis. A test class is named for
-the source file it tests; `OwnedCacheTests`, `MultiKeyTests`, `CacheableReadManyTests` and `RedisAclTests` run the whole
+the source file it tests; `OwnedCacheTests`, `MultiKeyTests`, `CacheableListQueryTests` and `RedisAclTests` run the whole
 cache against a host and a Redis, rather than one type.
 `tests/Bitwarden.Server.Sdk.Resources.Caching.Generated.Tests` compiles the cacheable read tests again with the request
 delegate generator, as a service compiles its handlers; every test must pass both ways. Run them from the repository

@@ -134,7 +134,7 @@ internal static class CacheContract
     private static CacheableOperation? SettleReadMany(
         CacheOperation operation,
         ICacheableResource resource,
-        CachedReadMany many,
+        CachedList many,
         CacheableQueries queries,
         Action<string> refuse)
     {
@@ -184,7 +184,7 @@ internal static class CacheContract
     /// The read-many's handler takes the read, the fieldset, the page number, the page size and a cancellation token,
     /// and nothing else; and its page may hold the most an entry does.
     /// </summary>
-    private static string? PageShape(CacheOperation operation, ICacheableResource resource, CachedReadMany many, CacheableQueries queries)
+    private static string? PageShape(CacheOperation operation, ICacheableResource resource, CachedList many, CacheableQueries queries)
     {
         var fields = typeof(Querying.Fields<>).MakeGenericType(resource.Resource);
         var (number, size) = (false, false);

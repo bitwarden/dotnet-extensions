@@ -83,7 +83,7 @@ internal sealed class CacheableResource<TEntity, TResource> : ICacheableResource
 
     public Owner? CurrentFrom { get; }
 
-    public CachedReadMany? ReadMany => null;
+    public CachedList? ReadMany => null;
 
     public IReadOnlyList<string> KeyColumns { get; }
 

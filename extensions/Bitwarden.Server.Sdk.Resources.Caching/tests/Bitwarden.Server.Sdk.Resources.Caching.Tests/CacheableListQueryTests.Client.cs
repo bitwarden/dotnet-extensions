@@ -9,7 +9,7 @@ namespace Bitwarden.Server.Sdk.Resources.Caching.Tests;
 /// A cached read-many read by a client of the cache, from the contract its owner publishes. Not compiled into the
 /// generated tests, which can't see the client's internals.
 /// </summary>
-public sealed partial class CacheableReadManyTests
+public sealed partial class CacheableListQueryTests
 {
     // A client of the cache answers a page of the read-many, of the person its call carries, sliced as the service
     // pages it, and nothing else.
@@ -51,7 +51,7 @@ public sealed partial class CacheableReadManyTests
         Assert.Equal(Client.CachedAnswerKind.Miss, (await other.ReadManyAsync("listOpenLoans", 1, 10, ["title"], Ct)).Kind);
     }
 
-    private static Client.CachedReads<CacheableReadManyTests> Reads(
+    private static Client.CachedReads<CacheableListQueryTests> Reads(
         IReadOnlyDictionary<string, Client.CacheableRead> contract,
         StatedContext context,
         Client.CachedReadsConnection connection)
@@ -67,14 +67,14 @@ public sealed partial class CacheableReadManyTests
             })
             .BuildServiceProvider();
 
-        return new Client.CachedReads<CacheableReadManyTests>(
+        return new Client.CachedReads<CacheableListQueryTests>(
             ShelfHost.ServiceName,
             contract,
             connection,
             services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Client.BitwardenClientOptions>>(),
             services.GetRequiredService<IServiceScopeFactory>(),
             new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<Client.CachedReads<CacheableReadManyTests>>.Instance,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<Client.CachedReads<CacheableListQueryTests>>.Instance,
             new Client.RequestMemoMetrics(new ServiceCollection().AddMetrics().BuildServiceProvider().GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>()));
     }
 }

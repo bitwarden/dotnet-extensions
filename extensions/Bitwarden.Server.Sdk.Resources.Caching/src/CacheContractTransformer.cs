@@ -37,7 +37,7 @@ namespace Bitwarden.Server.Sdk.Resources.Caching;
 /// its own owner, which a request may name or leave unnamed; <c>acrossOwners</c> is a resource the
 /// service reads across owners, which a client answers on the scope alone, as the service does.
 /// A client that doesn't know <c>acrossOwners</c> checks the owner, which is never looser.
-/// A cached read-many (<see cref="CacheableReadMany{TEntity,TResource}"/>) adds <c>"readMany": { "atMost": 1000 }</c>:
+/// A cached read-many (<see cref="CacheableListQuery{TEntity,TResource}"/>) adds <c>"readMany": { "atMost": 1000 }</c>:
 /// its entry's <c>d</c> is the array of every resource of the party its key names (<c>keyedBy</c>, the party in
 /// context), in its order, of which a client takes the page asked for. A client that doesn't know <c>readMany</c> reads
 /// the entry as one resource, which an array never is: a miss.

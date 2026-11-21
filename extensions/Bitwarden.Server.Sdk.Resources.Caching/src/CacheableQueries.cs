@@ -11,7 +11,7 @@ namespace Bitwarden.Server.Sdk.Resources.Caching;
 /// <para>
 /// Found from the registrations themselves: a query registered by type (<c>TryAddScoped&lt;IGetGroupQuery,
 /// GetGroupQuery&gt;()</c>) whose implementation is a <see cref="CacheableQuery{TEntity,TResource}"/> turns caching on
-/// for its resource, as one that is a <see cref="CacheableReadMany{TEntity,TResource}"/> does for its read-many. Read once, as
+/// for its resource, as one that is a <see cref="CacheableListQuery{TEntity,TResource}"/> does for its read-many. Read once, as
 /// the container first needs it, from the service collection <c>AddOwnedCache</c> was given, so a query registered
 /// after that call is found as well.
 /// </para>
@@ -132,14 +132,14 @@ internal sealed class CacheableQueries
     }
 
     /// <summary>
-    /// The closed <c>CacheableQuery&lt;,&gt;</c> or <c>CacheableReadMany&lt;,&gt;</c> a type derives from, or null.
+    /// The closed <c>CacheableQuery&lt;,&gt;</c> or <c>CacheableListQuery&lt;,&gt;</c> a type derives from, or null.
     /// </summary>
     internal static Type? QueryBase(Type type)
     {
         for (var current = type; current is not null; current = current.BaseType)
         {
             if (current.IsGenericType
-                && (current.GetGenericTypeDefinition() == typeof(CacheableQuery<,>) || current.GetGenericTypeDefinition() == typeof(CacheableReadMany<,>)))
+                && (current.GetGenericTypeDefinition() == typeof(CacheableQuery<,>) || current.GetGenericTypeDefinition() == typeof(CacheableListQuery<,>)))
             {
                 return current;
             }

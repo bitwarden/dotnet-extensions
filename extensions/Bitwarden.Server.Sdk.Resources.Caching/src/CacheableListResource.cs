@@ -15,7 +15,7 @@ namespace Bitwarden.Server.Sdk.Resources.Caching;
 /// entry dead for the commit allowance, as a row arriving under a key several rows may hold does. A fill read before
 /// the change committed arrives within the allowance and is refused; a read after it sees the change.
 /// </remarks>
-internal sealed class CacheableReadManyResource<TEntity, TResource> : ICacheableResource, IUniquelyOrdered
+internal sealed class CacheableListResource<TEntity, TResource> : ICacheableResource, IUniquelyOrdered
     where TEntity : class
     where TResource : Resource
 {
@@ -27,7 +27,7 @@ internal sealed class CacheableReadManyResource<TEntity, TResource> : ICacheable
 
     private readonly LambdaExpression _key;
 
-    public CacheableReadManyResource(Type query, CacheableReadManyBuilder<TEntity, TResource> declared)
+    public CacheableListResource(Type query, CacheableListQueryBuilder<TEntity, TResource> declared)
     {
         Query = query;
         ResourceType = ResourceTypes.For(typeof(TResource));
@@ -48,14 +48,14 @@ internal sealed class CacheableReadManyResource<TEntity, TResource> : ICacheable
                 $"{query.Name} keys its read-many by {_key.Body}, which is not a property of {typeof(TEntity).Name}.");
         OrderedLast = LastOrdered(query, Order);
         OwnColumnsOnly.Require(query, Rows, Order);
-        ReadMany = new CachedReadMany(declared.Party!.Value, scope, declared.Most);
+        ReadMany = new CachedList(declared.Party!.Value, scope, declared.Most);
         Lifetime = declared.CachedFor;
         Cascades = [.. declared.CascadeDeclarations];
         WhenUnreachable = declared.WhenUnreachable;
         Fields = [.. Fields<TResource>.Attributes.Order(StringComparer.Ordinal)];
     }
 
-    public CachedReadMany? ReadMany { get; }
+    public CachedList? ReadMany { get; }
 
     public Expression<Func<TEntity, bool>> Rows { get; }
 

@@ -250,9 +250,9 @@ public interface IListOpenLoans
 /// <summary>
 /// The person in context's loans not yet returned, in every organization: a cached read-many.
 /// </summary>
-public sealed class OpenLoansList(CacheableQueryServices services) : CacheableReadMany<LoanEntity, OpenLoan>(services), IListOpenLoans
+public sealed class OpenLoansList(CacheableQueryServices services) : CacheableListQuery<LoanEntity, OpenLoan>(services), IListOpenLoans
 {
-    protected override void Configure(CacheableReadManyBuilder<LoanEntity, OpenLoan> list) => list
+    protected override void Configure(CacheableListQueryBuilder<LoanEntity, OpenLoan> list) => list
         .KeyedBy(entity => entity.Borrower, Owner.User)
         .Where(entity => !entity.Returned)
         .OrderBy(rows => rows.OrderBy(row => row.Title).ThenBy(row => row.Id))
@@ -263,9 +263,9 @@ public sealed class OpenLoansList(CacheableQueryServices services) : CacheableRe
 /// <summary>
 /// The same read-many, an entry holding at most two loans.
 /// </summary>
-public sealed class FewOpenLoansList(CacheableQueryServices services) : CacheableReadMany<LoanEntity, OpenLoan>(services), IListOpenLoans
+public sealed class FewOpenLoansList(CacheableQueryServices services) : CacheableListQuery<LoanEntity, OpenLoan>(services), IListOpenLoans
 {
-    protected override void Configure(CacheableReadManyBuilder<LoanEntity, OpenLoan> list) => list
+    protected override void Configure(CacheableListQueryBuilder<LoanEntity, OpenLoan> list) => list
         .KeyedBy(entity => entity.Borrower, Owner.User)
         .Where(entity => !entity.Returned)
         .OrderBy(rows => rows.OrderBy(row => row.Title).ThenBy(row => row.Id))
@@ -277,9 +277,9 @@ public sealed class FewOpenLoansList(CacheableQueryServices services) : Cacheabl
 /// <summary>
 /// A read-many read with a scope its operation doesn't demand: refused.
 /// </summary>
-public sealed class OtherScopeOpenLoansList(CacheableQueryServices services) : CacheableReadMany<LoanEntity, OpenLoan>(services), IListOpenLoans
+public sealed class OtherScopeOpenLoansList(CacheableQueryServices services) : CacheableListQuery<LoanEntity, OpenLoan>(services), IListOpenLoans
 {
-    protected override void Configure(CacheableReadManyBuilder<LoanEntity, OpenLoan> list) => list
+    protected override void Configure(CacheableListQueryBuilder<LoanEntity, OpenLoan> list) => list
         .KeyedBy(entity => entity.Borrower, Owner.User)
         .Where(entity => !entity.Returned)
         .OrderBy(rows => rows.OrderBy(row => row.Title).ThenBy(row => row.Id))
@@ -290,9 +290,9 @@ public sealed class OtherScopeOpenLoansList(CacheableQueryServices services) : C
 /// <summary>
 /// A read-many ordered by a column two loans may share: refused.
 /// </summary>
-public sealed class TitleOrderedOpenLoansList(CacheableQueryServices services) : CacheableReadMany<LoanEntity, OpenLoan>(services), IListOpenLoans
+public sealed class TitleOrderedOpenLoansList(CacheableQueryServices services) : CacheableListQuery<LoanEntity, OpenLoan>(services), IListOpenLoans
 {
-    protected override void Configure(CacheableReadManyBuilder<LoanEntity, OpenLoan> list) => list
+    protected override void Configure(CacheableListQueryBuilder<LoanEntity, OpenLoan> list) => list
         .KeyedBy(entity => entity.Borrower, Owner.User)
         .Where(entity => !entity.Returned)
         .OrderBy(rows => rows.OrderBy(row => row.Title))
@@ -303,9 +303,9 @@ public sealed class TitleOrderedOpenLoansList(CacheableQueryServices services) :
 /// <summary>
 /// A read-many selecting its rows through a navigation, another table: refused.
 /// </summary>
-public sealed class PlacedShelvesList(CacheableQueryServices services) : CacheableReadMany<ShelfEntity, Shelf>(services)
+public sealed class PlacedShelvesList(CacheableQueryServices services) : CacheableListQuery<ShelfEntity, Shelf>(services)
 {
-    protected override void Configure(CacheableReadManyBuilder<ShelfEntity, Shelf> list) => list
+    protected override void Configure(CacheableListQueryBuilder<ShelfEntity, Shelf> list) => list
         .KeyedBy(entity => entity.OrganizationId, Owner.User)
         .Where(entity => entity.Placements.Any())
         .OrderBy(rows => rows.OrderBy(row => row.Id))
@@ -316,9 +316,9 @@ public sealed class PlacedShelvesList(CacheableQueryServices services) : Cacheab
 /// <summary>
 /// A read-many whose order narrows its rows as well as ordering them: refused.
 /// </summary>
-public sealed class NarrowingOrderOpenLoansList(CacheableQueryServices services) : CacheableReadMany<LoanEntity, OpenLoan>(services), IListOpenLoans
+public sealed class NarrowingOrderOpenLoansList(CacheableQueryServices services) : CacheableListQuery<LoanEntity, OpenLoan>(services), IListOpenLoans
 {
-    protected override void Configure(CacheableReadManyBuilder<LoanEntity, OpenLoan> list) => list
+    protected override void Configure(CacheableListQueryBuilder<LoanEntity, OpenLoan> list) => list
         .KeyedBy(entity => entity.Borrower, Owner.User)
         .Where(entity => !entity.Returned)
         .OrderBy(rows => rows.Where(row => row.Title != "").OrderBy(row => row.Title).ThenBy(row => row.Id))
@@ -329,9 +329,9 @@ public sealed class NarrowingOrderOpenLoansList(CacheableQueryServices services)
 /// <summary>
 /// A read-many without its order: refused.
 /// </summary>
-public sealed class UnorderedOpenLoansList(CacheableQueryServices services) : CacheableReadMany<LoanEntity, OpenLoan>(services), IListOpenLoans
+public sealed class UnorderedOpenLoansList(CacheableQueryServices services) : CacheableListQuery<LoanEntity, OpenLoan>(services), IListOpenLoans
 {
-    protected override void Configure(CacheableReadManyBuilder<LoanEntity, OpenLoan> list) => list
+    protected override void Configure(CacheableListQueryBuilder<LoanEntity, OpenLoan> list) => list
         .KeyedBy(entity => entity.Borrower, Owner.User)
         .Where(entity => !entity.Returned)
         .Map(ShelfMapping.ToOpenLoan)
@@ -341,9 +341,9 @@ public sealed class UnorderedOpenLoansList(CacheableQueryServices services) : Ca
 /// <summary>
 /// A read-many whose resource another cached read also gives: refused.
 /// </summary>
-public sealed class BorrowersLoansAsLoans(CacheableQueryServices services) : CacheableReadMany<LoanEntity, Loan>(services)
+public sealed class BorrowersLoansAsLoans(CacheableQueryServices services) : CacheableListQuery<LoanEntity, Loan>(services)
 {
-    protected override void Configure(CacheableReadManyBuilder<LoanEntity, Loan> list) => list
+    protected override void Configure(CacheableListQueryBuilder<LoanEntity, Loan> list) => list
         .KeyedBy(entity => entity.Borrower, Owner.User)
         .Where(entity => !entity.Returned)
         .OrderBy(rows => rows.OrderBy(row => row.Title).ThenBy(row => row.Id))
@@ -430,9 +430,9 @@ public interface IListCopies
 /// <summary>
 /// An organization's copies as a cached read-many, which the database deletes with their branch, with no declaration.
 /// </summary>
-public sealed class OrganizationsCopiesList(CacheableQueryServices services) : CacheableReadMany<CopyEntity, Copy>(services), IListCopies
+public sealed class OrganizationsCopiesList(CacheableQueryServices services) : CacheableListQuery<CopyEntity, Copy>(services), IListCopies
 {
-    protected override void Configure(CacheableReadManyBuilder<CopyEntity, Copy> list) => list
+    protected override void Configure(CacheableListQueryBuilder<CopyEntity, Copy> list) => list
         .KeyedBy(copy => copy.OrganizationId, Owner.Organization)
         .Where(copy => copy.Title != "")
         .OrderBy(rows => rows.OrderBy(row => row.Title).ThenBy(row => row.Id))
@@ -443,9 +443,9 @@ public sealed class OrganizationsCopiesList(CacheableQueryServices services) : C
 /// <summary>
 /// An organization's copies as a cached read-many, whose branch is only ever deleted with its copies loaded.
 /// </summary>
-public sealed class LoadedOrganizationsCopiesList(CacheableQueryServices services) : CacheableReadMany<CopyEntity, Copy>(services), IListCopies
+public sealed class LoadedOrganizationsCopiesList(CacheableQueryServices services) : CacheableListQuery<CopyEntity, Copy>(services), IListCopies
 {
-    protected override void Configure(CacheableReadManyBuilder<CopyEntity, Copy> list) => list
+    protected override void Configure(CacheableListQueryBuilder<CopyEntity, Copy> list) => list
         .KeyedBy(copy => copy.OrganizationId, Owner.Organization)
         .Where(copy => copy.Title != "")
         .OrderBy(rows => rows.OrderBy(row => row.Title).ThenBy(row => row.Id))
@@ -457,9 +457,9 @@ public sealed class LoadedOrganizationsCopiesList(CacheableQueryServices service
 /// <summary>
 /// A cached read-many declaring its cascade covered by a parent's entry, which a read-many never includes: refused.
 /// </summary>
-public sealed class ParentlessOrganizationsCopiesList(CacheableQueryServices services) : CacheableReadMany<CopyEntity, Copy>(services), IListCopies
+public sealed class ParentlessOrganizationsCopiesList(CacheableQueryServices services) : CacheableListQuery<CopyEntity, Copy>(services), IListCopies
 {
-    protected override void Configure(CacheableReadManyBuilder<CopyEntity, Copy> list) => list
+    protected override void Configure(CacheableListQueryBuilder<CopyEntity, Copy> list) => list
         .KeyedBy(copy => copy.OrganizationId, Owner.Organization)
         .Where(copy => copy.Title != "")
         .OrderBy(rows => rows.OrderBy(row => row.Title).ThenBy(row => row.Id))
