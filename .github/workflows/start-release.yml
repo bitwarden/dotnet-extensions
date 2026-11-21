@@ -13,7 +13,6 @@ on:
           - Bitwarden.Server.Sdk
           - Bitwarden.Server.Sdk.Authentication
           - Bitwarden.Server.Sdk.Caching
-          - Bitwarden.Server.Sdk.Common
           - Bitwarden.Server.Sdk.Context
           - Bitwarden.Server.Sdk.CryptoPrimitives
           - Bitwarden.Server.Sdk.Data.Abstractions
