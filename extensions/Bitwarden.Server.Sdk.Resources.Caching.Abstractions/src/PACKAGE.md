@@ -32,14 +32,14 @@ The keys are public constants: `OwnedCacheEntry.ConnectionKey` and `OwnedCacheEn
   and the settings.
 - **Each resource is one Redis hash:**
 
-| Field  | Holds                                                                        |
-| ------ | ---------------------------------------------------------------------------- |
-| `v`    | The row's version when it was read, or when it changed                       |
-| `o`    | The row's owner, as `{"organization":"..."}`; absent for a row nobody owns   |
-| `d`    | The resource as the service serves it, less what it works out per caller     |
-| `f`    | The format a resource's entry is written in, `OwnedCacheEntry.CurrentFormat` |
-| `none` | Nothing is recorded under the key                                            |
-| `gone` | A tombstone: the row changed or was deleted at version `v`                   |
+| Field  | Holds                                                                                                       |
+| ------ | ----------------------------------------------------------------------------------------------------------- |
+| `v`    | The row's version when it was read, or when it changed                                                      |
+| `o`    | The row's owner, as `{"organization":"..."}`; absent for a row nobody owns                                  |
+| `d`    | The resource as the service serves it, less what it works out per caller; a cached read-many's, their array |
+| `f`    | The format a resource's entry is written in, `OwnedCacheEntry.CurrentFormat`                                |
+| `none` | Nothing is recorded under the key                                                                           |
+| `gone` | A tombstone: the row changed or was deleted at version `v`                                                  |
 
 ## Usage
 
@@ -85,6 +85,27 @@ public static class WidgetByMakerCacheKeys
 The template is `widget-service:widget:by-maker:{organization}:{key}`. The owner's kind is `organization`, `user` or
 `provider`, filled from `{organization}`, `{user}` or `{provider}`. `Key` returns null when the template names a party
 that isn't given, or is given as `Guid.Empty`: there is then no entry to read, so ask the owner.
+
+### Key a cached read-many
+
+A cached read-many is one entry holding every resource of the party a call carries, in one order. Its resource is its
+own, so the template names only the resource and the party, which a reader fills from its call.
+
+`OwnWidgetCacheKeys.cs`:
+
+```csharp
+using Bitwarden.Server.Sdk.Resources.Caching;
+
+public static class OwnWidgetCacheKeys
+{
+    private static readonly string Template = OwnedCacheEntry.ReadManyTemplate("widget-service", "own-widget", "user");
+
+    public static string? For(Guid user) => OwnedCacheEntry.Key(Template, null, null, user, null);
+}
+```
+
+The template is `widget-service:own-widget:read-many:{user}`, and the entry's `d` is the array of resources in the
+read's order.
 
 ### Read a secret that derives keys
 

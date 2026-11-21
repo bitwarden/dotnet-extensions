@@ -94,6 +94,25 @@ public sealed class OwnedCacheEntryTests
     }
 
     [Fact]
+    public void ReadManyTemplate_NamesItsParty()
+    {
+        var template = OwnedCacheEntry.ReadManyTemplate("widget-service", "own-widget", "user");
+
+        Assert.Equal("widget-service:own-widget:read-many:{user}", template);
+        Assert.Equal($"widget-service:own-widget:read-many:{Id}", OwnedCacheEntry.Key(template, null, null, Id, null));
+        Assert.Null(OwnedCacheEntry.Key(template, null, null, null, null));
+    }
+
+    [Theory]
+    [InlineData("own-widget", "team")]
+    [InlineData("own:widget", "user")]
+    [InlineData("answer", "user")]
+    public void ReadManyTemplate_AmbiguousNames_Refused(string resourceType, string party)
+    {
+        Assert.Throws<ArgumentException>(() => OwnedCacheEntry.ReadManyTemplate("widget-service", resourceType, party));
+    }
+
+    [Fact]
     public void Key_FillsThePartiesACallCarries()
     {
         var organization = Guid.Parse("b0000000-0000-4000-8000-000000000002");

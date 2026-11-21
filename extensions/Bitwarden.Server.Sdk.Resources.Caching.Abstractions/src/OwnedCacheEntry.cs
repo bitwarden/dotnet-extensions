@@ -22,7 +22,7 @@ namespace Bitwarden.Server.Sdk.Resources.Caching;
 ///     <term><c>d</c></term>
 ///     <description>
 ///     The resource object as the service serves it to a caller holding the read scope: every attribute but those
-///     worked out per caller.
+///     worked out per caller. For a cached read-many (<see cref="ReadManyTemplate"/>), the array of them, in its order.
 ///     </description>
 ///   </item>
 ///   <item>
@@ -190,6 +190,30 @@ public static class OwnedCacheEntry
         return ownerAxis is "organization" or "user" or "provider"
             ? $"{resource}by-{keyName}:{{{ownerAxis}}}:{KeyPlaceholder}"
             : throw new ArgumentException("An owner is an organization, a user or a provider.", nameof(ownerAxis));
+    }
+
+    /// <summary>
+    /// The key template of a cached read-many: every row of a resource under the party a call carries, as one entry.
+    /// <c>{service}:{type}:read-many:{party}</c>, the party's placeholder (<c>{organization}</c>, <c>{user}</c> or
+    /// <c>{provider}</c>) standing for the key. A read-many's resource is its own, so its type alone keeps its entries
+    /// apart from every other read's.
+    /// </summary>
+    /// <param name="service">The owning service's name.</param>
+    /// <param name="resourceType">The resource's type.</param>
+    /// <param name="partyAxis">The party the key is: <c>organization</c>, <c>user</c> or <c>provider</c>.</param>
+    /// <exception cref="ArgumentException">
+    /// A name is empty, contains <c>:</c>, <c>{</c> or <c>}</c>, or is reserved; or the party is none of the three.
+    /// </exception>
+    public static string ReadManyTemplate(string service, string resourceType, string partyAxis)
+    {
+        if (partyAxis is not ("organization" or "user" or "provider"))
+        {
+            throw new ArgumentException("A party is an organization, a user or a provider.", nameof(partyAxis));
+        }
+
+        var resource = Template(service, resourceType)[..^KeyPlaceholder.Length];
+
+        return $"{resource}read-many:{{{partyAxis}}}";
     }
 
     /// <summary>
