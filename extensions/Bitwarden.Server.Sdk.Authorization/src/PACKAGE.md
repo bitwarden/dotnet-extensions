@@ -36,6 +36,9 @@ Bitwarden.Server.Sdk.Authentication.
 - **Product or domain service.** A product service is called by people and fills `IContext` from their session. A
   domain service is called with the calling service's own token, never a person's, and believes a context only from
   the context token Identity signed for that one call. "Know what each kind of service believes" below has the detail.
+- **Current standing.** A product service authorizes a person from what they hold now, never from the role their
+  session was issued with: `ICurrentStanding` answers, once per request, before authorization. A session naming an
+  organization or provider the person no longer holds is refused before any handler.
 - **Delegated or asserted context.** A context token is either delegated, proven by a person's, organization's or
   machine account's own token, or asserted, the calling service's own word.
 - **The most specific declaration wins.** `AuthorizationDefaults` says what a service's operations demand, and
@@ -71,6 +74,9 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddBitwardenAuthentication();
 builder.Services.AddCallerAuthorization(isProductService);
 
+// A product service also registers where a person's current standing is read (ICurrentStanding): the service that
+// owns the standing provides it in its client package. Without one, UseCurrentStanding() fails when the app starts.
+
 var app = builder.Build();
 
 app.UseForwardedClientAddress();
@@ -82,7 +88,11 @@ if (isProductService)
 
 app.UseBitwardenAuthentication();
 
-if (!isProductService)
+if (isProductService)
+{
+    app.UseCurrentStanding();
+}
+else
 {
     app.UseContextHeaders();
 }
@@ -106,12 +116,13 @@ internal sealed class WidgetServiceIdentity(bool isProductService) : IServiceIde
 }
 ```
 
-| Middleware                    | Where                                   | What it does                                                                                                                                                                                                                     |
-| ----------------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `UseForwardedClientAddress()` | Before anything reads the connection    | Takes the address and scheme from `X-Forwarded-For` and `X-Forwarded-Proto` only when a trusted proxy sent them.                                                                                                                 |
-| `UseContextRefusal()`         | Product services, before authentication | Refuses `400` a request carrying any context header, whoever sends it.                                                                                                                                                           |
-| `UseContextHeaders()`         | Domain services, after authentication   | Believes another service's context only as its signed token says: `401` for a missing or forged token, `400` for a malformed or disagreeing context, `403` for an asserted person at an operation that doesn't admit the caller. |
-| `UseCallChainCheck()`         | After authorization                     | Keeps the chain of services a call passed through, and notices a call back into this service.                                                                                                                                    |
+| Middleware                    | Where                                   | What it does                                                                                                                                                                                                                                                                  |
+| ----------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `UseForwardedClientAddress()` | Before anything reads the connection    | Takes the address and scheme from `X-Forwarded-For` and `X-Forwarded-Proto` only when a trusted proxy sent them.                                                                                                                                                              |
+| `UseContextRefusal()`         | Product services, before authentication | Refuses `400` a request carrying any header only services send (`ServiceOnly`), whoever sends it.                                                                                                                                                                             |
+| `UseCurrentStanding()`        | Product services, after authentication  | Reads the person's current standing in what their session names, once, and refuses one who no longer holds it: `404`, or `403` for a provider's staff member no longer administering the client organization the session names. Fails to build without an `ICurrentStanding`. |
+| `UseContextHeaders()`         | Domain services, after authentication   | Believes another service's context only as its signed token says: `401` for a missing or forged token, `400` for a malformed or disagreeing context, `403` for an asserted person at an operation that doesn't admit the caller.                                              |
+| `UseCallChainCheck()`         | After authorization                     | Keeps the chain of services a call passed through, and notices a call back into this service.                                                                                                                                                                                 |
 
 Bitwarden.Server.Sdk.Service adds its exception handler, status pages, CORS and per-address rate limits between
 `UseForwardedClientAddress()` and the rest, and its feature flag checks and `UseIdempotencyKeys()` after
@@ -193,12 +204,25 @@ authorization and before anything is bound or validated; refuse by throwing `For
 
 ### Require a role or permission (product services)
 
-Roles and permissions come from a person's session, read through `ICallerRole`, so they work on a product service
-only. Set `OrganizationRole`, `Permission` or `ProviderRole` on `[Authorization]`:
+Roles and permissions are the person's standing now in what their session names, read through `ICallerRole`, so they
+work on a product service only. Set `OrganizationRole`, `Permission` or `ProviderRole` on `[Authorization]`:
 
 - A role is satisfied by it or any role above it (`User`, `Custom`, `Admin`, `Owner`).
 - An owner or administrator holds every permission; a custom member must have been granted it.
 - A role counts only in the organization the session names.
+
+The standing comes from `ICurrentStanding`, which the service registers and `UseCurrentStanding()` asks before
+authorization, once per request:
+
+| The session names                                  | Asked                                                          | Refused when                                                                                 |
+| -------------------------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| An organization                                    | `MembershipAsync`: the confirmed member's role and permissions | No longer a confirmed member: `404`                                                          |
+| A client organization and its provider             | `ProviderOfAsync`, then `ProviderRoleAsync` for that provider  | The provider no longer administers it, or the person is no longer its confirmed staff: `403` |
+| A provider                                         | `ProviderRoleAsync`: the confirmed staff member's role         | No longer confirmed staff: `404`                                                             |
+| Neither, or no person (an organization credential) | Nothing                                                        | Never                                                                                        |
+
+The `404` is the platform's answer for an organization the person isn't a member of; the `403` is its answer when the
+person is no longer the administering provider's staff. Operations open to anybody ask nothing.
 
 ### Accept other callers and owners
 
@@ -222,7 +246,7 @@ Each of these goes on one handler:
 | `IContext.ProviderId`          | The context token's provider                                                           | A provider session's `provider` claim                              |
 | Address, device and credential | `Bitwarden-Context`, as the token signed it                                            | The connection's address, the `device` claim, the client's headers |
 | A context header               | Believed from an internal service with a valid context token; ignored from anyone else | Refused `400`, whoever sends it                                    |
-| `ICallerRole`                  | Always `None`                                                                          | From the session, for the organization it names                    |
+| `ICallerRole`                  | Always `None`                                                                          | The person's standing now, in the organization the session names   |
 
 The context headers are `BitwardenHeaders.All`: `Bitwarden-Organization`, `Bitwarden-User`, `Bitwarden-Provider`,
 `Bitwarden-Context` and `Bitwarden-Delegation`, the context token. A domain service believes them only from another
@@ -329,8 +353,9 @@ public sealed class PartnerTokens(IHttpClientFactory clients)
 
 ## Gotchas and constraints
 
-- **Strip the context headers at the proxy.** Every proxy must remove `BitwardenHeaders.All` from what clients send. A
-  product service refuses them anyway; a domain service reached through a public entry point relies on the proxy.
+- **Strip the headers only services send at the proxy.** Every proxy must remove `BitwardenHeaders.ServiceOnly` (the
+  context headers and `Bitwarden-Call-Chain`) from what clients send. A product service refuses them anyway; a domain
+  service reached through a public entry point relies on the proxy.
 - **Name only the proxies in front of the service**, and keep `KnownNetworks` as narrow as their network. Each must add
   the address it took the request from last in `X-Forwarded-For`. Behind a proxy that isn't trusted, every request
   carries the proxy's address.
@@ -347,6 +372,9 @@ public sealed class PartnerTokens(IHttpClientFactory clients)
 - **Set both `ReadScope` and `WriteScope`.** Without them, an operation that declares no scope demands none.
 - **A role, a permission and `Anonymous` count on the handler only,** never inherited from its class.
 - **An `[Authorization]` that is never settled** demands nothing beyond the fallback policy's authenticated caller.
+- **Read a role only where the standing was read.** On a product service, `ICallerRole` throws for a person's session
+  whose standing wasn't resolved: an operation open to anybody, or code outside the request pipeline. It never falls
+  back to the session's role claims.
 - **A role on a domain service refuses every call.** There `ICallerRole` answers `None`, so an operation demanding a
   role refuses every call `403`. The package doesn't refuse such a declaration at startup: authorize a domain service
   by scope and context instead.
@@ -365,7 +393,8 @@ public sealed class PartnerTokens(IHttpClientFactory clients)
 | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | `AuthorizationAttribute`, `AuthorizationDefaults`, `ContextRequirement`                                                                              | What an operation demands: a scope, and an organization, user and provider |
 | `OperationAuthorization`                                                                                                                             | Settles an operation's declarations into the one requirement checked       |
-| `OrganizationRole`, `OrganizationPermission`, `ProviderRole`, `ICallerRole`                                                                          | Roles and permissions from a person's session (product services)           |
+| `OrganizationRole`, `OrganizationPermission`, `ProviderRole`, `ICallerRole`                                                                          | Roles and permissions, from a person's current standing (product services) |
+| `ICurrentStanding`, `MemberStanding`                                                                                                                 | Where a product service reads a person's current standing                  |
 | `AnyScopeAttribute`, `CallerScopes`                                                                                                                  | An operation reachable with any one of several scopes                      |
 | `AcceptsOrganizationCredentialAttribute`, `AcceptsSendCredentialAttribute`, `SendCredential`                                                         | Credentials other than a person's session (product services)               |
 | `NamesOrganizationAttribute`, `NamesProviderAttribute`, `CreatesOrganizationAttribute`, `INamesOrganization`, `INamesProvider`, `RequestNamedOwners` | Owners an operation names that the session doesn't (product services)      |

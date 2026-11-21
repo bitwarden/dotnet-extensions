@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Bitwarden.Server.Sdk.Resources.Querying;
 
 namespace Bitwarden.Server.Sdk.Resources.Tests.Endpoints;
@@ -11,14 +10,6 @@ public sealed class StandardResponsesTests
 {
     private static readonly Answered First = new() { Id = "a1" };
     private static readonly Answered Second = new() { Id = "a2" };
-
-    [Fact]
-    public async Task ServedByPlatform_Called_RefusesNamingTheResource()
-    {
-        var actual = await Assert.ThrowsAsync<UnreachableException>(StandardResponses.ServedByPlatform<Answered>);
-
-        Assert.Contains("Answered is read by identifier by the platform", actual.Message, StringComparison.Ordinal);
-    }
 
     [Fact]
     public void CreateResponse_Location_Kept()

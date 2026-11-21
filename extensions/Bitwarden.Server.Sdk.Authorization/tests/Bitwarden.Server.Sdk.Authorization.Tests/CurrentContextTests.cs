@@ -90,7 +90,7 @@ public sealed class CurrentContextTests
         Assert.True(context.ClientVersionIsPrerelease);
     }
 
-    // Blue's IdentityClientType, from the token's type claim.
+    // The server's IdentityClientType, from the token's type claim.
     [Theory]
     [InlineData(null, FlagSubjectKind.User)]
     [InlineData("User", FlagSubjectKind.User)]
@@ -173,7 +173,7 @@ public sealed class CurrentContextTests
         Assert.Equal(isPrerelease, context.ClientVersionIsPrerelease);
     }
 
-    // Blue's Enum.TryParse takes a device type's name too; the number is what is carried.
+    // The server's Enum.TryParse takes a device type's name too; the number is what is carried.
     [Theory]
     [InlineData("Android", "0")]
     [InlineData("WindowsCLI", "23")]
@@ -299,7 +299,7 @@ public sealed class CurrentContextTests
         }
     }
 
-    // A consumer handed IContext can tell an event's actor from a person acting.
+    // A consumer handed IContext sees an event's actor recorded, never acting.
     [Fact]
     public void IsEvent_NoRequest_InAnEventsScope_True()
     {
@@ -308,7 +308,8 @@ public sealed class CurrentContextTests
             foreach (var context in new[] { Domain(null), Product(null) })
             {
                 Assert.True(context.IsEvent);
-                Assert.Equal(Person, context.UserId);
+                Assert.Null(context.UserId);
+                Assert.Equal(Person, context.RecordedUserId);
             }
         }
 
@@ -445,7 +446,7 @@ public sealed class CurrentContextTests
         Assert.Null(Product(Request([C("sub", Person.ToString()), C("organizations", "not-an-identifier")])).UserOrganizationIds);
     }
 
-    // The organizations a token lists are its flag subject's, whoever it names, as blue reads them from the claims
+    // The organizations a token lists are its flag subject's, whoever it names, as the server reads them from the claims
     // alone; a token naming nobody lists none.
     [Fact]
     public void UserOrganizationIds_ProductService_WithoutAPerson_TheTokensList()

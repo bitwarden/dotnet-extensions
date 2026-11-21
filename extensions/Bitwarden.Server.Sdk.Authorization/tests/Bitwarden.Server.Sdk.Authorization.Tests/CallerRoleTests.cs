@@ -5,8 +5,9 @@ using Microsoft.AspNetCore.Http;
 namespace Bitwarden.Server.Sdk.Authorization.Tests;
 
 /// <summary>
-/// The caller's role and permissions, read from the session's claims, and counted only in the organization or provider
-/// the session was issued for: otherwise an owner of one organization could act as an owner of another by naming it.
+/// The caller's role and permissions, from their standing now (resolved for the request), and counted only in the
+/// organization or provider the session was issued for: otherwise an owner of one organization could act as an owner
+/// of another by naming it. The session's role and permission claims count for nothing.
 /// </summary>
 public sealed class CallerRoleTests
 {
@@ -16,9 +17,9 @@ public sealed class CallerRoleTests
     private static readonly Guid ProviderB = new("b2000000-0000-4000-8000-0000000000bb");
     private static readonly Guid Person = new("a1000000-0000-4000-8000-00000000000a");
 
-    private static Claim[] Session(Guid? organization = null, string? role = null, Guid? provider = null, string? providerRole = null, bool person = true, params string[] permissions)
+    private static Claim[] Session(Guid? organization = null, Guid? provider = null, bool person = true, params Claim[] extra)
     {
-        var claims = new List<Claim>();
+        var claims = new List<Claim>(extra);
 
         if (person)
         {
@@ -30,94 +31,80 @@ public sealed class CallerRoleTests
             claims.Add(new Claim(CallerRole.OrganizationClaim, organization.Value.ToString()));
         }
 
-        if (role is not null)
-        {
-            claims.Add(new Claim(CallerRole.RoleClaim, role));
-        }
-
         if (provider is not null)
         {
             claims.Add(new Claim(CallerRole.ProviderClaim, provider.Value.ToString()));
         }
 
-        if (providerRole is not null)
-        {
-            claims.Add(new Claim(CallerRole.ProviderRoleClaim, providerRole));
-        }
-
-        claims.AddRange(permissions.Select(permission => new Claim(CallerRole.PermissionClaim, permission)));
         return [.. claims];
     }
 
-    private static CallerRole Role(Claim[] claims, Guid? organization = null, Guid? provider = null, params object[] metadata)
+    private static CallerStanding Member(OrganizationRole role, params OrganizationPermission[] permissions) =>
+        new(role, permissions.ToHashSet(), ProviderRole.None);
+
+    private static CallerStanding Staff(ProviderRole role) => CallerStanding.Nothing with { ProviderRole = role };
+
+    private static CallerRole Role(
+        Claim[] claims,
+        CallerStanding? standing,
+        Guid? organization = null,
+        Guid? provider = null,
+        params object[] metadata)
     {
         var http = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer")) };
         http.SetEndpoint(new Endpoint(null, new EndpointMetadataCollection(metadata), "GetWidget"));
+
+        if (standing is not null)
+        {
+            http.Features.Set(standing);
+        }
+
         var context = new StatedContext { OrganizationId = organization, ProviderId = provider };
         return new CallerRole(new HttpContextAccessor { HttpContext = http }, context);
     }
 
     [Theory]
-    [InlineData("Owner", OrganizationRole.Owner)]
-    [InlineData("admin", OrganizationRole.Admin)]
-    [InlineData("CUSTOM", OrganizationRole.Custom)]
-    [InlineData("User", OrganizationRole.User)]
-    public void Role_SessionForTheOrganizationInContext_IsTheClaimedRole(string claimed, OrganizationRole expected)
+    [InlineData(OrganizationRole.Owner)]
+    [InlineData(OrganizationRole.Admin)]
+    [InlineData(OrganizationRole.Custom)]
+    [InlineData(OrganizationRole.User)]
+    public void Role_SessionForTheOrganizationInContext_IsTheRoleNow(OrganizationRole now)
     {
-        Assert.Equal(expected, Role(Session(OrganizationA, claimed), organization: OrganizationA).Role);
+        Assert.Equal(now, Role(Session(OrganizationA), Member(now), organization: OrganizationA).Role);
     }
 
-    // A role is named, never numbered or listed: Enum.TryParse would read "4" as Owner, "99" as a role above every
-    // other, and "User, Custom" as Admin.
-    [Theory]
-    [InlineData("4")]
-    [InlineData("99")]
-    [InlineData("-1")]
-    [InlineData("User, Custom")]
-    [InlineData("User,Custom")]
-    [InlineData(" Owner")]
-    [InlineData("")]
-    public void Role_AClaimThatNamesNoRole_None(string claimed)
+    // What the session was issued with is history: an owner's session for somebody who is a plain member now.
+    [Fact]
+    public void Role_RoleClaimsOfTheSession_Ignored()
     {
-        Assert.Equal(OrganizationRole.None, Role(Session(OrganizationA, claimed), organization: OrganizationA).Role);
-    }
+        var role = Role(
+            Session(
+                OrganizationA,
+                extra: [new Claim("organization_role", "Owner"), new Claim("organization_permission", "ManageUsers")]),
+            Member(OrganizationRole.User),
+            organization: OrganizationA);
 
-    [Theory]
-    [InlineData("2")]
-    [InlineData("99")]
-    [InlineData("ServiceUser, Admin")]
-    public void ProviderRole_AClaimThatNamesNoRole_None(string claimed)
-    {
-        Assert.Equal(
-            ProviderRole.None,
-            Role(Session(provider: ProviderA, providerRole: claimed), provider: ProviderA).ProviderRole);
+        Assert.Equal(OrganizationRole.User, role.Role);
+        Assert.False(role.Holds(OrganizationPermission.ManageUsers));
     }
 
     [Fact]
     public void Role_SessionForAnotherOrganization_None()
     {
-        Assert.Equal(OrganizationRole.None, Role(Session(OrganizationA, "Owner"), organization: OrganizationB).Role);
+        Assert.Equal(OrganizationRole.None, Role(Session(OrganizationA), Member(OrganizationRole.Owner), organization: OrganizationB).Role);
     }
 
-    // A role claim with no organization claim names no organization it could count for.
+    // A session with no organization claim names no organization a role could count for.
     [Fact]
     public void Role_SessionNamingNoOrganization_None()
     {
-        Assert.Equal(OrganizationRole.None, Role(Session(role: "Owner"), organization: OrganizationA).Role);
+        Assert.Equal(OrganizationRole.None, Role(Session(), CallerStanding.Nothing, organization: OrganizationA).Role);
     }
 
     [Fact]
     public void Role_NoOrganizationInContext_None()
     {
-        Assert.Equal(OrganizationRole.None, Role(Session(OrganizationA, "Owner")).Role);
-    }
-
-    [Theory]
-    [InlineData("Superuser")]
-    [InlineData("")]
-    public void Role_AnUnknownRole_None(string claimed)
-    {
-        Assert.Equal(OrganizationRole.None, Role(Session(OrganizationA, claimed), organization: OrganizationA).Role);
+        Assert.Equal(OrganizationRole.None, Role(Session(OrganizationA), Member(OrganizationRole.Owner)).Role);
     }
 
     [Fact]
@@ -130,12 +117,23 @@ public sealed class CallerRoleTests
         Assert.False(role.Holds(OrganizationPermission.ManageUsers));
     }
 
-    // An organization's API key acts as its owner, where the operation accepts one.
+    // Never answered from the session's claims instead: a person's role read where it wasn't resolved is a defect.
+    [Fact]
+    public void Role_APersonsStandingNotResolved_Throws()
+    {
+        var role = Role(Session(OrganizationA, extra: new Claim("organization_role", "Owner")), standing: null, organization: OrganizationA);
+
+        Assert.Throws<InvalidOperationException>(() => role.Role);
+        Assert.Throws<InvalidOperationException>(() => role.Holds(OrganizationPermission.ManageUsers));
+    }
+
+    // An organization's API key acts as its owner, where the operation accepts one. No person, nothing to resolve.
     [Fact]
     public void Role_AnOrganizationCredentialWhereAccepted_Owner()
     {
         var role = Role(
             Session(OrganizationA, person: false),
+            standing: null,
             organization: OrganizationA,
             metadata: new AcceptsOrganizationCredentialAttribute("widgets.read"));
 
@@ -149,6 +147,7 @@ public sealed class CallerRoleTests
     {
         var role = Role(
             Session(OrganizationA, person: false),
+            standing: null,
             organization: OrganizationB,
             metadata: new AcceptsOrganizationCredentialAttribute("widgets.read"));
 
@@ -158,7 +157,7 @@ public sealed class CallerRoleTests
     [Fact]
     public void Role_AnOrganizationCredentialWhereNotAccepted_None()
     {
-        Assert.Equal(OrganizationRole.None, Role(Session(OrganizationA, person: false), organization: OrganizationA).Role);
+        Assert.Equal(OrganizationRole.None, Role(Session(OrganizationA, person: false), standing: null, organization: OrganizationA).Role);
     }
 
     // A person's session for the organization is the person's, whatever the operation accepts.
@@ -166,7 +165,8 @@ public sealed class CallerRoleTests
     public void Role_APersonsSessionWhereAnOrganizationCredentialIsAccepted_IsTheirOwnRole()
     {
         var role = Role(
-            Session(OrganizationA, "User"),
+            Session(OrganizationA),
+            Member(OrganizationRole.User),
             organization: OrganizationA,
             metadata: new AcceptsOrganizationCredentialAttribute("widgets.read"));
 
@@ -174,20 +174,21 @@ public sealed class CallerRoleTests
     }
 
     [Fact]
-    public void ProviderRole_SessionForTheProviderInContext_IsTheClaimedRole()
+    public void ProviderRole_SessionForTheProviderInContext_IsTheRoleNow()
     {
-        var role = Role(Session(provider: ProviderA, providerRole: "ProviderAdmin"), provider: ProviderA);
+        var role = Role(
+            Session(provider: ProviderA, extra: new Claim("provider_role", "ServiceUser")),
+            Staff(ProviderRole.ProviderAdmin),
+            provider: ProviderA);
 
         Assert.Equal(ProviderRole.ProviderAdmin, role.ProviderRole);
     }
 
     // A provider's staff member administering a client organization holds no membership there, only the provider role.
     [Fact]
-    public void ProviderRole_StaffSessionForTheOrganizationInContext_IsTheClaimedRole()
+    public void ProviderRole_StaffSessionForTheOrganizationInContext_IsTheRoleNow()
     {
-        var role = Role(
-            Session(OrganizationA, provider: ProviderA, providerRole: "serviceuser"),
-            organization: OrganizationA);
+        var role = Role(Session(OrganizationA, provider: ProviderA), Staff(ProviderRole.ServiceUser), organization: OrganizationA);
 
         Assert.Equal(ProviderRole.ServiceUser, role.ProviderRole);
         Assert.Equal(OrganizationRole.None, role.Role);
@@ -196,7 +197,7 @@ public sealed class CallerRoleTests
     [Fact]
     public void ProviderRole_SessionForAnotherProvider_None()
     {
-        var role = Role(Session(provider: ProviderA, providerRole: "ProviderAdmin"), provider: ProviderB);
+        var role = Role(Session(provider: ProviderA), Staff(ProviderRole.ProviderAdmin), provider: ProviderB);
 
         Assert.Equal(ProviderRole.None, role.ProviderRole);
     }
@@ -204,9 +205,7 @@ public sealed class CallerRoleTests
     [Fact]
     public void ProviderRole_StaffSessionForAnotherOrganization_None()
     {
-        var role = Role(
-            Session(OrganizationA, provider: ProviderA, providerRole: "ProviderAdmin"),
-            organization: OrganizationB);
+        var role = Role(Session(OrganizationA, provider: ProviderA), Staff(ProviderRole.ProviderAdmin), organization: OrganizationB);
 
         Assert.Equal(ProviderRole.None, role.ProviderRole);
     }
@@ -214,15 +213,19 @@ public sealed class CallerRoleTests
     [Fact]
     public void ProviderRole_NothingInContext_None()
     {
-        var role = Role(Session(OrganizationA, provider: ProviderA, providerRole: "ProviderAdmin"));
+        var role = Role(Session(OrganizationA, provider: ProviderA), Staff(ProviderRole.ProviderAdmin));
 
         Assert.Equal(ProviderRole.None, role.ProviderRole);
     }
 
+    // A member's session holds no provider role, whatever the session carries.
     [Fact]
-    public void ProviderRole_AnUnknownRole_None()
+    public void ProviderRole_MembersSession_None()
     {
-        var role = Role(Session(provider: ProviderA, providerRole: "Superuser"), provider: ProviderA);
+        var role = Role(
+            Session(OrganizationA, extra: new Claim("provider_role", "ProviderAdmin")),
+            Member(OrganizationRole.Owner),
+            organization: OrganizationA);
 
         Assert.Equal(ProviderRole.None, role.ProviderRole);
     }
@@ -231,15 +234,15 @@ public sealed class CallerRoleTests
     [Fact]
     public void Holds_NoPermission_TrueForAnybody()
     {
-        Assert.True(Role(Session()).Holds(OrganizationPermission.None));
+        Assert.True(Role(Session(), CallerStanding.Nothing).Holds(OrganizationPermission.None));
     }
 
     [Theory]
-    [InlineData("Owner")]
-    [InlineData("Admin")]
-    public void Holds_AnOwnerOrAdministrator_HoldsEveryPermission(string claimed)
+    [InlineData(OrganizationRole.Owner)]
+    [InlineData(OrganizationRole.Admin)]
+    public void Holds_AnOwnerOrAdministrator_HoldsEveryPermission(OrganizationRole now)
     {
-        var role = Role(Session(OrganizationA, claimed), organization: OrganizationA);
+        var role = Role(Session(OrganizationA), Member(now), organization: OrganizationA);
 
         Assert.All(
             Enum.GetValues<OrganizationPermission>(),
@@ -247,10 +250,11 @@ public sealed class CallerRoleTests
     }
 
     [Fact]
-    public void Holds_ACustomMember_HoldsWhatTheyAreGranted()
+    public void Holds_ACustomMember_HoldsWhatTheyAreGrantedNow()
     {
         var role = Role(
-            Session(OrganizationA, "Custom", permissions: ["manageGroups", "AccessReports"]),
+            Session(OrganizationA),
+            Member(OrganizationRole.Custom, OrganizationPermission.ManageGroups, OrganizationPermission.AccessReports),
             organization: OrganizationA);
 
         Assert.True(role.Holds(OrganizationPermission.ManageGroups));
@@ -258,11 +262,11 @@ public sealed class CallerRoleTests
         Assert.False(role.Holds(OrganizationPermission.ManageUsers));
     }
 
-    // Permission claims belong to a custom role; a plain member holds none, whatever the session lists.
+    // Permissions belong to a custom role; a plain member holds none.
     [Fact]
-    public void Holds_AMemberWithPermissionClaims_HoldsNone()
+    public void Holds_AMemberWithPermissions_HoldsNone()
     {
-        var role = Role(Session(OrganizationA, "User", permissions: ["ManageUsers"]), organization: OrganizationA);
+        var role = Role(Session(OrganizationA), Member(OrganizationRole.User, OrganizationPermission.ManageUsers), organization: OrganizationA);
 
         Assert.False(role.Holds(OrganizationPermission.ManageUsers));
     }
@@ -271,7 +275,7 @@ public sealed class CallerRoleTests
     [Fact]
     public void Holds_ACustomMemberOfAnotherOrganization_HoldsNone()
     {
-        var role = Role(Session(OrganizationA, "Custom", permissions: ["ManageUsers"]), organization: OrganizationB);
+        var role = Role(Session(OrganizationA), Member(OrganizationRole.Custom, OrganizationPermission.ManageUsers), organization: OrganizationB);
 
         Assert.False(role.Holds(OrganizationPermission.ManageUsers));
     }
@@ -293,5 +297,13 @@ public sealed class CallerRoleTests
         var http = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer")) };
 
         Assert.Null(CallerRole.IssuedFor(http));
+    }
+
+    [Fact]
+    public void ProviderIssuedFor_IsTheSessionsProviderClaim()
+    {
+        var http = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(Session(OrganizationA, ProviderA), "Bearer")) };
+
+        Assert.Equal(ProviderA, CallerRole.ProviderIssuedFor(http));
     }
 }

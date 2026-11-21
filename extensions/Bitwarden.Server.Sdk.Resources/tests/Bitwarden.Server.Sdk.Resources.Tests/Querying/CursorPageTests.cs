@@ -21,4 +21,14 @@ public sealed class CursorPageTests
     {
         Assert.Throws<InvalidQueryException>(() => new CursorPage { Size = size });
     }
+
+    [Fact]
+    public void Size_OperationsOwnMaximum_IsTheCeiling()
+    {
+        var page = new CursorPage(new PageSize(int.MaxValue, 1000)) { After = "cursor" };
+
+        Assert.Equal(1000, page.Size);
+        Assert.Equal(1000, page.SizeLimit);
+        Assert.Equal("cursor", page.After);
+    }
 }
