@@ -486,14 +486,14 @@ public static class CacheUsers
 
 ## Types
 
-| Type                                           | What it is                                                                               |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `CacheableQuery<TEntity, TResource>`           | The base class of a cacheable read; its read methods are the platform's.                 |
-| `CacheableQueryBuilder<TEntity, TResource>`    | Declares the read: map, key, owner, includes, per-caller attributes, lifetime.           |
+| Type                                            | What it is                                                                               |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `CacheableQuery<TEntity, TResource>`            | The base class of a cacheable read; its read methods are the platform's.                 |
+| `CacheableQueryBuilder<TEntity, TResource>`     | Declares the read: map, key, owner, includes, per-caller attributes, lifetime.           |
 | `CacheableListQuery<TEntity, TResource>`        | The base class of a cached read-many; its read and its pages are the platform's.         |
 | `CacheableListQueryBuilder<TEntity, TResource>` | Declares the read-many: party, condition, order, map, scope, most rows.                  |
-| `CacheableQueryServices`                       | What a query reads with, given per request by `AddOwnedCache`.                           |
-| `CacheWrites`                                  | What a change does when the cache can't be told of it: `Refuse` or `Proceed`.            |
-| `CascadeCoverage`                              | Why a database cascade leaves no entry stale: `ParentInvalidated` or `DependentsLoaded`. |
-| `ServiceCacheAcl`                              | The Redis ACL rule each service connects as.                                             |
-| `AddOwnedCache<TContext>()`                    | Gives the service its cache, on `IServiceCollection`.                                    |
+| `CacheableQueryServices`                        | What a query reads with, given per request by `AddOwnedCache`.                           |
+| `CacheWrites`                                   | What a change does when the cache can't be told of it: `Refuse` or `Proceed`.            |
+| `CascadeCoverage`                               | Why a database cascade leaves no entry stale: `ParentInvalidated` or `DependentsLoaded`. |
+| `ServiceCacheAcl`                               | The Redis ACL rule each service connects as.                                             |
+| `AddOwnedCache<TContext>()`                     | Gives the service its cache, on `IServiceCollection`.                                    |
