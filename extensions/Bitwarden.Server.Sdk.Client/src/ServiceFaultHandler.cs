@@ -99,19 +99,6 @@ internal sealed class ServiceFaultHandler(string service, TimeSpan timeout) : De
         HttpResponseMessage response,
         CancellationToken cancellationToken)
     {
-        // A person's keys rotating: relayed as it was answered, whatever the status.
-        // Read once here, and reused below for a conflict that is something else.
-        ErrorResponse? read = null;
-        if (response.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.ServiceUnavailable)
-        {
-            read = await ReadAsync(response, cancellationToken);
-
-            if (read is { Errors: [{ Code: ErrorCodes.KeyRotationInProgress }, ..] })
-            {
-                return new RelayedRefusalException((int)response.StatusCode, read.Errors);
-            }
-        }
-
         // Still running an earlier attempt of this write after the retries: the callee hasn't answered it yet, which
         // is it being unavailable for now, not the caller's conflict.
         if (Transient.StillRunning(request, response))
@@ -124,7 +111,7 @@ internal sealed class ServiceFaultHandler(string service, TimeSpan timeout) : De
             return ServiceUnavailableException.Answered(service, (int)response.StatusCode);
         }
 
-        var document = read ?? await ReadAsync(response, cancellationToken);
+        var document = await ReadAsync(response, cancellationToken);
         var error = document?.Errors.FirstOrDefault();
 
         return Translate(response.StatusCode, error, document);

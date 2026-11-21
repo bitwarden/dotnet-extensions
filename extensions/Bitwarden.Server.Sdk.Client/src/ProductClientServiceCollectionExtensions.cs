@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Bitwarden.Server.Sdk.Client;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -39,6 +40,10 @@ public static class ProductClientServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
 
+        // Counts what the request memo answered, on the host's meter factory.
+        services.AddMetrics();
+        services.TryAddSingleton<RequestMemoMetrics>();
+
         var builder = services.AddHttpClient<TClient, TImplementation>(name ?? serviceName);
         if (name is null)
         {
@@ -68,6 +73,14 @@ public static class ProductClientServiceCollectionExtensions
             });
         }
 
-        return builder.AddHttpMessageHandler(() => new ProductCallHandler());
+        // The call's token first, then the request memo, which keys a call by a digest of that token.
+        return builder
+            .AddHttpMessageHandler(() => new ProductCallHandler())
+            .AddHttpMessageHandler(provider => new RequestMemoHandler(
+                serviceName,
+                string.Empty,
+                provider.GetService<IConfiguration>(),
+                provider.GetRequiredService<RequestMemoMetrics>(),
+                product: true));
     }
 }

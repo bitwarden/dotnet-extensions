@@ -8,12 +8,6 @@ namespace Bitwarden.Server.Sdk.Client;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Today one reason: <see cref="ErrorCodes.KeyRotationInProgress"/>, a person's keys rotating. A
-/// service answers it <c>503</c> for a read and <c>409</c> for a write; without this a service in
-/// between would turn the <c>503</c> into its own "service unavailable" and lose why, and the
-/// <c>409</c> into a failure of its own.
-/// </para>
-/// <para>
 /// It provides its errors and status to a service host's exception handler, so a service that lets it
 /// propagate answers exactly what it was answered.
 /// </para>

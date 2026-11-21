@@ -5,6 +5,8 @@ using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.Tokens;
 
 namespace Bitwarden.Server.Sdk.Client.Tests;
 
@@ -53,6 +55,36 @@ public sealed class ClientAssertionTests
         Assert.True(rsa.VerifyData(data, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1));
     }
 
+    // Services calling several others hold one assertion per callee, all from the same key. Disposing one must leave
+    // the others able to sign: a signer cached per key thumbprint would be shared, and disposed with the first.
+    [Theory]
+    [InlineData("P-256")]
+    [InlineData("RSA")]
+    public void Create_SameKeyAfterAnotherInstanceIsDisposed_StillSigns(string kind)
+    {
+        var privateKey = kind == "RSA" ? Rsa() : P256();
+        var first = ClientAssertion.FromPrivateKey(privateKey);
+        _ = first.Create("internal.test", Issuer, Now);
+        first.Dispose();
+
+        using var second = ClientAssertion.FromPrivateKey(privateKey);
+        var (_, _, data, signature) = Parts(second.Create("internal.test", Issuer, Now));
+
+        var publicKey = Convert.FromBase64String(second.PublicKey());
+        if (kind == "RSA")
+        {
+            using var rsa = RSA.Create();
+            rsa.ImportSubjectPublicKeyInfo(publicKey, out _);
+            Assert.True(rsa.VerifyData(data, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1));
+        }
+        else
+        {
+            using var ecdsa = ECDsa.Create();
+            ecdsa.ImportSubjectPublicKeyInfo(publicKey, out _);
+            Assert.True(ecdsa.VerifyData(data, signature, HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation));
+        }
+    }
+
     // Each assertion is new, so the authorization server can refuse one it has seen.
     [Fact]
     public void Create_Twice_TwoJtis()
@@ -79,6 +111,107 @@ public sealed class ClientAssertionTests
         var parameters = rsa.ExportParameters(false);
 
         Assert.Equal(RsaThumbprint(parameters.Modulus!, parameters.Exponent!), assertion.KeyId);
+    }
+
+    // RFC 7517's example private keys (appendix A.2), each with its RFC 7638 thumbprint: the RSA one is RFC 7638's own
+    // example (section 3.1), the P-256 one computed outside .NET.
+    [Fact]
+    public void KeyId_Rfc7517ExampleRsaKey_IsItsRfc7638Thumbprint()
+    {
+        using var rsa = RSA.Create(new RSAParameters
+        {
+            Modulus = Base64UrlDecode(
+                "0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMs"
+                + "tn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajr"
+                + "n1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw"),
+            Exponent = [1, 0, 1],
+            D = Base64UrlDecode(
+                "X4cTteJY_gn4FYPsXB8rdXix5vwsg1FLN5E3EaG6RJoVH-HLLKD9M7dx5oo7GURknchnrRweUkC7hT5fJLM0WbFAKNLWY2vv7B6NqXSzUvxT0_YSfqij"
+                + "wp3RTzlBaCxWp4doFk5N2o8Gy_nHNKroADIkJ46pRUohsXywbReAdYaMwFs9tv8d_cPVY3i07a3t8MN6TNwm0dSawm9v47UiCl3Sk5ZiG7xojPLu4sbg1U2jx4IBTNBz"
+                + "nbJSzFHK66jT8bgkuqsk0GjskDJk19Z4qwjwbsnn4j2WBii3RL-Us2lGVkY8fkFzme1z0HbIkfz0Y6mqnOYtqc0X4jfcKoAC8Q"),
+            P = Base64UrlDecode(
+                "83i-7IvMGXoMXCskv73TKr8637FiO7Z27zv8oj6pbWUQyLPQBQxtPVnwD20R-60eTDmD2ujnMt5PoqMrm8RfmNhVWDtjjMmCMjOpSXicFHj7XOuVIYQyqV"
+                + "WlWEh6dN36GVZYk93N8Bc9vY41xy8B9RzzOGVQzXvNEvn7O0nVbfs"),
+            Q = Base64UrlDecode(
+                "3dfOR9cuYq-0S-mkFLzgItgMEfFzB2q3hWehMuG0oCuqnb3vobLyumqjVZQO1dIrdwgTnCdpYzBcOfW5r370AFXjiWft_NGEiovonizhKpo9VVS78TzFgx"
+                + "kIdrecRezsZ-1kYd_s1qDbxtkDEgfAITAG9LUnADun4vIcb6yelxk"),
+            DP = Base64UrlDecode(
+                "G4sPXkc6Ya9y8oJW9_ILj4xuppu0lzi_H7VTkS8xj5SdX3coE0oimYwxIi2emTAue0UOa5dpgFGyBJ4c8tQ2VF402XRugKDTP8akYhFo5tAA77Qe_Nmtu"
+                + "YZc3C3m3I24G2GvR5sSDxUyAN2zq8Lfn9EUms6rY3Ob8YeiKkTiBj0"),
+            DQ = Base64UrlDecode(
+                "s9lAH9fggBsoFR8Oac2R_E2gw282rT2kGOAhvIllETE1efrA6huUUvMfBcMpn8lqeW6vzznYY5SSQF7pMdC_agI3nG8Ibp1BUb0JUiraRNqUfLhcQb_d9"
+                + "GF4Dh7e74WbRsobRonujTYN1xCaP6TO61jvWrX-L18txXw494Q_cgk"),
+            InverseQ = Base64UrlDecode(
+                "GyM_p6JrXySiz1toFgKbWV-JdI3jQ4ypu9rbMWx3rQJBfmt0FoYzgUIZEVFEcOqwemRN81zoDAaa-Bk0KWNGDjJHZDdDmFhW3AN7lI-puxk_mHZGJ11rx"
+                + "yR8O55XLSe3SPmRfKwZI6yU24ZxvQKFYItdldUKGzO6Ia6zTKhAVRU"),
+        });
+        using var assertion = ClientAssertion.FromPrivateKey(Convert.ToBase64String(rsa.ExportPkcs8PrivateKey()));
+
+        Assert.Equal("NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs", assertion.KeyId);
+    }
+
+    [Fact]
+    public void KeyId_Rfc7517ExampleP256Key_IsItsRfc7638Thumbprint()
+    {
+        using var ecdsa = ECDsa.Create(new ECParameters
+        {
+            Curve = ECCurve.NamedCurves.nistP256,
+            Q = new ECPoint
+            {
+                X = Base64UrlDecode("MKBCTNIcKUSDii11ySs3526iDZ8AiTo7Tu6KPAqv7D4"),
+                Y = Base64UrlDecode("4Etl6SRW2YiLUrN5vfvVHuhp7x8PxltmWWlbbM4IFyM"),
+            },
+            D = Base64UrlDecode("870MB6gfuTJ4HtUnUvYMyJpr5eUZNP4Bk43bVdj3eAE"),
+        });
+        using var assertion = ClientAssertion.FromPrivateKey(Convert.ToBase64String(ecdsa.ExportPkcs8PrivateKey()));
+
+        Assert.Equal("cn-I_WNMClehiVp51i_0VpOENW1upEerA8sEam5hn-s", assertion.KeyId);
+    }
+
+    // The assertion is exactly what an authorization server validating with Microsoft.IdentityModel expects: its type,
+    // issuer, audience and lifetime, signed with the key its kid names, with no header member or claim beyond these.
+    [Theory]
+    [InlineData("P-256")]
+    [InlineData("RSA")]
+    public async Task Create_ValidatesAgainstThePublicKey(string kind)
+    {
+        using var assertion = ClientAssertion.FromPrivateKey(kind == "RSA" ? Rsa() : P256());
+        var publicKey = Convert.FromBase64String(assertion.PublicKey());
+        using var ecdsa = kind == "RSA" ? null : ECDsa.Create();
+        using var rsa = kind == "RSA" ? RSA.Create() : null;
+        ecdsa?.ImportSubjectPublicKeyInfo(publicKey, out _);
+        rsa?.ImportSubjectPublicKeyInfo(publicKey, out _);
+        SecurityKey key = ecdsa is not null ? new ECDsaSecurityKey(ecdsa) : new RsaSecurityKey(rsa!);
+        // The verifier's kid comes from the public key alone, as Identity computes it, and must match the assertion's.
+        key.KeyId = Base64UrlEncoder.Encode(JsonWebKeyConverter.ConvertFromSecurityKey(key).ComputeJwkThumbprint());
+        Assert.Equal(key.KeyId, assertion.KeyId);
+        var now = DateTimeOffset.UtcNow;
+
+        var jwt = assertion.Create("internal.test", Issuer, now);
+
+        var result = await new JsonWebTokenHandler { MapInboundClaims = false }.ValidateTokenAsync(jwt, new TokenValidationParameters
+        {
+            ValidIssuer = "internal.test",
+            ValidAudience = Issuer,
+            IssuerSigningKey = key,
+            ValidAlgorithms = [assertion.Algorithm],
+            ValidTypes = [ClientAssertion.JwtType],
+            RequireExpirationTime = true,
+            RequireSignedTokens = true,
+        });
+        Assert.True(result.IsValid, result.Exception?.Message);
+        var token = Assert.IsType<JsonWebToken>(result.SecurityToken);
+        Assert.Equal(ClientAssertion.JwtType, token.Typ);
+        Assert.Equal(assertion.KeyId, token.Kid);
+        Assert.Equal("internal.test", token.Subject);
+
+        var (header, payload, _, _) = Parts(jwt);
+        Assert.Equal(["alg", "kid", "typ"], header.EnumerateObject().Select(member => member.Name).Order(StringComparer.Ordinal));
+        Assert.Equal(
+            ["aud", "exp", "iat", "iss", "jti", "nbf", "sub"],
+            payload.EnumerateObject().Select(member => member.Name).Order(StringComparer.Ordinal));
+        Assert.Equal(JsonValueKind.String, payload.GetProperty("aud").ValueKind);
+        Assert.Equal(now.ToUnixTimeSeconds(), payload.GetProperty("nbf").GetInt64());
     }
 
     [Fact]
@@ -236,6 +369,12 @@ public sealed class ClientAssertionTests
     {
         using var ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         return Convert.ToBase64String(ecdsa.ExportPkcs8PrivateKey());
+    }
+
+    private static string Rsa()
+    {
+        using var rsa = RSA.Create(2048);
+        return Convert.ToBase64String(rsa.ExportPkcs8PrivateKey());
     }
 
     private static string RsaThumbprint(byte[] modulus, byte[] exponent) =>

@@ -30,7 +30,7 @@ public static class ContextScope
 
     /// <summary>
     /// Whether the innermost scope's context is an event's (<see cref="IContext.IsEvent"/>), as
-    /// <see cref="BeginForEvent"/> establishes it: its person, if any, is the event's actor, there for the record only. A
+    /// <see cref="BeginForEvent"/> establishes it: the event's actor, if any, is recorded, not acting. A
     /// scope begun inside it with <see cref="Begin"/> and a context that is not an event's is not.
     /// </summary>
     /// <remarks>
@@ -56,12 +56,12 @@ public static class ContextScope
     /// </summary>
     /// <remarks>
     /// <para>
-    /// A consumer acts with its own authority, and the event's actor is for the record only. The person the
-    /// event names is whoever's request published it: the consumer reads them for what it records, but a call it makes
-    /// to another service must not carry them as the person acting, where the callee would take them as this service's
-    /// word (an asserted person, which most operations refuse). The context this establishes reports
-    /// <see cref="IContext.IsEvent"/>, so anything handed it, and a client checking <see cref="IsEvent"/>, can tell the
-    /// event's actor from a person acting and hold such a call to that.
+    /// A consumer acts with its own authority, and the event's actor is for the record only. The context this
+    /// establishes has no <see cref="IContext.UserId"/> or <see cref="IContext.ProviderId"/> and a
+    /// <see cref="CallerCredential.System"/> credential; the event's user and provider are in
+    /// <see cref="IContext.RecordedUserId"/> and <see cref="IContext.RecordedProviderId"/>. So the actor never reaches
+    /// a row filter, an authorization check or a call to another service as the person acting, even through a context
+    /// that doesn't pass <see cref="IContext.IsEvent"/> on.
     /// </para>
     /// <para>
     /// For a host that hands events to a service's handlers, which begins one around each event.

@@ -1,4 +1,5 @@
 <Solution>
+  <Folder Name="/extensions/" />
   <Folder Name="/extensions/Bitwarden.Core/">
     <Project Path="extensions/Bitwarden.Core/src/Bitwarden.Core.csproj" />
   </Folder>
@@ -108,6 +109,12 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Idempotency/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Idempotency/tests/Bitwarden.Server.Sdk.Idempotency.Tests/Bitwarden.Server.Sdk.Idempotency.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Infrastructure/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Infrastructure/src/Bitwarden.Server.Sdk.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Infrastructure/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Infrastructure/tests/Bitwarden.Server.Sdk.Infrastructure.Tests/Bitwarden.Server.Sdk.Infrastructure.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.Infrastructure.Testing/">
     <Project Path="extensions/Bitwarden.Server.Sdk.Infrastructure.Testing/src/Bitwarden.Server.Sdk.Infrastructure.Testing.csproj" />
   </Folder>
@@ -115,17 +122,12 @@
     <Project Path="extensions/Bitwarden.Server.Sdk.Infrastructure.Testing/tests/Bitwarden.Server.Sdk.Infrastructure.Testing.Tests/Bitwarden.Server.Sdk.Infrastructure.Testing.Tests.csproj" />
     <Project Path="extensions/Bitwarden.Server.Sdk.Infrastructure.Testing/tests/InfrastructureSampleApp/InfrastructureSampleApp.csproj" />
   </Folder>
-  <Folder Name="/extensions/Bitwarden.Server.Sdk.Infrastructure/">
-    <Project Path="extensions/Bitwarden.Server.Sdk.Infrastructure/src/Bitwarden.Server.Sdk.Infrastructure.csproj" />
-  </Folder>
-  <Folder Name="/extensions/Bitwarden.Server.Sdk.Infrastructure/tests/">
-    <Project Path="extensions/Bitwarden.Server.Sdk.Infrastructure/tests/Bitwarden.Server.Sdk.Infrastructure.Tests/Bitwarden.Server.Sdk.Infrastructure.Tests.csproj" />
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.MessageBroker/" />
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.MessageBroker/src/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.MessageBroker/src/Bitwarden.Server.Sdk.MessageBroker.csproj" />
   </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.MessageBroker/perf/">
     <Project Path="extensions/Bitwarden.Server.Sdk.MessageBroker/perf/Bitwarden.Server.Sdk.MessageBroker.Microbenchmarks/Bitwarden.Server.Sdk.MessageBroker.Microbenchmarks.csproj" />
-  </Folder>
-  <Folder Name="/extensions/Bitwarden.Server.Sdk.MessageBroker/src/">
-    <Project Path="extensions/Bitwarden.Server.Sdk.MessageBroker/src/Bitwarden.Server.Sdk.MessageBroker.csproj" />
   </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.MessageBroker/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.MessageBroker/tests/Bitwarden.Server.Sdk.MessageBroker.Tests/Bitwarden.Server.Sdk.MessageBroker.Tests.csproj" />

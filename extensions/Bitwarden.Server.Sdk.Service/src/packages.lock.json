@@ -11,6 +11,18 @@
           "Microsoft.AspNetCore.Authentication.JwtBearer": "8.0.20"
         }
       },
+      "Bitwarden.Server.Sdk.Sagas": {
+        "type": "Direct",
+        "requested": "[0.1.0, )",
+        "resolved": "0.1.0",
+        "contentHash": "ORDsj0JHKUGoX1ocNOKa2zqrgt15jmBrWW/EEhpaRaGY+BZ/1n8tpNp2cwSpwyJqXhiznhEkvU1RKtD7kdobxw=="
+      },
+      "Bitwarden.Server.Sdk.Service.Abstractions": {
+        "type": "Direct",
+        "requested": "[0.1.0, )",
+        "resolved": "0.1.0",
+        "contentHash": "ftGS9J4FQcq5CWPOxybmrKoTAiCPlUdcuQyT2B697M1BjBK4bLMGqjGQpZ7cGXW5XAsVTATYZ1fXC6Mj/+L8fw=="
+      },
       "Microsoft.AspNetCore.OpenApi": {
         "type": "Direct",
         "requested": "[10.0.13, )",
@@ -303,13 +315,21 @@
         }
       },
       "bitwarden.server.sdk.idempotency.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "Bitwarden.Server.Sdk.CryptoPrimitives": "[0.1.0, )"
+        }
+      },
+      "bitwarden.server.sdk.infrastructure": {
         "type": "Project"
       },
       "bitwarden.server.sdk.ratelimiting": {
         "type": "Project",
         "dependencies": {
           "Bitwarden.Server.Sdk.Context": "[0.1.0, )",
+          "Bitwarden.Server.Sdk.CryptoPrimitives": "[0.1.0, )",
           "Bitwarden.Server.Sdk.Errors": "[0.1.0, )",
+          "Bitwarden.Server.Sdk.Resources.Caching.Abstractions": "[0.1.0, )",
           "StackExchange.Redis": "[2.13.17, )"
         }
       },
@@ -329,12 +349,6 @@
         "dependencies": {
           "Bitwarden.Server.Sdk.CryptoPrimitives": "[0.1.0, )"
         }
-      },
-      "bitwarden.server.sdk.sagas": {
-        "type": "Project"
-      },
-      "bitwarden.server.sdk.service.abstractions": {
-        "type": "Project"
       }
     }
   }
