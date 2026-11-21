@@ -42,10 +42,8 @@ internal sealed class AmbientStack<T>
 
     private sealed class Entry(AmbientStack<T> stack, T value, Entry? outer) : IDisposable
     {
-        private bool _ended;
-
         // Disposed while an entry pushed inside it was current, on the flow disposing it.
-        private bool _disposedOutOfOrder;
+        private volatile bool _disposedOutOfOrder;
 
         public T Value { get; } = value;
 
@@ -53,18 +51,17 @@ internal sealed class AmbientStack<T>
 
         public void Dispose()
         {
-            if (_ended)
+            // Only the flow disposing it moves, so whichever flow disposes it first, every other flow holding it still
+            // restores on its own dispose. An inner entry still current here stays current until it is disposed itself.
+            var current = stack._ambient.Value;
+            if (!ReferenceEquals(current, this))
             {
-                return;
-            }
+                if (Encloses(current))
+                {
+                    _disposedOutOfOrder = true;
+                }
 
-            _ended = true;
-
-            // Only the flow this entry is current on moves. Another flow holding it, forked inside it, keeps it, and an
-            // inner entry still current here stays current until it is disposed itself.
-            if (!ReferenceEquals(stack._ambient.Value, this))
-            {
-                _disposedOutOfOrder = true;
+                // Otherwise this flow has disposed it already.
                 return;
             }
 
@@ -76,6 +73,19 @@ internal sealed class AmbientStack<T>
             }
 
             stack._ambient.Value = restored;
+        }
+
+        private bool Encloses(Entry? entry)
+        {
+            for (var outer = entry?.Outer; outer is not null; outer = outer.Outer)
+            {
+                if (ReferenceEquals(outer, this))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }
