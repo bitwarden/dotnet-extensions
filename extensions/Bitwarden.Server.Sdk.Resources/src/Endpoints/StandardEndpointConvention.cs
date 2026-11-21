@@ -15,6 +15,8 @@ namespace Bitwarden.Server.Sdk.Resources.Endpoints;
 /// </summary>
 internal static class StandardEndpointConvention
 {
+    private static readonly MethodInfo PlatformFilter = typeof(StandardEndpointFilter).GetMethod(nameof(StandardEndpointFilter.Create))!;
+
     public static void Apply(EndpointBuilder endpoint)
     {
         if (endpoint.Metadata.OfType<MethodInfo>().LastOrDefault() is not { } method)
@@ -25,6 +27,9 @@ internal static class StandardEndpointConvention
         var services = endpoint.ApplicationServices;
         var problems = services.GetService<StandardEndpointProblems>();
         var name = NameOf(method);
+
+        // Run last (Finally), so every filter added to the endpoint or its groups is here.
+        endpoint.Metadata.Add(new EndpointFilters(endpoint.FilterFactories.Count(factory => factory.Method != PlatformFilter)));
 
         try
         {
