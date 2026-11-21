@@ -303,7 +303,10 @@
         }
       },
       "bitwarden.server.sdk.idempotency.abstractions": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "Bitwarden.Server.Sdk.CryptoPrimitives": "[0.1.0, )"
+        }
       },
       "bitwarden.server.sdk.ratelimiting": {
         "type": "Project",
