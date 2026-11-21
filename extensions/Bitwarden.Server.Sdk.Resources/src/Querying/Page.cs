@@ -35,6 +35,16 @@ namespace Bitwarden.Server.Sdk.Resources.Querying;
 /// in order, and written to while it is read, such as an event log, pages by <see cref="CursorPage"/>
 /// instead, which never counts and never shifts.
 /// </para>
+/// <para>
+/// An operation that declares a maximum of its own with <see cref="MaximumPageSizeAttribute"/> builds
+/// its page with <see cref="Page(PageNumber, PageSize)"/>, which carries that maximum; one built with
+/// an initializer alone holds at most <see cref="MaximumSize"/>:
+/// </para>
+/// <code>
+/// [MaximumPageSize(1000)] PageSize pageSize = default,
+/// ...
+/// var page = new Page(pageNumber, pageSize);
+/// </code>
 /// </remarks>
 public sealed record Page
 {
@@ -42,12 +52,33 @@ public sealed record Page
     private readonly int _size = DefaultSize;
 
     /// <summary>
+    /// The first page, of <see cref="DefaultSize"/>, holding at most <see cref="MaximumSize"/>.
+    /// </summary>
+    public Page()
+    {
+    }
+
+    /// <summary>
+    /// The page a caller asked for, holding at most the maximum the operation declares.
+    /// </summary>
+    /// <param name="number">The page, from one.</param>
+    /// <param name="size">How many it holds, with the operation's maximum (<see cref="PageSize.Maximum"/>).</param>
+    /// <exception cref="InvalidQueryException">The number is less than one or past the farthest page, or the size is less than one.</exception>
+    public Page(PageNumber number, PageSize size)
+    {
+        SizeLimit = size.Maximum;
+        Number = number;
+        Size = size;
+    }
+
+    /// <summary>
     /// How many resources a page holds when a caller does not say.
     /// </summary>
     public const int DefaultSize = 50;
 
     /// <summary>
-    /// The most a caller may ask for at once.
+    /// The most a caller may ask for at once, unless the operation declares a maximum of its own
+    /// with <see cref="MaximumPageSizeAttribute"/>.
     /// </summary>
     /// <remarks>
     /// A ceiling rather than an error: a caller asking for more is given this, because failing
@@ -57,14 +88,25 @@ public sealed record Page
     public const int MaximumSize = 200;
 
     /// <summary>
-    /// The farthest page a caller may ask for: the last whose rows, at the largest size, can still
-    /// be counted in an <see cref="int"/>.
+    /// The farthest page a caller may ask for at <see cref="MaximumSize"/>.
+    /// </summary>
+    internal const int MaximumNumber = int.MaxValue / MaximumSize;
+
+    /// <summary>
+    /// The most this page may hold: <see cref="MaximumSize"/>, or the maximum the operation declares
+    /// when the page is built with <see cref="Page(PageNumber, PageSize)"/>.
+    /// </summary>
+    public int SizeLimit { get; } = MaximumSize;
+
+    /// <summary>
+    /// The farthest page a caller may ask for when a page holds up to <paramref name="sizeLimit"/>:
+    /// the last whose rows, at that size, can still be counted in an <see cref="int"/>.
     /// </summary>
     /// <remarks>
     /// Far past any collection a caller pages through by number, and what keeps <see cref="Skip"/>
     /// and the rows a page reaches from overflowing into a negative offset.
     /// </remarks>
-    internal const int MaximumNumber = int.MaxValue / MaximumSize;
+    internal static int FarthestNumber(int sizeLimit) => int.MaxValue / sizeLimit;
 
     /// <summary>
     /// The page being asked for, from one.
@@ -76,21 +118,21 @@ public sealed record Page
 
         // Refused rather than quietly replaced by the first page. A caller who asked for page
         // zero has made a mistake, and answering with a page they did not ask for hides it.
-        init => _number = value is >= 1 and <= MaximumNumber
+        init => _number = value >= 1 && value <= FarthestNumber(SizeLimit)
             ? value
-            : throw PastTheLast(value.ToString(), value >= 1);
+            : throw PastTheLast(value.ToString(), SizeLimit, value >= 1);
     }
 
     /// <summary>
     /// Refuses a page number, saying how far a caller may go when that is what was wrong.
     /// </summary>
-    internal static InvalidQueryException PastTheLast(string value, bool tooFar) =>
+    internal static InvalidQueryException PastTheLast(string value, int sizeLimit, bool tooFar) =>
         tooFar
-            ? new InvalidQueryException(PageNumber.Parameter, value, $"must be a whole number from 1 to {MaximumNumber}")
+            ? new InvalidQueryException(PageNumber.Parameter, value, $"must be a whole number from 1 to {FarthestNumber(sizeLimit)}")
             : new InvalidQueryException(PageNumber.Parameter, value);
 
     /// <summary>
-    /// How many resources the page holds.
+    /// How many resources the page holds: at most <see cref="SizeLimit"/>.
     /// </summary>
     /// <exception cref="InvalidQueryException">The size is less than one.</exception>
     public int Size
@@ -98,7 +140,7 @@ public sealed record Page
         get => _size;
 
         init => _size = value >= 1
-            ? Math.Min(value, MaximumSize)
+            ? Math.Min(value, SizeLimit)
             : throw new InvalidQueryException("page[size]", value.ToString());
     }
 
