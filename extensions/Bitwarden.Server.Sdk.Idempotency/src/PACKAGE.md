@@ -22,12 +22,12 @@ dotnet add package Bitwarden.Server.Sdk.Idempotency
 
 ## Configuration
 
-| Setting                           | Default    | What it does                                                                                                                      |
-| --------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `Idempotency:Enabled`             | `true`     | Whether keys are honored at all.                                                                                                  |
-| `Idempotency:Retention`           | `00:10:00` | How long a completed write's answer is kept for its key. A repeat after that is done again.                                       |
-| `Idempotency:Lease`               | `00:02:00` | How long a write in progress holds its key. A repeat after that, should the instance running it have stopped, is done again.      |
-| `Idempotency:MaximumBytes`        | `1048576`  | The largest request body fingerprinted, and the largest answer kept. See "Gotchas and constraints".                               |
+| Setting                           | Default    | What it does                                                                                                                                                                                                                                        |
+| --------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Idempotency:Enabled`             | `true`     | Whether keys are honored at all.                                                                                                                                                                                                                    |
+| `Idempotency:Retention`           | `00:10:00` | How long a completed write's answer is kept for its key. A repeat after that is done again.                                                                                                                                                         |
+| `Idempotency:Lease`               | `00:02:00` | How long a write in progress holds its key. A repeat after that, should the instance running it have stopped, is done again.                                                                                                                        |
+| `Idempotency:MaximumBytes`        | `1048576`  | The largest request body fingerprinted, and the largest answer kept. See "Gotchas and constraints".                                                                                                                                                 |
 | `Idempotency:Redis:Configuration` | None       | The Redis records are kept in. With it, and a shared data protection key ring, records are kept there; otherwise in this process. Outside `Development`, it must name a Redis user of the service's own (`user=...`), or the host refuses to start. |
 
 - **A Redis shared with other services.** Records are kept as `{service}:idempotency:{SHA-256 of the caller, the key
