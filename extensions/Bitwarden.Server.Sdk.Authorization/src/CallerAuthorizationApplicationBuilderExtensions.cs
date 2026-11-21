@@ -21,7 +21,8 @@ public static class CallerAuthorizationApplicationBuilderExtensions
         app.UseMiddleware<ForwardedClientAddress>();
 
     /// <summary>
-    /// Refuses a request to a product service that carries context headers, which only another service sends.
+    /// Refuses a request to a product service that carries any header only another service sends
+    /// (<see cref="Bitwarden.Server.Sdk.Context.BitwardenHeaders.ServiceOnly"/>).
     /// </summary>
     /// <remarks>
     /// Add it before anything reads the context and before authentication, so the answer is the same whatever the

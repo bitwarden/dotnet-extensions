@@ -10,8 +10,9 @@ namespace Bitwarden.Server.Sdk.Authorization;
 /// issued for, and Identity issued it only to a confirmed member or confirmed staff. That was true when the session was
 /// exchanged; a person removed or demoted since still holds the session for the rest of its life. So a product service
 /// asks this, once per request, before authorization runs, and authorizes from the answer
-/// (<see cref="ICallerRole"/>), never from the role the session was issued with. A product service without one
-/// registered fails at startup.
+/// (<see cref="ICallerRole"/>), never from the role the session was issued with. A product service that adds
+/// <see cref="CallerAuthorizationApplicationBuilderExtensions.UseCurrentStanding"/> without one registered fails at
+/// startup.
 /// </para>
 /// <para>
 /// The service that owns the standing implements it in its client package, from its cache first.
