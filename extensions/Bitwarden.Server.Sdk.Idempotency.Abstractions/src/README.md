@@ -46,10 +46,9 @@ The count is in invariant decimal digits. The identifier's version and variant b
 order RFC 9562 writes. `CacheKey` encodes text as strict UTF-8, so a lone surrogate throws `EncoderFallbackException`,
 which `KeyForWrite` and `DeriveId` turn into an `ArgumentException` that doesn't quote the text.
 
-`IdempotencySecret.ReadSecret` follows `OwnedAnswerKey.ReadSecret` in Resources.Caching.Abstractions: it compares the
-environment name as `IHostEnvironment.IsDevelopment` does, and its messages name the setting, never the value. The
-secret is not the cache's answer secret: a cache's secret is shared by every service that reads the cache, while only
-the service that derived an idempotency key ever derives it again.
+`IdempotencySecret.ReadSecret` compares the environment name as `IHostEnvironment.IsDevelopment` does, and its messages
+name the setting, never the value. The secret is the service's own: only the service that derived an idempotency key
+ever derives it again.
 
 ## Testing
 
