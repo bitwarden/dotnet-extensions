@@ -232,6 +232,10 @@ public sealed class WidgetReads(IWidgetClient widgets)
 
 Statements nest, and disposing one restores the one before.
 
+A client that answers one read with several calls, such as a list read page by page, holds the caller's statement
+before the first call (`OutgoingCall.Hold()`) and states it again for each later one (`held.Again()`): every page
+carries exactly what the first did, and nothing is stated where the caller stated nothing.
+
 ### Rely on retries and idempotency keys
 
 - **Idempotency keys go only to marked operations.** A write to an operation the callee's contract marks
@@ -475,7 +479,7 @@ read-many is never answered by `ReadAsync` or `ReadCurrentAsync`, nor a read of 
 | `BitwardenClientOptions`                                                     | A client's settings                                                                   |
 | `IServiceTokenProvider`, `ServiceTokenProvider`                              | The caller's token and its context tokens                                             |
 | `ClientAssertion`                                                            | A signed client assertion in place of a secret                                        |
-| `OutgoingCall`, `OutgoingCallOptions`                                        | Stating whom one call is about; the event actor rule; `Fresh()` past the request memo |
+| `OutgoingCall`, `OutgoingCallOptions`, `HeldStatement`                      | Stating whom one call is about; the event actor rule; `Fresh()` past the request memo |
 | `ServiceCallException`, `RequestRefusedException`, `RelayedRefusalException` | Failures with no more specific exception                                              |
 | `Undo`, `UndoOn`                                                             | Taking back writes that span services                                                 |
 | `ProductClient`, `ProductAnswer`, `ProductAnswer<T>`                         | Calling a product service with somebody's own token                                   |

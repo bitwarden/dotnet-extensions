@@ -329,6 +329,31 @@ public static class OutgoingCall
     }
 
     /// <summary>
+    /// Holds what is stated for the next call, so a read a client makes as several calls (a list read page by page) can
+    /// state exactly the same again for each call after the first.
+    /// </summary>
+    /// <returns>
+    /// The statement held: <see cref="HeldStatement.Again"/> states it once more, for one call. With nothing stated,
+    /// it states nothing, and each call carries the context as the first did.
+    /// </returns>
+    /// <remarks>
+    /// Hold it before the first call uses the statement up. It states nothing the statement didn't: each later call
+    /// carries the same person, organization and provider, delegated or the service's own word, as the first.
+    /// </remarks>
+    public static HeldStatement Hold() => new(Peek());
+
+    /// <summary>
+    /// States <paramref name="stated"/> again, as a statement of its own covering one call.
+    /// </summary>
+    internal static IDisposable Restate(Stated stated)
+    {
+        var previous = Ambient.Value;
+        Ambient.Value = new Statement(stated);
+
+        return new Restore(previous);
+    }
+
+    /// <summary>
     /// Takes what is stated for the call being sent, or null when nothing is.
     /// </summary>
     /// <exception cref="InvalidOperationException">The statement was already used by an earlier call.</exception>
