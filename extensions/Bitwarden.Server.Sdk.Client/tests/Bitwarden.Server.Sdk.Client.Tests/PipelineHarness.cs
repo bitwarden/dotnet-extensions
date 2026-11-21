@@ -24,7 +24,8 @@ internal static class PipelineHarness
         TimeProvider? clock = null,
         Action<BitwardenClientOptions>? configure = null,
         HttpMessageHandler? identity = null,
-        IReadOnlyDictionary<string, string?>? settings = null)
+        IReadOnlyDictionary<string, string?>? settings = null,
+        Action<IServiceCollection>? register = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
@@ -43,6 +44,8 @@ internal static class PipelineHarness
         {
             services.AddSingleton(clock);
         }
+
+        register?.Invoke(services);
 
         services.AddBitwardenClient<Probe, Probe>(Callee, ["callee.read"], options =>
             {
@@ -142,7 +145,7 @@ internal static class PipelineHarness
     /// <summary>
     /// One attempt as the callee saw it.
     /// </summary>
-    public sealed record Attempt(string? Key, string? Body, string? Organization, string? User = null);
+    public sealed record Attempt(string? Key, string? Body, string? Organization, string? User = null, string? Provider = null);
 
     /// <summary>
     /// The callee: answers each attempt with the next step of its script, the last one repeating. <see cref="Hang"/>
@@ -165,7 +168,8 @@ internal static class PipelineHarness
                 request.Headers.TryGetValues(IdempotencyKeys.Header, out var keys) ? keys.Single() : null,
                 body,
                 request.Headers.TryGetValues(BitwardenHeaders.Organization, out var organizations) ? organizations.Single() : null,
-                request.Headers.TryGetValues(BitwardenHeaders.User, out var users) ? users.Single() : null));
+                request.Headers.TryGetValues(BitwardenHeaders.User, out var users) ? users.Single() : null,
+                request.Headers.TryGetValues(BitwardenHeaders.Provider, out var providers) ? providers.Single() : null));
             Arrived?.Invoke();
 
             var step = script[Math.Min(Attempts.Count - 1, script.Length - 1)];
