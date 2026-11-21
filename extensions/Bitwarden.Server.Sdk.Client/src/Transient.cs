@@ -37,7 +37,7 @@ internal static class Transient
     /// <summary>
     /// A <c>502</c>, <c>503</c> or <c>504</c> from something in front of the service (a proxy, a load balancer), not an
     /// answer of the service's own: it carries no JSON error document. A service's own <c>503</c> says what it is
-    /// waiting for (a dependency down, a key rotation in progress) and is its answer; retrying it would multiply
+    /// waiting for (a dependency down) and is its answer; retrying it would multiply
     /// retries down a chain of calls.
     /// </summary>
     public static bool Is(HttpResponseMessage response)
