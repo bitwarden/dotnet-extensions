@@ -54,6 +54,27 @@ public sealed class PagingDocumentTransformerTests
         Assert.Equal(25, Assert.Single(operation.Parameters!).Schema!.Default!.GetValue<int>());
     }
 
+    [Fact]
+    public async Task TransformAsync_PageSizeWithDeclaredMaximum_PublishesIt()
+    {
+        var operation = await Transform(nameof(Handlers.ListLargePages), new OpenApiParameter { Name = "page[size]" });
+
+        var size = Assert.Single(operation.Parameters!);
+        Assert.Equal("1000", size.Schema!.Maximum);
+        Assert.Equal(50, size.Schema.Default!.GetValue<int>());
+        Assert.Equal("How many resources the page holds. Values above 1000 are treated as 1000.", size.Description);
+    }
+
+    [Fact]
+    public async Task TransformAsync_PageSizeWithDeclaredMaximumAndDefault_PublishesBoth()
+    {
+        var operation = await Transform(nameof(Handlers.ListLargeDefaultPages), new OpenApiParameter { Name = "page[size]" });
+
+        var size = Assert.Single(operation.Parameters!);
+        Assert.Equal("500", size.Schema!.Maximum);
+        Assert.Equal(300, size.Schema.Default!.GetValue<int>());
+    }
+
     // An int parameter's own default reaches the declared schema, and is kept.
     [Theory]
     [InlineData("page[number]", 3)]
@@ -170,6 +191,20 @@ public sealed class PagingDocumentTransformerTests
         /// Offset-paged with a smaller page.
         /// </summary>
         public static void ListSmallPages(PageNumber pageNumber = default, [DefaultValue(25)] PageSize pageSize = default)
+        {
+        }
+
+        /// <summary>
+        /// Offset-paged with a larger maximum.
+        /// </summary>
+        public static void ListLargePages(PageNumber pageNumber = default, [MaximumPageSize(1000)] PageSize pageSize = default)
+        {
+        }
+
+        /// <summary>
+        /// Offset-paged with a larger maximum and a larger default.
+        /// </summary>
+        public static void ListLargeDefaultPages(PageNumber pageNumber = default, [DefaultValue(300), MaximumPageSize(500)] PageSize pageSize = default)
         {
         }
 
