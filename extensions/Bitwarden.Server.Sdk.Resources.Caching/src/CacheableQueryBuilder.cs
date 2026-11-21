@@ -90,25 +90,7 @@ public sealed class CacheableQueryBuilder<TEntity, TResource>
         Expression<Func<TDependent, object?>> foreignKey, CascadeCoverage coverage, string reason)
         where TDependent : class
     {
-        ArgumentNullException.ThrowIfNull(foreignKey);
-        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
-
-        if (!Enum.IsDefined(coverage))
-        {
-            throw new ArgumentOutOfRangeException(nameof(coverage), coverage, null);
-        }
-
-        var row = foreignKey.Parameters[0];
-        var body = foreignKey.Body is UnaryExpression { NodeType: ExpressionType.Convert } boxed ? boxed.Operand : foreignKey.Body;
-        IReadOnlyList<Expression> members = body is NewExpression composite ? composite.Arguments : [body];
-        var properties = members
-            .Select(member => member is MemberExpression { Member: System.Reflection.PropertyInfo property } read && read.Expression == row
-                ? property.Name
-                : throw new ArgumentException(
-                    $"A cascade is declared by the foreign key's properties of {typeof(TDependent).Name}, not {member}.", nameof(foreignKey)))
-            .ToList();
-
-        CascadeDeclarations.Add(new CascadeDeclaration(typeof(TDependent), properties, coverage, reason));
+        CascadeDeclarations.Add(CascadeDeclaration.Of(foreignKey, coverage, reason));
         return this;
     }
 

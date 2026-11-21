@@ -18,6 +18,8 @@ Bitwarden.Server.Sdk.Client. Nothing here may let a cached copy answer a read th
 | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `CacheableQuery.cs`                                         | The read path: own entry, else the row through the context, then the fill and the per-caller attributes.       |
 | `CacheableQueryBuilder.cs`, `CacheableResource.cs`          | The declaration, and the resource it settles to: keys, owner, version column, includes, lifetime.              |
+| `CacheableReadMany.cs`, `CacheableReadManyBuilder.cs`       | A cached read-many: its declaration, and its read, own entry first, else the rows, then the fill and the page. |
+| `CacheableReadManyResource.cs`, `CachedReadMany.cs`         | The read-many it settles to: party, condition, unique order, scope, most rows; the key every change kills.     |
 | `CacheableQueries.cs`                                       | Finds the queries among the registrations by type, and checks the queries of one table agree.                  |
 | `CacheContract.cs`, `CacheContractCheck.cs`                 | Settles what each operation taking a query demands, and refuses at startup what a client could not repeat.     |
 | `CacheContractTransformer.cs`                               | Writes `x-bitwarden-cache` into the OpenAPI operation.                                                         |
@@ -43,6 +45,14 @@ Bitwarden.Server.Sdk.Client. Nothing here may let a cached copy answer a read th
   by the database instead, `SET version = version + 1` under the row's lock as the change commits, and the version it
   moved from is the dead one. A change to an included row moves its parent's version the same way, so two changes to
   its rows at once each move it once.
+- **A cached read-many.** It has no version of its own: every fill writes version 0, and every change to a row of its
+  table, for the party the row named before and the one it names after (`CacheInvalidationInterceptor.Invalidations`,
+  and the version bumps in `CacheChanges`), tombstones it at `Invalidation.EveryVersion` as an arrival, for the commit
+  allowance. The contract check (`CacheContract.SettleReadMany`) refuses a handler taking anything but the read, the
+  fieldset, the page and a cancellation token, so a client's slice of the entry is the service's page; startup
+  (`OwnedCacheStartup.RequireUniqueOrders`) refuses an order not ending in a unique column, `CacheableQueries` a
+  read-many whose resource another read gives, and the declaration itself (`OwnColumnsOnly`) a condition or order
+  reading anything but the table's own columns, or an order that does more than order.
 - **The fill script.** A fill of exactly what the entry already holds, at the same version, writes nothing, and a
   different entry at the same version is left too; one in another format is replaced.
 - **Tombstone lifetimes.** Every tombstone lives as long as the longest-lived entry, which `OwnedCacheStartup` checks
@@ -74,8 +84,8 @@ Bitwarden.Server.Sdk.Client. Nothing here may let a cached copy answer a read th
 ## Testing
 
 Tests are in `tests/Bitwarden.Server.Sdk.Resources.Caching.Tests` and need Docker, for Redis. A test class is named for
-the source file it tests; `OwnedCacheTests`, `MultiKeyTests` and `RedisAclTests` run the whole cache against a host
-and a Redis, rather than one type.
+the source file it tests; `OwnedCacheTests`, `MultiKeyTests`, `CacheableReadManyTests` and `RedisAclTests` run the whole
+cache against a host and a Redis, rather than one type.
 `tests/Bitwarden.Server.Sdk.Resources.Caching.Generated.Tests` compiles the cacheable read tests again with the request
 delegate generator, as a service compiles its handlers; every test must pass both ways. Run them from the repository
 root:
@@ -92,6 +102,8 @@ A change must keep:
 - **Invalidation before the commit.** Every change to what the cache holds commits in a transaction whose
   `TransactionCommitting` tombstones it first, and a change the cache can't be told of, declared `Refuse`, never
   commits. The dead version is one the database vouches for: a concurrency token, or a version the database moves.
+- **A read-many is dead after any change.** Every change to a row of its table, for the party before and after, marks
+  every version of the party's entry dead before the commit.
 - **No write the cache can't see.** A write in bulk to a table an entry is built from is refused unless it is an owner's
   erasure, and a change to an included row moves its parent's version.
 - **No cascade undeclared.** A foreign key that lets the database delete or change a row an entry is built from is

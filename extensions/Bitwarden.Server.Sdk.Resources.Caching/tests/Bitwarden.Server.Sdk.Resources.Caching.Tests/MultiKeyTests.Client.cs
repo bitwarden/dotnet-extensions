@@ -110,7 +110,8 @@ public sealed partial class MultiKeyTests
             services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Client.BitwardenClientOptions>>(),
             services.GetRequiredService<IServiceScopeFactory>(),
             new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<Client.CachedReads<MultiKeyTests>>.Instance));
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<Client.CachedReads<MultiKeyTests>>.Instance,
+            new Client.RequestMemoMetrics(new ServiceCollection().AddMetrics().BuildServiceProvider().GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>())));
     }
 
     private sealed class RequestProof : ICallerProof

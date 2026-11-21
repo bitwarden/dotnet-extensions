@@ -130,9 +130,9 @@ internal interface ICacheableResource
     (string? Current, string? Original) EntryKeysOf(string service, Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry entry);
 
     /// <summary>
-    /// The name of the row's version property.
+    /// The name of the row's version property; null for a read-many, which is versioned by its tombstones alone.
     /// </summary>
-    string VersionProperty { get; }
+    string? VersionProperty { get; }
 
     /// <summary>
     /// The name of the property the cache is keyed by: <c>Id</c>, or the unique key's.
@@ -143,4 +143,9 @@ internal interface ICacheableResource
     /// Whether the unique key is the row's owner, as an organization's entitlements are keyed by it.
     /// </summary>
     bool KeyIsOwner { get; }
+
+    /// <summary>
+    /// What a cached read-many declares (<see cref="CacheableReadMany{TEntity,TResource}"/>); null for a read of one.
+    /// </summary>
+    CachedReadMany? ReadMany { get; }
 }

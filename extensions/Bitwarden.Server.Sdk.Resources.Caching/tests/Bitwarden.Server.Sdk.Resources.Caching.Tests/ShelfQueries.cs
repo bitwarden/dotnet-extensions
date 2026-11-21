@@ -241,6 +241,116 @@ public sealed class GetArchiveQuery(CacheableQueryServices services) : Cacheable
         .Map(entity => new Archive { Id = entity.Id.ToString(), Name = entity.Name, Version = entity.Version.ToString() });
 }
 
+public interface IListOpenLoans
+{
+    Task<PagedResourceListDocument<OpenLoan>> ReadAsync(
+        PageNumber pageNumber, PageSize pageSize, Fields<OpenLoan> fields = default, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// The person in context's loans not yet returned, in every organization: a cached read-many.
+/// </summary>
+public sealed class OpenLoansList(CacheableQueryServices services) : CacheableReadMany<LoanEntity, OpenLoan>(services), IListOpenLoans
+{
+    protected override void Configure(CacheableReadManyBuilder<LoanEntity, OpenLoan> list) => list
+        .KeyedBy(entity => entity.Borrower, Owner.User)
+        .Where(entity => !entity.Returned)
+        .OrderBy(rows => rows.OrderBy(row => row.Title).ThenBy(row => row.Id))
+        .Map(ShelfMapping.ToOpenLoan)
+        .Scope(ShelfHost.ReadScope);
+}
+
+/// <summary>
+/// The same read-many, an entry holding at most two loans.
+/// </summary>
+public sealed class FewOpenLoansList(CacheableQueryServices services) : CacheableReadMany<LoanEntity, OpenLoan>(services), IListOpenLoans
+{
+    protected override void Configure(CacheableReadManyBuilder<LoanEntity, OpenLoan> list) => list
+        .KeyedBy(entity => entity.Borrower, Owner.User)
+        .Where(entity => !entity.Returned)
+        .OrderBy(rows => rows.OrderBy(row => row.Title).ThenBy(row => row.Id))
+        .Map(ShelfMapping.ToOpenLoan)
+        .Scope(ShelfHost.ReadScope)
+        .AtMost(2);
+}
+
+/// <summary>
+/// A read-many read with a scope its operation doesn't demand: refused.
+/// </summary>
+public sealed class OtherScopeOpenLoansList(CacheableQueryServices services) : CacheableReadMany<LoanEntity, OpenLoan>(services), IListOpenLoans
+{
+    protected override void Configure(CacheableReadManyBuilder<LoanEntity, OpenLoan> list) => list
+        .KeyedBy(entity => entity.Borrower, Owner.User)
+        .Where(entity => !entity.Returned)
+        .OrderBy(rows => rows.OrderBy(row => row.Title).ThenBy(row => row.Id))
+        .Map(ShelfMapping.ToOpenLoan)
+        .Scope("loans.other");
+}
+
+/// <summary>
+/// A read-many ordered by a column two loans may share: refused.
+/// </summary>
+public sealed class TitleOrderedOpenLoansList(CacheableQueryServices services) : CacheableReadMany<LoanEntity, OpenLoan>(services), IListOpenLoans
+{
+    protected override void Configure(CacheableReadManyBuilder<LoanEntity, OpenLoan> list) => list
+        .KeyedBy(entity => entity.Borrower, Owner.User)
+        .Where(entity => !entity.Returned)
+        .OrderBy(rows => rows.OrderBy(row => row.Title))
+        .Map(ShelfMapping.ToOpenLoan)
+        .Scope(ShelfHost.ReadScope);
+}
+
+/// <summary>
+/// A read-many selecting its rows through a navigation, another table: refused.
+/// </summary>
+public sealed class PlacedShelvesList(CacheableQueryServices services) : CacheableReadMany<ShelfEntity, Shelf>(services)
+{
+    protected override void Configure(CacheableReadManyBuilder<ShelfEntity, Shelf> list) => list
+        .KeyedBy(entity => entity.OrganizationId, Owner.User)
+        .Where(entity => entity.Placements.Any())
+        .OrderBy(rows => rows.OrderBy(row => row.Id))
+        .Map(ShelfMapping.ToResource)
+        .Scope(ShelfHost.ReadScope);
+}
+
+/// <summary>
+/// A read-many whose order narrows its rows as well as ordering them: refused.
+/// </summary>
+public sealed class NarrowingOrderOpenLoansList(CacheableQueryServices services) : CacheableReadMany<LoanEntity, OpenLoan>(services), IListOpenLoans
+{
+    protected override void Configure(CacheableReadManyBuilder<LoanEntity, OpenLoan> list) => list
+        .KeyedBy(entity => entity.Borrower, Owner.User)
+        .Where(entity => !entity.Returned)
+        .OrderBy(rows => rows.Where(row => row.Title != "").OrderBy(row => row.Title).ThenBy(row => row.Id))
+        .Map(ShelfMapping.ToOpenLoan)
+        .Scope(ShelfHost.ReadScope);
+}
+
+/// <summary>
+/// A read-many without its order: refused.
+/// </summary>
+public sealed class UnorderedOpenLoansList(CacheableQueryServices services) : CacheableReadMany<LoanEntity, OpenLoan>(services), IListOpenLoans
+{
+    protected override void Configure(CacheableReadManyBuilder<LoanEntity, OpenLoan> list) => list
+        .KeyedBy(entity => entity.Borrower, Owner.User)
+        .Where(entity => !entity.Returned)
+        .Map(ShelfMapping.ToOpenLoan)
+        .Scope(ShelfHost.ReadScope);
+}
+
+/// <summary>
+/// A read-many whose resource another cached read also gives: refused.
+/// </summary>
+public sealed class BorrowersLoansAsLoans(CacheableQueryServices services) : CacheableReadMany<LoanEntity, Loan>(services)
+{
+    protected override void Configure(CacheableReadManyBuilder<LoanEntity, Loan> list) => list
+        .KeyedBy(entity => entity.Borrower, Owner.User)
+        .Where(entity => !entity.Returned)
+        .OrderBy(rows => rows.OrderBy(row => row.Title).ThenBy(row => row.Id))
+        .Map(ShelfMapping.ToResource)
+        .Scope(ShelfHost.ReadScope);
+}
+
 public interface IGetCopyQuery
 {
     Task<ResourceDocument<Copy>> ReadAsync(string id, Fields<Copy> fields = default, CancellationToken cancellationToken = default);
@@ -309,6 +419,53 @@ public interface IGetStampQuery
 public sealed class GetStampQuery(CacheableQueryServices services) : CacheableQuery<StampEntity, Stamp>(services), IGetStampQuery
 {
     protected override void Configure(CacheableQueryBuilder<StampEntity, Stamp> query) => query.Map(ShelfMapping.ToResource);
+}
+
+public interface IListCopies
+{
+    Task<PagedResourceListDocument<Copy>> ReadAsync(
+        PageNumber pageNumber, PageSize pageSize, Fields<Copy> fields = default, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// An organization's copies as a cached read-many, which the database deletes with their branch, with no declaration.
+/// </summary>
+public sealed class OrganizationsCopiesList(CacheableQueryServices services) : CacheableReadMany<CopyEntity, Copy>(services), IListCopies
+{
+    protected override void Configure(CacheableReadManyBuilder<CopyEntity, Copy> list) => list
+        .KeyedBy(copy => copy.OrganizationId, Owner.Organization)
+        .Where(copy => copy.Title != "")
+        .OrderBy(rows => rows.OrderBy(row => row.Title).ThenBy(row => row.Id))
+        .Map(ShelfMapping.ToResource)
+        .Scope(ShelfHost.ReadScope);
+}
+
+/// <summary>
+/// An organization's copies as a cached read-many, whose branch is only ever deleted with its copies loaded.
+/// </summary>
+public sealed class LoadedOrganizationsCopiesList(CacheableQueryServices services) : CacheableReadMany<CopyEntity, Copy>(services), IListCopies
+{
+    protected override void Configure(CacheableReadManyBuilder<CopyEntity, Copy> list) => list
+        .KeyedBy(copy => copy.OrganizationId, Owner.Organization)
+        .Where(copy => copy.Title != "")
+        .OrderBy(rows => rows.OrderBy(row => row.Title).ThenBy(row => row.Id))
+        .Map(ShelfMapping.ToResource)
+        .Scope(ShelfHost.ReadScope)
+        .CascadeCovered<CopyEntity>(copy => copy.BranchId, CascadeCoverage.DependentsLoaded, "closing a branch loads its copies first");
+}
+
+/// <summary>
+/// A cached read-many declaring its cascade covered by a parent's entry, which a read-many never includes: refused.
+/// </summary>
+public sealed class ParentlessOrganizationsCopiesList(CacheableQueryServices services) : CacheableReadMany<CopyEntity, Copy>(services), IListCopies
+{
+    protected override void Configure(CacheableReadManyBuilder<CopyEntity, Copy> list) => list
+        .KeyedBy(copy => copy.OrganizationId, Owner.Organization)
+        .Where(copy => copy.Title != "")
+        .OrderBy(rows => rows.OrderBy(row => row.Title).ThenBy(row => row.Id))
+        .Map(ShelfMapping.ToResource)
+        .Scope(ShelfHost.ReadScope)
+        .CascadeCovered<CopyEntity>(copy => copy.BranchId, CascadeCoverage.ParentInvalidated, "the branch's entry");
 }
 
 public static class ShelfQueries

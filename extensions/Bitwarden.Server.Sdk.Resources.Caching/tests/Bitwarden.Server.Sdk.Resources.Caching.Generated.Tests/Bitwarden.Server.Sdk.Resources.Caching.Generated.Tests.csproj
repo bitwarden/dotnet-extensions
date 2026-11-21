@@ -24,6 +24,7 @@
     <Compile Include="..\Bitwarden.Server.Sdk.Resources.Caching.Tests\RedisFixture.cs" />
     <Compile Include="..\Bitwarden.Server.Sdk.Resources.Caching.Tests\CacheableQueryTests.cs" />
     <Compile Include="..\Bitwarden.Server.Sdk.Resources.Caching.Tests\MultiKeyTests.cs" />
+    <Compile Include="..\Bitwarden.Server.Sdk.Resources.Caching.Tests\CacheableReadManyTests.cs" />
   </ItemGroup>
 
   <ItemGroup>

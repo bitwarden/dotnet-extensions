@@ -132,9 +132,24 @@ internal sealed class CacheInvalidationInterceptor(
     /// </summary>
     internal static void Invalidations(ICacheableResource resource, EntityEntry entry, string service, CacheChanges changes)
     {
-        var version = entry.Property(resource.VersionProperty);
         var refuse = resource.WhenUnreachable == CacheWrites.Refuse;
         var (current, original) = resource.EntryKeysOf(service, entry);
+
+        // A cached read-many is the party's rows, not one row: no row's version speaks for it. Any change to a row of
+        // its table, for the party the row named before and the one it names after, marks every version dead for the
+        // commit allowance, as an arrival does: a fill read before the change committed arrives within it, and a read
+        // after it sees the change.
+        if (resource.ReadMany is not null)
+        {
+            foreach (var key in new[] { original, current }.OfType<string>().Distinct(StringComparer.Ordinal))
+            {
+                changes.Invalidations.Add(new Invalidation(key, Invalidation.EveryVersion, refuse, Arrival: true));
+            }
+
+            return;
+        }
+
+        var version = entry.Property(resource.VersionProperty!);
 
         // A row arriving under a unique key replaces "nothing recorded". Under a key several rows may hold, the entry
         // may be another row's, whose version says nothing of this one's: every version is dead until the tombstone

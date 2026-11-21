@@ -83,6 +83,8 @@ internal sealed class CacheableResource<TEntity, TResource> : ICacheableResource
 
     public Owner? CurrentFrom { get; }
 
+    public CachedReadMany? ReadMany => null;
+
     public IReadOnlyList<string> KeyColumns { get; }
 
     public bool WithinOwner => Read.WithinOwner;
@@ -125,7 +127,7 @@ internal sealed class CacheableResource<TEntity, TResource> : ICacheableResource
 
     public Owner? Owner => Read.Owner;
 
-    public string VersionProperty => _version.Name;
+    public string? VersionProperty => _version.Name;
 
     public string Template(string service) => ById
         ? OwnedCacheEntry.Template(service, ResourceType)

@@ -127,13 +127,13 @@ internal sealed class CacheChanges
             var entity = bump.Entity;
             var resources = registry.For(entity.ClrType);
 
-            if (resources.Count == 0)
+            if (resources.All(resource => resource.ReadMany is not null))
             {
                 continue;
             }
 
             var table = StoreObjectIdentifier.Table(entity.GetTableName()!, entity.GetSchema());
-            var version = entity.FindProperty(resources[0].VersionProperty)!;
+            var version = entity.FindProperty(resources.First(resource => resource.ReadMany is null).VersionProperty!)!;
             var columns = resources.SelectMany(resource => resource.KeyColumns).Distinct(StringComparer.Ordinal).ToList();
             string Column(IProperty property) => sql.DelimitIdentifier(property.GetColumnName(table)!);
 
@@ -176,7 +176,11 @@ internal sealed class CacheChanges
                 if (resource.EntryKey(registry.Service, column => values.GetValueOrDefault(column)) is { } key)
                 {
                     keys.Add(key);
-                    invalidations.Add(new Invalidation(key, moved - 1, resource.WhenUnreachable == CacheWrites.Refuse));
+
+                    // A cached read-many is versioned by its tombstones alone (CacheInvalidationInterceptor).
+                    invalidations.Add(resource.ReadMany is null
+                        ? new Invalidation(key, moved - 1, resource.WhenUnreachable == CacheWrites.Refuse)
+                        : new Invalidation(key, Invalidation.EveryVersion, resource.WhenUnreachable == CacheWrites.Refuse, Arrival: true));
                 }
             }
 

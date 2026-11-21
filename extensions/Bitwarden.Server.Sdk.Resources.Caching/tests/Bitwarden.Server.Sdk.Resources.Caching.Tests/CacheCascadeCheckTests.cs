@@ -79,6 +79,42 @@ public sealed class CacheCascadeCheckTests(RedisFixture redis) : IClassFixture<R
         Assert.Contains(expected, refusal.Message);
     }
 
+    // A cached read-many is built from rows as a read of one is, so it is held to the same declarations.
+    [Fact]
+    public async Task Start_CachedReadManyWithAnUndeclaredCascade_Refused()
+    {
+        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() => ShelfHost.StartAsync(
+            null, services => services.AddQuery<IListCopies, OrganizationsCopiesList>().AddOwnedCache<ShelfContext>()));
+
+        Assert.Contains("OrganizationsCopiesList reads CopyEntity.BranchId (Cascade from BranchEntity)", refusal.Message);
+    }
+
+    [Fact]
+    public async Task Start_CachedReadManyWithItsCascadeDeclared_Starts()
+    {
+        await using var host = await ShelfHost.StartAsync(
+            null, services => services.AddQuery<IListCopies, LoadedOrganizationsCopiesList>().AddOwnedCache<ShelfContext>());
+    }
+
+    // A read-many includes nothing, so no parent's entry can cover its rows.
+    [Fact]
+    public async Task Start_CachedReadManyDeclaringItsCascadeParentInvalidated_RefusedEverywhere()
+    {
+        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() => ShelfHost.StartAsync(
+            null,
+            services => services.AddQuery<IListCopies, ParentlessOrganizationsCopiesList>().AddOwnedCache<ShelfContext>(),
+            "Production"));
+
+        Assert.Contains("not the key an included navigation names CopyEntity by", refusal.Message);
+    }
+
+    [Fact]
+    public void CascadeCovered_OnACachedReadMany_Kept() =>
+        Assert.Equal(
+            ["BranchId"],
+            Assert.Single(new CacheableReadManyBuilder<CopyEntity, Copy>()
+                .CascadeCovered<CopyEntity>(copy => copy.BranchId, CascadeCoverage.DependentsLoaded, "loaded").CascadeDeclarations).Properties);
+
     [Fact]
     public void CascadeCovered_ByAnExpressionThatIsNoProperty_Refused() =>
         Assert.Throws<ArgumentException>(() => new CacheableQueryBuilder<CopyEntity, Copy>()

@@ -37,6 +37,10 @@ namespace Bitwarden.Server.Sdk.Resources.Caching;
 /// its own owner, which a request may name or leave unnamed; <c>acrossOwners</c> is a resource the
 /// service reads across owners, which a client answers on the scope alone, as the service does.
 /// A client that doesn't know <c>acrossOwners</c> checks the owner, which is never looser.
+/// A cached read-many (<see cref="CacheableReadMany{TEntity,TResource}"/>) adds <c>"readMany": { "atMost": 1000 }</c>:
+/// its entry's <c>d</c> is the array of every resource of the party its key names (<c>keyedBy</c>, the party in
+/// context), in its order, of which a client takes the page asked for. A client that doesn't know <c>readMany</c> reads
+/// the entry as one resource, which an array never is: a miss.
 /// <c>assertedBy</c> names the services whose own assertion of a context naming a person the operation admits
 /// (<c>[AcceptsAssertedContext]</c>): a client asserting one, on its own authority rather than
 /// continuing a person's request, reads the cache only if it is among them, and asks otherwise, so the operation refuses
@@ -89,6 +93,12 @@ internal sealed class CacheContractTransformer(CacheableQueries queries, IServic
                 ["self"] = resource.Ownership == Data.ReadOwnership.Self,
                 ["acrossOwners"] = resource.AcrossOwners,
             };
+        }
+
+        // A cached read-many: the whole of its party's rows in one entry, of which a client takes the page asked for.
+        if (resource.ReadMany is { } many)
+        {
+            cache["readMany"] = new JsonObject { ["atMost"] = many.AtMost };
         }
 
         operation.Extensions ??= new Dictionary<string, IOpenApiExtension>();

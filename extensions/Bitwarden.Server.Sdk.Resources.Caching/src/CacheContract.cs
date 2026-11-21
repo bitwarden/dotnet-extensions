@@ -73,7 +73,11 @@ internal static class CacheContract
                 continue;
             }
 
-            if (Settle(operation, read[0], queries, refuse) is { } settled)
+            var settles = read[0].ReadMany is { } many
+                ? SettleReadMany(operation, read[0], many, queries, refuse)
+                : Settle(operation, read[0], queries, refuse);
+
+            if (settles is { } settled)
             {
                 queries.Settle(operation.Method, read[0], settled);
             }
@@ -118,6 +122,127 @@ internal static class CacheContract
 
         return new CacheableOperation(
             settled.Scope!, settled.Organization, settled.User, settled.Provider, current, AssertedBy(operation));
+    }
+
+    /// <summary>
+    /// Settles the operation serving a cached read-many. A client repeats the whole read: the scope, which the operation
+    /// demands alone; the party in context, which every call names and which is the key; no other owner or provider;
+    /// and the page, sliced from the entry. So the handler takes the read, the fieldset, the page number, the page size
+    /// and a cancellation token, and nothing it could decide by: no filter, no sort, no context of its own. A page as
+    /// large as the operation allows holds a whole entry.
+    /// </summary>
+    private static CacheableOperation? SettleReadMany(
+        CacheOperation operation,
+        ICacheableResource resource,
+        CachedReadMany many,
+        CacheableQueries queries,
+        Action<string> refuse)
+    {
+        string? refusal;
+
+        if (Document(operation.Method.ReturnType) != typeof(PagedResourceListDocument<>).MakeGenericType(resource.Resource))
+        {
+            refusal = $"it doesn't return PagedResourceListDocument<{resource.Resource.Name}>";
+        }
+        else if (PageShape(operation, resource, many, queries) is { } shape)
+        {
+            refusal = shape;
+        }
+        else if (operation.Settled is not { } settled)
+        {
+            refusal = "it has no settled authorization";
+        }
+        else
+        {
+            refusal = Demands(operation, settled)
+                ?? (settled.Scope != many.Scope ? $"it demands {settled.Scope}, not the read-many's {many.Scope}" : null)
+                ?? Requires(settled, many.Party);
+        }
+
+        if (refusal is not null)
+        {
+            refuse(
+                $"{operation.Name} serves the cached read-many {resource.Query.Name}, but {refusal}. A client repeats only "
+                + "the read's scope, its party and the page, so a cached copy would answer callers the service refuses or "
+                + "a page the service wouldn't give.");
+            return null;
+        }
+
+        static ContextRequirement Only(Data.Owner party, Data.Owner axis) =>
+            party == axis ? ContextRequirement.Required : ContextRequirement.Forbidden;
+
+        return new CacheableOperation(
+            many.Scope,
+            Only(many.Party, Data.Owner.Organization),
+            Only(many.Party, Data.Owner.User),
+            Only(many.Party, Data.Owner.Provider),
+            Current: true,
+            AssertedBy(operation));
+    }
+
+    /// <summary>
+    /// The read-many's handler takes the read, the fieldset, the page number, the page size and a cancellation token,
+    /// and nothing else; and its page may hold the most an entry does.
+    /// </summary>
+    private static string? PageShape(CacheOperation operation, ICacheableResource resource, CachedReadMany many, CacheableQueries queries)
+    {
+        var fields = typeof(Querying.Fields<>).MakeGenericType(resource.Resource);
+        var (number, size) = (false, false);
+
+        foreach (var parameter in operation.Method.GetParameters())
+        {
+            var type = parameter.ParameterType;
+
+            if (queries.ReadBy(type) is not null || type == fields || type == typeof(CancellationToken))
+            {
+                continue;
+            }
+
+            if (type == typeof(Querying.PageNumber))
+            {
+                number = true;
+                continue;
+            }
+
+            if (type == typeof(Querying.PageSize))
+            {
+                size = true;
+                var maximum = parameter.GetCustomAttributes(typeof(Querying.MaximumPageSizeAttribute), inherit: true)
+                    .OfType<Querying.MaximumPageSizeAttribute>().FirstOrDefault()?.Size ?? Querying.Page.MaximumSize;
+
+                if (maximum < many.AtMost)
+                {
+                    return $"its page holds at most {maximum}, fewer than the {many.AtMost} an entry holds";
+                }
+
+                continue;
+            }
+
+            return $"it takes '{parameter.Name}' besides the fieldset, the page number, the page size, a cancellation "
+                + "token and the read, so it could answer by something a client can't repeat (a filter, a sort)";
+        }
+
+        return number && size ? null : "it doesn't take the page number and the page size";
+    }
+
+    /// <summary>
+    /// A read-many's call names its party and nothing else, so the operation requires the party and forbids the other
+    /// axes: what it publishes is what it demands.
+    /// </summary>
+    private static string? Requires(AuthorizationAttribute settled, Data.Owner party)
+    {
+        foreach (var (axis, requirement) in new[]
+        {
+            (Data.Owner.Organization, settled.Organization), (Data.Owner.User, settled.User), (Data.Owner.Provider, settled.Provider),
+        })
+        {
+            if (axis == party ? requirement != ContextRequirement.Required : requirement != ContextRequirement.Forbidden)
+            {
+                return $"it doesn't {(axis == party ? "require" : "forbid")} the {CacheFill.Axis(axis)} in context";
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -191,6 +316,8 @@ internal static class CacheContract
     /// <summary>
     /// What the operation demands of a caller beyond a scope and the context a client repeats.
     /// </summary>
+    /// <param name="operation">The operation.</param>
+    /// <param name="settled">What the platform settled it demands.</param>
     private static string? Demands(CacheOperation operation, AuthorizationAttribute settled)
     {
         var metadata = operation.Metadata ?? [];

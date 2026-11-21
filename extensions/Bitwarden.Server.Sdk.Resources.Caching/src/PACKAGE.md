@@ -6,7 +6,8 @@ calling it.
 ## About
 
 A Bitwarden service's own cache in Redis: the resources a domain service lets other services read from Redis instead
-of calling it. A read becomes cacheable by extending `CacheableQuery<TEntity, TResource>`. The owning service is the
+of calling it. A read of one becomes cacheable by extending `CacheableQuery<TEntity, TResource>`, and a list in the one
+shape a list is cached in by extending `CacheableReadMany<TEntity, TResource>`. The owning service is the
 only writer: it fills an entry when it serves a read, invalidates it just before each change commits, and publishes in
 its contract what a client may read and how to check it. Its clients read the entries through
 Bitwarden.Server.Sdk.Client's `ICachedReads<TClient>`.
@@ -242,6 +243,101 @@ public static class MembershipsEndpoints
   identifier); a request naming another owner of that kind is refused `422`. `.Unowned()` declares a row that belongs
   to nobody, read by any holder of the scope.
 
+### Cache a read-many
+
+A list is cached in one shape only. **A list can be cached only if it has its own path, is keyed only by the caller,
+comes from one table with a fixed `Where` and a fixed order, holds at most a declared number of rows, and is
+invalidated by any write to a row of that table, for the caller the row had before and the one it has after.**
+
+A domain service declares one by extending `CacheableReadMany`. The declaration is all a developer writes: whose rows
+(the party a request's context names, across every owner its rows belong to), which, in what order, how each is shaped,
+the scope, and how many at most. The platform runs the query, keeps the entry, pages it and invalidates it.
+
+`ListOpenLoansQuery.cs`:
+
+```csharp
+using Bitwarden.Server.Sdk.Data;
+using Bitwarden.Server.Sdk.Resources;
+using Bitwarden.Server.Sdk.Resources.Caching;
+using Bitwarden.Server.Sdk.Resources.Querying;
+
+public interface IListOpenLoansQuery
+{
+    Task<PagedResourceListDocument<OpenLoan>> ReadAsync(
+        PageNumber pageNumber, PageSize pageSize, Fields<OpenLoan> fields = default, CancellationToken cancellationToken = default);
+}
+
+public sealed class ListOpenLoansQuery(CacheableQueryServices services)
+    : CacheableReadMany<LoanEntity, OpenLoan>(services), IListOpenLoansQuery
+{
+    protected override void Configure(CacheableReadManyBuilder<LoanEntity, OpenLoan> list) => list
+        .KeyedBy(row => row.Borrower, Owner.User)              // the person in context's loans, in every library
+        .Where(row => !row.Returned)                           // the same for every caller
+        .OrderBy(rows => rows.OrderBy(row => row.Title).ThenBy(row => row.Id))
+        .Map(LoanMapping.ToOpenLoan)
+        .Scope("loans.read")
+        .AtMost(1000);
+}
+```
+
+Its operation is at a path of its own, takes the read, the fieldset, the page number, the page size and a cancellation
+token, and answers the read's page. `OpenLoansEndpoints.cs`:
+
+```csharp
+using Bitwarden.Server.Sdk.Authorization;
+using Bitwarden.Server.Sdk.Resources;
+using Bitwarden.Server.Sdk.Resources.Querying;
+
+public static class OpenLoansEndpoints
+{
+    [StandardReadMany]
+    [Authorization(
+        Scope = "loans.read",
+        Organization = ContextRequirement.Forbidden,
+        User = ContextRequirement.Required,
+        Provider = ContextRequirement.Forbidden)]
+    public static Task<PagedResourceListDocument<OpenLoan>> ListOpenLoans(
+        IListOpenLoansQuery list,
+        Fields<OpenLoan> fields = default,
+        PageNumber pageNumber = default,
+        [MaximumPageSize(1000)] PageSize pageSize = default,
+        CancellationToken cancellationToken = default)
+        => list.ReadAsync(pageNumber, pageSize, fields, cancellationToken);
+}
+```
+
+What can't be written, so it can't be got wrong (each refuses the host as it starts):
+
+- **No filter, no sort, no context of its own.** The operation takes nothing but the read, the fieldset, the page and
+  a cancellation token; it requires the party, forbids the other owners, demands the declared scope alone, and has no
+  endpoint filter, role, permission or policy. A client repeats the whole read.
+- **One table, nothing per caller.** The read includes nothing, and its resource is its own: one another cached read
+  gives too is refused, as it may have attributes worked out per caller. Every attribute is cached.
+- **Its own columns only.** `Where` and `OrderBy` read only the table's own columns, never a navigation, a subquery
+  or a captured query, and the order only orders: only a change to one of its own rows invalidates an entry. This one
+  refuses the declaration itself.
+- **One order, ending in a unique column.** The database orders the rows; a client only takes a slice, as its
+  collation may order text differently.
+- **A page holds an entry.** `AtMost` may not exceed the operation's maximum page size.
+
+How it works:
+
+- **One entry, owned by the party.** `{service}:{type}:read-many:{key}`, every row in its order, each the whole
+  resource; the owner field is the party, which a client checks against the party its call carries. A page is a slice
+  of it, with the party's whole count.
+- **At most a declared number of rows.** The read takes one row more than `AtMost`; a party with more is never
+  cached, and each of their pages is the database's.
+- **Any change kills it.** No row's version speaks for a read-many, so any insert, update or delete of a row of its
+  table, for the party the row named before and the one it names after, whatever else changed, marks every version of
+  the entry dead just before it commits, for `Caching:Owned:CommitAllowance`. The fixed condition is ignored: a row
+  moving into it or out of it changes the entry too. A fill read before the change committed arrives within the
+  allowance and is refused; reads after it are answered by the database until the tombstone goes. What the change
+  tracker can't see is refused or declared: writes in bulk, database cascades (`CascadeCovered`) and an owner's
+  erasure, which kills it for the full lifetime.
+- **Published.** The operation carries `x-bitwarden-cache` with `"readMany": { "atMost": ... }`, the party's
+  placeholder in the key, the party `required` and the other owners `forbidden` in `context`, and the scope.
+  Bitwarden.Server.Sdk.Client's `ReadManyAsync` answers a page of it.
+
 ### Version a row whose writes are last-writer-wins
 
 An entry's version is the row's `Version`, which the platform makes a concurrency token, so a second writer holding
@@ -305,6 +401,8 @@ public sealed class GetGroupQuery(CacheableQueryServices services) : CacheableQu
   warning naming every undeclared key, and starts.
 - **Declared wrongly.** A declaration naming no such key of a table the read is built from, or `ParentInvalidated` on a
   key that isn't its include's own, refuses the host in every environment.
+- **Cached read-manys** are checked the same way, on their own table: `CacheableReadManyBuilder.CascadeCovered(...)`
+  declares a key. A read-many includes nothing, so only `DependentsLoaded` applies.
 - **`ClientCascade` and `ClientSetNull`** need nothing: the database refuses to delete a principal with rows still
   depending on it, so a cascade the change tracker didn't make never happens.
 
@@ -370,7 +468,7 @@ public static class CacheUsers
   several scopes, or be anonymous. The service may not be a product service. The row, and any row its read includes,
   may carry no query filter but row-level security; the read may only include unfiltered navigations; the row must
   have a version and one possible owner; a resource read across owners may cache no `[PersonalData]` attribute; and
-  the queries of one table read one resource at one version, each under a key of its own.
+  the reads of one of a table read one resource at one version, each under a key of its own.
 - **Register by type.** A query registered by a factory rather than by type isn't found, and refuses to read. A query
   with no handler taking it still fills and invalidates, and publishes nothing.
 - **Raw SQL isn't checked**, as it can't be read reliably: `ExecuteSql`, `ExecuteSqlRaw` and their like must never
@@ -378,6 +476,8 @@ public static class CacheUsers
   what it replaced until the entry expires.
 - **Switch clients off first.** Switching the cache off in a running deployment should be done on the clients first:
   an owner without Redis cannot invalidate what clients might still read.
+- **A read-many holds every row of its party.** Declare one for a key few rows hold, and set `AtMost` to what a
+  party reasonably has: a party with more is answered by the database every time.
 - **Not a cache a process keeps for itself.** The owner writes through version-checked scripts a general-purpose cache
   library cannot express, and clients read the one shared copy without a per-process layer. For a cache a process
   keeps for itself, use
@@ -386,12 +486,14 @@ public static class CacheUsers
 
 ## Types
 
-| Type                                        | What it is                                                                               |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `CacheableQuery<TEntity, TResource>`        | The base class of a cacheable read; its read methods are the platform's.                 |
-| `CacheableQueryBuilder<TEntity, TResource>` | Declares the read: map, key, owner, includes, per-caller attributes, lifetime.           |
-| `CacheableQueryServices`                    | What a query reads with, given per request by `AddOwnedCache`.                           |
-| `CacheWrites`                               | What a change does when the cache can't be told of it: `Refuse` or `Proceed`.            |
-| `CascadeCoverage`                           | Why a database cascade leaves no entry stale: `ParentInvalidated` or `DependentsLoaded`. |
-| `ServiceCacheAcl`                           | The Redis ACL rule each service connects as.                                             |
-| `AddOwnedCache<TContext>()`                 | Gives the service its cache, on `IServiceCollection`.                                    |
+| Type                                           | What it is                                                                               |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `CacheableQuery<TEntity, TResource>`           | The base class of a cacheable read; its read methods are the platform's.                 |
+| `CacheableQueryBuilder<TEntity, TResource>`    | Declares the read: map, key, owner, includes, per-caller attributes, lifetime.           |
+| `CacheableReadMany<TEntity, TResource>`        | The base class of a cached read-many; its read and its pages are the platform's.         |
+| `CacheableReadManyBuilder<TEntity, TResource>` | Declares the read-many: party, condition, order, map, scope, most rows.                  |
+| `CacheableQueryServices`                       | What a query reads with, given per request by `AddOwnedCache`.                           |
+| `CacheWrites`                                  | What a change does when the cache can't be told of it: `Refuse` or `Proceed`.            |
+| `CascadeCoverage`                              | Why a database cascade leaves no entry stale: `ParentInvalidated` or `DependentsLoaded`. |
+| `ServiceCacheAcl`                              | The Redis ACL rule each service connects as.                                             |
+| `AddOwnedCache<TContext>()`                    | Gives the service its cache, on `IServiceCollection`.                                    |

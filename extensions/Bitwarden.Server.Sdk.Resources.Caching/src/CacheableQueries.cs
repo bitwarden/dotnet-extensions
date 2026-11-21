@@ -11,8 +11,9 @@ namespace Bitwarden.Server.Sdk.Resources.Caching;
 /// <para>
 /// Found from the registrations themselves: a query registered by type (<c>TryAddScoped&lt;IGetGroupQuery,
 /// GetGroupQuery&gt;()</c>) whose implementation is a <see cref="CacheableQuery{TEntity,TResource}"/> turns caching on
-/// for its resource. Read once, as the container first needs it, from the service collection <c>AddOwnedCache</c> was
-/// given, so a query registered after that call is found as well.
+/// for its resource, as one that is a <see cref="CacheableReadMany{TEntity,TResource}"/> does for its read-many. Read once, as
+/// the container first needs it, from the service collection <c>AddOwnedCache</c> was given, so a query registered
+/// after that call is found as well.
 /// </para>
 /// <para>
 /// Each query's <c>Configure</c> runs once per type, on an instance whose constructor has not run: a declaration is
@@ -49,6 +50,18 @@ internal sealed class CacheableQueries
             _byService[registration.ServiceType] = resource;
         }
 
+        // A read-many's resource is its own, holding only what its rows hold: one another read gives too may have
+        // attributes worked out per caller, which a read-many never fills.
+        foreach (var many in resources.Where(resource => resource.ReadMany is not null))
+        {
+            if (resources.FirstOrDefault(other => other != many && other.ResourceType == many.ResourceType) is { } other)
+            {
+                throw new InvalidOperationException(
+                    $"{many.Query.Name} is a cached read-many of {many.ResourceType}, which {other.Query.Name} also reads. "
+                    + "A read-many's resource is its own, holding only what its rows hold.");
+            }
+        }
+
         // A table may back several queries, each under a key of its own: a membership by identifier, and by its
         // person within its organization. Every change to a row invalidates each one's entry.
         foreach (var table in resources.GroupBy(resource => resource.Entity).Where(table => table.Count() > 1))
@@ -60,11 +73,14 @@ internal sealed class CacheableQueries
                     + $"{table.Key.Name} under the same key ({twice.Key}). Each query of a table declares a key of its own.");
             }
 
-            if (table.Select(resource => resource.VersionProperty).Distinct(StringComparer.Ordinal).Count() > 1
-                || table.Select(resource => resource.ResourceType).Distinct(StringComparer.Ordinal).Count() > 1)
+            // A read-many's resource is its own and it has no version, so only the reads of one must agree.
+            var ones = table.Where(resource => resource.ReadMany is null).ToList();
+
+            if (ones.Select(resource => resource.VersionProperty).Distinct(StringComparer.Ordinal).Count() > 1
+                || ones.Select(resource => resource.ResourceType).Distinct(StringComparer.Ordinal).Count() > 1)
             {
                 throw new InvalidOperationException(
-                    $"{string.Join(" and ", table.Select(resource => resource.Query.Name))} are cacheable queries of "
+                    $"{string.Join(" and ", ones.Select(resource => resource.Query.Name))} are cacheable queries of "
                     + $"{table.Key.Name} that disagree on its version or its resource. Queries of one table read one "
                     + "resource at one version.");
             }
@@ -116,13 +132,14 @@ internal sealed class CacheableQueries
     }
 
     /// <summary>
-    /// The closed <c>CacheableQuery&lt;,&gt;</c> a type derives from, or null.
+    /// The closed <c>CacheableQuery&lt;,&gt;</c> or <c>CacheableReadMany&lt;,&gt;</c> a type derives from, or null.
     /// </summary>
     internal static Type? QueryBase(Type type)
     {
         for (var current = type; current is not null; current = current.BaseType)
         {
-            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(CacheableQuery<,>))
+            if (current.IsGenericType
+                && (current.GetGenericTypeDefinition() == typeof(CacheableQuery<,>) || current.GetGenericTypeDefinition() == typeof(CacheableReadMany<,>)))
             {
                 return current;
             }

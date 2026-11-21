@@ -398,7 +398,8 @@ public sealed class OwnedCacheTests(RedisFixture redis) : IClassFixture<RedisFix
             services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Client.BitwardenClientOptions>>(),
             services.GetRequiredService<IServiceScopeFactory>(),
             new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<Client.CachedReads<OwnedCacheTests>>.Instance);
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<Client.CachedReads<OwnedCacheTests>>.Instance,
+            new Client.RequestMemoMetrics(new ServiceCollection().AddMetrics().BuildServiceProvider().GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>()));
 
         var answer = await reads.ReadAsync("getBook", _book, ["title"], TestContext.Current.CancellationToken);
 

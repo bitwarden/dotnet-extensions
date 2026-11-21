@@ -315,10 +315,30 @@ public sealed class ShelfHost : IAsyncDisposable
                 loans.MapGet("current", LoansEndpoints.GetCurrentLoan);
             }
 
+
             loans.MapPost("{id}/actions/return", LoanChangeEndpoints.Return);
             loans.MapPost("{id}/actions/return-in-transaction", LoanChangeEndpoints.ReturnInTransaction);
             loans.MapPost("{id}/actions/renew", LoanChangeEndpoints.Renew);
             loans.MapDelete("{id}", LoanChangeEndpoints.DeleteLoan);
+
+            if (registered.IsService(typeof(IListOpenLoans)))
+            {
+                var openLoans = endpoints.MapGroup("api/v1/open-loans").WithStandards();
+
+                // A read-many the platform must refuse to cache, where the test asks for one; else the read itself.
+                var mapped = endpoints.ServiceProvider.GetService<ReadManyRefusal>()?.Case switch
+                {
+                    "filtered" => openLoans.MapGet("", OpenLoansEndpoints.ListOpenLoansFiltered),
+                    "sorted" => openLoans.MapGet("", OpenLoansEndpoints.ListOpenLoansSorted),
+                    "unpaged" => openLoans.MapGet("", OpenLoansEndpoints.ListOpenLoansUnpaged),
+                    "small-pages" => openLoans.MapGet("", OpenLoansEndpoints.ListOpenLoansInSmallPages),
+                    "organization-optional" => openLoans.MapGet("", OpenLoansEndpoints.ListOpenLoansInAnOrganization),
+                    "any-scope" => openLoans.MapGet("", OpenLoansEndpoints.ListOpenLoansAnyScope),
+                    "filter" => Microsoft.AspNetCore.Http.EndpointFilterExtensions.AddEndpointFilter(
+                        openLoans.MapGet("", OpenLoansEndpoints.ListOpenLoans), (context, next) => next(context)),
+                    _ => openLoans.MapGet("", OpenLoansEndpoints.ListOpenLoans),
+                };
+            }
 
             if (registered.IsService(typeof(IGetGuardedQuery)))
             {
@@ -572,6 +592,18 @@ public sealed record Loan : Resource
     public string? Title { get; init; }
 }
 
+/// <summary>
+/// One of a borrower's open loans, as their read-many gives it: only what the loan's row holds.
+/// </summary>
+public sealed record OpenLoan : Resource
+{
+    public Guid Organization { get; init; }
+
+    public Guid? Borrower { get; init; }
+
+    public string? Title { get; init; }
+}
+
 public sealed record Label : Resource
 {
     public string Text { get; init; } = null!;
@@ -628,6 +660,14 @@ internal static class ShelfMapping
         Returned = entity.Returned,
         Title = entity.Title,
         Version = entity.Version.ToString(),
+    };
+
+    public static OpenLoan ToOpenLoan(LoanEntity entity) => new()
+    {
+        Id = entity.Id.ToString(),
+        Organization = entity.OrganizationId,
+        Borrower = entity.Borrower,
+        Title = entity.Title,
     };
 
     public static Reader ToResource(ReaderEntity entity) => new()
@@ -766,6 +806,11 @@ public static class BooksEndpoints
 public sealed record BookRefusal(string Case);
 
 /// <summary>
+/// Which shape of read-many the platform must refuse to cache, for the host to map in place of the read itself.
+/// </summary>
+public sealed record ReadManyRefusal(string Case);
+
+/// <summary>
 /// A check of the handler's own, which a client of the cache can't repeat.
 /// </summary>
 [AttributeUsage(AttributeTargets.Method)]
@@ -798,6 +843,84 @@ public static class LoansEndpoints
     public static Task<ResourceDocument<Loan>> GetLoan(
         string id, IGetLoanQuery query, Fields<Loan> fields = default, CancellationToken cancellationToken = default)
         => query.ReadAsync(id, fields, cancellationToken);
+}
+
+/// <summary>
+/// The person in context's open loans, across organizations: a cached read-many, and the shapes the platform refuses.
+/// </summary>
+public static class OpenLoansEndpoints
+{
+    [StandardReadMany]
+    [Authorization(Organization = ContextRequirement.Forbidden, User = ContextRequirement.Required, Provider = ContextRequirement.Forbidden)]
+    [AcceptsAssertedContext("A lending job acts about a borrower.", "some-service")]
+    public static Task<PagedResourceListDocument<OpenLoan>> ListOpenLoans(
+        IListOpenLoans list,
+        Fields<OpenLoan> fields = default,
+        PageNumber pageNumber = default,
+        PageSize pageSize = default,
+        CancellationToken cancellationToken = default)
+        => list.ReadAsync(pageNumber, pageSize, fields, cancellationToken);
+
+    [StandardReadMany]
+    [Authorization(Organization = ContextRequirement.Forbidden, User = ContextRequirement.Required, Provider = ContextRequirement.Forbidden)]
+    public static Task<PagedResourceListDocument<OpenLoan>> ListOpenLoansFiltered(
+        IListOpenLoans list,
+        Filter<string>? title,
+        Fields<OpenLoan> fields = default,
+        PageNumber pageNumber = default,
+        PageSize pageSize = default,
+        CancellationToken cancellationToken = default)
+        => list.ReadAsync(pageNumber, pageSize, fields, cancellationToken);
+
+    [StandardReadMany]
+    [Authorization(Organization = ContextRequirement.Forbidden, User = ContextRequirement.Required, Provider = ContextRequirement.Forbidden)]
+    public static Task<PagedResourceListDocument<OpenLoan>> ListOpenLoansSorted(
+        IListOpenLoans list,
+        Sort? sort,
+        Fields<OpenLoan> fields = default,
+        PageNumber pageNumber = default,
+        PageSize pageSize = default,
+        CancellationToken cancellationToken = default)
+        => list.ReadAsync(pageNumber, pageSize, fields, cancellationToken);
+
+    [StandardReadMany]
+    [Authorization(Organization = ContextRequirement.Forbidden, User = ContextRequirement.Required, Provider = ContextRequirement.Forbidden)]
+    public static Task<PagedResourceListDocument<OpenLoan>> ListOpenLoansUnpaged(
+        IListOpenLoans list,
+        Fields<OpenLoan> fields = default,
+        CancellationToken cancellationToken = default)
+        => list.ReadAsync(default, default, fields, cancellationToken);
+
+    [StandardReadMany]
+    [Authorization(Organization = ContextRequirement.Forbidden, User = ContextRequirement.Required, Provider = ContextRequirement.Forbidden)]
+    public static Task<PagedResourceListDocument<OpenLoan>> ListOpenLoansInSmallPages(
+        IListOpenLoans list,
+        Fields<OpenLoan> fields = default,
+        PageNumber pageNumber = default,
+        [MaximumPageSize(10)] PageSize pageSize = default,
+        CancellationToken cancellationToken = default)
+        => list.ReadAsync(pageNumber, pageSize, fields, cancellationToken);
+
+    [StandardReadMany]
+    [Authorization(Organization = ContextRequirement.Optional, User = ContextRequirement.Required, Provider = ContextRequirement.Forbidden)]
+    public static Task<PagedResourceListDocument<OpenLoan>> ListOpenLoansInAnOrganization(
+        IListOpenLoans list,
+        Fields<OpenLoan> fields = default,
+        PageNumber pageNumber = default,
+        PageSize pageSize = default,
+        CancellationToken cancellationToken = default)
+        => list.ReadAsync(pageNumber, pageSize, fields, cancellationToken);
+
+    [StandardReadMany]
+    [Authorization(Organization = ContextRequirement.Forbidden, User = ContextRequirement.Required, Provider = ContextRequirement.Forbidden)]
+    [AnyScope(ShelfHost.ReadScope, "shelves.other")]
+    public static Task<PagedResourceListDocument<OpenLoan>> ListOpenLoansAnyScope(
+        IListOpenLoans list,
+        Fields<OpenLoan> fields = default,
+        PageNumber pageNumber = default,
+        PageSize pageSize = default,
+        CancellationToken cancellationToken = default)
+        => list.ReadAsync(pageNumber, pageSize, fields, cancellationToken);
 }
 
 public static class ReadersEndpoints
