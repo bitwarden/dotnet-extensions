@@ -58,20 +58,30 @@ public sealed class CallChainCheckTests
 
     // --- Never believed from anybody else ----------------------------------------------------------------------------
 
-    // A person's request, at a product service or a domain service a browser can reach: the chain they sent is
-    // dropped, so a forged one can neither start a refusal nor reach a log, a span or a metric. Even naming this
-    // service, with refusal on.
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Downstream_APersonsRequestWithAChain_CarriesOnlyThisService(bool productService)
+    // A person's request at a domain service a browser can reach: the chain they sent is dropped, so a forged one can
+    // neither start a refusal nor reach a log, a span or a metric. Even naming this service, with refusal on.
+    [Fact]
+    public async Task Downstream_APersonsRequestWithAChain_AtADomainService_CarriesOnlyThisService()
     {
-        await using var host = await SessionHost.StartAsync(productService, Refusing);
+        await using var host = await SessionHost.StartAsync(productService: false, Refusing);
 
         using var response = await Send(host, "downstream", SessionHost.Token(Guid.NewGuid(), SessionHost.Scope), $"forged-service,{Self}");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(Self, Assert.Single(host.Recorded.Downstream)[BitwardenHeaders.CallChain]);
+    }
+
+    // At a product service the chain is a header only services send, refused 400 before anything runs, as the context
+    // headers are (BitwardenHeaders.ServiceOnly).
+    [Fact]
+    public async Task Downstream_APersonsRequestWithAChain_AtAProductService_Refused()
+    {
+        await using var host = await SessionHost.StartAsync(productService: true, Refusing);
+
+        using var response = await Send(host, "downstream", SessionHost.Token(Guid.NewGuid(), SessionHost.Scope), $"forged-service,{Self}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Empty(host.Recorded.Downstream);
     }
 
     // From a service, anything but service names is not a chain, and is read as none.

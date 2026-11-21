@@ -85,11 +85,17 @@ public sealed class SessionHost : IAsyncDisposable
 
     private readonly WebApplication _app;
 
-    private SessionHost(WebApplication app, Recorder recorder)
+    private SessionHost(WebApplication app, Recorder recorder, ProbeStanding standing)
     {
         _app = app;
         Recorded = recorder;
+        Standing = standing;
     }
+
+    /// <summary>
+    /// The current standing a product service authorizes from: what each person holds now, as a test sets it.
+    /// </summary>
+    public ProbeStanding Standing { get; }
 
     /// <summary>
     /// Everything the service sent beyond itself.
@@ -136,14 +142,15 @@ public sealed class SessionHost : IAsyncDisposable
         Action<Microsoft.AspNetCore.Routing.IEndpointRouteBuilder>? endpoints = null)
     {
         var recorder = new Recorder();
+        var standing = new ProbeStanding();
         var settings = configuration ?? new Dictionary<string, string?>();
         ProbeService service = productService
-            ? new ProductProbeService(recorder, settings, services, endpoints)
+            ? new ProductProbeService(recorder, settings, services, endpoints, standing)
             : new DomainProbeService(recorder, settings, services, endpoints);
         var app = service.Build();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
-        return new SessionHost(app, recorder);
+        return new SessionHost(app, recorder, standing);
     }
 
     /// <summary>
@@ -152,10 +159,11 @@ public sealed class SessionHost : IAsyncDisposable
     public static async Task<SessionHost> StartDerivedFromProductServiceAsync()
     {
         var recorder = new Recorder();
-        var app = new DerivedProductProbeService(recorder, new Dictionary<string, string?>()).Build();
+        var standing = new ProbeStanding();
+        var app = new DerivedProductProbeService(recorder, new Dictionary<string, string?>(), standing).Build();
         await app.StartAsync(TestContext.Current.CancellationToken);
 
-        return new SessionHost(app, recorder);
+        return new SessionHost(app, recorder, standing);
     }
 
     /// <summary>
@@ -388,12 +396,13 @@ public sealed class SessionHost : IAsyncDisposable
         Recorder recorder,
         IReadOnlyDictionary<string, string?> configuration,
         Action<IServiceCollection>? services = null,
-        Action<Microsoft.AspNetCore.Routing.IEndpointRouteBuilder>? endpoints = null)
-        : ProbeService(recorder, configuration, services, endpoints);
+        Action<Microsoft.AspNetCore.Routing.IEndpointRouteBuilder>? endpoints = null,
+        ProbeStanding? standing = null)
+        : ProbeService(recorder, configuration, services, endpoints, standing);
 
     // Deliberately unmarked: it is a product service only through its base.
-    private sealed class DerivedProductProbeService(Recorder recorder, IReadOnlyDictionary<string, string?> configuration)
-        : ProductProbeService(recorder, configuration);
+    private sealed class DerivedProductProbeService(Recorder recorder, IReadOnlyDictionary<string, string?> configuration, ProbeStanding standing)
+        : ProductProbeService(recorder, configuration, standing: standing);
 
     private sealed class DomainProbeService(
         Recorder recorder,
@@ -406,7 +415,8 @@ public sealed class SessionHost : IAsyncDisposable
         Recorder recorder,
         IReadOnlyDictionary<string, string?> configuration,
         Action<IServiceCollection>? extra,
-        Action<Microsoft.AspNetCore.Routing.IEndpointRouteBuilder>? extraEndpoints = null)
+        Action<Microsoft.AspNetCore.Routing.IEndpointRouteBuilder>? extraEndpoints = null,
+        ProbeStanding? standing = null)
         : Service(ServiceName, "Session Test Service", [])
     {
         protected override AuthorizationDefaults Authorization => new()
@@ -479,6 +489,12 @@ public sealed class SessionHost : IAsyncDisposable
             // A domain service believes a call only as its context token says: the headers a test
             // sends from a service are signed, as Identity's exchange would sign them.
             services.AddSingleton<IStartupFilter>(new ContextSigner(this is not ProductProbeService));
+
+            // A product service authorizes a person from their standing now, which the test says.
+            if (standing is not null)
+            {
+                services.AddSingleton<ICurrentStanding>(standing);
+            }
 
             extra?.Invoke(services);
         }

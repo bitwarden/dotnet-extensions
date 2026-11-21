@@ -1797,6 +1797,61 @@
         }
       }
     },
+    "/api/v1/probes/large-pages": {
+      "get": {
+        "tags": [
+          "Probes"
+        ],
+        "operationId": "listLargePageProbes",
+        "parameters": [
+          {
+            "name": "page[number]",
+            "in": "query",
+            "description": "Which page to return, from 1.",
+            "schema": {
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "page[size]",
+            "in": "query",
+            "description": "How many resources the page holds. Values above 1000 are treated as 1000.",
+            "schema": {
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbePagedListDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The request did not succeed. The body describes why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/probes/owners": {
       "get": {
         "tags": [

@@ -41,6 +41,7 @@ public static class Probes
         probes.MapGet("owners", GetOwnersProbe);
         probes.MapGet("sparse", GetSparseProbe);
         probes.MapGet("", ListProbes);
+        probes.MapGet("large-pages", ListLargePageProbes);
         probes.MapGet("current", GetProbe);
         probes.MapGet("system-about-person", GetSystemProbe);
         probes.MapGet("another-system-about-person", GetAnotherSystemProbe);
@@ -129,6 +130,23 @@ public static class Probes
         Probe[] all = [Sparse(context, "one", fields), Sparse(context, "two", fields)];
 
         return ReadManyResponse(all.ToPaged(page), page, fields);
+    }
+
+    /// <summary>
+    /// List probes a thousand to a page
+    /// </summary>
+    /// <param name="pageNumber">Which page.</param>
+    /// <param name="pageSize">How many to a page.</param>
+    /// <returns>Every probe asked for</returns>
+    [StandardReadMany("large-pages")]
+    public static PagedResourceListDocument<Probe> ListLargePageProbes(
+        PageNumber pageNumber = default,
+        [MaximumPageSize(1000)] PageSize pageSize = default)
+    {
+        var page = new Page(pageNumber, pageSize);
+        Probe[] all = [.. Enumerable.Range(1, 1200).Select(each => new Probe { Id = each.ToString(System.Globalization.CultureInfo.InvariantCulture) })];
+
+        return ReadManyResponse(all.ToPaged(page), page);
     }
 
     /// <summary>

@@ -1,7 +1,10 @@
 using System.Net;
 using System.Text.Json;
+using Bitwarden.Server.Sdk.Authorization;
 using Bitwarden.Server.Sdk.Context;
+using Bitwarden.Server.Sdk.Errors;
 using Bitwarden.Server.Sdk.Service.Tests.TestHost;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Bitwarden.Server.Sdk.Service.Tests.Authorization;
 
@@ -70,8 +73,9 @@ public sealed class CallerRoleTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetOwnersProbe_OwnerSessionForA_Ok()
+    public async Task GetOwnersProbe_OwnerNowForA_Ok()
     {
+        _service.Standing.Member(Person, OrganizationA, MemberStanding.Of(OrganizationRole.Owner));
         using var request = ProductServiceAttributeTests.Get("/api/v1/probes/owners", Session(OrganizationA, "Owner"));
 
         using var response = await _service.Client().SendAsync(request, TestContext.Current.CancellationToken);
@@ -79,23 +83,85 @@ public sealed class CallerRoleTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    [Theory]
-    [InlineData(true, "Owner True")]
-    [InlineData(false, "None False")]
-    public async Task GetRoleProbe_OwnerRole_OnlyInASessionIssuedForAnOrganization(bool issuedForA, string expected)
+    // The role the session was issued with counts for nothing: an owner demoted since is refused with the same token.
+    [Fact]
+    public async Task GetOwnersProbe_SessionIssuedToAnOwnerDemotedSince_Forbidden403()
     {
-        using var request = ProductServiceAttributeTests.Get("/api/v1/probes/role", Session(issuedForA ? OrganizationA : null, "Owner"));
+        var token = Session(OrganizationA, "Owner");
+        _service.Standing.Member(Person, OrganizationA, MemberStanding.Of(OrganizationRole.Owner));
+        using (var before = ProductServiceAttributeTests.Get("/api/v1/probes/owners", token))
+        using (var allowed = await _service.Client().SendAsync(before, TestContext.Current.CancellationToken))
+        {
+            Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
+        }
+
+        _service.Standing.Member(Person, OrganizationA, MemberStanding.Of(OrganizationRole.User));
+        using var request = ProductServiceAttributeTests.Get("/api/v1/probes/owners", token);
+
+        using var response = await _service.Client().SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(
+            "The caller must have at least the Owner role in the organization.",
+            (await FirstError(response)).GetProperty("detail").GetString());
+    }
+
+    // A person no longer a confirmed member of the session's organization is refused before any handler, as the
+    // server answers an organization the person isn't a member of.
+    [Fact]
+    public async Task GetRoleProbe_MemberRemovedSince_NotFound404()
+    {
+        _service.Standing.Member(Person, OrganizationA, null);
+        using var request = ProductServiceAttributeTests.Get("/api/v1/probes/role", Session(OrganizationA, "Owner"));
+
+        using var response = await _service.Client().SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var error = await FirstError(response);
+        Assert.Equal("not-found", error.GetProperty("code").GetString());
+        Assert.Equal(ErrorDetails.NotFound, error.GetProperty("detail").GetString());
+    }
+
+    [Theory]
+    [InlineData(OrganizationRole.Owner, "Owner True")]
+    [InlineData(OrganizationRole.Admin, "Admin True")]
+    [InlineData(OrganizationRole.User, "User False")]
+    public async Task GetRoleProbe_RoleNow_OnlyInASessionIssuedForTheOrganization(OrganizationRole role, string expected)
+    {
+        _service.Standing.Member(Person, OrganizationA, MemberStanding.Of(role));
+        using var issued = ProductServiceAttributeTests.Get("/api/v1/probes/role", Session(OrganizationA, "User"));
+        using var none = ProductServiceAttributeTests.Get("/api/v1/probes/role", Session(organization: null, "Owner"));
+
+        using var forA = await _service.Client().SendAsync(issued, TestContext.Current.CancellationToken);
+        using var forNone = await _service.Client().SendAsync(none, TestContext.Current.CancellationToken);
+
+        Assert.Equal(expected, await Note(forA));
+        Assert.Equal("None False", await Note(forNone));
+    }
+
+    // A custom member's permissions are theirs now, and about the same organization as their role.
+    [Fact]
+    public async Task GetRoleProbe_CustomMemberGrantedManageUsersNow_HoldsIt()
+    {
+        _service.Standing.Member(
+            Person, OrganizationA, new MemberStanding(OrganizationRole.Custom, new HashSet<OrganizationPermission> { OrganizationPermission.ManageUsers }));
+        var token = SessionHost.Token(
+            Person,
+            new Dictionary<string, object> { ["organization"] = OrganizationA.ToString(), ["organization_role"] = "Custom" },
+            SessionHost.Scope);
+        using var request = ProductServiceAttributeTests.Get("/api/v1/probes/role", token);
 
         using var response = await _service.Client().SendAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(expected, await Note(response));
+        Assert.Equal("Custom True", await Note(response));
     }
 
-    // A custom member's permissions are about the same organization as their role.
+    // A permission claim the session was issued with grants nothing the member doesn't hold now.
     [Fact]
-    public async Task GetRoleProbe_CustomSessionHoldingManageUsers_HoldsIt()
+    public async Task GetRoleProbe_PermissionClaimTheMemberNoLongerHolds_NotHeld()
     {
+        _service.Standing.Member(Person, OrganizationA, MemberStanding.Of(OrganizationRole.Custom));
         var token = SessionHost.Token(
             Person,
             new Dictionary<string, object>
@@ -109,24 +175,33 @@ public sealed class CallerRoleTests : IAsyncLifetime
 
         using var response = await _service.Client().SendAsync(request, TestContext.Current.CancellationToken);
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("Custom True", await Note(response));
+        Assert.Equal("Custom False", await Note(response));
     }
 
-    // A provider's session names its provider, and its role counts there.
+    // A provider's session names its provider, and the person's role on its staff now counts there.
     [Fact]
-    public async Task GetProviderRoleProbe_ProviderSession_RoleForItsProvider()
+    public async Task GetProviderRoleProbe_ProviderSession_RoleNowForItsProvider()
     {
-        var token = SessionHost.Token(
-            Person,
-            new Dictionary<string, object> { ["provider"] = Guid.NewGuid().ToString(), ["provider_role"] = "ProviderAdmin" },
-            SessionHost.Scope);
-        using var request = ProductServiceAttributeTests.Get("/api/v1/probes/provider-role", token);
+        var provider = Guid.NewGuid();
+        _service.Standing.Staff(Person, provider, ProviderRole.ProviderAdmin);
+        using var request = ProductServiceAttributeTests.Get("/api/v1/probes/provider-role", ProviderSession(provider, "ServiceUser"));
 
         using var response = await _service.Client().SendAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("ProviderAdmin", await Note(response));
+    }
+
+    [Fact]
+    public async Task GetProviderRoleProbe_StaffRemovedSince_NotFound404()
+    {
+        var provider = Guid.NewGuid();
+        _service.Standing.Staff(Person, provider, null);
+        using var request = ProductServiceAttributeTests.Get("/api/v1/probes/provider-role", ProviderSession(provider, "ProviderAdmin"));
+
+        using var response = await _service.Client().SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
@@ -144,26 +219,106 @@ public sealed class CallerRoleTests : IAsyncLifetime
         Assert.Equal("None", await Note(response));
     }
 
-    // A provider's staff member's session for a client organization: their provider
-    // role counts in that organization.
+    // A provider's staff member's session for a client organization: their provider role now counts in that
+    // organization, and they hold no organization role there, as the session was issued.
     [Fact]
-    public async Task GetProviderRoleProbe_ClientOrganizationSession_RoleInIt()
+    public async Task GetProviderRoleProbe_ClientOrganizationSession_RoleNowInIt()
     {
-        var token = SessionHost.Token(
-            Person,
-            new Dictionary<string, object>
-            {
-                ["organization"] = OrganizationA.ToString(),
-                ["provider"] = Guid.NewGuid().ToString(),
-                ["provider_role"] = "ServiceUser",
-            },
-            SessionHost.Scope);
-        using var request = ProductServiceAttributeTests.Get("/api/v1/probes/provider-role", token);
+        var provider = Guid.NewGuid();
+        _service.Standing.ProviderOf(OrganizationA, provider);
+        _service.Standing.Staff(Person, provider, ProviderRole.ServiceUser);
+        var token = ClientSession(provider);
+
+        using var providerRole = await _service.Client().SendAsync(
+            ProductServiceAttributeTests.Get("/api/v1/probes/provider-role", token), TestContext.Current.CancellationToken);
+        using var role = await _service.Client().SendAsync(
+            ProductServiceAttributeTests.Get("/api/v1/probes/role", token), TestContext.Current.CancellationToken);
+
+        Assert.Equal("ServiceUser", await Note(providerRole));
+        Assert.Equal("None False", await Note(role));
+    }
+
+    // The client organization moved to another provider, or left: the session's provider administers it no longer. The
+    // server checks a provider's staff against its database on each request, and forbids.
+    [Fact]
+    public async Task GetProviderRoleProbe_ClientNoLongerTheSessionsProviders_Forbidden403()
+    {
+        var provider = Guid.NewGuid();
+        _service.Standing.ProviderOf(OrganizationA, Guid.NewGuid());
+        _service.Standing.Staff(Person, provider, ProviderRole.ProviderAdmin);
+        using var request = ProductServiceAttributeTests.Get("/api/v1/probes/provider-role", ClientSession(provider));
+
+        using var response = await _service.Client().SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(
+            "The caller must be staff of the provider administering the organization.",
+            (await FirstError(response)).GetProperty("detail").GetString());
+    }
+
+    [Fact]
+    public async Task GetProviderRoleProbe_ClientsStaffMemberRemovedSince_Forbidden403()
+    {
+        var provider = Guid.NewGuid();
+        _service.Standing.ProviderOf(OrganizationA, provider);
+        _service.Standing.Staff(Person, provider, null);
+        using var request = ProductServiceAttributeTests.Get("/api/v1/probes/provider-role", ClientSession(provider));
+
+        using var response = await _service.Client().SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(
+            "The caller must be staff of the provider administering the organization.",
+            (await FirstError(response)).GetProperty("detail").GetString());
+    }
+
+    // Asked once per request however often the role is read: the probe reads the role and a permission.
+    [Fact]
+    public async Task GetRoleProbe_ReadsTheStandingOncePerRequest()
+    {
+        _service.Standing.Member(Person, OrganizationA, MemberStanding.Of(OrganizationRole.Admin));
+        var before = _service.Standing.Reads;
+        using var request = ProductServiceAttributeTests.Get("/api/v1/probes/role", Session(OrganizationA, "Admin"));
+
+        using var response = await _service.Client().SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal("Admin True", await Note(response));
+        Assert.Equal(1, _service.Standing.Reads - before);
+    }
+
+    // Nothing to ask of a session naming no organization or provider, nor of an operation open to anybody.
+    [Theory]
+    [InlineData("/api/v1/probes/role", true)]
+    [InlineData("/api/v1/health", false)]
+    public async Task Request_NothingTheSessionNamesOrOpenOperation_StandingNotRead(string path, bool personal)
+    {
+        _service.Standing.Member(Person, OrganizationA, null);
+        var before = _service.Standing.Reads;
+        using var request = ProductServiceAttributeTests.Get(path, personal ? Session(organization: null, "Owner") : Session(OrganizationA, "Owner"));
 
         using var response = await _service.Client().SendAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("ServiceUser", await Note(response));
+        Assert.Equal(0, _service.Standing.Reads - before);
+    }
+
+    // A product service that can't read current standing doesn't start, rather than authorizing from its sessions.
+    [Fact]
+    public async Task Start_ProductServiceWithoutCurrentStanding_Fails()
+    {
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => SessionHost.StartAsync(
+            productService: true,
+            services: services => services.RemoveAll<ICurrentStanding>()));
+
+        Assert.Contains(nameof(ICurrentStanding), failure.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Start_DomainServiceWithoutCurrentStanding_Starts()
+    {
+        await using var domain = await SessionHost.StartAsync(productService: false);
+
+        Assert.False(domain.Identity.IsProductService);
     }
 
     // Below the product layer the header is the calling service's assertion and there is
@@ -191,6 +346,21 @@ public sealed class CallerRoleTests : IAsyncLifetime
 
         return SessionHost.Token(Person, claims, SessionHost.Scope);
     }
+
+    private static string ProviderSession(Guid provider, string role) => SessionHost.Token(
+        Person,
+        new Dictionary<string, object> { ["provider"] = provider.ToString(), ["provider_role"] = role },
+        SessionHost.Scope);
+
+    private static string ClientSession(Guid provider) => SessionHost.Token(
+        Person,
+        new Dictionary<string, object>
+        {
+            ["organization"] = OrganizationA.ToString(),
+            ["provider"] = provider.ToString(),
+            ["provider_role"] = "ProviderAdmin",
+        },
+        SessionHost.Scope);
 
     private static async Task<string?> Note(HttpResponseMessage response)
     {

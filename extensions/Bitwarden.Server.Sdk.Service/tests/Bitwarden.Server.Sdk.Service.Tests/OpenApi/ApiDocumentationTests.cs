@@ -1,3 +1,4 @@
+using Bitwarden.Server.Sdk.Authorization;
 using Bitwarden.Server.Sdk.Context;
 using Bitwarden.Server.Sdk.Resources.OpenApi;
 using Bitwarden.Server.Sdk.Service.OpenApi;
@@ -145,5 +146,9 @@ public sealed class ApiDocumentationTests
     private sealed class Product(string? identity) : Service("documentation-probe", "Documentation Probe", [])
     {
         protected override WebApplicationBuilder CreateBuilder() => Builder(identity);
+
+        // A product service authorizes from current standing, and doesn't start without somewhere to read it.
+        protected override void ConfigureServices(IServiceCollection services) =>
+            services.AddSingleton<ICurrentStanding, TestHost.ProbeStanding>();
     }
 }
