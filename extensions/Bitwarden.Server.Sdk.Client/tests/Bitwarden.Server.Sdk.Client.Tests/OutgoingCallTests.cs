@@ -68,6 +68,88 @@ public sealed class OutgoingCallTests
         }
     }
 
+    // A read made as several calls, page by page: the statement held before the first is stated again for each later
+    // call, which carries exactly what the first did.
+    [Fact]
+    public async Task Send_HeldStatementStatedAgain_EachCallCarriesWhatTheFirstDid()
+    {
+        var person = Guid.NewGuid();
+        var context = new StatedContext { UserId = Guid.NewGuid(), OrganizationId = Guid.NewGuid() };
+        HttpRequestMessage first;
+        HttpRequestMessage second;
+        HttpRequestMessage third;
+
+        using (OutgoingCall.AboutUser(person))
+        {
+            var held = OutgoingCall.Hold();
+            first = await Send(context);
+
+            using (held.Again())
+            {
+                second = await Send(context);
+            }
+
+            using (held.Again())
+            {
+                third = await Send(context);
+            }
+
+            // The caller's own statement is still used up: only a statement stated again covers a call.
+            await Assert.ThrowsAsync<InvalidOperationException>(() => Send(context));
+        }
+
+        Assert.All([second, third], each =>
+        {
+            Assert.Equal(first.Headers.GetValues(BitwardenHeaders.User), each.Headers.GetValues(BitwardenHeaders.User));
+            Assert.Equal(first.Headers.GetValues(BitwardenHeaders.Organization), each.Headers.GetValues(BitwardenHeaders.Organization));
+            Assert.Equal(Carried(first), Carried(each));
+        });
+        Assert.Equal(person.ToString(), first.Headers.GetValues(BitwardenHeaders.User).Single());
+    }
+
+    // The service's own word about one person stays exactly that on each later call: never more, never the request's.
+    [Fact]
+    public async Task Send_HeldSystemStatementStatedAgain_EachCallIsTheServicesOwnAboutThePerson()
+    {
+        var person = Guid.NewGuid();
+        var context = new StatedContext { UserId = Guid.NewGuid(), OrganizationId = Guid.NewGuid(), ProviderId = Guid.NewGuid() };
+        var identity = new Identity(isProductService: false);
+        HttpRequestMessage second;
+
+        using (OutgoingCall.AsSystemAbout(person))
+        {
+            var held = OutgoingCall.Hold();
+            await Send(context, identity);
+
+            using (held.Again())
+            {
+                second = await Send(context, identity);
+            }
+        }
+
+        Assert.Equal(person.ToString(), second.Headers.GetValues(BitwardenHeaders.User).Single());
+        Assert.False(second.Headers.Contains(BitwardenHeaders.Organization));
+        Assert.False(second.Headers.Contains(BitwardenHeaders.Provider));
+        Assert.Equal(CallerCredential.System, Carried(second).Credential);
+    }
+
+    // Nothing stated, nothing held: each later call carries the request's context, as the first did.
+    [Fact]
+    public async Task Send_NothingHeld_StatedAgainStatesNothing()
+    {
+        var acting = Guid.NewGuid();
+        var held = OutgoingCall.Hold();
+        HttpRequestMessage sent;
+
+        using (held.Again())
+        {
+            sent = await Send(new StatedContext { UserId = acting });
+            sent = await Send(new StatedContext { UserId = acting });
+        }
+
+        Assert.Equal(acting.ToString(), sent.Headers.GetValues(BitwardenHeaders.User).Single());
+    }
+
     [Fact]
     public async Task Send_NestedOutgoingCall_InnerNamesItsCallAndOuterIsRestored()
     {
