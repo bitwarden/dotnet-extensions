@@ -53,6 +53,13 @@ public sealed class CachedReadsTests(RedisFixture redis) : IClassFixture<RedisFi
               "context": { "organization": "required", "user": "optional", "provider": "optional" },
               "owner": { "axis": "organization", "self": false },
               "fields": [ "organization", "borrower", "returned" ], "format": 1 } } },
+            "/api/v1/open-loans": { "get": { "operationId": "listOpenLoans", "x-bitwarden-cache": {
+              "resource": "open-loan", "key": "shelf-service:open-loan:read-many:{user}", "keyedBy": "user",
+              "scope": "shelves.read", "assertedBy": [ "lending-desk" ],
+              "context": { "organization": "forbidden", "user": "required", "provider": "forbidden" },
+              "owner": { "axis": "user", "self": false },
+              "fields": [ "title", "organization" ], "perCaller": [ ], "format": 1,
+              "readMany": { "atMost": 200 } } } },
             "/api/v1/labels/{id}": { "get": { "operationId": "getLabel" } }
           }
         }
@@ -446,7 +453,7 @@ public sealed class CachedReadsTests(RedisFixture redis) : IClassFixture<RedisFi
     {
         var reads = CacheableRead.FromContract(new MemoryStream(Encoding.UTF8.GetBytes(Contract)));
 
-        Assert.Equal(["getBook", "getBookOld", "getLibrary", "getLoan", "listPermits", "listQuotas"], reads.Keys.Order());
+        Assert.Equal(["getBook", "getBookOld", "getLibrary", "getLoan", "listOpenLoans", "listPermits", "listQuotas"], reads.Keys.Order());
         Assert.Equal(["shelfmark"], reads["getBook"].PerCaller!);
         Assert.Equal(1, reads["getBook"].Format);
         Assert.Equal(0, reads["getBookOld"].Format);
@@ -458,16 +465,148 @@ public sealed class CachedReadsTests(RedisFixture redis) : IClassFixture<RedisFi
         Assert.Equal(["title", "version"], reads["getBook"].Fields.Order());
     }
 
+    // A cached read-many: the page asked for, sliced in the entry's order, each resource shaped to the fields asked for,
+    // with the person's whole count, for the person the call carries.
+    [Theory]
+    [InlineData(1, 1, new[] { "Anathem" })]
+    [InlineData(2, 1, new[] { "Cryptonomicon" })]
+    [InlineData(2, 2, new[] { "Dune" })]
+    [InlineData(1, 10, new[] { "Anathem", "Cryptonomicon", "Dune" })]
+    [InlineData(4, 1, new string[0])]
+    public async Task ReadManyAsync_APage_HitSlicedAndShaped(int number, int size, string[] titles)
+    {
+        var person = await AReadMany();
+
+        var answer = await Reads(caller: "lending-desk").ReadManyAsync("listOpenLoans", number, size, ["title"], Token);
+
+        Assert.Equal(CachedAnswerKind.Hit, answer.Kind);
+        Assert.Equal(3, answer.Total);
+        using var page = JsonDocument.Parse(answer.Resource!);
+        Assert.Equal(titles, page.RootElement.EnumerateArray()
+            .Select(loan => loan.GetProperty("attributes").GetProperty("title").GetString()));
+        Assert.All(page.RootElement.EnumerateArray(), loan => Assert.False(loan.GetProperty("attributes").TryGetProperty("organization", out _)));
+        Assert.Equal(titles.Length, answer.AsList<Loan>()!.Count);
+        Assert.Equal(person, _context.UserId);
+    }
+
+    // With no fieldset, every attribute the entry holds, which is every attribute a read-many has.
+    [Fact]
+    public async Task ReadManyAsync_NoFieldset_EveryAttribute()
+    {
+        await AReadMany();
+
+        var answer = await Reads(caller: "lending-desk").ReadManyAsync("listOpenLoans", 1, 1, [], Token);
+
+        using var page = JsonDocument.Parse(answer.Resource!);
+        Assert.True(page.RootElement[0].GetProperty("attributes").TryGetProperty("organization", out _));
+    }
+
+    // The read-many answers only a page of itself: a read of one, a page of an operation caching one resource, a call
+    // carrying an organization, a field the entry doesn't hold, or an asserting caller the operation doesn't admit, all
+    // miss.
+    [Fact]
+    public async Task ReadManyAsync_AnythingButAPageOfTheReadMany_Misses()
+    {
+        await AReadMany();
+        var reads = Reads(caller: "lending-desk");
+
+        Assert.Equal(CachedAnswerKind.Miss, (await reads.ReadManyAsync("listOpenLoans", 1, 10, ["fine"], Token)).Kind);
+        Assert.Equal(CachedAnswerKind.Miss, (await reads.ReadCurrentAsync("listOpenLoans", ["title"], Token)).Kind);
+        Assert.Equal(CachedAnswerKind.Miss, (await reads.ReadManyAsync("getLoan", 1, 10, ["borrower"], Token)).Kind);
+        Assert.Equal(CachedAnswerKind.Miss, (await Reads().ReadManyAsync("listOpenLoans", 1, 10, ["title"], Token)).Kind);
+        _context.OrganizationId = Ours;
+        Assert.Equal(CachedAnswerKind.Miss, (await reads.ReadManyAsync("listOpenLoans", 1, 10, ["title"], Token)).Kind);
+    }
+
+    // Another person's entry is never this person's: the owner is checked as for any read.
+    [Fact]
+    public async Task ReadManyAsync_AnEntryOwnedBySomebodyElse_Misses()
+    {
+        var person = await AReadMany(owner: Guid.NewGuid());
+
+        Assert.Equal(CachedAnswerKind.Miss, (await Reads(caller: "lending-desk").ReadManyAsync("listOpenLoans", 1, 10, ["title"], Token)).Kind);
+        Assert.Equal(person, _context.UserId);
+    }
+
+    [Theory]
+    [InlineData(0, 10)]
+    [InlineData(1, 0)]
+    public async Task ReadManyAsync_APageBeforeTheFirstOrOfNone_Refused(int number, int size) =>
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => Reads().ReadManyAsync("listOpenLoans", number, size, [], Token));
+
+    [Fact]
+    public void FromContract_AReadMany_SaysSoWithTheMostAnEntryHolds()
+    {
+        var reads = CacheableRead.FromContract(new MemoryStream(Encoding.UTF8.GetBytes(Contract)));
+
+        Assert.True(reads["listOpenLoans"].ReadMany);
+        Assert.Equal(200, reads["listOpenLoans"].AtMost);
+        Assert.False(reads["getBook"].ReadMany);
+        Assert.Null(reads["getBook"].AtMost);
+    }
+
+    // Every resource of the entry, sized by the contract rather than by the caller: no caller's page size can make a hit
+    // part of the list.
+    [Fact]
+    public async Task ReadAllAsync_AReadMany_TheWholeEntry()
+    {
+        await AReadMany();
+
+        var answer = await Reads(caller: "lending-desk").ReadAllAsync("listOpenLoans", ["title"], Token);
+
+        Assert.Equal(CachedAnswerKind.Hit, answer.Kind);
+        Assert.Equal(3, answer.Total);
+        Assert.Equal(3, answer.AsList<Loan>()!.Count);
+    }
+
+    // An operation the contract publishes as no read-many, or doesn't publish, has no whole entry to read.
+    [Theory]
+    [InlineData("getLoan")]
+    [InlineData("listNothing")]
+    public async Task ReadAllAsync_NoReadMany_Misses(string operation)
+    {
+        await AReadMany();
+
+        Assert.Equal(CachedAnswerKind.Miss, (await Reads(caller: "lending-desk").ReadAllAsync(operation, [], Token)).Kind);
+    }
+
+    /// <summary>
+    /// A person's read-many of three loans, as the owner fills it; the context is the person's, with no organization.
+    /// </summary>
+    private async Task<Guid> AReadMany(Guid? owner = null)
+    {
+        var person = Guid.NewGuid();
+        _context.OrganizationId = null;
+        _context.UserId = person;
+        await Store(
+            $"{Service}:open-loan:read-many:{person}",
+            ("v", "0"),
+            ("o", $$"""{"user":"{{owner ?? person}}"}"""),
+            ("d", """[{"id":"a","type":"open-loan","attributes":{"title":"Anathem","organization":"o"}},{"id":"b","type":"open-loan","attributes":{"title":"Cryptonomicon","organization":"o"}},{"id":"c","type":"open-loan","attributes":{"title":"Dune","organization":"o"}}]"""));
+        return person;
+    }
+
+    private sealed class Loan
+    {
+        [Newtonsoft.Json.JsonProperty("id")]
+        public string? Id { get; set; }
+    }
+
     private CachedReads<CachedReadsTests> Reads(
         string[]? scopes = null,
         Dictionary<string, string?>? configuration = null,
         bool connected = true,
-        CachedReadsConnection? connection = null)
+        CachedReadsConnection? connection = null,
+        string caller = "")
     {
         var services = new ServiceCollection()
             .AddMetrics()
             .AddSingleton<IContext>(_context)
-            .Configure<BitwardenClientOptions>(Service, options => options.Scopes = scopes ?? ["shelves.read"])
+            .Configure<BitwardenClientOptions>(Service, options =>
+            {
+                options.Scopes = scopes ?? ["shelves.read"];
+                options.CallerName = caller;
+            })
             .BuildServiceProvider();
 
         return new CachedReads<CachedReadsTests>(
