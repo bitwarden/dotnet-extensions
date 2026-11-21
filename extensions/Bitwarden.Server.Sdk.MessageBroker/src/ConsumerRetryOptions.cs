@@ -23,7 +23,9 @@ public sealed class ConsumerRetryOptions
     /// </summary>
     public TimeSpan RetryDelay { get; set; } = TimeSpan.Zero;
 
-    /// <summary>The longest <see cref="RetryDelay"/> grows to. Default is thirty seconds.</summary>
+    /// <summary>
+    /// The longest <see cref="RetryDelay"/> grows to. Default is thirty seconds.
+    /// </summary>
     public TimeSpan MaxRetryDelay { get; set; } = TimeSpan.FromSeconds(30);
 
     internal TimeSpan RetryDelayAfter(int deliveryCount)
