@@ -156,12 +156,11 @@ public sealed class WidgetLookup(IWidgetClient widgets)
 | `unauthenticated`                                                                                                               | `UnauthenticatedException`                                                                       |
 | `forbidden`                                                                                                                     | `ForbiddenException`                                                                             |
 | `not-implemented`                                                                                                               | `NotImplementedException`                                                                        |
-| `key-rotation-in-progress` (a `409` or a `503`)                                                                                 | `RelayedRefusalException`, carrying the status and errors to answer on unchanged                 |
 | `field-required`, `invalid-type`, `invalid-value`, `invalid-shape`, `malformed-json`, `already-exists`, `invalid-resource-type` | `InvalidRequestException`, or `RequestRefusedException` when a `422` carries more than one error |
 | anything else                                                                                                                   | `ServiceCallException`                                                                           |
 
-A callee that can't be reached, doesn't answer within `Timeout`, or answers `502`, `503` or `504` (but for a key
-rotation) is a `ServiceUnavailableException` naming it. The deadline covers the tokens the call obtains too. The
+A callee that can't be reached, doesn't answer within `Timeout`, or answers `502`, `503` or `504` is a
+`ServiceUnavailableException` naming it. The deadline covers the tokens the call obtains too. The
 authorization server failing then is a `ServiceUnavailableException` naming `identity`, such as
 `The identity service could not be reached for a token for calls to widget-service.`, and the call never reaches the
 callee. The authorization server refusing the credential is a `ServiceCallException` with status `500`, this service's
@@ -232,6 +231,10 @@ public sealed class WidgetReads(IWidgetClient widgets)
 | `AboutOrganizationWithoutProvider(organization)` | The organization, and everything but the provider                                   |
 
 Statements nest, and disposing one restores the one before.
+
+A client that answers one read with several calls, such as a list read page by page, holds the caller's statement
+before the first call (`OutgoingCall.Hold()`) and states it again for each later one (`held.Again()`): every page
+carries exactly what the first did, and nothing is stated where the caller stated nothing.
 
 ### Rely on retries and idempotency keys
 
@@ -476,7 +479,7 @@ read-many is never answered by `ReadAsync` or `ReadCurrentAsync`, nor a read of 
 | `BitwardenClientOptions`                                                     | A client's settings                                                                   |
 | `IServiceTokenProvider`, `ServiceTokenProvider`                              | The caller's token and its context tokens                                             |
 | `ClientAssertion`                                                            | A signed client assertion in place of a secret                                        |
-| `OutgoingCall`, `OutgoingCallOptions`                                        | Stating whom one call is about; the event actor rule; `Fresh()` past the request memo |
+| `OutgoingCall`, `OutgoingCallOptions`, `HeldStatement`                      | Stating whom one call is about; the event actor rule; `Fresh()` past the request memo |
 | `ServiceCallException`, `RequestRefusedException`, `RelayedRefusalException` | Failures with no more specific exception                                              |
 | `Undo`, `UndoOn`                                                             | Taking back writes that span services                                                 |
 | `ProductClient`, `ProductAnswer`, `ProductAnswer<T>`                         | Calling a product service with somebody's own token                                   |
