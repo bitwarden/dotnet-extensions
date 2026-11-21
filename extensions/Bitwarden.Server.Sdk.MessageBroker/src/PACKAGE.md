@@ -258,7 +258,7 @@ for the full walkthrough.
 
 Implement `IMessageConsumer<TPayload, TCeiling>` and register with `AddMessageConsumer`. This
 registers both the subscriber and a hosted service in one call, and handles settlement
-automatically — `CompleteAsync` on success, and `DeadLetterAsync` when `HandleAsync` throws, unless
+automatically: `CompleteAsync` on success, and `DeadLetterAsync` when `HandleAsync` throws, unless
 retries are configured (see [When a consumer throws](#when-a-consumer-throws)):
 
 ```csharp

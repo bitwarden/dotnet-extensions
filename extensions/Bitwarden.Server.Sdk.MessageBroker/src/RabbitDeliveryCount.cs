@@ -1,6 +1,8 @@
 namespace Microsoft.Extensions.DependencyInjection;
 
-/// <summary>A RabbitMQ delivery's 1-based delivery count, as <see cref="Envelope{TPayload, TCeiling}.DeliveryCount"/> has it.</summary>
+/// <summary>
+/// A RabbitMQ delivery's 1-based delivery count, as <see cref="Envelope{TPayload, TCeiling}.DeliveryCount"/> has it.
+/// </summary>
 internal static class RabbitDeliveryCount
 {
     /// <summary>

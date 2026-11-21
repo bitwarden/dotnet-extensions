@@ -9,10 +9,14 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class MessagingRequirements
 {
-    /// <summary>A topic the service publishes to and owns: <c>{ "topic" }</c>.</summary>
+    /// <summary>
+    /// A topic the service publishes to and owns: <c>{ "topic" }</c>.
+    /// </summary>
     public const string Topic = "messaging-topic";
 
-    /// <summary>A payload family the service publishes on a topic: <c>{ "topic", "family" }</c>. Grants the right to send.</summary>
+    /// <summary>
+    /// A payload family the service publishes on a topic: <c>{ "topic", "family" }</c>. Grants the right to send.
+    /// </summary>
     public const string Publish = "messaging-publish";
 
     /// <summary>
@@ -21,7 +25,9 @@ public static class MessagingRequirements
     /// </summary>
     public const string Subscription = "messaging-subscription";
 
-    /// <summary>The service's own command queue, which it owns and reads: <c>{ "queue" }</c>.</summary>
+    /// <summary>
+    /// The service's own command queue, which it owns and reads: <c>{ "queue" }</c>.
+    /// </summary>
     public const string CommandQueue = "messaging-command-queue";
 
     /// <summary>
@@ -30,7 +36,9 @@ public static class MessagingRequirements
     /// </summary>
     public const string CommandConsume = "messaging-command-consume";
 
-    /// <summary>A command family the service sends to another service's queue: <c>{ "queue", "family" }</c>. Grants the right to send.</summary>
+    /// <summary>
+    /// A command family the service sends to another service's queue: <c>{ "queue", "family" }</c>. Grants the right to send.
+    /// </summary>
     public const string CommandSend = "messaging-command-send";
 
     internal static void DeclarePublisher(IServiceCollection services, string topic, string family)
