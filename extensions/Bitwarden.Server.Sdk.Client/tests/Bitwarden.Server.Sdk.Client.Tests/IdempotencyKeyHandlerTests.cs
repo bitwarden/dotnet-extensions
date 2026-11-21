@@ -1,3 +1,4 @@
+using System.Net;
 using Bitwarden.Server.Sdk.Context;
 using Bitwarden.Server.Sdk.Idempotency;
 using Microsoft.Extensions.Configuration;
@@ -220,6 +221,107 @@ public sealed class IdempotencyKeyHandlerTests
         Assert.Equal(2, callee.Attempts.Count);
         Assert.Single(callee.Attempts.Select(attempt => (attempt.Key, attempt.User)).Distinct());
         Assert.Equal(user.ToString(), callee.Attempts.First().User);
+    }
+
+    // A write retried after a 503 from in front of the callee is the same write: every attempt carries the same key and
+    // the same headers, including the person a statement named, which the call took once.
+    [Fact]
+    public async Task AnOperation_AWriteRetriedAfterA503_SendsTheSameKeyAndHeaders()
+    {
+        var callee = new Scripted(BareStatus(HttpStatusCode.ServiceUnavailable), Ok);
+        var user = Guid.NewGuid();
+        await using var services = Services(
+            callee,
+            register: registered => registered.AddSingleton<IContext>(new StatedContext { UserId = Guid.NewGuid() }));
+
+        using (IdempotentOperation.Begin("operation-1", Secret))
+        using (OutgoingCall.AboutUser(user))
+        {
+            using var response = await services.GetRequiredService<Probe>().SendAsync(HttpMethod.Post, Token);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        Assert.Equal(2, callee.Attempts.Count);
+        Assert.Single(callee.Attempts.Distinct());
+        Assert.Equal(user.ToString(), callee.Attempts.First().User);
+        Assert.NotNull(callee.Attempts.First().Key);
+    }
+
+    // Each way a write comes to concern somebody: the context's provider, the organization or provider an operation names
+    // in its request (IRequestNamedOwner), and the system statements, which carry only what they name. The key is the
+    // one derived from exactly the headers every attempt carries.
+    [Theory]
+    [InlineData("context-provider")]
+    [InlineData("request-named-owner")]
+    [InlineData("as-system")]
+    [InlineData("as-system-about")]
+    [InlineData("as-system-for-provider")]
+    public async Task AnOperation_KeysAWriteByEveryHeaderItCarries(string concern)
+    {
+        var callee = new Scripted(BareStatus(HttpStatusCode.ServiceUnavailable), Ok);
+        var user = Guid.NewGuid();
+        var organization = Guid.NewGuid();
+        var provider = Guid.NewGuid();
+
+        IContext context = concern switch
+        {
+            "context-provider" => new StatedContext { UserId = user, ProviderId = provider },
+            "request-named-owner" => new StatedContext { UserId = user },
+            _ => new StatedContext { UserId = Guid.NewGuid(), ProviderId = Guid.NewGuid() },
+        };
+        List<KeyValuePair<string, string>> expected = concern switch
+        {
+            "context-provider" => [new(BitwardenHeaders.User, user.ToString()), new(BitwardenHeaders.Provider, provider.ToString())],
+            "request-named-owner" =>
+            [
+                new(BitwardenHeaders.Organization, organization.ToString()),
+                new(BitwardenHeaders.User, user.ToString()),
+                new(BitwardenHeaders.Provider, provider.ToString()),
+            ],
+            "as-system" => [new(BitwardenHeaders.Organization, organization.ToString())],
+            "as-system-about" => [new(BitwardenHeaders.User, user.ToString())],
+            "as-system-for-provider" => [new(BitwardenHeaders.Provider, provider.ToString())],
+            _ => throw new ArgumentOutOfRangeException(nameof(concern)),
+        };
+
+        await using var services = Services(callee, register: registered =>
+        {
+            registered.AddSingleton(context);
+            if (concern == "request-named-owner")
+            {
+                registered.AddSingleton<IRequestNamedOwner>(new ContextHandlerHarness.Named(organization, provider));
+            }
+        });
+
+        using (IdempotentOperation.Begin("operation-1", Secret))
+        {
+            using (concern switch
+            {
+                "as-system" => OutgoingCall.AsSystem(organization),
+                "as-system-about" => OutgoingCall.AsSystemAbout(user),
+                "as-system-for-provider" => OutgoingCall.AsSystemForProvider(provider),
+                _ => null,
+            })
+            {
+                using var response = await services.GetRequiredService<Probe>()
+                    .SendAsync(HttpMethod.Post, Token, body: new { note = "same" });
+            }
+
+            var header = (string name) => expected.SingleOrDefault(pair => pair.Key == name).Value;
+            Assert.Equal(2, callee.Attempts.Count);
+            Assert.All(callee.Attempts, attempt =>
+            {
+                Assert.Equal(header(BitwardenHeaders.Organization), attempt.Organization);
+                Assert.Equal(header(BitwardenHeaders.User), attempt.User);
+                Assert.Equal(header(BitwardenHeaders.Provider), attempt.Provider);
+            });
+        }
+
+        using (IdempotentOperation.Begin("operation-1", Secret))
+        {
+            var key = IdempotentOperation.KeyForWrite("POST", "http://callee.invalid/things", """{"note":"same"}"""u8, expected);
+            Assert.All(callee.Attempts, attempt => Assert.Equal(key, attempt.Key));
+        }
     }
 
     private static readonly IdempotencySecret Secret =
