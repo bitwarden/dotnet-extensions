@@ -426,6 +426,14 @@ parties it is about (`ReadAsync(operationId, key, fields, call)`, which uses up 
 once the composed answer stands; where it doesn't, it makes the call, which uses the statement. `Fieldsets` builds
 a sparse fieldset from a generated attributes class, keeping the attributes its contract requires.
 
+A callee may also publish a cached read-many (`readMany` in `x-bitwarden-cache`): every resource of the party the call
+carries, in one entry. `ReadManyAsync(operationId, pageNumber, pageSize, fields)` answers a page of it under the same
+checks, sliced from the entry in its order; a hit's `Resource` is the array of the page's resources, `AsList<T>()`
+reads it, and `Total` is how many the party has in all, as the service's `totalCount` says. A party with more rows than
+an entry holds has no entry, so the call is made. `ReadAllAsync(operationId, fields)` reads the party's whole entry,
+as one page as large as the contract's `atMost`, so a client wanting every resource never copies the owner's bound. A
+read-many is never answered by `ReadAsync` or `ReadCurrentAsync`, nor a read of one by `ReadManyAsync`.
+
 ## Gotchas and constraints
 
 - **A shared secret proves less than a key.** With `CallerSecret`, services that share one secret can't be told apart
