@@ -65,7 +65,9 @@ internal sealed class TopologyGate
             _open.TrySetResult();
     }
 
-    /// <summary>Whether this service creates its topology as it starts.</summary>
+    /// <summary>
+    /// Whether this service creates its topology as it starts.
+    /// </summary>
     public bool Provisions { get; }
 
     public void Open() => _open.TrySetResult();
@@ -105,7 +107,9 @@ internal sealed class TopologyStartupService(
     private static readonly TimeSpan LockDuration = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan DuplicateDetectionWindow = TimeSpan.FromMinutes(10);
 
-    /// <summary>Sets the process exit code; tests replace it so a stopped test host doesn't fail the run.</summary>
+    /// <summary>
+    /// Sets the process exit code; tests replace it so a stopped test host doesn't fail the run.
+    /// </summary>
     internal Action<int> SetExitCode { get; set; } = code => Environment.ExitCode = code;
 
     internal TimeProvider TimeProvider { get; set; } = TimeProvider.System;
@@ -253,7 +257,9 @@ internal sealed class TopologyStartupService(
     /// <param name="Problems">Each object that is missing, may not be used, or couldn't be created.</param>
     private sealed record StepResult(int Checked, IReadOnlyList<string> Unchecked, IReadOnlyList<string> Created, IReadOnlyList<string> Problems)
     {
-        /// <summary>What provisioning couldn't see or change on objects that already exist, left to whoever made them.</summary>
+        /// <summary>
+        /// What provisioning couldn't see or change on objects that already exist, left to whoever made them.
+        /// </summary>
         public IReadOnlyList<string> Notes { get; init; } = [];
     }
 
