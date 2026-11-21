@@ -17,10 +17,11 @@ namespace Bitwarden.Server.Sdk.Authorization;
 /// the human behind the request was entitled to ask is the product layer's job.
 /// </para>
 /// <para>
-/// The role and permissions are read from claims rather than fetched. That is not a shortcut
-/// around asking the service that owns them: a signed, lifetime-bounded assertion by an
-/// authority is a different thing from a copy of another service's row. The cost is that a
-/// demoted administrator keeps their role until the session expires.
+/// The role and permissions are the person's <em>current</em> standing (<see cref="ICurrentStanding"/>),
+/// read once per request before authorization runs, never the role and permission claims the session
+/// was issued with: a person demoted, revoked or removed since is answered as they stand now on the
+/// next request, and a session naming an organization or provider they no longer hold is refused
+/// before any handler. Synchronous all the same, because the reading is done before anything asks.
 /// </para>
 /// <para>
 /// A role is about one organization, so it counts only for that one. The session names the
