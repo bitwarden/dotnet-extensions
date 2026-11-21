@@ -14,13 +14,19 @@ namespace Bitwarden.Server.Sdk.Client;
 /// never reached the callee.
 /// </remarks>
 /// <param name="keyed">The callee's operations that honour keys.</param>
-internal sealed class IdempotencyKeyHandler(KeyedOperations keyed) : DelegatingHandler
+/// <param name="context">
+/// The context headers the call will carry, by name and value: whom the write is for. Asked only inside an operation,
+/// whose key for the write is derived from them, so writes for different users or organizations get different keys.
+/// </param>
+internal sealed class IdempotencyKeyHandler(
+    KeyedOperations keyed,
+    Func<HttpRequestMessage, IEnumerable<KeyValuePair<string, string>>> context) : DelegatingHandler
 {
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         if (IsWrite(request.Method) && !request.Headers.Contains(IdempotencyKeys.Header) && keyed.Accepts(request.Method, request.RequestUri))
         {
-            request.Headers.TryAddWithoutValidation(IdempotencyKeys.Header, await KeyForAsync(request, cancellationToken));
+            request.Headers.TryAddWithoutValidation(IdempotencyKeys.Header, await KeyForAsync(request, context, cancellationToken));
         }
 
         return await base.SendAsync(request, cancellationToken);
@@ -32,7 +38,10 @@ internal sealed class IdempotencyKeyHandler(KeyedOperations keyed) : DelegatingH
     internal static bool IsWrite(HttpMethod method) =>
         method != HttpMethod.Get && method != HttpMethod.Head && method != HttpMethod.Options && method != HttpMethod.Trace;
 
-    private static async Task<string> KeyForAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    private static async Task<string> KeyForAsync(
+        HttpRequestMessage request,
+        Func<HttpRequestMessage, IEnumerable<KeyValuePair<string, string>>> context,
+        CancellationToken cancellationToken)
     {
         if (IdempotentOperation.Current is null)
         {
@@ -48,7 +57,8 @@ internal sealed class IdempotencyKeyHandler(KeyedOperations keyed) : DelegatingH
             body = await content.ReadAsByteArrayAsync(cancellationToken);
         }
 
-        return IdempotentOperation.KeyForWrite(request.Method.Method, request.RequestUri?.ToString() ?? string.Empty, body)
+        return IdempotentOperation.KeyForWrite(
+                request.Method.Method, request.RequestUri?.ToString() ?? string.Empty, body, context(request))
             ?? Guid.NewGuid().ToString();
     }
 }

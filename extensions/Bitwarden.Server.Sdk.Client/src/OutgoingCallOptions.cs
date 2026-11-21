@@ -7,10 +7,10 @@ namespace Bitwarden.Server.Sdk.Client;
 /// <remarks>
 /// A consumer acts with its own authority, and the event's actor is for the record only. While a service
 /// handles an event (<see cref="Context.ContextScope.IsEvent"/>), a call to another service either is the
-/// service's own (<see cref="OutgoingCall.AsSystem(Guid)"/> and the other <c>AsSystem</c> statements), or names its
-/// person outright (<see cref="OutgoingCall.AboutUser"/>), or carries no person because the event names none. A call
-/// with no statement while the event names a person, or inside a statement that names nobody and so keeps the event's
-/// person (<see cref="OutgoingCall.AboutOrganization"/>, say), is logged as a warning, or refused with this on.
+/// service's own (no statement, <see cref="OutgoingCall.AsSystem(Guid)"/> and the other <c>AsSystem</c> statements),
+/// or names its person outright (<see cref="OutgoingCall.AboutUser"/>). A call inside a statement that names nobody
+/// and speaks for whoever is acting (<see cref="OutgoingCall.AboutOrganization"/>, say) is logged as a warning, or
+/// refused with this on.
 /// </remarks>
 public sealed class OutgoingCallOptions
 {

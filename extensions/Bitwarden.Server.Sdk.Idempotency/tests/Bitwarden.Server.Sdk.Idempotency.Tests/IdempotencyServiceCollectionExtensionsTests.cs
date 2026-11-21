@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Bitwarden.Server.Sdk.Idempotency.Tests;
@@ -95,11 +97,40 @@ public sealed class IdempotencyServiceCollectionExtensionsTests
         Assert.Same(own, provider.GetRequiredService<IIdempotencyStore>());
     }
 
-    private static ServiceProvider Build(Dictionary<string, string?> settings, bool sharedKeyRing = false)
+    // Outside Development, records go only to a Redis user of the service's own: as Redis's default user, any holder of
+    // the connection could claim the service's keys or overwrite its records, and so refuse its writes.
+    [Theory]
+    [InlineData("127.0.0.1:1")]
+    [InlineData("127.0.0.1:1,password=secret-value")]
+    [InlineData("127.0.0.1:1,user=default,password=secret-value")]
+    public void Start_WithRedisButNoUserOfItsOwn_OutsideDevelopment_Refused(string connection)
+    {
+        using var provider = Build(new Dictionary<string, string?> { [IdempotencyOptions.RedisConfigurationKey] = connection }, environment: "Production");
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => provider.GetRequiredService<IStartupValidator>().Validate());
+
+        Assert.Contains(IdempotencyOptions.RedisConfigurationKey, refusal.Message);
+        Assert.DoesNotContain("secret-value", refusal.Message);
+        Assert.DoesNotContain("127.0.0.1", refusal.Message);
+    }
+
+    [Theory]
+    [InlineData("Development", "127.0.0.1:1")]
+    [InlineData("Production", "127.0.0.1:1,user=widget-service,password=secret-value")]
+    [InlineData("Production", null)]
+    public void Start_WithAUserOfItsOwnOrInDevelopmentOrWithoutRedis_Starts(string environment, string? connection)
+    {
+        using var provider = Build(new Dictionary<string, string?> { [IdempotencyOptions.RedisConfigurationKey] = connection }, environment: environment);
+
+        provider.GetRequiredService<IStartupValidator>().Validate();
+    }
+
+    private static ServiceProvider Build(Dictionary<string, string?> settings, bool sharedKeyRing = false, string environment = "Development")
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton<IHostEnvironment>(new Environment(environment));
         services.AddLogging();
         services.AddIdempotencyKeys(configuration);
 
@@ -119,5 +150,16 @@ public sealed class IdempotencyServiceCollectionExtensionsTests
         public ValueTask CompleteAsync(string key, string answer, TimeSpan retention) => ValueTask.CompletedTask;
 
         public ValueTask ReleaseAsync(string key, string pending) => ValueTask.CompletedTask;
+    }
+
+    private sealed class Environment(string name) : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = name;
+
+        public string ApplicationName { get; set; } = "widget-service";
+
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 }

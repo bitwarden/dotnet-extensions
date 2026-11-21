@@ -70,7 +70,16 @@ public readonly struct CacheSecret : IEquatable<CacheSecret>
     /// <summary>
     /// Returns the secret as base64, which <see cref="FromString(string)"/> reads back.
     /// </summary>
-    public override string ToString() => Convert.ToBase64String(AsSpan());
+    /// <remarks>
+    /// Only for writing the secret where secrets are kept. Anyone who reads the result can derive every cache key.
+    /// </remarks>
+    public string ToBase64() => Convert.ToBase64String(AsSpan());
+
+    /// <summary>
+    /// Returns a fixed marker, never the secret, so a secret written to a log, an exception message or a debugger
+    /// doesn't give it away. <see cref="ToBase64"/> writes the secret itself.
+    /// </summary>
+    public override string ToString() => "[cache secret]";
 
     /// <summary>
     /// Compares the secrets in constant time.

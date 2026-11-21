@@ -44,6 +44,11 @@
           "xunit.v3.core.mtp-v2": "[3.2.2]"
         }
       },
+      "Bitwarden.Server.Sdk.CryptoPrimitives": {
+        "type": "Transitive",
+        "resolved": "0.1.0",
+        "contentHash": "g67cxy1PRAWWqEbTFxTP+hnttXZWHUPgBKtTHc9g8rlylDhtyisbRnX6Omixvpmj8bUujCUjrRO3Oterq5O/Kw=="
+      },
       "BouncyCastle.Cryptography": {
         "type": "Transitive",
         "resolved": "2.7.0",
@@ -125,6 +130,14 @@
         "resolved": "2.2.10",
         "contentHash": "zmGsm6b2y3STDa/Of7rdkkfTDV8VuGB8aCqIkLoJIQh5tL78K3zJ8OUyFKnfsaORXmGr9iOKwDkZfUjeXi+CwA=="
       },
+      "Microsoft.Extensions.Configuration.Abstractions": {
+        "type": "Transitive",
+        "resolved": "10.0.14",
+        "contentHash": "4YdfvaoWn3tB1xQQHGrhRTFWJ8fGOqxThxduynSZy9ZFTiSaUi3vX4EK/kj8h2HQMwTlks9MWV1fv2WRBv5/1w==",
+        "dependencies": {
+          "Microsoft.Extensions.Primitives": "10.0.14"
+        }
+      },
       "Microsoft.Extensions.DependencyInjection.Abstractions": {
         "type": "Transitive",
         "resolved": "8.0.2",
@@ -142,6 +155,11 @@
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection.Abstractions": "8.0.2"
         }
+      },
+      "Microsoft.Extensions.Primitives": {
+        "type": "Transitive",
+        "resolved": "10.0.14",
+        "contentHash": "1bbZqqCJTPba3inTADExbp/9PsGVyvGOX3zr6tFr7ySCgVkX9Lpw7BV0TizktNItd3SsbUu1sQfSAYm1GZMoNw=="
       },
       "Microsoft.Testing.Extensions.Telemetry": {
         "type": "Transitive",
@@ -284,8 +302,17 @@
         "type": "Project",
         "dependencies": {
           "Bitwarden.Server.Sdk.Context": "[0.1.0, )",
+          "Bitwarden.Server.Sdk.CryptoPrimitives": "[0.1.0, )",
           "Bitwarden.Server.Sdk.Errors": "[0.1.0, )",
+          "Bitwarden.Server.Sdk.Resources.Caching.Abstractions": "[0.1.0, )",
           "StackExchange.Redis": "[2.13.17, )"
+        }
+      },
+      "bitwarden.server.sdk.resources.caching.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "Bitwarden.Server.Sdk.CryptoPrimitives": "[0.1.0, )",
+          "Microsoft.Extensions.Configuration.Abstractions": "[10.0.14, )"
         }
       }
     }

@@ -33,8 +33,9 @@ anyone can derive the same keys from it.
 
 - A parameter that is not valid UTF-16, such as a lone surrogate, throws `EncoderFallbackException`
   rather than being replaced and colliding with another string.
-- `ToString()` returns base64, and `FromString` reads it back, for both types. `ToString()` of a
-  `CacheSecret` writes the secret itself: keep it out of logs.
+- `FromString` reads base64 for both types. A `CacheKey` writes it with `ToString()`. A `CacheSecret`'s
+  `ToString()` returns a fixed marker, never the secret, so logging one gives nothing away; `ToBase64()` writes the
+  secret itself, only for storing it where secrets are kept.
 
 ## Types
 

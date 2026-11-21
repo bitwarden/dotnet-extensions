@@ -28,7 +28,6 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
 
     public async IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var conn = await _connection.GetConnectionAsync(cancellationToken);
         // The host can close the connection while the stream is still being set up. That is a
         // shutdown, not a broker failure, so the stream ends as it does when the channel closes.
         // Setup calls also end when the connection has closed, rather than waiting for a reply.
@@ -36,6 +35,7 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
         IChannel rabbitChannel;
         try
         {
+            var conn = await _connection.GetConnectionAsync(setupCancellation.Token);
             rabbitChannel = await conn.CreateChannelAsync(cancellationToken: setupCancellation.Token);
         }
         catch (Exception) when (_connection.IsClosing && !cancellationToken.IsCancellationRequested)
@@ -175,10 +175,11 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
         protected override Task CompleteAsyncCore(CancellationToken cancellationToken) =>
             _channel.BasicAckAsync(_deliveryTag, multiple: false, cancellationToken).AsTask();
 
+        // A reject, which a quorum queue counts toward its delivery limit and x-delivery-count.
         // If the channel is already closed (iterator was disposed), Rabbit automatically
-        // requeued the unacked message on close, so there is nothing left to do.
+        // requeued the rejected message on close, so there is nothing left to do.
         protected override Task RequeueCoreAsync(CancellationToken cancellationToken) =>
-            _channel.IsOpen ? _channel.BasicNackAsync(_deliveryTag, multiple: false, requeue: true, cancellationToken).AsTask() : Task.CompletedTask;
+            _channel.IsOpen ? _channel.BasicRejectAsync(_deliveryTag, requeue: true, cancellationToken).AsTask() : Task.CompletedTask;
 
         protected override Task DeadLetterAsyncCore(string? reason, CancellationToken cancellationToken) =>
             _channel.IsOpen ? _channel.BasicNackAsync(_deliveryTag, multiple: false, requeue: false, cancellationToken).AsTask() : Task.CompletedTask;

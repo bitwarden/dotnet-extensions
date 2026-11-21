@@ -32,8 +32,8 @@ public static class BitwardenClientServiceCollectionExtensions
     /// <remarks>
     /// Called by the client package a service publishes, beside <c>AddBitwardenClient</c>. With no
     /// <c>Caching:Owned:Redis:Configuration</c> every read is a miss and the service is asked. With
-    /// one, outside <c>Development</c>, the host refuses to start without
-    /// <c>Caching:Owned:AnswerSecret</c>.
+    /// one, outside <c>Development</c>, the host refuses to start when the connection names no Redis user of the
+    /// service's own.
     /// </remarks>
     public static IServiceCollection AddCachedReads<TClient>(this IServiceCollection services, string serviceName)
         where TClient : class
@@ -41,14 +41,19 @@ public static class BitwardenClientServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
 
-        // At startup, not on the first read: a deployment missing the answer secret fails to start. The reads take the
-        // secret from here too. A container built without a host has no environment, and is treated as not Development.
-        services.AddOptions<AnswerSecretCheck>()
-            .Configure<IConfiguration, IServiceProvider>((check, configuration, provider) =>
-                check.Secret = Bitwarden.Server.Sdk.Resources.Caching.OwnedAnswerKey.ReadSecret(
-                    configuration,
-                    provider.GetService<IHostEnvironment>()?.EnvironmentName ?? Environments.Production))
+        // At startup, not on the first read: a reader connected as Redis's default user, which could write what it
+        // reads, fails to start.
+        services.AddOptions<ServiceCacheUserCheck>()
+            .Configure<IConfiguration, IHostEnvironment>((check, configuration, environment) =>
+                check.OwnUser = ServiceCacheUserCheck.Require(
+                    configuration[Bitwarden.Server.Sdk.Resources.Caching.OwnedCacheEntry.ConnectionKey],
+                    Bitwarden.Server.Sdk.Resources.Caching.OwnedCacheEntry.ConnectionKey,
+                    environment.EnvironmentName))
             .ValidateOnStart();
+
+        // Counts what the request memo answered, on the host's meter factory.
+        services.AddMetrics();
+        services.TryAddSingleton<RequestMemoMetrics>();
 
         services.TryAddSingleton(provider => new CachedReadsConnectionHolder(
             provider.GetRequiredService<IConfiguration>()[Bitwarden.Server.Sdk.Resources.Caching.OwnedCacheEntry.ConnectionKey],
@@ -57,14 +62,12 @@ public static class BitwardenClientServiceCollectionExtensions
         services.TryAddSingleton<ICachedReads<TClient>>(provider => new CachedReads<TClient>(
             serviceName,
             CacheableRead.FromAssembly(typeof(TClient).Assembly),
-            CacheableIndexRead.FromAssembly(typeof(TClient).Assembly),
             provider.GetRequiredService<CachedReadsConnectionHolder>().Connection,
             provider.GetRequiredService<IOptionsMonitor<BitwardenClientOptions>>(),
             provider.GetRequiredService<IServiceScopeFactory>(),
             provider.GetRequiredService<IConfiguration>(),
-            provider.GetRequiredService<IOptions<AnswerSecretCheck>>().Value.Secret,
             provider.GetRequiredService<ILogger<CachedReads<TClient>>>(),
-            CacheableAnswerRead.FromAssembly(typeof(TClient).Assembly)));
+            provider.GetRequiredService<RequestMemoMetrics>()));
 
         return services;
     }
@@ -101,6 +104,10 @@ public static class BitwardenClientServiceCollectionExtensions
 
         // Read once: the operations the callee's contract, embedded in the client package, marks as honouring keys.
         var keyed = KeyedOperations.FromAssembly(typeof(TImplementation).Assembly);
+
+        // Counts what the request memo answered, on the host's meter factory.
+        services.AddMetrics();
+        services.TryAddSingleton<RequestMemoMetrics>();
 
         // Bounded for every token request, a renewal no call waits on included; a call's deadline bounds it too.
         services.AddHttpClient(ServiceTokenProvider.TokenClientName, client => client.Timeout = ServiceTokenProvider.RequestTimeout);
@@ -173,16 +180,23 @@ public static class BitwardenClientServiceCollectionExtensions
             //
             // 1. The fault handler: the call's one deadline, around everything below, and the translation of every
             //    failure into the exception it means.
-            // 2. The idempotency key, once, before any attempt, so every attempt of a write carries the same one.
+            // 2. The idempotency key, once, before any attempt, so every attempt of a write carries the same one. Inside
+            //    an operation it is derived from whom the call concerns, as the context handler writes it.
             //    Then the write reported to the operation running now, once per key (ServiceWriteHandler).
             // 3. The retries, within the deadline.
             // 4. and 5. The token and the context token, obtained from Identity for each attempt (held between them).
-            // 6. The circuit breaker, innermost, so it counts attempts at the callee itself and never Identity's
+            // 6. The request memo (RequestMemoHandler), after the context is written, so its key is exactly what is
+            //    sent, and before anything is, so a remembered answer sends nothing.
+            // 7. The circuit breaker, innermost, so it counts attempts at the callee itself and never Identity's
             //    failures.
             .AddHttpMessageHandler(provider => new ServiceFaultHandler(
                 serviceName,
                 provider.GetRequiredService<IOptionsMonitor<BitwardenClientOptions>>().Get(serviceName).Timeout))
-            .AddHttpMessageHandler(() => new IdempotencyKeyHandler(keyed))
+            .AddHttpMessageHandler(provider =>
+            {
+                var scopes = provider.GetRequiredService<IServiceScopeFactory>();
+                return new IdempotencyKeyHandler(keyed, request => ContextHandler.Concerned(request, scopes));
+            })
             .AddHttpMessageHandler(provider => new ServiceWriteHandler(
                 serviceName,
                 [.. provider.GetRequiredService<IOptionsMonitor<BitwardenClientOptions>>().Get(serviceName).ReadingPaths]))
@@ -196,6 +210,11 @@ public static class BitwardenClientServiceCollectionExtensions
             .AddHttpMessageHandler(provider => new ContextHandler(
                 provider.GetRequiredService<IServiceScopeFactory>(),
                 provider.GetRequiredKeyedService<IServiceTokenProvider>(serviceName)))
+            .AddHttpMessageHandler(provider => new RequestMemoHandler(
+                serviceName,
+                provider.GetRequiredService<IOptionsMonitor<BitwardenClientOptions>>().Get(serviceName).CallerName,
+                provider.GetService<IConfiguration>(),
+                provider.GetRequiredService<RequestMemoMetrics>()))
             .AddHttpMessageHandler(provider =>
                 new CircuitBreakerHandler(serviceName, provider.GetRequiredKeyedService<CalleeCircuit>(serviceName)));
     }
