@@ -33,6 +33,10 @@ namespace Bitwarden.Server.Sdk.Client;
 /// The services whose own assertion of a context naming a person the operation admits (<c>assertedBy</c>); none when
 /// the contract doesn't say, so a call asserting one is asked of the service.
 /// </param>
+/// <param name="AtMost">
+/// For a cached read-many (<c>readMany</c>), the most resources its entry holds (<c>atMost</c>): an entry is every
+/// resource of the party the call carries, of which a client takes a page. Null for a read of one resource.
+/// </param>
 public sealed record CacheableRead(
     string Resource,
     string Key,
@@ -46,8 +50,14 @@ public sealed record CacheableRead(
     bool AcrossOwners = false,
     IReadOnlySet<string>? PerCaller = null,
     int Format = 0,
-    IReadOnlySet<string>? AssertedBy = null)
+    IReadOnlySet<string>? AssertedBy = null,
+    int? AtMost = null)
 {
+    /// <summary>
+    /// Whether it is a cached read-many, whose entry a client reads a page at a time.
+    /// </summary>
+    public bool ReadMany => AtMost is not null;
+
     /// <summary>
     /// Every cacheable read a contract publishes, by operation.
     /// </summary>
@@ -84,7 +94,8 @@ public sealed record CacheableRead(
                     cache["owner"]?["acrossOwners"]?.GetValue<bool>() ?? false,
                     (cache["perCaller"]?.AsArray() ?? []).Select(field => field!.GetValue<string>()).ToHashSet(StringComparer.Ordinal),
                     cache["format"]?.GetValue<int>() ?? 0,
-                    Names(cache["assertedBy"]));
+                    Names(cache["assertedBy"]),
+                    cache["readMany"] is JsonObject readMany ? readMany["atMost"]!.GetValue<int>() : null);
             }
         }
 
