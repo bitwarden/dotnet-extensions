@@ -27,6 +27,7 @@ A service references this package alone. It brings these packages, and registers
 | [Service.Abstractions](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service.Abstractions/src/PACKAGE.md)                     | `IServiceExtension`, for a package that extends every service referencing it.        |
 | [HealthChecks](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.HealthChecks/src/PACKAGE.md)                                     | Health checks and their tags.                                                        |
 | [Features](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Features/src/PACKAGE.md)                                             | Feature flags: `IFeatureService` and `[RequireFeature]`.                             |
+| [Infrastructure](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Infrastructure/src/PACKAGE.md)                                 | The infrastructure a service declares, which `--emit-infrastructure` writes.         |
 
 All are `Bitwarden.Server.Sdk.*`. It also brings ASP.NET Core's OpenAPI generator, an embedded
 documentation UI and the OpenTelemetry exporter and instrumentation.
