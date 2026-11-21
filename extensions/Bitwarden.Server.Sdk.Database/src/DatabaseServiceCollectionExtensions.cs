@@ -33,7 +33,10 @@ public static class DatabaseServiceCollectionExtensions
     /// <param name="configureProvider">
     /// Configures the EF Core database provider on the <see cref="DbContextOptionsBuilder"/>.
     /// Supplied by the generated <c>Add{Schema}</c> extension method, which emits
-    /// only the provider cases that are referenced in the consuming project.
+    /// only the provider cases that are referenced in the consuming project, or by its caller
+    /// through the <c>Add{Schema}</c> overload that takes one. It runs before
+    /// <typeparamref name="TMigrationsAssembly"/> is installed, so it can't replace the migrations
+    /// assembly.
     /// </param>
     /// <param name="sqlServerMigrations">
     /// How SQL Server is migrated, from the schema's

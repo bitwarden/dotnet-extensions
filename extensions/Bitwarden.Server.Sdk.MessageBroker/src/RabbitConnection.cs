@@ -14,10 +14,25 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
     private readonly TaskCompletionSource<IConnection> _tcs =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+    private readonly CancellationTokenSource _closed = new();
+    private volatile bool _isClosing;
+
     public RabbitConnection(IOptions<MessagingOptions> options)
     {
         _options = options;
     }
+
+    /// <summary>
+    /// True once the connection has started to close. Subscribers read it to tell a shutdown from
+    /// a broker failure, whatever the Rabbit client surfaces while the connection closes.
+    /// </summary>
+    public bool IsClosing => _isClosing;
+
+    /// <summary>
+    /// Cancelled after the connection is disposed. A call still waiting for the broker's reply
+    /// when the connection closes would otherwise wait out the client's own timeout.
+    /// </summary>
+    public CancellationToken Closed => _closed.Token;
 
     /// <summary>Returns the shared connection, waiting until startup has initialized it.</summary>
     public Task<IConnection> GetConnectionAsync(CancellationToken cancellationToken = default) =>
@@ -53,7 +68,12 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _isClosing = true;
         if (_tcs.Task.IsCompletedSuccessfully)
             await (await _tcs.Task).DisposeAsync();
+
+        // _closed is never disposed: a subscriber that starts after the connection closed still
+        // reads Closed, and a source with no timer holds nothing to release.
+        _closed.Cancel();
     }
 }
