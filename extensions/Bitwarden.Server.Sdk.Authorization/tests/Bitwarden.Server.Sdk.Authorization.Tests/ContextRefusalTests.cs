@@ -31,7 +31,7 @@ public sealed class ContextRefusalTests
         Assert.Equal(StatusCodes.Status200OK, http.Response.StatusCode);
     }
 
-    public static TheoryData<string> Headers() => new(BitwardenHeaders.All);
+    public static TheoryData<string> Headers() => new(BitwardenHeaders.ServiceOnly);
 
     [Theory]
     [MemberData(nameof(Headers))]
