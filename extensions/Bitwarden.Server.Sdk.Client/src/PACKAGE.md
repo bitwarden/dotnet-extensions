@@ -152,12 +152,11 @@ public sealed class WidgetLookup(IWidgetClient widgets)
 | `unauthenticated`                                                                                                               | `UnauthenticatedException`                                                                       |
 | `forbidden`                                                                                                                     | `ForbiddenException`                                                                             |
 | `not-implemented`                                                                                                               | `NotImplementedException`                                                                        |
-| `key-rotation-in-progress` (a `409` or a `503`)                                                                                 | `RelayedRefusalException`, carrying the status and errors to answer on unchanged                 |
 | `field-required`, `invalid-type`, `invalid-value`, `invalid-shape`, `malformed-json`, `already-exists`, `invalid-resource-type` | `InvalidRequestException`, or `RequestRefusedException` when a `422` carries more than one error |
 | anything else                                                                                                                   | `ServiceCallException`                                                                           |
 
-A callee that can't be reached, doesn't answer within `Timeout`, or answers `502`, `503` or `504` (but for a key
-rotation) is a `ServiceUnavailableException` naming it. The deadline covers the tokens the call obtains too. The
+A callee that can't be reached, doesn't answer within `Timeout`, or answers `502`, `503` or `504` is a
+`ServiceUnavailableException` naming it. The deadline covers the tokens the call obtains too. The
 authorization server failing then is a `ServiceUnavailableException` naming `identity`, such as
 `The identity service could not be reached for a token for calls to widget-service.`, and the call never reaches the
 callee. The authorization server refusing the credential is a `ServiceCallException` with status `500`, this service's
@@ -233,8 +232,10 @@ Statements nest, and disposing one restores the one before.
 
 - **Idempotency keys go only to marked operations.** A write to an operation the callee's contract marks
   `x-bitwarden-idempotency-key` carries an `Idempotency-Key`: the one the call site set, one derived from the operation
-  and the service's `Idempotency:Secret` inside an `IdempotentOperation`, or a fresh one. Every attempt of the call carries the same key. Any other write
-  carries none.
+  and the service's `Idempotency:Secret` inside an `IdempotentOperation`, or a fresh one. Inside an operation the key is
+  also derived from whom the call concerns (its `Bitwarden-Organization`, `Bitwarden-User` and `Bitwarden-Provider`), so
+  writes for different users or organizations keep their own keys whatever order a run makes them in. Every attempt of
+  the call carries the same key and the same context. Any other write carries none.
 - **Retries.** A `GET`, a `HEAD`, or a write with a key, is tried again up to `Retries` times when the connection
   failed or something in front of the callee answered `502`, `503` or `504`, with waits doubling from `RetryDelay`, all
   within the one deadline. The callee's own answers are never retried.
