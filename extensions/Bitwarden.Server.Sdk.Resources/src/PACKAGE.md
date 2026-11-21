@@ -41,24 +41,11 @@ The package reads no settings of its own. `[SelfHostedOnly]` and `[NotSelfHosted
 - **Startup checks.** A handler mapped against its attribute or an operation identifier used twice
   stops the service at startup, every problem listed at once. See
   [Keep the Map line and the attribute in step](https://contributing.bitwarden.com/contributing/server-sdk/operations/verbs#keep-the-map-line-and-the-attribute-in-step).
-- **Paging.** A list declares `PageNumber` and `PageSize` parameters and builds a `Page` from them.
-  A page holds at most 200 (`Page.MaximumSize`); a list read whole, such as one a sync reads, may
-  declare a larger maximum on its parameter and build its page with the constructor, which carries
-  it. Binding, the farthest page a caller may ask for and the OpenAPI document all follow it:
-
-    ```csharp
-    public static async Task<PagedResourceListDocument<Widget>> ListWidgets(
-        IWidgets widgets,
-        PageNumber pageNumber = default,
-        [MaximumPageSize(1000)] PageSize pageSize = default,
-        CancellationToken cancellationToken = default)
-    {
-        var page = new Page(pageNumber, pageSize);
-
-        return ReadManyResponse(await widgets.ListAsync(page, cancellationToken), page);
-    }
-    ```
-
+- **Paging.** A list takes `PageNumber` and `PageSize` parameters and builds its page with
+  `new Page(pageNumber, pageSize)`. A page holds at most 200 (`Page.MaximumSize`) unless the
+  operation declares more with `[MaximumPageSize(1000)]` on its `PageSize` parameter, as a list a
+  client reads whole may; binding, the farthest page a caller may ask for and the OpenAPI document
+  follow it. See [Paging](https://contributing.bitwarden.com/contributing/server-sdk/querying/paging).
 - **The standard error document** is written for every refusal and every exception. See
   [Errors](https://contributing.bitwarden.com/contributing/server-sdk/payloads-and-responses/errors).
 - **Zero knowledge.** Bitwarden services store and synchronize Vault Data only as Protected Data,
