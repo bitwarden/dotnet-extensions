@@ -44,7 +44,7 @@ internal sealed class PagingDocumentTransformer : IOpenApiDocumentTransformer
             .Where(path => path.Operations is not null)
             .SelectMany(path => path.Operations!.Values) ?? [];
 
-        var declaredSizes = DeclaredSizes(document, context);
+        var declared = Declared(document, context);
 
         foreach (var operation in operations)
         {
@@ -52,6 +52,9 @@ internal sealed class PagingDocumentTransformer : IOpenApiDocumentTransformer
             {
                 continue;
             }
+
+            var sizes = declared.GetValueOrDefault(operation);
+            var maximum = sizes.Maximum ?? Page.MaximumSize;
 
             for (var i = 0; i < operation.Parameters.Count; i++)
             {
@@ -68,11 +71,11 @@ internal sealed class PagingDocumentTransformer : IOpenApiDocumentTransformer
                     Size => Published(
                         operation.Parameters[i],
                         Size,
-                        $"How many resources the page holds. Values above {Page.MaximumSize} are "
-                        + $"treated as {Page.MaximumSize}.",
+                        $"How many resources the page holds. Values above {maximum} are "
+                        + $"treated as {maximum}.",
                         minimum: 1,
-                        maximum: Page.MaximumSize,
-                        fallback: declaredSizes.GetValueOrDefault(operation, Page.DefaultSize)),
+                        maximum: maximum,
+                        fallback: sizes.Default ?? Page.DefaultSize),
 
                     After => new OpenApiParameter
                     {
@@ -93,36 +96,37 @@ internal sealed class PagingDocumentTransformer : IOpenApiDocumentTransformer
     }
 
     /// <summary>
-    /// The operations whose <see cref="PageSize"/> says <c>[DefaultValue]</c>, and what it says.
+    /// The operations whose <see cref="PageSize"/> says <c>[DefaultValue]</c> or
+    /// <see cref="MaximumPageSizeAttribute"/>, and what each says.
     /// </summary>
     /// <remarks>
     /// Read off the action, because the generator does not carry an attribute on a parameter of a
     /// type it does not describe as a number into the parameter's schema.
     /// </remarks>
-    private static Dictionary<OpenApiOperation, int> DeclaredSizes(
+    private static Dictionary<OpenApiOperation, (int? Default, int? Maximum)> Declared(
         OpenApiDocument document,
         OpenApiDocumentTransformerContext context)
     {
-        var sizes = new Dictionary<OpenApiOperation, int>();
+        var sizes = new Dictionary<OpenApiOperation, (int? Default, int? Maximum)>();
 
         foreach (var description in context.DescriptionGroups.SelectMany(group => group.Items))
         {
-            var declared = description.ActionDescriptor.Parameters
+            var parameter = description.ActionDescriptor.Parameters
                 .OfType<Microsoft.AspNetCore.Mvc.Infrastructure.IParameterInfoParameterDescriptor>()
-                .Where(parameter => parameter.ParameterInfo.ParameterType == typeof(PageSize))
-                .Select(parameter => parameter.ParameterInfo.GetCustomAttribute<DefaultValueAttribute>()?.Value)
-                .OfType<int>()
-                .Cast<int?>()
-                .FirstOrDefault();
+                .Select(each => each.ParameterInfo)
+                .FirstOrDefault(each => each.ParameterType == typeof(PageSize));
+            var declared = (
+                Default: parameter?.GetCustomAttribute<DefaultValueAttribute>()?.Value as int?,
+                Maximum: parameter?.GetCustomAttribute<MaximumPageSizeAttribute>()?.Size);
 
-            if (declared is { } size
+            if ((declared.Default is not null || declared.Maximum is not null)
                 && document.Paths is not null
                 && document.Paths.TryGetValue($"/{description.RelativePath?.TrimEnd('/')}", out var path)
                 && path.Operations is not null
                 && description.HttpMethod is not null
                 && path.Operations.TryGetValue(HttpMethod.Parse(description.HttpMethod), out var operation))
             {
-                sizes[operation] = size;
+                sizes[operation] = declared;
             }
         }
 
