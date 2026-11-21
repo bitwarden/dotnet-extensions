@@ -479,7 +479,7 @@ read-many is never answered by `ReadAsync` or `ReadCurrentAsync`, nor a read of 
 | `BitwardenClientOptions`                                                     | A client's settings                                                                   |
 | `IServiceTokenProvider`, `ServiceTokenProvider`                              | The caller's token and its context tokens                                             |
 | `ClientAssertion`                                                            | A signed client assertion in place of a secret                                        |
-| `OutgoingCall`, `OutgoingCallOptions`, `HeldStatement`                      | Stating whom one call is about; the event actor rule; `Fresh()` past the request memo |
+| `OutgoingCall`, `OutgoingCallOptions`, `HeldStatement`                       | Stating whom one call is about; the event actor rule; `Fresh()` past the request memo |
 | `ServiceCallException`, `RequestRefusedException`, `RelayedRefusalException` | Failures with no more specific exception                                              |
 | `Undo`, `UndoOn`                                                             | Taking back writes that span services                                                 |
 | `ProductClient`, `ProductAnswer`, `ProductAnswer<T>`                         | Calling a product service with somebody's own token                                   |
