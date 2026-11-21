@@ -88,9 +88,9 @@ public sealed class PageSizeTests
     }
 
     [Fact]
-    public void Attribute_LessThanOne_IsRefused()
+    public void Constructor_MaximumLessThanOne_IsRefused()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new MaximumPageSizeAttribute(0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new PageSize(5, 0));
     }
 
     [Fact]
