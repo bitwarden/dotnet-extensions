@@ -26,9 +26,13 @@ internal sealed class ServiceCacheUserCheck
     /// <summary>
     /// Checks the connection read from <paramref name="setting"/>; never echoes it.
     /// </summary>
+    /// <exception cref="ArgumentException">No setting name, or a null environment name.</exception>
     /// <exception cref="InvalidOperationException">A connection is set, names no user of its own, and the host is not in <c>Development</c>.</exception>
     public static bool Require(string? configuration, string setting, string environmentName)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(setting);
+        ArgumentNullException.ThrowIfNull(environmentName);
+
         if (string.IsNullOrWhiteSpace(configuration) || NamesAUser(configuration))
         {
             return true;

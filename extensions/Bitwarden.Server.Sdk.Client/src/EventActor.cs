@@ -17,9 +17,10 @@ namespace Bitwarden.Server.Sdk.Client;
 /// </para>
 /// <para>
 /// A statement that names no person but is not the system's (<see cref="OutgoingCall.AboutOrganization"/>,
-/// <see cref="OutgoingCall.AboutOrganizationWithoutProvider"/>, <see cref="OutgoingCall.WithoutProvider"/>) keeps the
-/// event's person by construction, so it is held wrong while an event is handled even when this one names nobody: a
-/// test publishing an event with an empty context then catches what an event published in a person's request breaks.
+/// <see cref="OutgoingCall.AboutOrganizationWithoutProvider"/>, <see cref="OutgoingCall.WithoutProvider"/>) speaks for
+/// whoever is acting, and while an event is handled nobody is: it is held wrong, as an <c>AsSystem</c> statement says
+/// what such a call means. The rule holds whatever the event names, so a test publishing an event with an empty context
+/// catches a statement as surely as one published in a person's request.
 /// </para>
 /// </remarks>
 internal static class EventActor
@@ -37,15 +38,14 @@ internal static class EventActor
 
         return stated is not null
             ? "A call made while handling an event is inside an OutgoingCall statement that names no person and is "
-                + "not the system's (AboutOrganization, AboutOrganizationWithoutProvider or WithoutProvider), so it keeps "
-                + "the person whose request published the event as the one acting. " + Remedy
+                + "not the system's (AboutOrganization, AboutOrganizationWithoutProvider or WithoutProvider), so it speaks "
+                + "for whoever is acting, and while an event is handled nobody is. " + Remedy
             : null;
     }
 
     private const string Remedy =
-        "A consumer acts with its own authority, and the event's actor is for the record only: the callee "
-        + "would take the person as this service's word and refuse it (403) unless it accepts that from this service. "
-        + "Make the call the service's own with OutgoingCall.AsSystem(organization), AsSystem(), AsSystemAbout(user) "
+        "A consumer acts with its own authority, and the event's actor is for the record only. "
+        + "Make the call the service's own with no statement, or with OutgoingCall.AsSystem(organization), AsSystem(), AsSystemAbout(user) "
         + "or AsSystemForProvider(provider); name a person with OutgoingCall.AboutUser only where the callee declares "
         + "[AcceptsAssertedContext] for this service.";
 }
