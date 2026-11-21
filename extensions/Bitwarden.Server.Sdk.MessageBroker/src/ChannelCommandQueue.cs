@@ -61,7 +61,9 @@ internal sealed class ChannelCommandQueue : ICommandQueueReceiver
         };
 }
 
-/// <summary>Sends commands of family <typeparamref name="TPayload"/> to a <see cref="ChannelCommandQueue"/>.</summary>
+/// <summary>
+/// Sends commands of family <typeparamref name="TPayload"/> to a <see cref="ChannelCommandQueue"/>.
+/// </summary>
 internal sealed class ChannelCommandSender<TPayload, TCeiling> : Publisher<TPayload, TCeiling>
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling

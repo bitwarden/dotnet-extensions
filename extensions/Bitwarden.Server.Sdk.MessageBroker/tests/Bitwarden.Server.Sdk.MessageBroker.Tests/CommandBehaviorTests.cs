@@ -39,7 +39,9 @@ public sealed class CommandRecorder
 {
     private readonly ConcurrentQueue<HandledCommand> _handled = new();
 
-    /// <summary>Ids whose deliveries the consumer should fail, up to the given delivery, to exercise redelivery.</summary>
+    /// <summary>
+    /// Ids whose deliveries the consumer should fail, up to the given delivery, to exercise redelivery.
+    /// </summary>
     public ConcurrentDictionary<int, int> FailDeliveries { get; } = new();
 
     public IReadOnlyCollection<HandledCommand> Handled => _handled;

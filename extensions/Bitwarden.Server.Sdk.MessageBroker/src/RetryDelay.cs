@@ -1,6 +1,8 @@
 namespace Microsoft.Extensions.DependencyInjection;
 
-/// <summary>The wait a hosted consumer takes after its handler throws, before the message is redelivered.</summary>
+/// <summary>
+/// The wait a hosted consumer takes after its handler throws, before the message is redelivered.
+/// </summary>
 internal static class RetryDelay
 {
     /// <summary>
