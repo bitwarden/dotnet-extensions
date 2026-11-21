@@ -9,7 +9,7 @@ namespace Bitwarden.Server.Sdk.Client;
 /// handles an event (<see cref="Context.ContextScope.IsEvent"/>), a call to another service either is the
 /// service's own (no statement, <see cref="OutgoingCall.AsSystem(Guid)"/> and the other <c>AsSystem</c> statements),
 /// or names its person outright (<see cref="OutgoingCall.AboutUser"/>). A call inside a statement that names nobody
-/// and so keeps the event's person (<see cref="OutgoingCall.AboutOrganization"/>, say) is logged as a warning, or
+/// and speaks for whoever is acting (<see cref="OutgoingCall.AboutOrganization"/>, say) is logged as a warning, or
 /// refused with this on.
 /// </remarks>
 public sealed class OutgoingCallOptions
