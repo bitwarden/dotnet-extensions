@@ -411,6 +411,42 @@ public sealed class InternalTlsTests : IDisposable
         Assert.Contains("Tls:ServerCertificate", exception.Message);
     }
 
+    // A key that isn't base64, with a certificate that can be read, names the key's setting.
+    [Fact]
+    public void LoadServerCertificate_AKeyThatIsNotBase64_Throws()
+    {
+        var (certificate, _) = ServerSettings(DateTimeOffset.UtcNow.AddMinutes(-5), DateTimeOffset.UtcNow.AddHours(1));
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            new InternalTls { ServerCertificate = certificate, ServerKey = "not base64!" }.LoadServerCertificate());
+
+        Assert.Equal("Tls:ServerKey can't be read as a base64 PKCS #8 private key.", exception.Message);
+    }
+
+    // A certificate whose key is neither ECDSA nor RSA (DSA here) says so, rather than blaming the key setting.
+    [Fact]
+    public void LoadServerCertificate_ACertificateWithAnotherKindOfKey_Throws()
+    {
+        using var issuer = RSA.Create(2048);
+        var dsa = new PublicKey(
+            new Oid("1.2.840.10040.4.1"), new AsnEncodedData([0x05, 0x00]), new AsnEncodedData([0x02, 0x01, 0x01]));
+        var request = new CertificateRequest(new X500DistinguishedName("CN=localhost"), dsa, HashAlgorithmName.SHA256);
+        using var made = request.Create(
+            new X500DistinguishedName("CN=issuer"),
+            X509SignatureGenerator.CreateForRSA(issuer, RSASignaturePadding.Pkcs1),
+            DateTimeOffset.UtcNow.AddMinutes(-5),
+            DateTimeOffset.UtcNow.AddHours(1),
+            [1, 2, 3, 4]);
+
+        var exception = Assert.Throws<InvalidOperationException>(() => new InternalTls
+        {
+            ServerCertificate = Convert.ToBase64String(made.RawData),
+            ServerKey = Convert.ToBase64String(issuer.ExportPkcs8PrivateKey()),
+        }.LoadServerCertificate());
+
+        Assert.Equal("Tls:ServerCertificate's key is neither ECDSA nor RSA.", exception.Message);
+    }
+
     [Fact]
     public void LoadServerCertificate_AnExpiredCertificate_Throws()
     {

@@ -1,5 +1,6 @@
 using Bitwarden.Server.Sdk.Errors;
 using Bitwarden.Server.Sdk.Idempotency;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Bitwarden.Server.Sdk.Client.Tests;
@@ -175,7 +176,7 @@ public sealed class UndoTests
         var undo = new Undo(_logger);
         undo.Add("first", _ => { seen = IdempotentOperation.Current; return Task.CompletedTask; });
 
-        using (IdempotentOperation.Begin("remove-member:1"))
+        using (IdempotentOperation.Begin("remove-member:1", IdempotencySecret.ReadSecret(new ConfigurationBuilder().Build(), "Development", "tests")))
         {
             await Assert.ThrowsAsync<TimeoutException>(() => undo.GuardAsync(() => throw new TimeoutException()));
         }

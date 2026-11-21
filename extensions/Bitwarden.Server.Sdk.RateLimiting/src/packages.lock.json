@@ -2,6 +2,12 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
+      "Bitwarden.Server.Sdk.CryptoPrimitives": {
+        "type": "Direct",
+        "requested": "[0.1.0, )",
+        "resolved": "0.1.0",
+        "contentHash": "g67cxy1PRAWWqEbTFxTP+hnttXZWHUPgBKtTHc9g8rlylDhtyisbRnX6Omixvpmj8bUujCUjrRO3Oterq5O/Kw=="
+      },
       "StackExchange.Redis": {
         "type": "Direct",
         "requested": "[2.13.17, )",
@@ -27,6 +33,12 @@
       },
       "bitwarden.server.sdk.errors": {
         "type": "Project"
+      },
+      "bitwarden.server.sdk.resources.caching.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "Bitwarden.Server.Sdk.CryptoPrimitives": "[0.1.0, )"
+        }
       }
     }
   }

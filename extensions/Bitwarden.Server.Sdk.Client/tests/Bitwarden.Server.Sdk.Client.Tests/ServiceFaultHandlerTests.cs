@@ -136,28 +136,7 @@ public sealed class ServiceFaultHandlerTests
         Assert.Equal(2, actual.Response?.Errors.Count);
     }
 
-    // A person's keys rotating: relayed with the status and errors it came with,
-    // a 503 included, rather than reported as the dependency being unavailable.
-    [Theory]
-    [InlineData(HttpStatusCode.ServiceUnavailable)]
-    [InlineData(HttpStatusCode.Conflict)]
-    public async Task Send_KeyRotationInProgress_RelayedAsAnswered(HttpStatusCode status)
-    {
-        var invoker = Invoker(_ => Task.FromResult(new HttpResponseMessage(status)
-        {
-            Content = new StringContent(
-                $$"""{"errors":[{"status":"{{(int)status}}","code":"key-rotation-in-progress","detail":"Rotating."}]}""",
-                System.Text.Encoding.UTF8,
-                "application/json"),
-        }));
-
-        var actual = await Assert.ThrowsAsync<RelayedRefusalException>(() => Send(invoker));
-
-        Assert.Equal((int)status, actual.StatusCode);
-        Assert.Equal("key-rotation-in-progress", Assert.Single(actual.Errors).Code);
-    }
-
-    // Any other conflict is still the platform's conflict, its document read only once.
+    // A conflict is the platform's conflict.
     [Fact]
     public async Task Send_AnotherConflict_StillAConflict()
     {

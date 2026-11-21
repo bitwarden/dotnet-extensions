@@ -2,6 +2,7 @@ using Bitwarden.Server.Sdk.Idempotency;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -20,7 +21,8 @@ public static class IdempotencyServiceCollectionExtensions
     /// <para>
     /// Records are kept in Redis (<c>Idempotency:Redis:Configuration</c>) when it is set and the service's data
     /// protection key ring is shared, so every instance sees them; otherwise in this process. Settings are read from
-    /// <c>Idempotency:*</c>.
+    /// <c>Idempotency:*</c>. Outside <c>Development</c>, a host whose <c>Idempotency:Redis:Configuration</c> names no
+    /// Redis user of the service's own refuses to start.
     /// </para>
     /// <para>
     /// The middleware is added with <see cref="IdempotencyApplicationBuilderExtensions.UseIdempotencyKeys"/>.
@@ -32,6 +34,14 @@ public static class IdempotencyServiceCollectionExtensions
     public static IServiceCollection AddIdempotencyKeys(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<IdempotencyOptions>().Bind(configuration.GetSection(IdempotencyOptions.Section));
+
+        // At startup, not on the first keyed write: outside Development, a Redis login that is Redis's default user
+        // fails to start.
+        services.AddOptions<RedisUserCheck>()
+            .Configure<IConfiguration, IHostEnvironment>((check, configured, environment) =>
+                check.OwnUser = RedisUserCheck.Require(
+                    configured[IdempotencyOptions.RedisConfigurationKey], IdempotencyOptions.RedisConfigurationKey, environment.EnvironmentName))
+            .ValidateOnStart();
 
         // Seals what is kept, with the key ring the host configures, if any.
         services.AddDataProtection();

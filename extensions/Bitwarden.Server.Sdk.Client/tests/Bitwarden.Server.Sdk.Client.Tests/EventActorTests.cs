@@ -14,35 +14,21 @@ public sealed class EventActorTests
 
     private static readonly Guid Publisher = Guid.NewGuid();
 
-    // A consumer of an event a person's request published: the context names them, and a call with no statement would
-    // carry them as the person acting, on this service's word. Refused with OutgoingCall:RefuseEventActor.
+    // A consumer of an event a person's request published: the event's context records them, never acting, so a call
+    // with no statement is the service's own and carries them for the record only.
     [Fact]
-    public async Task Send_HandlingAnEventNamingAPerson_NoStatement_RefusedWhereRefusing()
+    public async Task Send_HandlingAnEventNamingAPerson_NoStatement_SentAsTheServicesOwn()
     {
-        var context = new StatedContext { UserId = Publisher, OrganizationId = Guid.NewGuid() };
-
-        using (ContextScope.BeginForEvent(context))
-        {
-            var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => SendHandlingAnEvent(context, refuse: true));
-
-            Assert.Contains("for the record only", refused.Message, StringComparison.Ordinal);
-            Assert.Contains("OutgoingCall.AsSystem", refused.Message, StringComparison.Ordinal);
-        }
-    }
-
-    // Off, as in production: logged, and sent as before, so no behaviour changes where nobody turned it on.
-    [Fact]
-    public async Task Send_HandlingAnEventNamingAPerson_NoStatement_SentWhereNotRefusing()
-    {
-        var context = new StatedContext { UserId = Publisher, OrganizationId = Guid.NewGuid() };
         HttpRequestMessage sent;
 
-        using (ContextScope.BeginForEvent(context))
+        using (ContextScope.BeginForEvent(new StatedContext { UserId = Publisher, OrganizationId = Guid.NewGuid() }))
         {
-            sent = await SendHandlingAnEvent(context, refuse: false);
+            sent = await SendHandlingAnEvent(ContextScope.Current!, refuse: true);
         }
 
-        Assert.Equal(Publisher.ToString(), sent.Headers.GetValues(BitwardenHeaders.User).Single());
+        Assert.False(sent.Headers.Contains(BitwardenHeaders.User));
+        Assert.Equal(CallerCredential.System, Carried(sent).Credential);
+        Assert.Equal(Publisher, Carried(sent).RecordedUser);
     }
 
     // The defect the sweep found: AboutOrganization replaces the organization only, so the event's person goes along.

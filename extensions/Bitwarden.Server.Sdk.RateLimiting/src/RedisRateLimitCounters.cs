@@ -1,5 +1,4 @@
-using System.Security.Cryptography;
-using System.Text;
+using Bitwarden.Server.Sdk.CryptoPrimitives;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 
@@ -17,13 +16,20 @@ namespace Bitwarden.Server.Sdk.RateLimiting;
 /// failure, so a Redis outage never stops requests.
 /// </para>
 /// <para>
-/// Keys are <c>{service}:ip-rate-limit:{SHA-256 of the bucket}</c>, under the service's name, so two
-/// services carrying a rule for the same route (a proxy service in front of Identity, say) don't each
-/// count a request the other has counted.
+/// Keys are <c>{service}:ip-rate-limit:{derived key}</c>, under the service's name, so two services
+/// carrying a rule for the same route (a proxy service in front of Identity, say) don't each count a
+/// request the other has counted. The derived key is <see cref="CacheKey.DeriveCacheKey(CacheSecret, ReadOnlySpan{string})"/>
+/// over <see cref="Purpose"/> and the bucket with the <see cref="RateLimitSecret"/>, in hex, so someone who can read
+/// the Redis can't confirm an address by guessing it.
 /// </para>
 /// </remarks>
 internal sealed class RedisRateLimitCounters : IRateLimitCounters, IDisposable
 {
+    /// <summary>
+    /// The first parameter of every key's derivation, which no other use of a secret shares.
+    /// </summary>
+    public const string Purpose = "ip-rate-limit";
+
     // INCR, and the window's expiry when the key is new (or lost its expiry), in one step.
     private const string Increment = """
         local count = redis.call('INCR', KEYS[1])
@@ -35,6 +41,7 @@ internal sealed class RedisRateLimitCounters : IRateLimitCounters, IDisposable
 
     private readonly Lazy<Task<IConnectionMultiplexer>> _redis;
     private readonly string _prefix;
+    private readonly CacheSecret _secret;
     private readonly DistributedIpRateLimitingOptions _options;
     private readonly TimeProvider _time;
     private readonly ILogger<RedisRateLimitCounters> _logger;
@@ -45,12 +52,14 @@ internal sealed class RedisRateLimitCounters : IRateLimitCounters, IDisposable
     public RedisRateLimitCounters(
         Func<Task<IConnectionMultiplexer>> connect,
         string serviceName,
+        CacheSecret secret,
         DistributedIpRateLimitingOptions options,
         TimeProvider time,
         ILogger<RedisRateLimitCounters> logger)
     {
         _redis = new Lazy<Task<IConnectionMultiplexer>>(connect);
-        _prefix = $"{serviceName}:ip-rate-limit:";
+        _prefix = $"{serviceName}:{Purpose}:";
+        _secret = secret;
         _options = options;
         _time = time;
         _logger = logger;
@@ -88,7 +97,7 @@ internal sealed class RedisRateLimitCounters : IRateLimitCounters, IDisposable
 
             var count = (long)await redis.GetDatabase().ScriptEvaluateAsync(
                 Increment,
-                [new RedisKey(_prefix + Hash(bucket))],
+                [new RedisKey(_prefix + Key(bucket))],
                 [(long)Math.Ceiling(period.TotalMilliseconds)]);
 
             return count <= Math.Max(limit, 1);
@@ -142,6 +151,6 @@ internal sealed class RedisRateLimitCounters : IRateLimitCounters, IDisposable
         }
     }
 
-    private static string Hash(string bucket) =>
-        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(bucket)));
+    private string Key(string bucket) =>
+        Convert.ToHexStringLower(CacheKey.DeriveCacheKey(_secret, Purpose, bucket).AsSpan());
 }
