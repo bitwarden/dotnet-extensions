@@ -39,9 +39,11 @@
     <ProjectReference Include="..\..\Bitwarden.Server.Sdk.RateLimiting\src\Bitwarden.Server.Sdk.RateLimiting.csproj" />
     <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Resources\src\Bitwarden.Server.Sdk.Resources.csproj" />
     <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Resources.Caching.Abstractions\src\Bitwarden.Server.Sdk.Resources.Caching.Abstractions.csproj" />
-    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Sagas\src\Bitwarden.Server.Sdk.Sagas.csproj" />
-    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Service.Abstractions\src\Bitwarden.Server.Sdk.Service.Abstractions.csproj" />
+    <PackageReference Include="Bitwarden.Server.Sdk.Sagas" Version="0.1.0" />
+    <PackageReference Include="Bitwarden.Server.Sdk.Service.Abstractions" Version="0.1.0" />
     <ProjectReference Include="..\..\Bitwarden.Server.Sdk.HealthChecks\src\Bitwarden.Server.Sdk.HealthChecks.csproj" />
+    <!-- The requirements InfrastructureExport writes. -->
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Infrastructure\src\Bitwarden.Server.Sdk.Infrastructure.csproj" />
     <!-- Feature flags, so a product service can publish them in its config resource and every
          service can ask one. A project reference, so the services that reference this package by
          path see the same flag evaluation the package is tested with. -->

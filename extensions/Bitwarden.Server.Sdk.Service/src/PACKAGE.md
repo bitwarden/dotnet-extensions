@@ -16,13 +16,13 @@ A service references this package alone. It brings these packages, and registers
 | [Errors](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Errors/src/PACKAGE.md)                                                 | The error document and the exceptions that produce it.                               |
 | [Authentication](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Authentication/src/PACKAGE.md)                                 | Bearer token validation.                                                             |
 | [Authorization](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Authorization/src/PACKAGE.md)                                   | Scopes, context requirements, roles, trusted proxies and the call-chain check.       |
-| [Context](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Context/src/PACKAGE.md)                                               | `IContext`, whom a request concerns, and the context headers.                        |
+| [Context](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Context/src/PACKAGE.md)                                               | `IContext`, whom a request concerns, the context headers and the request memo.       |
 | [RateLimiting](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.RateLimiting/src/PACKAGE.md)                                     | Per-address request limits.                                                          |
 | [Http](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Http/src/PACKAGE.md)                                                     | Outbound clients guarded against SSRF, and the internal TLS settings.                |
 | [Idempotency](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Idempotency/src/PACKAGE.md)                                       | At-most-once writes from other services that send an `Idempotency-Key`.              |
 | [Idempotency.Abstractions](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Idempotency.Abstractions/src/PACKAGE.md)             | The `Idempotency-Key` header, valid keys, and naming work so its retries reuse keys. |
 | [Sagas](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Sagas/src/PACKAGE.md)                                                   | `[SpansServices]`, declaring how an operation whose writes span services recovers.   |
-| [Data.Abstractions](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Data.Abstractions/src/PACKAGE.md)                           | `[Encrypted]`, `[PersonalData]`, `IRowOwnership` and `RequestMemo`.                  |
+| [Data.Abstractions](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Data.Abstractions/src/PACKAGE.md)                           | `[Encrypted]`, `[PersonalData]` and `IRowOwnership`.                                 |
 | [Resources.Caching.Abstractions](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Resources.Caching.Abstractions/src/PACKAGE.md) | The service-owned cache's key formats.                                               |
 | [Service.Abstractions](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Service.Abstractions/src/PACKAGE.md)                     | `IServiceExtension`, for a package that extends every service referencing it.        |
 | [HealthChecks](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.HealthChecks/src/PACKAGE.md)                                     | Health checks and their tags.                                                        |
@@ -156,6 +156,10 @@ service named in `Authentication:Schemes:Bearer:Authority`.
   recorded. Idempotency's
   [Opt an operation in](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Idempotency/src/PACKAGE.md#opt-an-operation-in)
   shows how, and its PACKAGE.md lists the `Idempotency:*` settings.
+- **Outside `Development`, every service needs `Idempotency:Secret`.** `Service` registers `IdempotencySecret`
+  ([Idempotency.Abstractions](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Idempotency.Abstractions/src/PACKAGE.md)),
+  which its own operations (a message handler, an outbox handler, a shared job or a retry loop) derive their keys
+  with, read as the host starts. Unset, or the development secret, the service fails to start, naming the setting.
 - **A check tagged `HealthCheckTags.Monitoring` never fails readiness.** `Service` leaves it out of
   the readiness probe and publishes its status as the `bitwarden.health.status` metric (0 healthy,
   1 degraded, 2 unhealthy), with a log line on each change: alert on that.
@@ -165,8 +169,6 @@ service named in `Authentication:Schemes:Bearer:Authority`.
   else from `Authentication:Schemes:Bearer:Authority`, `globalSettings:baseServiceUri:internalIdentity`
   or `globalSettings:baseServiceUri:identity`, the first set. With none, the OpenAPI document has no
   OAuth2 scheme.
-- **`GetOrResolveOnceAsync` needs a cache without a `SizeLimit`.** Its entries have no size, so a
-  size-limited `IMemoryCache` refuses them.
 
 ## Developer guide
 
