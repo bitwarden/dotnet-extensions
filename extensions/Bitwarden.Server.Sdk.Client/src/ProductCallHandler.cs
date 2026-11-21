@@ -24,6 +24,12 @@ internal sealed class ProductCallHandler : DelegatingHandler
     /// </summary>
     private static readonly HttpRequestOptionsKey<ProductCallHandler> TakenBy = new("Bitwarden.ProductCall.TakenBy");
 
+    /// <summary>
+    /// Whether <paramref name="request"/> is part of a product call, so it carries the call's own token.
+    /// </summary>
+    /// <param name="request">A request in the pipeline, below this handler.</param>
+    internal static bool IsCall(HttpRequestMessage request) => request.Options.TryGetValue(TakenBy, out _);
+
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
         CancellationToken cancellationToken)

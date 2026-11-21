@@ -50,16 +50,20 @@ set in code, through `configure`.
 
 Cached reads add these:
 
-| Setting                                          | Default    | What it does                                                                                                                                                                                                                                                                                                                                             |
-| ------------------------------------------------ | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Caching:Owned:Redis:Configuration`              | None       | The Redis the callees' caches are in. Without it, every cached read is a miss.                                                                                                                                                                                                                                                                           |
-| `Caching:Owned:AnswerSecret`                     | None       | Base64, at least 32 bytes: keys the digest of text keys. The same value as the owning service's, or every such read misses. Required outside `Development` with Redis set. See [Resources.Caching.Abstractions](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.Resources.Caching.Abstractions/src/PACKAGE.md). |
-| `Caching:Owned:Resources:{owner}:{name}:Enabled` | `true`     | `false` turns one resource's, index's or answer's cached reads off.                                                                                                                                                                                                                                                                                      |
-| `Caching:Owned:InProcess:Enabled`                | `true`     | `false` reads every index answer from Redis in full.                                                                                                                                                                                                                                                                                                     |
-| `Caching:Owned:InProcess:Lifetime`               | `00:00:30` | How long an index answer is held in the process.                                                                                                                                                                                                                                                                                                         |
-| `Caching:Owned:InProcess:Capacity`               | `10000`    | How many index answers one client holds.                                                                                                                                                                                                                                                                                                                 |
+| Setting                                          | Default | What it does                                                                                                                                                                                                                                                           |
+| ------------------------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Caching:Owned:Redis:Configuration`              | None    | The Redis the callees' caches are in. Without it, every cached read is a miss. Outside `Development`, it must name a Redis user of the service's own (`user=...`), or the host refuses to start: a reader connected as Redis's default user could write what it reads. |
+| `Caching:Owned:Resources:{owner}:{name}:Enabled` | `true`  | `false` turns one resource's cached reads off.                                                                                                                                                                                                                         |
 
-`CallerSecret`, `Tls:RequireHttps` and `Caching:Owned:AnswerSecret` carry a security trade-off; see
+The request memo adds these (`RequestMemo` in Bitwarden.Server.Sdk.Context):
+
+| Setting                          | Default   | What it does                                                                                              |
+| -------------------------------- | --------- | --------------------------------------------------------------------------------------------------------- |
+| `Caching:RequestMemo:Enabled`    | `true`    | `false` sends every call each time it is made. For measuring what the memo saves, never for a deployment. |
+| `Caching:RequestMemo:MaxEntries` | `256`     | The most answers one request keeps; past it, calls are sent as if there were no memo.                     |
+| `Caching:RequestMemo:MaxBytes`   | `4194304` | The most bytes of answers one request keeps; an answer that doesn't fit is passed on and not kept.        |
+
+`CallerSecret` and `Tls:RequireHttps` carry a security trade-off; see
 [Gotchas and constraints](#gotchas-and-constraints).
 
 ## Key concepts
@@ -318,16 +322,116 @@ generated call (`CallAsync`) the document the generated client read. A service t
 `HttpClient`'s exception. A call sends exactly one request. A `ProductAnswer`'s `ToString()` names its status, never
 its body, which may carry Protected Data.
 
+### Ask once in a request
+
+Nothing to write: while a service handles an inbound HTTP request, every `GET` and `HEAD` its service clients send
+(`AddBitwardenClient`, and a product client's calls) is remembered for the rest of the request, and the same call made
+again is answered from memory without being sent. The memo, `RequestMemo` in Bitwarden.Server.Sdk.Context, is begun
+by the service host for each request and ended with it. Ask for what you need where you need it, as often as you need
+it; don't pass answers around, or keep them in a field, to save a call.
+
+- **The same call** is the same method and address, its query included (fields, filters, paging), with the same
+  context headers (organization, user, provider, `Bitwarden-Context`, the call chain), delegated or asserted alike, from
+  the same service. Anything different is sent. The credentials aren't part of it; the decision they carry is.
+- **What is kept** is a `2xx` or `404` answer's status, headers and body. Each caller gets a response of its own. A
+  refusal, a `5xx`, a `429`, a timeout or a failure to connect is never kept, so the next call is sent.
+- **Identical calls in flight at once** (`Task.WhenAll`) are sent once and both answered; if that call fails, both
+  fail, and nothing is kept.
+- **A write forgets everything.** A write (any method but `GET`, `HEAD`, `OPTIONS` and `TRACE`) sent through a service
+  client makes the request forget all it remembered, before it is sent and again once it is answered or has failed; so does a save to the service's own
+  database (Bitwarden.Server.Sdk.Data). A request always sees its own writes.
+- **The owners' caches too.** A read answered from a callee's cache (`ICachedReads`) is remembered the same way, so a
+  repeated read waits on Redis no more than a repeated call waits on the service. Whether the remembered entry answers
+  is decided for each call, as without the memo.
+
+To read again on purpose, say so around the call (`OutgoingCall.Fresh()`): it is sent, or the cache read again, and
+its answer replaces the remembered one. Use it after a write the platform can't see changed what another service
+answers, or each time round a loop that waits for another service's answer to move. In `WidgetPolling.cs`:
+
+```csharp
+using Bitwarden.Server.Sdk.Client;
+
+public sealed class WidgetPolling(IGadgetsClient gadgets, TimeProvider time)
+{
+    public async Task<Gadget> WaitUntilReadyAsync(Guid id, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            Gadget gadget;
+            using (OutgoingCall.Fresh())
+            {
+                gadget = await gadgets.GetGadgetAsync(id, cancellationToken);
+            }
+
+            if (gadget.Ready)
+            {
+                return gadget;
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(1), time, cancellationToken);
+        }
+    }
+}
+```
+
+An operation that does nothing but poll or wait is better marked `[WithoutRequestMemo]`
+(Bitwarden.Server.Sdk.Context) on its handler: its request has no memo at all.
+
+A message handler, an outbox handler, a job or a background service has no memo. Where one item of its work asks the
+same thing more than once, begin one around that item, never around a loop over many. In `WidgetChangedHandler.cs`:
+
+```csharp
+using Bitwarden.Server.Sdk.Context;
+
+public sealed class WidgetChangedHandler(IWidgetNotifier notifier, IWidgetAuditor auditor)
+{
+    public async Task HandleAsync(WidgetChanged message, CancellationToken cancellationToken)
+    {
+        using var memo = RequestMemo.Begin();
+
+        // Both read the organization's settings; the Organization Service is asked once.
+        await notifier.NotifyAsync(message.Organization, cancellationToken);
+        await auditor.RecordAsync(message.Organization, cancellationToken);
+    }
+}
+```
+
+The meter `Bitwarden.Server.Sdk.Client.RequestMemo` counts `bitwarden.request_memo.reads` by service called
+(`bitwarden.client.service`), what was read (`bitwarden.request_memo.source`: `call` or `cache`) and where its answer
+came from (`bitwarden.request_memo.outcome`: `hit`, `joined`, `miss` or `bypassed`). Nothing asked or answered is
+recorded.
+
 ### Answer a read from the callee's cache
 
-A service may publish reads its clients can answer from its own Redis cache (`x-bitwarden-cache`, `x-bitwarden-index`
-and `x-bitwarden-answer` in its contract). The client package calls `AddCachedReads<TClient>(name)`.
+A service may publish reads its clients can answer from its own Redis cache (`x-bitwarden-cache` in its
+contract). The client package calls `AddCachedReads<TClient>(name)`.
 `ICachedReads<TClient>` answers only where the callee would have answered this caller the same: the scope is one the
-client holds, every attribute asked for is cached, the call names the organization, user and provider the operation
-requires, the entry is not a tombstone, and its owner is the one the call names. Anything else, and any doubt (Redis
+client holds, no attribute asked for is one the callee works out per caller (`perCaller`; a read naming no fields asks
+for every attribute, and hits only where there are none), the contract's and the entry's format are this client's, the
+call names the organization, user and provider the operation requires, a context the call asserts naming a person
+comes from a service the operation admits it from (`assertedBy`), the entry is not a tombstone, and its owner is the one
+the call names. A call's context is asserted, on this service's own word, exactly where the call itself
+would assert it: an `OutgoingCall` statement naming somebody else or making the call the system's, or no request
+behind the call (a message handler, a job); a call continuing the request's own person is delegated. A hit with no fields is the whole entry; with fields, only those. Anything else, and any doubt (Redis
 unreachable or slower than 250 ms), is a miss, and after Redis fails every read skips the cache for 5 seconds. A hit
-uses up an `OutgoingCall` statement as the call would have. Nothing in this package writes to Redis. `Fieldsets` builds
+uses up an `OutgoingCall` statement as the call would have. Nothing in this package writes to Redis.
+
+A key template names what fills it: `{key}` the identifier or key the read is asked by (`ReadAsync`), and
+`{organization}`, `{user}` or `{provider}` a party the call carries, the owner of a key within its owner or the key of
+a read of `current` (`ReadCurrentAsync`); a placeholder the call leaves unfilled is a miss. A client composing one
+answer from several of its owner's reads (a membership's `providerStaff` from the organization's provider link and the
+person's place in that provider) learns what the call carries with `NextCall()`, reads each as a call carrying the
+parties it is about (`ReadAsync(operationId, key, fields, call)`, which uses up no statement), and calls `Answered()`
+once the composed answer stands; where it doesn't, it makes the call, which uses the statement. `Fieldsets` builds
 a sparse fieldset from a generated attributes class, keeping the attributes its contract requires.
+
+A callee may also publish a cached read-many (`readMany` in `x-bitwarden-cache`): every resource of the party the call
+carries, in one entry. `ReadManyAsync(operationId, pageNumber, pageSize, fields)` answers a page of it under the same
+checks, sliced from the entry in its order; a hit's `Resource` is the array of the page's resources, `AsList<T>()`
+reads it, and `Total` is how many the party has in all, as the service's `totalCount` says. A party with more rows than
+an entry holds has no entry, so the call is made. `ReadAllAsync(operationId, fields)` reads the party's whole entry,
+as one page as large as the contract's `atMost`, so a client wanting every resource never copies the owner's bound. A
+read-many is never answered by `ReadAsync` or `ReadCurrentAsync`, nor a read of one by `ReadManyAsync`.
 
 ## Gotchas and constraints
 
@@ -337,9 +441,6 @@ a sparse fieldset from a generated attributes class, keeping the attributes its 
 - **Calls are a Secure Channel only over TLS.** Set `Tls:RequireHttps` so a plain address stops the host at startup:
   every `AddBitwardenClient` address and the authorization server's, and a product client's conventional address. A
   product client over a named client of your own is yours to check.
-- **A digest of a guessable key is confirmable.** A cached answer keyed by text, such as an email address, is looked up
-  by its digest. Without `Caching:Owned:AnswerSecret` the digest is unkeyed, so anyone who can read Redis and guesses
-  the text can confirm it.
 - **`IContext` is resolved from a fresh scope on each call,** because the HTTP client factory pools handlers, so an
   implementation must read ambient state or be a singleton.
 - **A statement is used up by one call.** The first call inside a statement uses it up; a second throws
@@ -358,25 +459,33 @@ a sparse fieldset from a generated attributes class, keeping the attributes its 
   timeout, an unreachable service, a `5xx` or a cancelled request, the step's write may have landed, and
   `UndoOn.Refusal` keeps the writes before it.
 - **A failed undo is logged by the text given to `Add`,** so that text names identifiers only.
+- **The memo is for one request, in memory.** It holds only what a callee already answered this service for this
+  request, and nothing in it outlives the request or reaches another caller. A WebSocket connection has none: it lives
+  far longer than an answer stays true. Work a request starts and doesn't await finds the memo ended once the request
+  is answered.
+- **Only service clients.** An `HttpClient` of your own (a payment processor, a webhook), the token client and any
+  address under `/connect/` never pass through the memo.
+- **A read-only action forgets too.** An action sent as `POST` (`.../actions/holds`, `.../actions/check`) is not
+  remembered, and makes the request forget like any other `POST`.
 
 ## Types
 
-| Type                                                                         | Purpose                                              |
-| ---------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `BitwardenClientServiceCollectionExtensions`                                 | `AddBitwardenClient` and `AddCachedReads`            |
-| `BitwardenClientOptions`                                                     | A client's settings                                  |
-| `IServiceTokenProvider`, `ServiceTokenProvider`                              | The caller's token and its context tokens            |
-| `ClientAssertion`                                                            | A signed client assertion in place of a secret       |
-| `OutgoingCall`, `OutgoingCallOptions`                                        | Stating whom one call is about; the event actor rule |
-| `ServiceCallException`, `RequestRefusedException`, `RelayedRefusalException` | Failures with no more specific exception             |
-| `Undo`, `UndoOn`                                                             | Taking back writes that span services                |
-| `ProductClient`, `ProductAnswer`, `ProductAnswer<T>`                         | Calling a product service with somebody's own token  |
-| `ProductClientServiceCollectionExtensions`                                   | `AddProductClient`                                   |
-| `ICachedReads<TClient>`, `CachedAnswer`, `CachedAnswerKind`                  | Reads answered from the callee's cache               |
-| `CacheableRead`, `CacheableIndexRead`, `CacheableAnswerRead`                 | What a contract publishes as cacheable               |
-| `CachedResources`                                                            | Reading a cached resource into its generated type    |
-| `Fieldsets`                                                                  | Sparse fieldsets from a generated contract           |
-| `UtcDateJsonConverter`                                                       | Dates sent as ISO 8601 UTC with a literal `Z`        |
+| Type                                                                         | Purpose                                                                               |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `BitwardenClientServiceCollectionExtensions`                                 | `AddBitwardenClient` and `AddCachedReads`                                             |
+| `BitwardenClientOptions`                                                     | A client's settings                                                                   |
+| `IServiceTokenProvider`, `ServiceTokenProvider`                              | The caller's token and its context tokens                                             |
+| `ClientAssertion`                                                            | A signed client assertion in place of a secret                                        |
+| `OutgoingCall`, `OutgoingCallOptions`                                        | Stating whom one call is about; the event actor rule; `Fresh()` past the request memo |
+| `ServiceCallException`, `RequestRefusedException`, `RelayedRefusalException` | Failures with no more specific exception                                              |
+| `Undo`, `UndoOn`                                                             | Taking back writes that span services                                                 |
+| `ProductClient`, `ProductAnswer`, `ProductAnswer<T>`                         | Calling a product service with somebody's own token                                   |
+| `ProductClientServiceCollectionExtensions`                                   | `AddProductClient`                                                                    |
+| `ICachedReads<TClient>`, `CachedAnswer`, `CachedAnswerKind`                  | Reads answered from the callee's cache                                                |
+| `CacheableRead`                                                              | What a contract publishes as cacheable                                                |
+| `CachedResources`                                                            | Reading a cached resource into its generated type                                     |
+| `Fieldsets`                                                                  | Sparse fieldsets from a generated contract                                            |
+| `UtcDateJsonConverter`                                                       | Dates sent as ISO 8601 UTC with a literal `Z`                                         |
 
 A client NSwag generates sends dates as UTC with `/JsonConverters:Bitwarden.Server.Sdk.Client.UtcDateJsonConverter`,
 `/ParameterDateTimeFormat:yyyy-MM-ddTHH:mm:ss.FFFFFFFZ`, and `/TemplateDirectory` naming the parameter templates in
