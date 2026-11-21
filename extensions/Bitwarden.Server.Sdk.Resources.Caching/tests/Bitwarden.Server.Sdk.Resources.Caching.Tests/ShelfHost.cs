@@ -227,6 +227,10 @@ public sealed class ShelfHost : IAsyncDisposable
 
             builder.WebHost.UseTestServer();
 
+            // Outside Development a service needs a secret to derive its operations' write keys with
+            // (Idempotency:Secret), read as the host starts: a fixed one, 32 bytes of 0x07, never the development secret.
+            builder.Configuration["Idempotency:Secret"] = Convert.ToBase64String(Enumerable.Repeat((byte)7, 32).ToArray());
+
             foreach (var (key, value) in configuration)
             {
                 builder.Configuration[key] = value;
