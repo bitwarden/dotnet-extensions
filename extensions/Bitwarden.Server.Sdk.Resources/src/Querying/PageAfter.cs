@@ -42,5 +42,5 @@ public readonly record struct PageAfter
     /// <param name="parameter">The handler's parameter.</param>
     /// <returns>The parameter.</returns>
     public static ValueTask<PageAfter> BindAsync(HttpContext context, ParameterInfo parameter) =>
-        ValueTask.FromResult((PageAfter)PageBinding.Bind(typeof(PageAfter), context.Request.Query, declaredSize: null));
+        ValueTask.FromResult((PageAfter)PageBinding.Bind(typeof(PageAfter), context.Request.Query, parameter: null));
 }
