@@ -114,7 +114,7 @@ internal sealed class PagingDocumentTransformer : IOpenApiDocumentTransformer
             var parameter = description.ActionDescriptor.Parameters
                 .OfType<Microsoft.AspNetCore.Mvc.Infrastructure.IParameterInfoParameterDescriptor>()
                 .Select(each => each.ParameterInfo)
-                .FirstOrDefault(each => each.ParameterType == typeof(PageSize));
+                .FirstOrDefault(each => (Nullable.GetUnderlyingType(each.ParameterType) ?? each.ParameterType) == typeof(PageSize));
             var declared = (
                 Default: parameter?.GetCustomAttribute<DefaultValueAttribute>()?.Value as int?,
                 Maximum: parameter?.GetCustomAttribute<MaximumPageSizeAttribute>()?.Size);

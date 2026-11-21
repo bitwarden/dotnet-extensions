@@ -273,6 +273,15 @@ public sealed class RequestParametersTests
     }
 
     [Fact]
+    public void BindQueryType_PageNumberBesideADeclaredMaximum_BoundedByIt()
+    {
+        var number = Parameter(nameof(Handlers.QueriedLarge), "number");
+
+        Assert.Equal(int.MaxValue / 1000, Assert.IsType<PageNumber>(RequestParameters.BindQueryType(number, Request($"?page[number]={int.MaxValue / 1000}"))).Value);
+        Assert.Throws<InvalidQueryException>(() => RequestParameters.BindQueryType(number, Request($"?page[number]={(int.MaxValue / 1000) + 1}")));
+    }
+
+    [Fact]
     public void BindQueryType_PageSizeAbsent_TheDeclaredDefault()
     {
         var actual = RequestParameters.BindQueryType(Parameter(nameof(Handlers.Queried), "size"), Request(string.Empty));
@@ -426,6 +435,8 @@ public sealed class RequestParametersTests
             PageAfter after,
             Filter<int[]>? id,
             Fields<Thing> fields) => string.Empty;
+
+        public static string QueriedLarge(PageNumber number, [MaximumPageSize(1000)] PageSize? size) => string.Empty;
 #pragma warning restore IDE0060
     }
 }

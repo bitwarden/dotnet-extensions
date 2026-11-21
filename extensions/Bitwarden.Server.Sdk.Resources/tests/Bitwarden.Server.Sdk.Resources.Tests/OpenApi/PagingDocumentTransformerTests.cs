@@ -66,6 +66,14 @@ public sealed class PagingDocumentTransformerTests
     }
 
     [Fact]
+    public async Task TransformAsync_NullablePageSizeWithDeclaredMaximum_PublishesIt()
+    {
+        var operation = await Transform(nameof(Handlers.ListLargeNullablePages), new OpenApiParameter { Name = "page[size]" });
+
+        Assert.Equal("1000", Assert.Single(operation.Parameters!).Schema!.Maximum);
+    }
+
+    [Fact]
     public async Task TransformAsync_PageSizeWithDeclaredMaximumAndDefault_PublishesBoth()
     {
         var operation = await Transform(nameof(Handlers.ListLargeDefaultPages), new OpenApiParameter { Name = "page[size]" });
@@ -198,6 +206,13 @@ public sealed class PagingDocumentTransformerTests
         /// Offset-paged with a larger maximum.
         /// </summary>
         public static void ListLargePages(PageNumber pageNumber = default, [MaximumPageSize(1000)] PageSize pageSize = default)
+        {
+        }
+
+        /// <summary>
+        /// Offset-paged with a larger maximum, taking a size that may be absent.
+        /// </summary>
+        public static void ListLargeNullablePages(PageNumber pageNumber = default, [MaximumPageSize(1000)] PageSize? pageSize = null)
         {
         }
 
