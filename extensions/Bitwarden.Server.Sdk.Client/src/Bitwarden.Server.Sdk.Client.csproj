@@ -16,9 +16,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- The host's environment decides whether the answer secret is required. -->
+    <!-- The host's environment decides whether the service cache's login must name a user of its own. -->
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.14" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.14" />
+    <!-- Creates and signs client assertions. -->
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.23.0" />
     <!-- Reads the service-owned caches of the services a client calls. -->
     <PackageReference Include="StackExchange.Redis" Version="2.13.17" />
     <!-- Reads a cached answer into the generated client's type, which NSwag generates for Newtonsoft. -->
@@ -31,7 +33,7 @@
     <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Http\src\Bitwarden.Server.Sdk.Http.csproj" />
     <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Idempotency.Abstractions\src\Bitwarden.Server.Sdk.Idempotency.Abstractions.csproj" />
     <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Resources.Caching.Abstractions\src\Bitwarden.Server.Sdk.Resources.Caching.Abstractions.csproj" />
-    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Sagas\src\Bitwarden.Server.Sdk.Sagas.csproj" />
+    <PackageReference Include="Bitwarden.Server.Sdk.Sagas" Version="0.1.0" />
   </ItemGroup>
 
   <ItemGroup>

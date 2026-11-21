@@ -56,7 +56,15 @@ public static class BitwardenHeaders
     /// <remarks>
     /// Not context and not in <see cref="All"/>: it says nothing of whom a request concerns, is not signed, and
     /// grants nothing. A service reads it only from another service's authenticated call, ignores it from anybody
-    /// else, and uses it only to notice being called back while its own request is open.
+    /// else, and uses it only to notice being called back while its own request is open. It is in
+    /// <see cref="ServiceOnly"/>.
     /// </remarks>
     public const string CallChain = "Bitwarden-Call-Chain";
+
+    /// <summary>
+    /// Every header only another Bitwarden service may send: the context headers (<see cref="All"/>) and
+    /// <see cref="CallChain"/>. An edge strips them from requests arriving from outside, and a product service refuses
+    /// them.
+    /// </summary>
+    public static IReadOnlyList<string> ServiceOnly { get; } = [.. All, CallChain];
 }

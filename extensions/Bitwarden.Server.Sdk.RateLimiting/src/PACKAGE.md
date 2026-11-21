@@ -8,7 +8,8 @@ Bitwarden.Server.Sdk.Service, or counting limits of their own.
 Per-address request limits for Bitwarden services, from rules in the `IpRateLimitOptions` settings Bitwarden's servers
 already use, counted in the process or in a Redis every instance of a service shares. Bitwarden.Server.Sdk.Service
 registers and orders it for every service; reference it directly only to compose a host yourself, or to count limits of
-your own. It depends on ASP.NET Core, Bitwarden.Server.Sdk.Context, Bitwarden.Server.Sdk.Errors and StackExchange.Redis.
+your own. It depends on ASP.NET Core, Bitwarden.Server.Sdk.Context, Bitwarden.Server.Sdk.CryptoPrimitives, Bitwarden.Server.Sdk.Errors,
+Bitwarden.Server.Sdk.Resources.Caching.Abstractions and StackExchange.Redis.
 
 ## Installing
 
@@ -18,19 +19,20 @@ dotnet add package Bitwarden.Server.Sdk.RateLimiting
 
 ## Configuration
 
-| Setting                                                              | Default | What it does                                                                                                           |
-| -------------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `IpRateLimitOptions:Enabled`                                         | `true`  | Whether limits apply. Off when self-hosted, and with no rules, whatever this says.                                     |
-| `IpRateLimitOptions:GeneralRules`                                    | None    | The rules: `Endpoint` (default `*`), `Period` (default `1m`), `Limit` (default `0`, refusing every request), `Grants`. |
-| `IpRateLimitOptions:EnableEndpointRateLimiting`                      | `true`  | Counts each method and path apart. When false, only `*` rules apply, counting all of an address's requests.            |
-| `IpRateLimitOptions:IpWhitelist`                                     | None    | Addresses and CIDR networks never limited.                                                                             |
-| `IpRateLimitOptions:EndpointWhitelist`                               | None    | `verb:path` patterns never limited.                                                                                    |
-| `IpRateLimitOptions:HttpStatusCode`                                  | `429`   | The status a request over a limit is refused with.                                                                     |
-| `globalSettings:distributedIpRateLimiting:redisConnectionString`     | None    | A Redis where every instance keeps one shared count. Unset, each process counts on its own.                            |
-| `globalSettings:distributedIpRateLimiting:enabled`                   | `true`  | Whether a configured Redis is used.                                                                                    |
-| `globalSettings:distributedIpRateLimiting:maxRedisTimeoutsThreshold` | `10`    | How many Redis failures within the window set Redis aside, letting requests through unlimited.                         |
-| `globalSettings:distributedIpRateLimiting:slidingWindowSeconds`      | `120`   | The window, in seconds, those failures are counted in.                                                                 |
-| `globalSettings:selfHosted`                                          | `false` | When true, there are no limits.                                                                                        |
+| Setting                                                              | Default | What it does                                                                                                                                                                                                                                                                                                                                      |
+| -------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IpRateLimitOptions:Enabled`                                         | `true`  | Whether limits apply. Off when self-hosted, and with no rules, whatever this says.                                                                                                                                                                                                                                                                |
+| `IpRateLimitOptions:GeneralRules`                                    | None    | The rules: `Endpoint` (default `*`), `Period` (default `1m`), `Limit` (default `0`, refusing every request), `Grants`.                                                                                                                                                                                                                            |
+| `IpRateLimitOptions:EnableEndpointRateLimiting`                      | `true`  | Counts each method and path apart. When false, only `*` rules apply, counting all of an address's requests.                                                                                                                                                                                                                                       |
+| `IpRateLimitOptions:IpWhitelist`                                     | None    | Addresses and CIDR networks never limited.                                                                                                                                                                                                                                                                                                        |
+| `IpRateLimitOptions:EndpointWhitelist`                               | None    | `verb:path` patterns never limited.                                                                                                                                                                                                                                                                                                               |
+| `IpRateLimitOptions:HttpStatusCode`                                  | `429`   | The status a request over a limit is refused with.                                                                                                                                                                                                                                                                                                |
+| `globalSettings:distributedIpRateLimiting:redisConnectionString`     | None    | A Redis where every instance keeps one shared count. Unset, each process counts on its own.                                                                                                                                                                                                                                                       |
+| `globalSettings:distributedIpRateLimiting:enabled`                   | `true`  | Whether a configured Redis is used.                                                                                                                                                                                                                                                                                                               |
+| `globalSettings:distributedIpRateLimiting:maxRedisTimeoutsThreshold` | `10`    | How many Redis failures within the window set Redis aside, letting requests through unlimited.                                                                                                                                                                                                                                                    |
+| `globalSettings:distributedIpRateLimiting:slidingWindowSeconds`      | `120`   | The window, in seconds, those failures are counted in.                                                                                                                                                                                                                                                                                            |
+| `RateLimiting:Secret`                                                | None    | The secret shared counts' keys are derived with: base64 of 32 random bytes, the same on every instance of the service. Required outside `Development` whenever a Redis is configured and enabled, even while limits are off; in `Development` it falls back to the public development secret. Never another secret, such as `Idempotency:Secret`. |
+| `globalSettings:selfHosted`                                          | `false` | When true, there are no limits.                                                                                                                                                                                                                                                                                                                   |
 
 ## Key concepts
 
@@ -134,7 +136,7 @@ public sealed class InvitationAllowance(IRateLimitCounters counters)
 ```
 
 `TryTakeAsync` is true while the window's count is within the limit, and a limit below 1 counts as 1. In Redis the
-bucket is held only as its hash, and a Redis failure answers true. `IpRateLimitRules` applies the rule choice described
+bucket is held only as its keyed digest, and a Redis failure answers true. `IpRateLimitRules` applies the rule choice described
 under Key concepts to rules you define.
 
 ## Gotchas and constraints
@@ -143,10 +145,13 @@ under Key concepts to rules you define.
 - **Bad settings stop the host.** A `Period` that doesn't parse, an `IpWhitelist` entry that is neither an address nor
   a CIDR network, or a Redis connection string that doesn't parse throws when the middleware is built, so the host
   doesn't start.
-- **Shared counts hold hashed addresses.** Keys are `{service}:ip-rate-limit:{SHA-256}` and expire with their window.
-  The hash is unsalted and the IPv4 address space is small, so anyone who can read the Redis can recover the
-  addresses: protect it as you would the logs, and keep its connection string, which usually carries a password, in
-  secrets.
+- **Shared counts hold keyed digests of addresses.** Keys are `{service}:ip-rate-limit:{derived key}`, the bucket
+  derived with `CacheKey.DeriveCacheKey` and `RateLimiting:Secret`, and expire with their window. Without the secret,
+  reading the Redis doesn't reveal an address, though counts and their timing still show: keep the secret and the
+  Redis connection string, which usually carries a password, in secrets.
+- **A host sharing counts needs the secret.** Outside `Development`, a host with a Redis configured and enabled, even one whose limits are off, and no
+  `RateLimiting:Secret`, or the development secret, doesn't start, with a message naming the setting and never a
+  value. Changing the secret starts every window afresh.
 - **Redis failing lets requests through.** While Redis is disconnected, or when a call to it fails, the request goes on
   unlimited. After `maxRedisTimeoutsThreshold` failures within `slidingWindowSeconds`, Redis is set aside until the
   window closes. An outage never refuses requests, and never limits them either.
@@ -164,6 +169,7 @@ under Key concepts to rules you define.
 | ----------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | `IpRateLimitOptions`, `IpRateLimitRule`                                 | The `IpRateLimitOptions` settings and one rule                              |
 | `DistributedIpRateLimitingOptions`                                      | The `globalSettings:distributedIpRateLimiting` settings                     |
+| `RateLimitSecret`                                                       | Reads `RateLimiting:Secret`, which shared counts' keys are derived with     |
 | `IIpRateLimitRefusal`                                                   | Writes a refusal's body, for a route whose answer shape somebody else fixed |
 | `IRateLimitCounters`, `MemoryRateLimitCounters`                         | Where counts are kept, for limits of your own too                           |
 | `IpRateLimitRules`, `IpRateLimitCount`                                  | Which rules count a request, in which order and bucket                      |

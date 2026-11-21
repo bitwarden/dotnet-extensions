@@ -74,10 +74,10 @@ internal static class Telemetry
     /// The spans of Bitwarden's own code, the Azure SDK's, and the RabbitMQ client's.
     /// </summary>
     /// <remarks>
-    /// <c>Bitwarden.*</c> takes in every Bitwarden package's spans, an event stream's producer and consumer
+    /// <c>Bitwarden.*</c> takes in every Bitwarden package's spans, MessageBroker's producer and consumer
     /// spans among them. The RabbitMQ client (7.x) has sources of its own
     /// for each publish and each delivery, beneath those; they carry the routing key, which is the
-    /// envelope's type, and never the body.
+    /// message's family, and never the body.
     /// </remarks>
     private static readonly string[] Sources = ["Bitwarden.*", "Azure.*", "RabbitMQ.Client.*"];
 
@@ -85,9 +85,9 @@ internal static class Telemetry
     /// The meters of Bitwarden's own code.
     /// </summary>
     /// <remarks>
-    /// Among them an event stream's (sent, consumed, failed, retried and dead-lettered envelopes,
-    /// handler duration, dead-letter depth), an outbox's (backlog, oldest waiting, dispatch failures
-    /// and delay) and the health checks' (<c>Bitwarden.Server.Sdk.Service</c>: <c>bitwarden.health.status</c>).
+    /// Among them MessageBroker's (messages published and consumed), its outbox's (sent, failed and set-aside
+    /// messages, backlog, oldest waiting and delay) and the health checks' (<c>Bitwarden.Server.Sdk.Service</c>:
+    /// <c>bitwarden.health.status</c>). Dead-letter depth is the broker's own metric.
     /// </remarks>
     private static readonly string[] Meters = ["Bitwarden.*", "Bit.*"];
 
