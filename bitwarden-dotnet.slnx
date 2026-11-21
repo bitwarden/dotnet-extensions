@@ -108,6 +108,13 @@
   <Folder Name="/extensions/Bitwarden.Server.Sdk.PasswordHashing/tests/">
     <Project Path="extensions/Bitwarden.Server.Sdk.PasswordHashing/tests/Bitwarden.Server.Sdk.PasswordHashing.Tests/Bitwarden.Server.Sdk.PasswordHashing.Tests.csproj" />
   </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Resources.Caching/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Resources.Caching/src/Bitwarden.Server.Sdk.Resources.Caching.csproj" />
+  </Folder>
+  <Folder Name="/extensions/Bitwarden.Server.Sdk.Resources.Caching/tests/">
+    <Project Path="extensions/Bitwarden.Server.Sdk.Resources.Caching/tests/Bitwarden.Server.Sdk.Resources.Caching.Generated.Tests/Bitwarden.Server.Sdk.Resources.Caching.Generated.Tests.csproj" />
+    <Project Path="extensions/Bitwarden.Server.Sdk.Resources.Caching/tests/Bitwarden.Server.Sdk.Resources.Caching.Tests/Bitwarden.Server.Sdk.Resources.Caching.Tests.csproj" />
+  </Folder>
   <Folder Name="/extensions/Bitwarden.Server.Sdk.RestrictedDependencies/">
     <Project Path="extensions/Bitwarden.Server.Sdk.RestrictedDependencies/src/Bitwarden.Server.Sdk.RestrictedDependencies.csproj" />
   </Folder>
