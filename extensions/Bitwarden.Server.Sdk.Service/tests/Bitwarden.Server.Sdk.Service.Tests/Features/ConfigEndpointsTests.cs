@@ -124,8 +124,8 @@ public sealed class ConfigEndpointsTests
             .GetProperty("selfHosted").GetBoolean());
     }
 
-    // The install's globalSettings:enableEmailVerification, under the name the identity service reads too; off when it
-    // isn't set.
+    // The install's globalSettings:enableEmailVerification, under the name the server reads too; off when it isn't
+    // set.
     [Theory]
     [InlineData("true", true)]
     [InlineData("false", false)]
@@ -142,8 +142,8 @@ public sealed class ConfigEndpointsTests
             .GetProperty("enableEmailVerification").GetBoolean());
     }
 
-    // The install's globalSettings:enableOpenInviteLinkEmailVerification, under the name the organization service reads
-    // too; on when it isn't set.
+    // The install's globalSettings:enableOpenInviteLinkEmailVerification, under the name the server reads too;
+    // on when it isn't set.
     [Theory]
     [InlineData("true", true)]
     [InlineData("false", false)]
