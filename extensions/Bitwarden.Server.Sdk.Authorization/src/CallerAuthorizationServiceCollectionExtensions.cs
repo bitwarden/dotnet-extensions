@@ -71,9 +71,11 @@ public static class CallerAuthorizationServiceCollectionExtensions
             services.TryAddSingleton<IRequestNamedOwner, RequestNamedOwner>();
         }
 
-        // It reads the claims off IHttpContextAccessor and holds nothing. Registered for every
-        // service even though only a product service has a user session to read: below the
-        // product layer it answers None, which is correct, and no domain service asks.
+        // It reads the session and the standing resolved for the request (UseCurrentStanding) off
+        // IHttpContextAccessor, and holds nothing. Registered for every service even though only a
+        // product service has a user session: below the product layer it answers None, which is
+        // correct, and no domain service asks. A product service registers the ICurrentStanding it
+        // reads the standing from; this doesn't, as only the standing's owner can answer it.
         services.TryAddSingleton<ICallerRole, CallerRole>();
         // Scoped, not singleton: it reads the context of the request being authorized.
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IAuthorizationHandler, ContextRequirementsHandler>());

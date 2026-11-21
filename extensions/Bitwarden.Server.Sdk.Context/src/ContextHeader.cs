@@ -475,8 +475,10 @@ public static partial class ContextHeader
     /// </summary>
     /// <remarks>
     /// <c>IPAddress.TryParse</c> also takes IPv4's legacy forms (<c>1</c>, <c>127.1</c>, <c>017.0.0.1</c> read as
-    /// octal, <c>0x7f.0.0.1</c>), and IPv6 with a zone (<c>fe80::1%eth0</c>), brackets or a port. None of them is an
-    /// address another service can use, and the legacy forms name a different address than they appear to.
+    /// octal, <c>0x7f.0.0.1</c>), IPv6 with a zone (<c>fe80::1%eth0</c>), brackets or a port, and the deprecated
+    /// IPv4-compatible form (<c>::203.0.113.9</c>). None of them is an address another service can use, the legacy
+    /// forms name a different address than they appear to, and the IPv4-compatible form spells an IPv4 client a
+    /// second way.
     /// </remarks>
     /// <param name="value">The value.</param>
     public static bool IsAddress(string? value)
@@ -494,12 +496,21 @@ public static partial class ContextHeader
 
         if (address.AddressFamily == AddressFamily.InterNetworkV6)
         {
-            return value.All(character => char.IsAsciiHexDigit(character) || character is ':' or '.');
+            return !IsIPv4Compatible(address)
+                && value.All(character => char.IsAsciiHexDigit(character) || character is ':' or '.');
         }
 
         var parts = value.Split('.');
         return parts.Length == 4 && parts.All(part =>
             part.Length is > 0 and <= 3 && part.All(char.IsAsciiDigit) && (part.Length == 1 || part[0] != '0'));
+    }
+
+    // ::/96 but the loopback, ::1. The unspecified address, ::, is refused before this is asked.
+    private static bool IsIPv4Compatible(IPAddress address)
+    {
+        var bytes = address.GetAddressBytes();
+
+        return bytes.AsSpan(0, 12).IndexOfAnyExcept((byte)0) < 0 && !address.Equals(IPAddress.IPv6Loopback);
     }
 
     /// <summary>

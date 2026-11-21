@@ -17,18 +17,6 @@ dotnet add package Bitwarden.Server.Sdk.Common
 
 ## Usage
 
-### Remember a lookup for the rest of a request
-
-If several parts of one request need the same fact, look it up once:
-
-```csharp
-services.AddRequestMemo();
-
-var grants = await memo.RememberAsync("grants", organizationId, userId, () => LoadGrantsAsync(userId));
-```
-
-The remembered value is thrown away when the request ends, and is never shared between callers.
-
 ### Mark a field that holds encrypted data
 
 Bitwarden servers only store encrypted data and never decrypt it. An encrypted string is longer
@@ -101,7 +89,6 @@ starts. Every service and client sharing the cache must use the same secret.
 
 | Type                                          | Purpose                                                                   |
 | --------------------------------------------- | ------------------------------------------------------------------------- |
-| `RequestMemo`                                 | Facts read once in a request and remembered until it ends                 |
 | `EncryptedAttribute`, `PersonalDataAttribute` | Mark a field as Protected Data or as personal data                        |
 | `OwnedCacheEntry`                             | How a service-owned cache entry is stored in Redis                        |
 | `OwnedAnswerKey`                              | How a service-owned answer is keyed in the same cache                     |
