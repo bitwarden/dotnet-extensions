@@ -41,6 +41,11 @@ The package reads no settings of its own. `[SelfHostedOnly]` and `[NotSelfHosted
 - **Startup checks.** A handler mapped against its attribute or an operation identifier used twice
   stops the service at startup, every problem listed at once. See
   [Keep the Map line and the attribute in step](https://contributing.bitwarden.com/contributing/server-sdk/operations/verbs#keep-the-map-line-and-the-attribute-in-step).
+- **Paging.** A list takes `PageNumber` and `PageSize` parameters and builds its page with
+  `new Page(pageNumber, pageSize)`. A page holds at most 200 (`Page.MaximumSize`) unless the
+  operation declares more with `[MaximumPageSize(1000)]` on its `PageSize` parameter, as a list a
+  client reads whole may; binding, the farthest page a caller may ask for and the OpenAPI document
+  follow it. See [Paging](https://contributing.bitwarden.com/contributing/server-sdk/querying/paging).
 - **The standard error document** is written for every refusal and every exception. See
   [Errors](https://contributing.bitwarden.com/contributing/server-sdk/payloads-and-responses/errors).
 - **Zero knowledge.** Bitwarden services store and synchronize Vault Data only as Protected Data,
@@ -141,6 +146,11 @@ app.Run();
 
 ## Gotchas and constraints
 
+- **A page built with an initializer holds at most 200**, whatever `[MaximumPageSize]` the
+  operation declares: `new Page { Number = pageNumber, Size = pageSize }` reads the size as a
+  number. Build it with `new Page(pageNumber, pageSize)` (or `new CursorPage(pageSize)`), which
+  carries the declared maximum.
+
 - **A handler that takes a bare `Query` parameter**, on any endpoint, stops the service at startup:
   its filter would reach the handler unchecked. Take a `Search<T>` on a `[StandardSearch]`
   operation, or the bulk request on its `[StandardBulk...]` operation.
@@ -157,7 +167,7 @@ in Bitwarden.Server.Sdk.Service, covers this package one topic per page.
 **Running a service**
 
 - [Keep an operation to one kind of install](https://contributing.bitwarden.com/contributing/server-sdk/running-a-service/configuration-and-self-hosting#keep-an-operation-to-one-kind-of-install): `[SelfHostedOnly]` and `[NotSelfHostedOnly]`.
-- [Add to the standard endpoints from a package](https://contributing.bitwarden.com/contributing/server-sdk/running-a-service/caching-and-extensions#add-to-the-standard-endpoints-from-a-package): `IStandardEndpointFilterProvider`, `IStandardEndpointCheck` and `ServedByPlatform<T>()`.
+- [Add to the standard endpoints from a package](https://contributing.bitwarden.com/contributing/server-sdk/running-a-service/caching-and-extensions#add-to-the-standard-endpoints-from-a-package): `IStandardEndpointFilterProvider` and `IStandardEndpointCheck`.
 
 **Contracts**
 

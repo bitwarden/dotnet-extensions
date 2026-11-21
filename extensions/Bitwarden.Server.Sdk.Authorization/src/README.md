@@ -29,8 +29,13 @@ Bitwarden.Server.Sdk.Errors'. Which rows a caller reaches is the service's, not 
 - **Audiences.** `ServiceAudience` post-configures the bearer options to add `IServiceIdentity.Audience` to the valid
   audiences and turn audience validation on, after any service's own configuration.
 - **Middleware order.** `ContextRefusal` runs before authentication, so its answer doesn't depend on the token.
-  `ContextHeaders` runs after authentication and before authorization. `CallChainCheck` runs after authorization, so
-  an operation naming its own scheme has authenticated its caller before the chain is believed.
+  `ContextHeaders` (domain services) and `CurrentStandingCheck` (product services) run after authentication and before
+  authorization. `CallChainCheck` runs after authorization, so an operation naming its own scheme has authenticated its
+  caller before the chain is believed.
+- **Current standing.** `CurrentStandingCheck` asks `ICurrentStanding` once per request and puts the answer on the
+  request as a `CallerStanding` feature, which `CallerRole` reads; `ICallerRole` stays synchronous for its many callers.
+  The middleware is constructed when the pipeline is built, so a product service without an `ICurrentStanding` fails
+  at startup.
 - **Refusals.** `AuthorizationResultHandler` and `ContextHeaders.RefuseAsync` write the standard error document with
   the host's JSON options, by reflection, which is why the package is not AOT-compatible.
 

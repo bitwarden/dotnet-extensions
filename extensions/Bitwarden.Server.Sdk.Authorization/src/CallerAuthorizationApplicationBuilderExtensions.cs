@@ -21,7 +21,8 @@ public static class CallerAuthorizationApplicationBuilderExtensions
         app.UseMiddleware<ForwardedClientAddress>();
 
     /// <summary>
-    /// Refuses a request to a product service that carries context headers, which only another service sends.
+    /// Refuses a request to a product service that carries any header only another service sends
+    /// (<see cref="Bitwarden.Server.Sdk.Context.BitwardenHeaders.ServiceOnly"/>).
     /// </summary>
     /// <remarks>
     /// Add it before anything reads the context and before authentication, so the answer is the same whatever the
@@ -43,6 +44,21 @@ public static class CallerAuthorizationApplicationBuilderExtensions
     /// <returns>The pipeline.</returns>
     public static IApplicationBuilder UseContextHeaders(this IApplicationBuilder app) =>
         app.UseMiddleware<ContextHeaders>();
+
+    /// <summary>
+    /// At a product service, reads the person's current standing in the organization or provider their session names,
+    /// once per request, and refuses a request from somebody who no longer holds it (<see cref="ICurrentStanding"/>):
+    /// <c>404</c> when they are no longer a member, <c>403</c> when a client organization's session is no longer the
+    /// provider's staff. <see cref="ICallerRole"/> answers from what it read.
+    /// </summary>
+    /// <remarks>
+    /// Add it after authentication and before authorization. The service must register an
+    /// <see cref="ICurrentStanding"/>; without one the pipeline fails to build, so the service fails at startup.
+    /// </remarks>
+    /// <param name="app">The pipeline.</param>
+    /// <returns>The pipeline.</returns>
+    public static IApplicationBuilder UseCurrentStanding(this IApplicationBuilder app) =>
+        app.UseMiddleware<CurrentStandingCheck>();
 
     /// <summary>
     /// Keeps the chain of services a call passed through, believed from another service only, and notices a call back
