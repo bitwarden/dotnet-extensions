@@ -46,18 +46,18 @@ The package reads no settings of its own. `[SelfHostedOnly]` and `[NotSelfHosted
   declare a larger maximum on its parameter and build its page with the constructor, which carries
   it. Binding, the farthest page a caller may ask for and the OpenAPI document all follow it:
 
-  ```csharp
-  public static async Task<PagedResourceListDocument<Widget>> ListWidgets(
-      IWidgets widgets,
-      PageNumber pageNumber = default,
-      [MaximumPageSize(1000)] PageSize pageSize = default,
-      CancellationToken cancellationToken = default)
-  {
-      var page = new Page(pageNumber, pageSize);
+    ```csharp
+    public static async Task<PagedResourceListDocument<Widget>> ListWidgets(
+        IWidgets widgets,
+        PageNumber pageNumber = default,
+        [MaximumPageSize(1000)] PageSize pageSize = default,
+        CancellationToken cancellationToken = default)
+    {
+        var page = new Page(pageNumber, pageSize);
 
-      return ReadManyResponse(await widgets.ListAsync(page, cancellationToken), page);
-  }
-  ```
+        return ReadManyResponse(await widgets.ListAsync(page, cancellationToken), page);
+    }
+    ```
 
 - **The standard error document** is written for every refusal and every exception. See
   [Errors](https://contributing.bitwarden.com/contributing/server-sdk/payloads-and-responses/errors).
