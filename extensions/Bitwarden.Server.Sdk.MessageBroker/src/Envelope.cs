@@ -15,7 +15,9 @@ public abstract class Envelope<TPayload, TCeiling>
     private readonly Dictionary<Type, Payload<TPayload>.IVariant> _variantsByType;
     private bool _settled;
 
-    /// <summary>Whether the message has been completed, requeued or dead-lettered.</summary>
+    /// <summary>
+    /// Whether the message has been completed, requeued or dead-lettered.
+    /// </summary>
     internal bool IsSettled => _settled;
 
     /// <summary>

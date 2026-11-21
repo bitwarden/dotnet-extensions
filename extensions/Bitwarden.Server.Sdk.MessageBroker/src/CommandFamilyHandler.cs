@@ -13,7 +13,9 @@ internal abstract class CommandFamilyHandler
 
     public abstract string FamilyWireName { get; }
 
-    /// <summary>Decodes, handles and settles <paramref name="message"/>.</summary>
+    /// <summary>
+    /// Decodes, handles and settles <paramref name="message"/>.
+    /// </summary>
     public abstract Task HandleAsync(CommandQueueMessage message, CancellationToken stoppingToken);
 }
 
