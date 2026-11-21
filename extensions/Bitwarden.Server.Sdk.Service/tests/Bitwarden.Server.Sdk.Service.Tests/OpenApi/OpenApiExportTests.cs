@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -145,6 +146,42 @@ public sealed class OpenApiExportTests
         }
     }
 
+    // A contract doesn't depend on a secret: describing a service with no Idempotency:Secret, outside Development, still
+    // writes it, where serving would refuse to start. The service registers the secret again itself, as messaging and
+    // jobs do, and that check is dropped with its other background work.
+    [Fact]
+    public async Task Run_Describing_WithoutAnIdempotencySecret_WritesTheContract()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "openapi-export-" + Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(directory, "v1.json");
+
+        try
+        {
+            await Task.Run(() => new ExportedWithoutSecret(["--emit-openapi", path]).Run(), TestContext.Current.CancellationToken);
+
+            Assert.True(File.Exists(path));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    // Serving is another matter: a service outside Development with no Idempotency:Secret refuses to start, naming the
+    // setting, rather than failing its first operation.
+    [Fact]
+    public async Task Start_WithoutAnIdempotencySecret_Refuses()
+    {
+        await using var app = new ExportedWithoutSecret([]).Build();
+
+        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() => app.StartAsync(TestContext.Current.CancellationToken));
+
+        Assert.Contains("Idempotency:Secret", refusal.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task WriteAsync_UndescribedSection_RefusesAndWritesNothing()
     {
@@ -259,6 +296,25 @@ public sealed class OpenApiExportTests
             builder.Configuration["Tls:RequireHttps"] = "true";
             return builder;
         }
+
+        protected override void MapEndpoints(IEndpointRouteBuilder endpoints) =>
+            endpoints.MapGroup("api/v1/spanners").WithStandards().MapGet("{id}", SpannersEndpoints.GetSpanner);
+    }
+
+    private sealed class ExportedWithoutSecret(string[] args) : Service("export-probe", "Export Probe", args)
+    {
+        protected override WebApplicationBuilder CreateBuilder()
+        {
+            var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
+            builder.WebHost.UseTestServer();
+            return builder;
+        }
+
+        // Last, so it wins over every source the tests' hosts read the secret from.
+        protected override void ConfigureConfiguration(IConfigurationManager configuration) =>
+            configuration.AddInMemoryCollection([new("Idempotency:Secret", "")]);
+
+        protected override void ConfigureServices(IServiceCollection services) => services.AddIdempotencySecret();
 
         protected override void MapEndpoints(IEndpointRouteBuilder endpoints) =>
             endpoints.MapGroup("api/v1/spanners").WithStandards().MapGet("{id}", SpannersEndpoints.GetSpanner);

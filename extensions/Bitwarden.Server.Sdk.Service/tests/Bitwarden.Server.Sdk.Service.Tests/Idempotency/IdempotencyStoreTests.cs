@@ -16,6 +16,10 @@ public sealed class IdempotencyStoreTests
 {
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
+    // A Redis nothing listens on, named with a user of the service's own: outside Development a connection without one
+    // is refused at startup (RedisUserCheck).
+    private const string UnreachableRedis = "127.0.0.1:1,user=session-test-service,password=unused";
+
     // A store that can't answer never stops a write: it runs, as it would without a key.
     [Fact]
     public async Task AStoreThatCannotAnswer_LetsTheWriteRun()
@@ -56,7 +60,7 @@ public sealed class IdempotencyStoreTests
     {
         await using var service = await SessionHost.StartAsync(
             productService: false,
-            configuration: new Dictionary<string, string?> { [IdempotencyOptions.RedisConfigurationKey] = "127.0.0.1:1" });
+            configuration: new Dictionary<string, string?> { [IdempotencyOptions.RedisConfigurationKey] = UnreachableRedis });
 
         Assert.IsType<MemoryIdempotencyStore>(service.Resolve<IIdempotencyStore>());
     }
@@ -69,7 +73,7 @@ public sealed class IdempotencyStoreTests
         {
             await using var service = await SessionHost.StartAsync(
                 productService: false,
-                configuration: new Dictionary<string, string?> { [IdempotencyOptions.RedisConfigurationKey] = "127.0.0.1:1" },
+                configuration: new Dictionary<string, string?> { [IdempotencyOptions.RedisConfigurationKey] = UnreachableRedis },
                 services: services => services.AddDataProtection().PersistKeysToFileSystem(keys));
 
             Assert.IsType<RedisIdempotencyStore>(service.Resolve<IIdempotencyStore>());

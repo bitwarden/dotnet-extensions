@@ -9,8 +9,8 @@ The `Service` base class and the fixed startup order every Bitwarden .NET servic
 
 How a service is put together and hosted: `Service` and its startup order, self-hosting, the system
 endpoints, telemetry and health publishing, the general OpenAPI setup and documentation UI, the
-config resource and its feature-flag context, serving internal TLS, `FinishedWrites`, the guard on
-operations whose writes span services, and `ResolvedOnce`.
+config resource and its feature-flag context, serving internal TLS, `FinishedWrites` and the guard on
+operations whose writes span services.
 
 A concern that stands on its own goes in its own package, which `Service` references and registers:
 resources and the standard endpoints in Resources, authorization and context checks in
@@ -35,13 +35,14 @@ service belongs in Client.
   `Logging:Console:IncludeScopes` and the request-line log level at position 0, so a deployment still
   wins. `SelfHosting.LayerSettings` runs before `ConfigureConfiguration`, so a service's own sources
   win over `appsettings.SelfHosted.json`.
-- **Describing itself.** With `--emit-openapi`, `OpenApiExport.Isolate` drops the hosted services
-  registered after the platform's (the service's own and its extensions'), binds an ephemeral
-  loopback port, telemetry exports nothing, and the plain-listener refusal is skipped.
-- **`ResolvedOnce` instead of Caching.** `GetOrResolveOnceAsync` caches the resolution task in
-  `IMemoryCache` under one lock, so concurrent misses share it. It is here rather than in
-  Bitwarden.Server.Sdk.Caching so a service needs no FusionCache dependency for it; for the same
-  reason telemetry adds no FusionCache instrumentation (`Observability/Telemetry.cs`).
+- **Describing itself.** With `--emit-openapi` or `--emit-infrastructure`, `OpenApiExport.Isolate`
+  drops the hosted services registered after the platform's (the service's own and its extensions'),
+  binds an ephemeral loopback port, telemetry exports nothing, and the plain-listener refusal is
+  skipped. `--emit-infrastructure` doesn't even start the application: `InfrastructureExport` writes
+  the requirements its registrations declared (`Bitwarden.Server.Sdk.Infrastructure`), in
+  `InfrastructureManifest`'s shape.
+- **No FusionCache instrumentation.** Telemetry adds none (`Observability/Telemetry.cs`), so a
+  service that doesn't use Bitwarden.Server.Sdk.Caching takes no FusionCache dependency.
 - **Extensions are declared, not scanned.** `ServiceExtensions` reads `[ServiceExtension]` from the
   service's assembly and its references, never the framework's, so an extension is something a
   package author states on purpose where a reviewer sees it.
@@ -69,9 +70,6 @@ The developer guide gives the workaround for each.
   always answers `None` there, so every call is refused `403`
   (`Bitwarden.Server.Sdk.Authorization/src/OperationAuthorization.cs`,
   `Bitwarden.Server.Sdk.Authorization/src/ContextRequirementsHandler.cs`).
-- **`GetOrResolveOnceAsync` needs `IMemoryCache`, which the platform doesn't register**
-  (`Caching/ResolvedOnce.cs`, `Service.AddPlatformServices`). A service calls `AddMemoryCache()`
-  itself.
 
 ## Testing
 

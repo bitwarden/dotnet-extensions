@@ -209,7 +209,7 @@ public sealed class IdempotentWritesTests : IAsyncLifetime
 
         for (var run = 0; run < 2; run++)
         {
-            using (IdempotentOperation.Begin("operation-1"))
+            using (IdempotentOperation.Begin("operation-1", IdempotencySecret.ReadSecret(new ConfigurationBuilder().Build(), "Development", "tests")))
             {
                 using var one = await writer.WriteAsync("one", Token);
                 using var two = await writer.WriteAsync("two", Token);
@@ -229,14 +229,14 @@ public sealed class IdempotentWritesTests : IAsyncLifetime
         var writer = caller.GetRequiredService<ProbeWriter>();
         var operation = IdempotentOperation.ForMessage("Some.Service.SomeHandler", Guid.NewGuid());
 
-        using (IdempotentOperation.Begin(operation))
+        using (IdempotentOperation.Begin(operation, IdempotencySecret.ReadSecret(new ConfigurationBuilder().Build(), "Development", "tests")))
         {
             using var one = await writer.WriteAsync("one", Token);
             Assert.False(one.Headers.Contains(IdempotencyKeys.ReplayedHeader));
             // The handler fails here, before its second write, and the message is delivered again.
         }
 
-        using (IdempotentOperation.Begin(operation))
+        using (IdempotentOperation.Begin(operation, IdempotencySecret.ReadSecret(new ConfigurationBuilder().Build(), "Development", "tests")))
         {
             using var two = await writer.WriteAsync("two", Token);
             using var one = await writer.WriteAsync("one", Token);
@@ -259,7 +259,7 @@ public sealed class IdempotentWritesTests : IAsyncLifetime
 
         foreach (var note in new[] { "before", "after" })
         {
-            using (IdempotentOperation.Begin(operation))
+            using (IdempotentOperation.Begin(operation, IdempotencySecret.ReadSecret(new ConfigurationBuilder().Build(), "Development", "tests")))
             {
                 using var response = await writer.WriteAsync(note, Token);
                 Assert.Equal(HttpStatusCode.Created, response.StatusCode);

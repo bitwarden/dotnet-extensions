@@ -194,9 +194,13 @@ public sealed class OperationWritesTests
             Logs = logs;
             Client = app.GetTestClient();
 
+            // Only this host's meter: the meter's name is the same in every host, and other tests' hosts run alongside.
+            var meters = app.Services.GetRequiredService<IMeterFactory>();
             _listener.InstrumentPublished = (instrument, listener) =>
             {
-                if (instrument.Meter.Name == WriteSpanMetrics.MeterName && instrument.Name == WriteSpanMetrics.SpansName)
+                if (ReferenceEquals(instrument.Meter.Scope, meters)
+                    && instrument.Meter.Name == WriteSpanMetrics.MeterName
+                    && instrument.Name == WriteSpanMetrics.SpansName)
                 {
                     listener.EnableMeasurementEvents(instrument);
                 }

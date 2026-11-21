@@ -43,7 +43,7 @@ public sealed class ServiceContextBuilderClientTests
         ["unknown-type"] = [new("type", "Something"), new("sub", Person.ToString())],
     };
 
-    // Blue's User: a person keyed by the person, with their organizations.
+    // The server's User: a person keyed by the person, with their organizations.
     [Fact]
     public void Build_APerson_KeyedByThePersonWithTheirOrganizations()
     {
@@ -54,7 +54,7 @@ public sealed class ServiceContextBuilderClientTests
         Assert.Equal([Member.ToString()], Organizations(user));
     }
 
-    // Blue's User with no person: an installation's token, anonymous with no organizations.
+    // The server's User with no person: an installation's token, anonymous with no organizations.
     [Fact]
     public void Build_NobodyInParticular_Anonymous()
     {
@@ -65,8 +65,8 @@ public sealed class ServiceContextBuilderClientTests
         Assert.True(user.GetValue("organizations").IsNull);
     }
 
-    // Blue's SCIM principal carries no type, so it is a User: anonymous, with the organization blue's orgApi reading
-    // lists.
+    // The server's SCIM principal carries no type, so it is a User: anonymous, with the organization the server's
+    // orgApi reading lists.
     [Fact]
     public void Build_Scim_AnonymousUserWithTheOrganization()
     {
@@ -76,7 +76,8 @@ public sealed class ServiceContextBuilderClientTests
         Assert.Equal([Organization.ToString()], Organizations(user));
     }
 
-    // Blue's IdentityServer writes an organization API key's type as client_type, so blue reads it as a User too.
+    // The server's IdentityServer writes an organization API key's type as client_type, so the server reads it as a
+    // User too.
     [Fact]
     public void Build_AnOrganizationApiKey_AnonymousUserWithTheOrganization()
     {
@@ -146,7 +147,7 @@ public sealed class ServiceContextBuilderClientTests
         Assert.True(user.Anonymous);
     }
 
-    // Blue's Enum.TryParse failing leaves the default, User.
+    // The server's Enum.TryParse failing leaves the default, User.
     [Fact]
     public void Build_AnUnknownType_ReadAsAUser()
     {

@@ -70,8 +70,8 @@ public sealed class ServiceContextBuilderTests
         Assert.True(Kind(context, Device).GetValue("organizations").IsNull);
     }
 
-    // Nobody in particular has organizations too when the flag subject lists them: blue's SCIM principal and an
-    // organization's API key, anonymous with their organization.
+    // Nobody in particular has organizations too when the flag subject lists them: the server's SCIM principal and
+    // an organization's API key, anonymous with their organization.
     [Fact]
     public void Build_OrganizationsWithoutAPerson_SetOnTheAnonymousUser()
     {
@@ -175,7 +175,7 @@ public sealed class ServiceContextBuilderTests
         Assert.True(user.GetValue("device-type").IsNull);
     }
 
-    // Blue reads Device-Type with Enum.TryParse, which takes a device type's name as well as its number.
+    // The server reads Device-Type with Enum.TryParse, which takes a device type's name as well as its number.
     [Theory]
     [InlineData("Android", 0, 4)]
     [InlineData("ChromeBrowser", 9, 1)]
@@ -221,7 +221,7 @@ public sealed class ServiceContextBuilderTests
         Assert.Equal(prerelease, user.GetValue("client-version-is-prerelease").AsBool);
     }
 
-    // The version is written as Version.ToString() writes it, as blue's is.
+    // The version is written as Version.ToString() writes it, as the server's is.
     [Fact]
     public void Build_ClientVersion_AsVersionWritesIt()
     {

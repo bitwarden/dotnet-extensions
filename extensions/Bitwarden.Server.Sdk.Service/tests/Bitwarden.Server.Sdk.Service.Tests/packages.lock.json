@@ -61,6 +61,20 @@
           "Microsoft.Extensions.Options": "10.0.9"
         }
       },
+      "Bitwarden.Server.Sdk.Sagas": {
+        "type": "Transitive",
+        "resolved": "0.1.0",
+        "contentHash": "ORDsj0JHKUGoX1ocNOKa2zqrgt15jmBrWW/EEhpaRaGY+BZ/1n8tpNp2cwSpwyJqXhiznhEkvU1RKtD7kdobxw=="
+      },
+      "Bitwarden.Server.Sdk.Service.Abstractions": {
+        "type": "Transitive",
+        "resolved": "0.1.0",
+        "contentHash": "ftGS9J4FQcq5CWPOxybmrKoTAiCPlUdcuQyT2B697M1BjBK4bLMGqjGQpZ7cGXW5XAsVTATYZ1fXC6Mj/+L8fw==",
+        "dependencies": {
+          "Microsoft.Extensions.Configuration.Abstractions": "10.0.14",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.14"
+        }
+      },
       "LaunchDarkly.Cache": {
         "type": "Transitive",
         "resolved": "1.0.2",
@@ -612,9 +626,10 @@
           "Bitwarden.Server.Sdk.Http": "[0.1.0, )",
           "Bitwarden.Server.Sdk.Idempotency.Abstractions": "[0.1.0, )",
           "Bitwarden.Server.Sdk.Resources.Caching.Abstractions": "[0.1.0, )",
-          "Bitwarden.Server.Sdk.Sagas": "[0.2.0, )",
+          "Bitwarden.Server.Sdk.Sagas": "[0.1.0, )",
           "Microsoft.Extensions.Hosting.Abstractions": "[10.0.14, )",
           "Microsoft.Extensions.Http": "[10.0.14, )",
+          "Microsoft.IdentityModel.JsonWebTokens": "[8.23.0, )",
           "Newtonsoft.Json": "[13.0.4, )",
           "StackExchange.Redis": "[2.13.17, )"
         }
@@ -665,13 +680,26 @@
         }
       },
       "bitwarden.server.sdk.idempotency.abstractions": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "Bitwarden.Server.Sdk.CryptoPrimitives": "[0.1.0, )",
+          "Microsoft.Extensions.Hosting.Abstractions": "[10.0.14, )"
+        }
+      },
+      "bitwarden.server.sdk.infrastructure": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.14, )",
+          "Microsoft.Extensions.Options": "[10.0.14, )"
+        }
       },
       "bitwarden.server.sdk.ratelimiting": {
         "type": "Project",
         "dependencies": {
           "Bitwarden.Server.Sdk.Context": "[0.1.0, )",
+          "Bitwarden.Server.Sdk.CryptoPrimitives": "[0.1.0, )",
           "Bitwarden.Server.Sdk.Errors": "[0.1.0, )",
+          "Bitwarden.Server.Sdk.Resources.Caching.Abstractions": "[0.1.0, )",
           "StackExchange.Redis": "[2.13.17, )"
         }
       },
@@ -693,9 +721,6 @@
           "Microsoft.Extensions.Configuration.Abstractions": "[10.0.14, )"
         }
       },
-      "bitwarden.server.sdk.sagas": {
-        "type": "Project"
-      },
       "bitwarden.server.sdk.service": {
         "type": "Project",
         "dependencies": {
@@ -709,11 +734,12 @@
           "Bitwarden.Server.Sdk.Http": "[0.1.0, )",
           "Bitwarden.Server.Sdk.Idempotency": "[0.1.0, )",
           "Bitwarden.Server.Sdk.Idempotency.Abstractions": "[0.1.0, )",
+          "Bitwarden.Server.Sdk.Infrastructure": "[0.2.0, )",
           "Bitwarden.Server.Sdk.RateLimiting": "[0.1.0, )",
           "Bitwarden.Server.Sdk.Resources": "[0.1.0, )",
           "Bitwarden.Server.Sdk.Resources.Caching.Abstractions": "[0.1.0, )",
-          "Bitwarden.Server.Sdk.Sagas": "[0.2.0, )",
-          "Bitwarden.Server.Sdk.Service.Abstractions": "[0.2.0, )",
+          "Bitwarden.Server.Sdk.Sagas": "[0.1.0, )",
+          "Bitwarden.Server.Sdk.Service.Abstractions": "[0.1.0, )",
           "Microsoft.AspNetCore.OpenApi": "[10.0.13, )",
           "Microsoft.IdentityModel.Protocols.OpenIdConnect": "[8.23.0, )",
           "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.19.1, )",
@@ -724,13 +750,6 @@
           "OpenTelemetry.Instrumentation.SqlClient": "[1.19.0, )",
           "Swashbuckle.AspNetCore.SwaggerUI": "[10.3.0, )",
           "System.IdentityModel.Tokens.Jwt": "[8.23.0, )"
-        }
-      },
-      "bitwarden.server.sdk.service.abstractions": {
-        "type": "Project",
-        "dependencies": {
-          "Microsoft.Extensions.Configuration.Abstractions": "[10.0.14, )",
-          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.14, )"
         }
       }
     }

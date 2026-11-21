@@ -285,8 +285,9 @@ public static class Probes
         DownstreamClient downstream,
         CancellationToken cancellationToken)
     {
+        // Two different reads: the same one twice would be answered once, from the request memo.
         await downstream.CallAsync(cancellationToken);
-        await downstream.CallAsync(cancellationToken);
+        await downstream.CallAsync("api/v1/things?page[number]=2", cancellationToken);
 
         return ReadOneResponse(new Probe
         {

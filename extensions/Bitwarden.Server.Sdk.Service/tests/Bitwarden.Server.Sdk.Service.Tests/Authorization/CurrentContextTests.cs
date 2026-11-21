@@ -343,7 +343,7 @@ public sealed class CurrentContextTests
     }
 
     // A product service never takes them from a header. An organization's own client, which lists none, has its
-    // organization, as blue's orgApi reading gives it.
+    // organization, as the server's orgApi reading gives it.
     [Fact]
     public void UserOrganizationIds_ProductService_NotAHeader_AndAnOrganizationClientsOwn()
     {
