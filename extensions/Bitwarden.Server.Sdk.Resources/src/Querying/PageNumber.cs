@@ -65,6 +65,10 @@ public readonly record struct PageNumber
     /// <param name="context">The request.</param>
     /// <param name="parameter">The handler's parameter.</param>
     /// <returns>The parameter.</returns>
+    /// <remarks>
+    /// The farthest page is the one the <see cref="MaximumPageSizeAttribute"/> on the operation's
+    /// <see cref="PageSize"/> allows, or <see cref="Page.MaximumSize"/>'s.
+    /// </remarks>
     public static ValueTask<PageNumber> BindAsync(HttpContext context, ParameterInfo parameter) =>
-        ValueTask.FromResult((PageNumber)PageBinding.Bind(typeof(PageNumber), context.Request.Query, declaredSize: null));
+        ValueTask.FromResult((PageNumber)PageBinding.Bind(typeof(PageNumber), context.Request.Query, parameter));
 }
