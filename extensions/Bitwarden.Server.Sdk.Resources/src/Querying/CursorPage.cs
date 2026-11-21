@@ -27,16 +27,44 @@ namespace Bitwarden.Server.Sdk.Resources.Querying;
 /// {
 ///     var page = new CursorPage { Size = pageSize, After = pageAfter };
 /// </code>
+/// <para>
+/// An operation that declares a maximum of its own with <see cref="MaximumPageSizeAttribute"/> builds
+/// its page with <see cref="CursorPage(PageSize)"/>: <c>new CursorPage(pageSize) { After = pageAfter }</c>.
+/// </para>
 /// </remarks>
 public sealed record CursorPage
 {
     private readonly int _size = Page.DefaultSize;
 
     /// <summary>
+    /// The first page, of <see cref="Page.DefaultSize"/>, holding at most <see cref="Page.MaximumSize"/>.
+    /// </summary>
+    public CursorPage()
+    {
+    }
+
+    /// <summary>
+    /// A page of the size a caller asked for, holding at most the maximum the operation declares.
+    /// </summary>
+    /// <param name="size">How many it holds, with the operation's maximum (<see cref="PageSize.Maximum"/>).</param>
+    /// <exception cref="InvalidQueryException">The size is less than one.</exception>
+    public CursorPage(PageSize size)
+    {
+        SizeLimit = size.Maximum;
+        Size = size;
+    }
+
+    /// <summary>
+    /// The most this page may hold: <see cref="Page.MaximumSize"/>, or the maximum the operation declares
+    /// when the page is built with <see cref="CursorPage(PageSize)"/>.
+    /// </summary>
+    public int SizeLimit { get; } = Page.MaximumSize;
+
+    /// <summary>
     /// How many resources the page holds.
     /// </summary>
     /// <remarks>
-    /// The same rules as <see cref="Page.Size"/>: a ceiling of <see cref="Page.MaximumSize"/>, and nothing below one.
+    /// The same rules as <see cref="Page.Size"/>: a ceiling of <see cref="SizeLimit"/>, and nothing below one.
     /// </remarks>
     /// <exception cref="InvalidQueryException">The size is less than one.</exception>
     public int Size
@@ -44,7 +72,7 @@ public sealed record CursorPage
         get => _size;
 
         init => _size = value >= 1
-            ? Math.Min(value, Page.MaximumSize)
+            ? Math.Min(value, SizeLimit)
             : throw new InvalidQueryException("page[size]", value.ToString());
     }
 
