@@ -22,7 +22,9 @@ public class RabbitDeliveryCountTests
         Assert.Equal(expected, RabbitDeliveryCount.Read(headers, redelivered: true));
     }
 
-    /// <summary>A classic queue sends no count, only whether the message was delivered before.</summary>
+    /// <summary>
+    /// A classic queue sends no count, only whether the message was delivered before.
+    /// </summary>
     [Theory]
     [InlineData(false, 1)]
     [InlineData(true, 2)]
