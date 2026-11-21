@@ -13,7 +13,7 @@ public sealed class PageBindingTests
     [Fact]
     public void Bind_PageNumber_IsRead()
     {
-        Assert.Equal(new PageNumber(3), PageBinding.Bind(typeof(PageNumber), Query(PageNumber.Parameter, "3"), declaredSize: null));
+        Assert.Equal(new PageNumber(3), PageBinding.Bind(typeof(PageNumber), Query(PageNumber.Parameter, "3"), parameter: null));
     }
 
     // page[number]=2147483647&page[size]=200 starts more rows in than a count can hold.
@@ -23,7 +23,7 @@ public sealed class PageBindingTests
     public void Bind_PageNumberPastTheFarthestPage_IsRefused(string number)
     {
         var actual = Assert.Throws<InvalidQueryException>(
-            () => PageBinding.Bind(typeof(PageNumber), Query(PageNumber.Parameter, number), declaredSize: null));
+            () => PageBinding.Bind(typeof(PageNumber), Query(PageNumber.Parameter, number), parameter: null));
 
         Assert.Equal(PageNumber.Parameter, Assert.Single(actual.Errors).Source?.Parameter);
         Assert.Equal("422", Assert.Single(actual.Errors).Status);
@@ -33,7 +33,7 @@ public sealed class PageBindingTests
     public void Bind_PageSizeNotAWholeNumber_IsRefused()
     {
         Assert.Throws<InvalidQueryException>(
-            () => PageBinding.Bind(typeof(PageSize), Query(PageSize.Parameter, "-1"), declaredSize: null));
+            () => PageBinding.Bind(typeof(PageSize), Query(PageSize.Parameter, "-1"), parameter: null));
     }
 
     private static QueryCollection Query(string name, string value) =>

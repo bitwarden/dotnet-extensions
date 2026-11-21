@@ -53,4 +53,48 @@ public sealed class PageTests
         Assert.Equal("page[number]", Assert.Single(actual.Errors).Source?.Parameter);
         Assert.Contains($"from 1 to {Page.MaximumNumber}", Assert.Single(actual.Errors).Detail, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Size_OperationsOwnMaximum_IsTheCeiling()
+    {
+        var page = new Page(new PageNumber(1), new PageSize(5000, 1000));
+
+        Assert.Equal(1000, page.Size);
+        Assert.Equal(1000, page.SizeLimit);
+    }
+
+    [Fact]
+    public void Size_WithinTheOperationsOwnMaximum_IsKept()
+    {
+        Assert.Equal(700, new Page(new PageNumber(2), new PageSize(700, 1000)).Size);
+    }
+
+    [Fact]
+    public void Size_OperationDeclaresNothing_IsTheDefaultMaximum()
+    {
+        var page = new Page(default, new PageSize(5000));
+
+        Assert.Equal(Page.MaximumSize, page.Size);
+        Assert.Equal(Page.MaximumSize, page.SizeLimit);
+        Assert.Equal(Page.MaximumSize, new Page { Size = 5000 }.SizeLimit);
+    }
+
+    [Fact]
+    public void Constructor_DefaultSize_IsTheDefault()
+    {
+        Assert.Equal(Page.DefaultSize, new Page(default, new PageSize(null, 1000)).Size);
+    }
+
+    // A larger page reaches its rows sooner, so the farthest page is nearer.
+    [Fact]
+    public void Number_PastTheFarthestPageAtTheOperationsMaximum_IsRefused()
+    {
+        var farthest = int.MaxValue / 1000;
+
+        var page = new Page(new PageNumber(farthest), new PageSize(1000, 1000));
+        var actual = Assert.Throws<InvalidQueryException>(() => new Page(new PageNumber(farthest + 1), new PageSize(1000, 1000)));
+
+        Assert.Equal((long)(farthest - 1) * 1000, page.Skip);
+        Assert.Contains($"from 1 to {farthest}", Assert.Single(actual.Errors).Detail, StringComparison.Ordinal);
+    }
 }

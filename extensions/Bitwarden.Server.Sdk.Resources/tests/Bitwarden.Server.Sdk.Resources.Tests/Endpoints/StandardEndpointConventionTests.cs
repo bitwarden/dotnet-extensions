@@ -41,6 +41,30 @@ public sealed class StandardEndpointConventionTests
         Assert.Contains(StandardEndpointMetadata.Instance, endpoint.Metadata);
     }
 
+    [Fact]
+    public void Apply_OnlyThePlatformsFilter_CountsNoFilters()
+    {
+        var endpoint = Endpoint(nameof(Handlers.CreateWidget));
+        endpoint.FilterFactories.Add(StandardEndpointFilter.Create);
+
+        StandardEndpointConvention.Apply(endpoint);
+
+        Assert.Equal(0, Assert.Single(endpoint.Metadata.OfType<EndpointFilters>()).Count);
+    }
+
+    [Fact]
+    public void Apply_FiltersBesideThePlatforms_CountsThem()
+    {
+        var endpoint = Endpoint(nameof(Handlers.CreateWidget));
+        endpoint.FilterFactories.Add(StandardEndpointFilter.Create);
+        endpoint.FilterFactories.Add((_, next) => next);
+        endpoint.FilterFactories.Add((_, next) => next);
+
+        StandardEndpointConvention.Apply(endpoint);
+
+        Assert.Equal(2, Assert.Single(endpoint.Metadata.OfType<EndpointFilters>()).Count);
+    }
+
     [Theory]
     [InlineData("api/v1/widgets", "createWidget")]
     [InlineData("api/v2/widgets", "createWidgetV2")]
