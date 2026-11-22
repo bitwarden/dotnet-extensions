@@ -42,7 +42,10 @@ Deleting a subscription or queue deletes its messages, its dead-letter queue's i
 release stops declaring one, let its reader drain it, or move what it holds.
 
 Services then set MessageBroker's `AzureServiceBusFullyQualifiedNamespace` to the
-`fullyQualifiedNamespace` output; a self-hosted service also sets `AutoProvisionTopology` to `false`.
+`fullyQualifiedNamespace` output, and register their managed identity, the one `principalIds`
+grants the roles to, as a `TokenCredential` under `MessageBrokerKeys.Credential`. MessageBroker has
+no credential of its own: a service that sets the namespace and registers none refuses to start. A
+self-hosted service also sets `AutoProvisionTopology` to `false`.
 
 Check the template compiles after changing it:
 
