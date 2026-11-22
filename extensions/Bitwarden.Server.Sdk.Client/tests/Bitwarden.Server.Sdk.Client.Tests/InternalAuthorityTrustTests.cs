@@ -85,6 +85,64 @@ public sealed class InternalAuthorityTrustTests : IDisposable
         Assert.Same(own, PolicyOf(provider, "internal"));
     }
 
+    // A primary handler set for every client, as a host or a test host sets one, is kept and trusted.
+    [Fact]
+    public void APrimaryHandlerSetForEveryClient_IsKept_AndTrusted()
+    {
+        using var authority = Authority("Internal");
+        using var provider = Services(Authorities(authority), services =>
+        {
+            services.ConfigureHttpClientDefaults(http => http.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false }));
+            services.AddHttpClient("internal").TrustInternalAuthorities();
+        });
+
+        var handler = SenderOf(provider, "internal");
+
+        var sockets = Assert.IsType<SocketsHttpHandler>(handler);
+        Assert.False(sockets.AllowAutoRedirect);
+        Assert.Equal(X509ChainTrustMode.CustomRootTrust, sockets.SslOptions.CertificateChainPolicy?.TrustMode);
+    }
+
+    // A primary handler the client sets after asking for the trust is trusted all the same.
+    [Fact]
+    public void APrimaryHandlerSetAfterwards_IsTrusted()
+    {
+        using var authority = Authority("Internal");
+        using var provider = Services(Authorities(authority), services => services.AddHttpClient("internal")
+            .TrustInternalAuthorities()
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { UseCookies = false }));
+
+        var sockets = Assert.IsType<SocketsHttpHandler>(SenderOf(provider, "internal"));
+
+        Assert.False(sockets.UseCookies);
+        Assert.Equal(X509ChainTrustMode.CustomRootTrust, sockets.SslOptions.CertificateChainPolicy?.TrustMode);
+    }
+
+    // A handler that can't take a chain policy would trust the system's roots instead: refused, naming the client.
+    [Fact]
+    public void APrimaryHandlerThatTakesNoPolicy_WithAnAuthorityNamed_IsRefused()
+    {
+        using var authority = Authority("Internal");
+        using var provider = Services(Authorities(authority), services => services.AddHttpClient("internal")
+            .TrustInternalAuthorities()
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler()));
+
+        var exception = Assert.Throws<InvalidOperationException>(() => SenderOf(provider, "internal"));
+
+        Assert.Contains("'internal'", exception.Message, StringComparison.Ordinal);
+    }
+
+    // With no authority named, any handler is left as it was.
+    [Fact]
+    public void APrimaryHandlerThatTakesNoPolicy_WithNoAuthorityNamed_IsLeftAlone()
+    {
+        using var provider = Services([], services => services.AddHttpClient("internal")
+            .TrustInternalAuthorities()
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler()));
+
+        Assert.IsType<HttpClientHandler>(SenderOf(provider, "internal"));
+    }
+
     [Fact]
     public void AnAuthorityThatCannotBeRead_StopsTheHostAtStart()
     {
@@ -150,7 +208,13 @@ public sealed class InternalAuthorityTrustTests : IDisposable
     /// <summary>
     /// The chain policy of the handler that sends a named client's requests, or null when it has none.
     /// </summary>
-    private static X509ChainPolicy? PolicyOf(IServiceProvider provider, string name)
+    private static X509ChainPolicy? PolicyOf(IServiceProvider provider, string name) =>
+        (SenderOf(provider, name) as SocketsHttpHandler)?.SslOptions.CertificateChainPolicy;
+
+    /// <summary>
+    /// The handler that sends a named client's requests.
+    /// </summary>
+    private static HttpMessageHandler SenderOf(IServiceProvider provider, string name)
     {
         var handler = provider.GetRequiredService<IHttpMessageHandlerFactory>().CreateHandler(name);
         while (handler is DelegatingHandler { InnerHandler: { } inner })
@@ -158,7 +222,7 @@ public sealed class InternalAuthorityTrustTests : IDisposable
             handler = inner;
         }
 
-        return (handler as SocketsHttpHandler)?.SslOptions.CertificateChainPolicy;
+        return handler;
     }
 
     private string[] Authorities(X509Certificate2 authority)
