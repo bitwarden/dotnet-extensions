@@ -185,7 +185,7 @@ Running a service:
 - [Network and request limits](https://contributing.bitwarden.com/contributing/server-sdk/running-a-service/network-and-request-limits): trusted proxies, per-address rate limits and browser origins.
 - [Outbound HTTP](https://contributing.bitwarden.com/contributing/server-sdk/running-a-service/outbound-http): calls guarded against SSRF, and internal TLS.
 - [Observability and health](https://contributing.bitwarden.com/contributing/server-sdk/running-a-service/observability-and-health): traces, metrics, logs, re-entries and health probes.
-- [Caching and extensions](https://contributing.bitwarden.com/contributing/server-sdk/running-a-service/caching-and-extensions): a short in-process memo, and extending the platform from a package.
+- [Caching and extensions](https://contributing.bitwarden.com/contributing/server-sdk/running-a-service/caching-and-extensions): the request memo, cached reads and lists, and extending the platform from a package.
 
 Contracts:
 

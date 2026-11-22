@@ -1,12 +1,10 @@
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http;
 
 namespace Bitwarden.Server.Sdk.Http;
 
 /// <summary>
-/// Puts a guarded client's <see cref="SsrfProtectionHandler"/> below every handler the client adds, and sets its
-/// primary handler up to connect only to the addresses the guard checked, after every other configuration of the
-/// client has run.
+/// Puts a guarded client's <see cref="SsrfProtectionHandler"/> below every handler the client adds, and turns its
+/// primary handler's automatic redirects and cookies off, after every other configuration of the client has run.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -20,10 +18,10 @@ namespace Bitwarden.Server.Sdk.Http;
 /// a handler a filter registered before this one adds afterwards, such as the factory's logging handler, sits below it.
 /// </para>
 /// <para>
-/// The primary handler must be a <see cref="SocketsHttpHandler"/> with no
-/// <see cref="SocketsHttpHandler.ConnectCallback"/> of its own. Its automatic redirects and cookies are turned off, its
-/// proxy is fixed, and an <see cref="SsrfConnection"/> opens its connections. Any other handler, a
-/// <see cref="DelegatingHandler"/> wrapping one among them, fails the client's creation: it would see every redirect hop.
+/// The primary handler must be a <see cref="SocketsHttpHandler"/>, whose automatic redirects and cookies are turned
+/// off: cookies would be kept by the address the guard sends each request to, which many hosts can share. Any other
+/// handler, a <see cref="DelegatingHandler"/> wrapping one among them, fails the client's creation: it would see every
+/// redirect hop.
 /// </para>
 /// </remarks>
 /// <param name="name">The guarded client's name; null when every client is guarded.</param>
@@ -61,24 +59,8 @@ internal sealed class SsrfPrimaryHandlerFilter(string? name, Func<IServiceProvid
                 $"SSRF protection on the '{builder.Name}' client needs a SocketsHttpHandler as its primary handler, and found {builder.PrimaryHandler.GetType().Name}. Configure a SocketsHttpHandler with the same settings instead, and add any other handler with AddHttpMessageHandler.");
         }
 
-        if (sender.ConnectCallback is not null && sender.ConnectCallback.Target is not SsrfConnection)
-        {
-            throw new InvalidOperationException(
-                $"SSRF protection on the '{builder.Name}' client connects to the addresses it checked itself, and its SocketsHttpHandler already has a ConnectCallback.");
-        }
-
         sender.AllowAutoRedirect = false;
         sender.UseCookies = false;
-
-        // The handler takes the process's default proxy when it first sends, and the guard decides each request by the
-        // proxy: both use the one named here, so a default proxy changed later can't set them apart.
-        if (sender.UseProxy)
-        {
-            sender.Proxy ??= HttpClient.DefaultProxy;
-        }
-
-        sender.ConnectCallback = new SsrfConnection(
-            builder.Services.GetRequiredService<SsrfConnector>(), sender.UseProxy ? sender.Proxy : null).ConnectAsync;
         guard.Sender = sender;
     };
 }
