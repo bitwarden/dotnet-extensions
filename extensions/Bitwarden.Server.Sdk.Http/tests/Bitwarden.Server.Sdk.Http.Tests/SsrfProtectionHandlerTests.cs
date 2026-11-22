@@ -19,6 +19,11 @@ public class SsrfProtectionHandlerTests
         public List<Uri> SentUris { get; } = [];
 
         /// <summary>
+        /// Each request's Host header as it was sent.
+        /// </summary>
+        public List<string?> Hosts { get; } = [];
+
+        /// <summary>
         /// Each request's body and content type as it was sent, read before the handler disposes the request.
         /// </summary>
         public List<(string? Body, string? ContentType)> Bodies { get; } = [];
@@ -37,6 +42,7 @@ public class SsrfProtectionHandlerTests
             LastRequest = request;
             AllRequests.Add(request);
             SentUris.Add(request.RequestUri!);
+            Hosts.Add(request.Headers.Host);
             Bodies.Add(request.Content is null
                 ? (null, null)
                 : (await Sent(request.Content, cancellationToken), request.Content.Headers.ContentType?.ToString()));
@@ -917,7 +923,60 @@ public class SsrfProtectionHandlerTests
 
         Assert.Equal(["example.test", "example.test"], network.Resolved);
         Assert.Equal(new Uri("http://93.184.216.34/next"), inner.SentUris[1]);
-        Assert.Equal("example.test", inner.AllRequests[1].Headers.Host);
+        Assert.Equal("example.test", inner.Hosts[1]);
+    }
+
+    // The Host header the guard adds goes again with the address it sent to: the caller's request comes back as it was
+    // sent, and a handler above that readdresses it and sends it again names the new host, not the old one.
+    [Fact]
+    public async Task SendAsync_TheRequestSentAgainToAnotherHost_NamesTheNewHost()
+    {
+        var (invoker, inner, _) = Guard(Names(("example.test", ["93.184.216.34"]), ("other.test", ["93.184.216.35"])));
+        var request = new HttpRequestMessage(HttpMethod.Get, "http://example.test/start");
+
+        using (await invoker.SendAsync(request, TestContext.Current.CancellationToken))
+        {
+        }
+
+        Assert.Null(request.Headers.Host);
+        Assert.Equal("example.test", inner.Hosts[0]);
+
+        request.RequestUri = new Uri("http://other.test/start");
+        using (await invoker.SendAsync(request, TestContext.Current.CancellationToken))
+        {
+        }
+
+        Assert.Equal(new Uri("http://93.184.216.35/start"), inner.SentUris[1]);
+        Assert.Equal("other.test", inner.Hosts[1]);
+    }
+
+    // A Host header the caller set is the caller's: it stays on the request after the send.
+    [Fact]
+    public async Task SendAsync_AHostHeaderTheCallerSet_StaysOnTheRequest()
+    {
+        var (invoker, inner, _) = Guard(Names(("example.test", ["93.184.216.34"])));
+        var request = new HttpRequestMessage(HttpMethod.Get, "http://example.test/start");
+        request.Headers.Host = "virtual.example";
+
+        using (await invoker.SendAsync(request, TestContext.Current.CancellationToken))
+        {
+        }
+
+        Assert.Equal("virtual.example", inner.Hosts[0]);
+        Assert.Equal("virtual.example", request.Headers.Host);
+    }
+
+    // A send that fails also leaves no Host header the guard added.
+    [Fact]
+    public async Task SendAsync_ASendThatFails_LeavesNoHostHeaderTheGuardAdded()
+    {
+        var network = new FakeNetwork(null, ("example.test", ["93.184.216.34"]));
+        var (invoker, _, _) = Guard(network, network.Sender(new WebProxy("http://proxy.test:3128")));
+        var request = new HttpRequestMessage(HttpMethod.Get, "http://example.test/start");
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => invoker.SendAsync(request, TestContext.Current.CancellationToken));
+
+        Assert.Null(request.Headers.Host);
     }
 
     /// <summary>
