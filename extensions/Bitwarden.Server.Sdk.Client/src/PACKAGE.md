@@ -445,11 +445,12 @@ read-many is never answered by `ReadAsync` or `ReadCurrentAsync`, nor a read of 
 - **Calls are a Secure Channel only over TLS.** Set `Tls:RequireHttps` so a plain address stops the host at startup:
   every `AddBitwardenClient` address and the authorization server's, and a product client's conventional address. A
   product client over a named client of your own is yours to check.
-- **With `Tls:CertificateAuthorities` set, the service, token and product clients trust those roots alone.** They
-  don't fall back to the system's roots, so a callee must have a certificate from the internal authority. Revocation
-  isn't checked: certificate lifetime is the control. Give another client that calls the deployment's own services
-  the same trust with `TrustInternalAuthorities()`, but never a client protected with `AddSsrfProtection`, which calls
-  addresses a caller supplies.
+- **With `Tls:CertificateAuthorities` set, the service and token clients, and a product client's conventional client,
+  trust those roots alone.** They don't fall back to the system's roots, so a callee must have a certificate from the
+  internal authority. Revocation isn't checked: certificate lifetime is the control. A product client over a named
+  client of your own, and any other client that calls the deployment's own services, gets the same trust only by
+  calling `TrustInternalAuthorities()` itself; never call it on a client protected with `AddSsrfProtection`, which
+  calls addresses a caller supplies.
 - **`IContext` is resolved from a fresh scope on each call,** because the HTTP client factory pools handlers, so an
   implementation must read ambient state or be a singleton.
 - **A statement is used up by one call.** The first call inside a statement uses it up; a second throws

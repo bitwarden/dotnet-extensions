@@ -257,8 +257,10 @@ internal class SsrfProtectionHandler : DelegatingHandler
 
         // Addressed to the checked IP, so nothing below resolves the name again; the Host header keeps the name, for
         // TLS (the name it asks for and checks the certificate against), virtual hosting and telemetry. A Host header
-        // the caller set is kept.
-        if (!request.Headers.Contains("Host"))
+        // the caller set is kept. One the guard adds goes again with the address, so a handler above that readdresses the
+        // request and sends it again names the new host, not this one.
+        var addedHost = !request.Headers.Contains("Host");
+        if (addedHost)
         {
             var host = uri.HostNameType == UriHostNameType.Dns ? uri.IdnHost : uri.Host;
             request.Headers.Host = uri.IsDefaultPort ? host : $"{host}:{uri.Port}";
@@ -277,7 +279,7 @@ internal class SsrfProtectionHandler : DelegatingHandler
         }
         catch
         {
-            request.RequestUri = uri;
+            Restore();
             throw;
         }
 
@@ -286,7 +288,7 @@ internal class SsrfProtectionHandler : DelegatingHandler
         if (request.RequestUri != sent || (response.RequestMessage ?? request).RequestUri != sent)
         {
             response.Dispose();
-            request.RequestUri = uri;
+            Restore();
             _logger.LogWarning("SSRF protection refused a response from {Host} that a handler below it readdressed", uri.IdnHost);
             throw new SsrfProtectionException(
                 $"The request to '{uri.IdnHost}' was readdressed below SSRF protection, and its response was refused.");
@@ -294,13 +296,23 @@ internal class SsrfProtectionHandler : DelegatingHandler
 
         // The request names the host again, so a caller resolving a relative Location against it, or against the
         // response's request, reaches the host it asked for.
-        request.RequestUri = uri;
+        Restore();
         if (response.RequestMessage is { } answered && answered.RequestUri == sent)
         {
             answered.RequestUri = uri;
         }
 
         return response;
+
+        // The caller's request as it came: its own address, and no Host header the guard added.
+        void Restore()
+        {
+            request.RequestUri = uri;
+            if (addedHost)
+            {
+                request.Headers.Host = null;
+            }
+        }
     }
 
     /// <summary>
