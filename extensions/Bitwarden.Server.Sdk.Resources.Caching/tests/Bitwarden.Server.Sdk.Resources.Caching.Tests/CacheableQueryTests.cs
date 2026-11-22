@@ -161,8 +161,8 @@ public sealed class CacheableQueryTests(RedisFixture redis) : IClassFixture<Redi
         Assert.Contains(expected, refused.Message);
     }
 
-    // A host calling AddValidation gives every endpoint the framework's validation filter, which is the platform's own
-    // and not one a cacheable read may not have: the read starts, and its second answer is the entry's.
+    // A host calling AddValidation gives every endpoint the framework's validation filter, which the standards turn off,
+    // so it is not one a cacheable read may not have: the read starts, and its second answer is the entry's.
     [Fact]
     public async Task Start_HostCallingAddValidation_CacheableReadStarts()
     {
