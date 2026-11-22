@@ -405,8 +405,8 @@ public abstract class BehaviorTests : IAsyncLifetime
         var host = await CreateInstanceAsync();
         var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
 
-        await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
-        await publisher.Publish(new MyItem(2)).SendAsync(TestContext.Current.CancellationToken);
+        await publisher.Publish(OwnItem(1)).SendAsync(TestContext.Current.CancellationToken);
+        await publisher.Publish(OwnItem(2)).SendAsync(TestContext.Current.CancellationToken);
 
         var count = 0;
         var secondaryHost = await CreateSecondaryInstanceAsync(host);
@@ -414,6 +414,8 @@ public abstract class BehaviorTests : IAsyncLifetime
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {
             await envelope.CompleteAsync(TestContext.Current.CancellationToken);
+            if (!IsOwnItem(envelope.Payload, out _))
+                continue;
             if (++count >= 2) break;
         }
 
@@ -427,7 +429,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
         var subscriber = (await CreateSecondaryInstanceAsync(host)).Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
-        await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken);
+        await publisher.Publish(OwnItem(1)).SendAsync(TestContext.Current.CancellationToken);
 
         // Explicitly return the message (abandon it for redelivery) twice, then complete it. Each return
         // must be counted, not just flagged as delivered before. One subscription throughout: closing one
@@ -435,7 +437,13 @@ public abstract class BehaviorTests : IAsyncLifetime
         var deliveries = new List<int>();
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {
-            Assert.Equal(1, envelope.Payload.Id);
+            if (!IsOwnItem(envelope.Payload, out var index))
+            {
+                await envelope.CompleteAsync(TestContext.Current.CancellationToken);
+                continue;
+            }
+
+            Assert.Equal(1, index);
             deliveries.Add(envelope.DeliveryCount);
             if (deliveries.Count < 3)
             {
@@ -1112,8 +1120,9 @@ public abstract class BehaviorTests : IAsyncLifetime
             {
                 await foreach (var envelope in smSubscriber.SubscribeAsync(smCts.Token))
                 {
-                    Interlocked.Increment(ref smReceiveCount);
                     await envelope.CompleteAsync(ct);
+                    if (IsOwnItem(envelope.Payload, out _))
+                        Interlocked.Increment(ref smReceiveCount);
                 }
             }
             catch (OperationCanceledException) { }
@@ -1126,6 +1135,12 @@ public abstract class BehaviorTests : IAsyncLifetime
             var deliveries = 0;
             await foreach (var envelope in pmSubscriber.SubscribeAsync(ct))
             {
+                if (!IsOwnItem(envelope.Payload, out _))
+                {
+                    await envelope.CompleteAsync(ct);
+                    continue;
+                }
+
                 deliveries++;
                 if (deliveries == 1)
                     await envelope.RequeueAsync(cancellationToken: ct);
@@ -1140,7 +1155,7 @@ public abstract class BehaviorTests : IAsyncLifetime
 
         // Give both subscribers time to register with the broker before publishing.
         await Task.Delay(200, ct);
-        await publisher.Publish(new MyItem(1)).SendAsync(ct);
+        await publisher.Publish(OwnItem(1)).SendAsync(ct);
 
         // Wait until pm has completed its full abandon → redelivery → complete cycle.
         await pmDone.Task.WaitAsync(ct);
