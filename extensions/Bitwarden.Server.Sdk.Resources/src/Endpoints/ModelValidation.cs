@@ -74,21 +74,75 @@ internal static class ModelValidation
     /// <param name="prefix">The key it is reported under: empty for a body, <c>Data</c> for a document's resource.</param>
     /// <param name="services">For the validation context, as a controller supplies the request's.</param>
     /// <param name="errors">Where failures are added.</param>
-    public static void Validate(object model, string prefix, IServiceProvider services, List<ModelError> errors)
+    /// <param name="parameter">
+    /// The handler's parameter the model was bound to, whose own validation attributes the model must also satisfy, or
+    /// null for a model that is not a parameter itself.
+    /// </param>
+    public static void Validate(object model, string prefix, IServiceProvider services, List<ModelError> errors, RequestParameter? parameter = null)
     {
         Visit(model, model.GetType(), prefix, services, errors, depth: 0, visited: new HashSet<object>(ReferenceEqualityComparer.Instance),
-            container: model);
+            container: model, parameter: parameter);
     }
 
     /// <summary>
     /// Validates a model bound member by member, from a form or the query, whose members are keyed
     /// as a controller keys them: by the name the caller sent each one under.
     /// </summary>
-    public static void ValidateBound(object model, IServiceProvider services, List<ModelError> errors)
+    public static void ValidateBound(object model, IServiceProvider services, List<ModelError> errors, RequestParameter? parameter = null)
     {
         Visit(model, model.GetType(), string.Empty, services, errors, depth: 0,
-            visited: new HashSet<object>(ReferenceEqualityComparer.Instance), container: model, boundNames: true);
+            visited: new HashSet<object>(ReferenceEqualityComparer.Instance), container: model, boundNames: true, parameter: parameter);
     }
+
+    /// <summary>
+    /// Runs the validation attributes a handler's parameter carries against the value it was bound to, as a controller
+    /// runs a parameter's: keyed by <paramref name="key"/>, and called by the parameter's display name.
+    /// </summary>
+    /// <param name="parameter">The parameter.</param>
+    /// <param name="value">What it was bound to, null included: a controller validates a parameter bound to null.</param>
+    /// <param name="key">The key a controller's model state gives it: the name it is sent under, or empty for a body.</param>
+    /// <param name="services">For the validation context, as a controller supplies the request's.</param>
+    /// <param name="errors">Where failures are added.</param>
+    public static void ValidateParameter(RequestParameter parameter, object? value, string key, IServiceProvider services, List<ModelError> errors)
+    {
+        foreach (var validator in parameter.Validators)
+        {
+            // A controller gives a value with no container to the context as its object, and an object of its own
+            // when the value is null, which the context refuses.
+            var context = new ValidationContext(value ?? NoValue, services, items: null)
+            {
+                DisplayName = parameter.DisplayName,
+                MemberName = parameter.Info.Name,
+            };
+
+            var result = validator.GetValidationResult(value, context);
+
+            if (result == ValidationResult.Success || result is null)
+            {
+                continue;
+            }
+
+            var message = result.ErrorMessage ?? string.Empty;
+            var others = result.MemberNames?
+                .Where(name => !string.Equals(name, parameter.Info.Name, StringComparison.Ordinal))
+                .ToList() ?? [];
+
+            if (others.Count == 0)
+            {
+                Add(errors, new ModelError(key, message));
+            }
+
+            foreach (var other in others)
+            {
+                Add(errors, new ModelError(Join(key, other), message));
+            }
+        }
+    }
+
+    /// <summary>
+    /// The object a validation context is given for a null value.
+    /// </summary>
+    private static readonly object NoValue = new();
 
     /// <summary>
     /// The name a bound member is sent under: its binding attribute's, or its own.
@@ -118,7 +172,8 @@ internal static class ModelValidation
         int depth,
         HashSet<object> visited,
         object? container = null,
-        bool boundNames = false)
+        bool boundNames = false,
+        RequestParameter? parameter = null)
     {
         // Once the errors are full nothing more is recorded, so the value has not passed and the
         // member holding it is not checked either.
@@ -221,16 +276,26 @@ internal static class ModelValidation
             return false;
         }
 
-        // The object's own rules, only once everything in it passes: its class-level attributes, then
-        // its IValidatableObject, all of them run as a controller runs them.
+        // The object's own rules, only once everything in it passes: the attributes on the parameter it was bound to,
+        // its class-level attributes, then its IValidatableObject, all of them run as a controller runs them.
+        if (parameter is not null)
+        {
+            ValidateParameter(parameter, model, key, services, errors);
+        }
+
+        // A model bound to a parameter is called by the parameter's name, as a controller calls it.
         if (container is not null)
         {
-            RunOwn(model, container, type, key, services, errors);
+            RunOwn(model, container, type, key, services, errors, parameter);
         }
 
         if (model is IValidatableObject validatable)
         {
-            var context = new ValidationContext(model, services, items: null) { DisplayName = type.Name };
+            var context = new ValidationContext(model, services, items: null)
+            {
+                DisplayName = parameter?.DisplayName ?? type.Name,
+                MemberName = parameter?.Info.Name,
+            };
 
             foreach (var result in validatable.Validate(context) ?? [])
             {
@@ -297,11 +362,16 @@ internal static class ModelValidation
     /// Runs a type's own validation attributes against a value that is not a member's: the model
     /// itself, or an item in a list or dictionary.
     /// </summary>
-    private static void RunOwn(object model, object container, Type type, string key, IServiceProvider services, List<ModelError> errors)
+    private static void RunOwn(
+        object model, object container, Type type, string key, IServiceProvider services, List<ModelError> errors, RequestParameter? parameter)
     {
         foreach (var validator in type.GetCustomAttributes(inherit: true).OfType<ValidationAttribute>())
         {
-            var context = new ValidationContext(container, services, items: null) { DisplayName = type.Name };
+            var context = new ValidationContext(container, services, items: null)
+            {
+                DisplayName = parameter?.DisplayName ?? type.Name,
+                MemberName = parameter?.Info.Name,
+            };
             var result = validator.GetValidationResult(model, context);
 
             if (result == ValidationResult.Success || result is null)
