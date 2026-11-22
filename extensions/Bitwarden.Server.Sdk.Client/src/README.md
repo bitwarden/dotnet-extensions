@@ -41,7 +41,13 @@ code here writes to Redis.
 - **Cached reads** wait on Redis for `CachedReads.Patience` and rest it for `CachedReadsConnection.Rest` after a
   failure. A resource's entry is read only in `OwnedCacheEntry.CurrentFormat`, as its contract publishes (`format`);
   a release changing the format changes the number, and clients that don't know it miss.
-
+- **Trust.** `TrustInternalAuthorities` (`HttpClientBuilderInternalTlsExtensions`) names the client in
+  `InternalTrustedClients`, and `InternalTrustFilter` gives the `SocketsHttpHandler` it ends up sending with
+  `InternalTls.ChainPolicy` from Bitwarden.Server.Sdk.Http, built from `Tls:CertificateAuthorities`
+  (`InternalAuthorities`, read once, checked at startup). A filter, so the client's primary handler is kept however and
+  whenever it was set; any other handler is refused while authorities are named. The service clients, the token client
+  and a product client's conventional client call it; no other client gets it. Chain building and the name and usage
+  checks stay in `SslStream`: there is no validation callback.
 - **The request memo.** `RequestMemoHandler` keys a `GET` or `HEAD` by the method, the absolute address, every header
   but `Authorization`, `Bitwarden-Delegation` and the trace context, `ContextHandler`'s decision whether the context is
   asserted (`ContextHandler.Asserted`, set on every call) and `CallerName`; a call missing that decision isn't
@@ -78,8 +84,11 @@ A change must keep:
 - **Keys only to marked operations**, and the same key on every attempt of one call.
 - **Context written in one place.** `ContextHandler` writes every context header and removes whatever a call site set.
 - **No secret in a log, a message or `ToString()`.**
-- **A memo key from the context handler's decision, never a token,** and never logged; a write always clears the memo.
 - **Tokens made and checked by Microsoft.IdentityModel, never by hand.** `ClientAssertion` creates and signs its JWT
   with `JsonWebTokenHandler` and takes its `kid` from the library's RFC 7638 thumbprint. `System.Security.Cryptography`
   is used directly only to load and export keys and to generate random bytes; no JWS, signature or JWK is assembled by
   hand.
+- **Internal trust only where the callee is our own.** With `Tls:CertificateAuthorities` set, the service, token and
+  product clients trust those roots alone, never the system's as well, and no other client trusts them. A client
+  protected with `AddSsrfProtection` must never get them.
+- **A memo key from the context handler's decision, never a token,** and never logged; a write always clears the memo.
