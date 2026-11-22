@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using System.Text.Json;
 using Bitwarden.Server.Sdk.Errors;
@@ -131,15 +132,29 @@ public sealed class RequestRefusalTests
         Assert.Equal("count", sources["count"].Parameter);
     }
 
-    // A single value is the last sent, as a controller's binder takes it.
+    // A value sent more than once is checked by the first sent, as a controller's binder takes it, and named as every
+    // value sent.
     [Theory]
-    [InlineData("?count=x&count=2", false)]
-    [InlineData("?count=2&count=x", true)]
-    public void CheckSimple_SentTwice_TheLastChecked(string query, bool refused)
+    [InlineData("?count=x&count=2", "The value 'x,2' is not valid.")]
+    [InlineData("?count=2&count=x", null)]
+    [InlineData("?count=&count=2", "The value '2' is invalid.")]
+    public void CheckSimple_SentTwice_TheFirstChecked(string query, string? refusal)
     {
         var (errors, _) = CheckSimple("count", ValuePlace.Query, required: true, Http(query));
 
-        Assert.Equal(refused, errors.Count > 0);
+        Assert.Equal(refusal is null ? [] : [new ModelError("count", refusal)], errors);
+    }
+
+    // A header sent more than once is one value, every one joined, as a controller's binder reads it.
+    [Fact]
+    public void CheckSimple_HeaderSentTwice_JoinedAndChecked()
+    {
+        var http = Http();
+        http.Request.Headers["X-Count"] = new StringValues(["1", "2"]);
+
+        var (errors, _) = CheckSimple("count", ValuePlace.Header, required: true, http, modelName: "X-Count");
+
+        Assert.Equal([new ModelError("X-Count", "The value '1,2' is not valid.")], errors);
     }
 
     [Fact]
@@ -160,13 +175,118 @@ public sealed class RequestRefusalTests
         Assert.Empty(errors);
     }
 
-    // Each of an array's values is checked, and the first that fails is the one named.
+    // Each of an array's values is checked, and every one that fails is named, in the order sent.
     [Fact]
-    public void CheckSimple_ArrayWithBadValues_TheFirstNamed()
+    public void CheckSimple_ArrayWithBadValues_EachNamed()
     {
-        var (errors, _) = CheckSimple("ids", ValuePlace.Query, required: false, Http("?ids=1&ids=&ids=x&ids=y"));
+        var (errors, _) = CheckSimple("ids", ValuePlace.Query, required: false, Http("?ids=1&ids=&ids=x&ids=%20&ids=y"));
 
-        Assert.Equal([new ModelError("ids", "The value 'x' is not valid.")], errors);
+        Assert.Equal(
+            [
+                new ModelError("ids", "The value '' is invalid."),
+                new ModelError("ids", "The value 'x' is not valid."),
+                new ModelError("ids", "The value ' ' is invalid."),
+                new ModelError("ids", "The value 'y' is not valid."),
+            ],
+            errors);
+    }
+
+    [Fact]
+    public void CheckSimple_WhitespaceForAValueThatCannotBeNull_Invalid()
+    {
+        var (errors, _) = CheckSimple("count", ValuePlace.Query, required: true, Http("?count=%20"));
+
+        Assert.Equal([new ModelError("count", "The value ' ' is invalid.")], errors);
+    }
+
+    // A controller binds it as none, but the platform cannot bind it, so it is named rather than refused unexplained.
+    [Fact]
+    public void CheckSimple_WhitespaceForANullableValue_NotValid()
+    {
+        var (errors, _) = CheckSimple("limit", ValuePlace.Query, required: false, Http("?limit=%20"));
+
+        Assert.Equal([new ModelError("limit", "The value ' ' is not valid.")], errors);
+    }
+
+    // A blank string is none, which a parameter that cannot be null refuses as it refuses one not sent.
+    [Theory]
+    [InlineData("?title=")]
+    [InlineData("?title=%20%20")]
+    [InlineData("?title=&title=%20")]
+    public void CheckSimple_RequiredStringBlank_RefusedAsRequired(string query)
+    {
+        var (errors, sources) = CheckSimple("title", ValuePlace.Query, required: true, Http(query));
+
+        Assert.Equal([new ModelError("title", "The title field is required.")], errors);
+        Assert.Equal("title", sources["title"].Parameter);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void CheckSimple_RequiredHeaderBlank_RefusedAsRequired(string value)
+    {
+        var http = Http();
+        http.Request.Headers["X-Title"] = value;
+
+        var (errors, sources) = CheckSimple("title", ValuePlace.Header, required: true, http, modelName: "X-Title");
+
+        Assert.Equal([new ModelError("X-Title", "The title field is required.")], errors);
+        Assert.Equal(RequestPointer.For("X-Title"), sources["X-Title"].Pointer);
+    }
+
+    [Fact]
+    public void CheckSimple_RequiredRouteValueBlank_RefusedAsRequired()
+    {
+        var http = Http();
+        http.Request.RouteValues["title"] = " ";
+
+        var (errors, sources) = CheckSimple("title", ValuePlace.Route, required: true, http);
+
+        Assert.Equal([new ModelError("title", "The title field is required.")], errors);
+        Assert.Equal("/title", sources["title"].Pointer);
+    }
+
+    // The first value is the one a controller binds, and the handler receives.
+    [Theory]
+    [InlineData("?title=x&title=", false)]
+    [InlineData("?title=&title=x", true)]
+    public void CheckSimple_SentTwiceOnceBlank_TheFirstChecked(string query, bool refused)
+    {
+        var (errors, _) = CheckSimple("title", ValuePlace.Query, required: true, Http(query));
+
+        Assert.Equal(refused, errors.Count > 0);
+    }
+
+    // A blank value of an array is none, in its place, so the array's length is the number sent.
+    [Fact]
+    public void CheckSimple_StringArrayWithABlankValue_ValidatedWithNoneInItsPlace()
+    {
+        var (errors, _) = CheckSimple("names", ValuePlace.Query, required: false, Http("?names=a&names=%20"));
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void CheckSimple_StringArrayTooShort_Refused()
+    {
+        var (errors, _) = CheckSimple("names", ValuePlace.Query, required: false, Http("?names=a"));
+
+        Assert.Equal([new ModelError("names", "The field names must be a string or array type with a minimum length of '2'.")], errors);
+    }
+
+    // A header's values are split at commas, the blank ones dropped, as a controller's binder splits them.
+    [Theory]
+    [InlineData("a, ,b,c", true)]
+    [InlineData("a,b", false)]
+    public void CheckSimple_HeaderArray_SplitAtCommas(string value, bool kept)
+    {
+        var http = Http();
+        http.Request.Headers["X-Codes"] = value;
+
+        var (errors, _) = CheckSimple("codes", ValuePlace.Header, required: false, http, modelName: "X-Codes");
+
+        Assert.Equal(kept, errors.Count == 0);
     }
 
     [Fact]
@@ -380,7 +500,14 @@ public sealed class RequestRefusalTests
         /// <summary>
         /// Simple values.
         /// </summary>
-        public static void Simple(int count, int? limit, string? name, int[] ids)
+        public static void Simple(
+            int count,
+            int? limit,
+            string? name,
+            int[] ids,
+            string title,
+            [MinLength(2)] string[] names,
+            [FromHeader(Name = "X-Codes")][MinLength(3)] string[] codes)
         {
         }
 
