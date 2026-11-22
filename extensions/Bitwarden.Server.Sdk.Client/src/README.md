@@ -88,7 +88,8 @@ A change must keep:
   with `JsonWebTokenHandler` and takes its `kid` from the library's RFC 7638 thumbprint. `System.Security.Cryptography`
   is used directly only to load and export keys and to generate random bytes; no JWS, signature or JWK is assembled by
   hand.
-- **Internal trust only where the callee is our own.** With `Tls:CertificateAuthorities` set, the service, token and
-  product clients trust those roots alone, never the system's as well, and no other client trusts them. A client
-  protected with `AddSsrfProtection` must never get them.
+- **Internal trust only where the callee is our own.** With `Tls:CertificateAuthorities` set, the service and token
+  clients, and a product client's conventional client, trust those roots alone, never the system's as well. Any other
+  client trusts them only through `TrustInternalAuthorities()`, and a client protected with `AddSsrfProtection` never
+  does.
 - **A memo key from the context handler's decision, never a token,** and never logged; a write always clears the memo.
