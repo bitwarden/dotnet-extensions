@@ -41,11 +41,13 @@ code here writes to Redis.
 - **Cached reads** wait on Redis for `CachedReads.Patience` and rest it for `CachedReadsConnection.Rest` after a
   failure. A resource's entry is read only in `OwnedCacheEntry.CurrentFormat`, as its contract publishes (`format`);
   a release changing the format changes the number, and clients that don't know it miss.
-- **Trust.** `TrustInternalAuthorities` (`HttpClientBuilderInternalTlsExtensions`) gives a client a `SocketsHttpHandler`
-  whose chain policy is `InternalTls.ChainPolicy` from Bitwarden.Server.Sdk.Http, built from `Tls:CertificateAuthorities`
-  (`InternalAuthorities`, read once, checked at startup). The service clients, the token client and a product client's
-  conventional client call it; no other client gets it. Chain building and the name and usage checks stay in
-  `SslStream`: there is no validation callback.
+- **Trust.** `TrustInternalAuthorities` (`HttpClientBuilderInternalTlsExtensions`) names the client in
+  `InternalTrustedClients`, and `InternalTrustFilter` gives the `SocketsHttpHandler` it ends up sending with
+  `InternalTls.ChainPolicy` from Bitwarden.Server.Sdk.Http, built from `Tls:CertificateAuthorities`
+  (`InternalAuthorities`, read once, checked at startup). A filter, so the client's primary handler is kept however and
+  whenever it was set; any other handler is refused while authorities are named. The service clients, the token client
+  and a product client's conventional client call it; no other client gets it. Chain building and the name and usage
+  checks stay in `SslStream`: there is no validation callback.
 - **The request memo.** `RequestMemoHandler` keys a `GET` or `HEAD` by the method, the absolute address, every header
   but `Authorization`, `Bitwarden-Delegation` and the trace context, `ContextHandler`'s decision whether the context is
   asserted (`ContextHandler.Asserted`, set on every call) and `CallerName`; a call missing that decision isn't

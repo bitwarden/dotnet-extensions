@@ -479,22 +479,23 @@ read-many is never answered by `ReadAsync` or `ReadCurrentAsync`, nor a read of 
 
 ## Types
 
-| Type                                                                         | Purpose                                                                               |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `BitwardenClientServiceCollectionExtensions`                                 | `AddBitwardenClient` and `AddCachedReads`                                             |
-| `BitwardenClientOptions`                                                     | A client's settings                                                                   |
-| `IServiceTokenProvider`, `ServiceTokenProvider`                              | The caller's token and its context tokens                                             |
-| `ClientAssertion`                                                            | A signed client assertion in place of a secret                                        |
-| `OutgoingCall`, `OutgoingCallOptions`, `HeldStatement`                       | Stating whom one call is about; the event actor rule; `Fresh()` past the request memo |
-| `ServiceCallException`, `RequestRefusedException`, `RelayedRefusalException` | Failures with no more specific exception                                              |
-| `Undo`, `UndoOn`                                                             | Taking back writes that span services                                                 |
-| `ProductClient`, `ProductAnswer`, `ProductAnswer<T>`                         | Calling a product service with somebody's own token                                   |
-| `ProductClientServiceCollectionExtensions`                                   | `AddProductClient`                                                                    |
-| `ICachedReads<TClient>`, `CachedAnswer`, `CachedAnswerKind`                  | Reads answered from the callee's cache                                                |
-| `CacheableRead`                                                              | What a contract publishes as cacheable                                                |
-| `CachedResources`                                                            | Reading a cached resource into its generated type                                     |
-| `Fieldsets`                                                                  | Sparse fieldsets from a generated contract                                            |
-| `UtcDateJsonConverter`                                                       | Dates sent as ISO 8601 UTC with a literal `Z`                                         |
+| Type                                                                         | Purpose                                                                                |
+| ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `BitwardenClientServiceCollectionExtensions`                                 | `AddBitwardenClient` and `AddCachedReads`                                              |
+| `BitwardenClientOptions`                                                     | A client's settings                                                                    |
+| `IServiceTokenProvider`, `ServiceTokenProvider`                              | The caller's token and its context tokens                                              |
+| `ClientAssertion`                                                            | A signed client assertion in place of a secret                                         |
+| `OutgoingCall`, `OutgoingCallOptions`, `HeldStatement`                       | Stating whom one call is about; the event actor rule; `Fresh()` past the request memo  |
+| `ServiceCallException`, `RequestRefusedException`, `RelayedRefusalException` | Failures with no more specific exception                                               |
+| `Undo`, `UndoOn`                                                             | Taking back writes that span services                                                  |
+| `ProductClient`, `ProductAnswer`, `ProductAnswer<T>`                         | Calling a product service with somebody's own token                                    |
+| `ProductClientServiceCollectionExtensions`                                   | `AddProductClient`                                                                     |
+| `HttpClientBuilderInternalTlsExtensions`                                     | `TrustInternalAuthorities()`, for another client calling the deployment's own services |
+| `ICachedReads<TClient>`, `CachedAnswer`, `CachedAnswerKind`                  | Reads answered from the callee's cache                                                 |
+| `CacheableRead`                                                              | What a contract publishes as cacheable                                                 |
+| `CachedResources`                                                            | Reading a cached resource into its generated type                                      |
+| `Fieldsets`                                                                  | Sparse fieldsets from a generated contract                                             |
+| `UtcDateJsonConverter`                                                       | Dates sent as ISO 8601 UTC with a literal `Z`                                          |
 
 A client NSwag generates sends dates as UTC with `/JsonConverters:Bitwarden.Server.Sdk.Client.UtcDateJsonConverter`,
 `/ParameterDateTimeFormat:yyyy-MM-ddTHH:mm:ss.FFFFFFFZ`, and `/TemplateDirectory` naming the parameter templates in
