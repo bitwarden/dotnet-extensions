@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using Bitwarden.Server.Sdk.Errors;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Primitives;
 
 namespace Bitwarden.Server.Sdk.Resources.Endpoints;
 
@@ -63,37 +64,59 @@ internal static class RequestRefusal
             return;
         }
 
-        var element = parameter.Info.ParameterType.IsArray ? parameter.Info.ParameterType.GetElementType()! : parameter.Underlying;
+        var isArray = parameter.Info.ParameterType.IsArray;
+        var declared = isArray ? parameter.Info.ParameterType.GetElementType()! : parameter.Info.ParameterType;
+        var element = Nullable.GetUnderlyingType(declared) ?? declared;
         var bound = new List<object?>();
+        var refused = false;
 
-        foreach (var value in parameter.Info.ParameterType.IsArray ? values : [values[^1]])
+        // Whitespace is a value to convert for a nullable value type, which a controller would bind as none but the
+        // platform cannot bind at all: refused by name rather than with nothing said.
+        var nullableValue = Nullable.GetUnderlyingType(declared) is not null;
+
+        // A single value is the first sent, as a controller's binder takes it, and named in a refusal as every value
+        // sent, joined.
+        foreach (var value in isArray ? values : [values[0]])
         {
-            if (string.IsNullOrEmpty(value))
+            var named = isArray || values.Count == 1 ? value : new StringValues([.. values]).ToString();
+
+            // A controller's binder reads an empty or blank value as none, which a value that cannot be null refuses.
+            if (nullableValue ? string.IsNullOrEmpty(value) : string.IsNullOrWhiteSpace(value))
             {
-                if (element.IsValueType && Nullable.GetUnderlyingType(parameter.Info.ParameterType) is null && !parameter.Info.ParameterType.IsArray)
+                if (declared.IsValueType && !nullableValue)
                 {
-                    errors.Add(new ModelError(parameter.ModelName, $"The value '{value}' is invalid."));
+                    errors.Add(new ModelError(parameter.ModelName, $"The value '{named}' is invalid."));
+                    refused = true;
+                    continue;
+                }
+
+                // A required value sent blank is refused as one not sent is: the handler would receive it as none.
+                if (parameter.Required)
+                {
+                    errors.Add(new ModelError(parameter.ModelName, Required(parameter.DisplayName)));
                     sources[parameter.ModelName] = source;
                     return;
                 }
 
-                // A controller's binder reads an empty value as none.
-                if (!parameter.Info.ParameterType.IsArray)
-                {
-                    bound.Add(null);
-                }
-
+                bound.Add(null);
                 continue;
             }
 
             if (!RequestParameters.Converts(element, value))
             {
-                errors.Add(new ModelError(parameter.ModelName, $"The value '{value}' is not valid."));
-                sources[parameter.ModelName] = source;
-                return;
+                errors.Add(new ModelError(parameter.ModelName, $"The value '{named}' is not valid."));
+                refused = true;
+                continue;
             }
 
             bound.Add(Convert(element, value));
+        }
+
+        // Every value of an array that fails is named, in the order sent, as a controller's binder names them.
+        if (refused)
+        {
+            sources[parameter.ModelName] = source;
+            return;
         }
 
         if (parameter.Validators.Count == 0)
@@ -101,9 +124,9 @@ internal static class RequestRefusal
             return;
         }
 
-        if (parameter.Info.ParameterType.IsArray)
+        if (isArray)
         {
-            var array = Array.CreateInstance(element, bound.Count);
+            var array = Array.CreateInstance(declared, bound.Count);
 
             for (var i = 0; i < bound.Count; i++)
             {
@@ -141,23 +164,29 @@ internal static class RequestRefusal
     }
 
     /// <summary>
-    /// A value converted as a controller's binder converts it: a string as it came, unless it is blank,
-    /// which is none; anything else by its type's converter, in the invariant culture.
+    /// A value that is not blank converted as a controller's binder converts it: a string as it came, anything else by
+    /// its type's converter, in the invariant culture.
     /// </summary>
     private static object? Convert(Type type, string value) =>
         type == typeof(string)
-            ? string.IsNullOrWhiteSpace(value) ? null : value
+            ? value
             : System.ComponentModel.TypeDescriptor.GetConverter(type).ConvertFromString(null, System.Globalization.CultureInfo.InvariantCulture, value);
 
     /// <summary>
-    /// A simple value's raw text, and whether it came from the query.
+    /// A simple value's raw text, as a controller's binder reads it, and whether it came from the query.
     /// </summary>
-    private static (IReadOnlyList<string?> Values, bool FromQuery) Read(HttpContext http, RequestParameter parameter)
+    internal static (IReadOnlyList<string?> Values, bool FromQuery) Read(HttpContext http, RequestParameter parameter)
     {
         switch (parameter.Place)
         {
+            // An array's values are the header's, split at commas, as a controller's binder and the platform split them;
+            // a single value is every one the header was sent with, joined.
             case ValuePlace.Header:
-                return ([.. http.Request.Headers[parameter.ModelName]], false);
+                var header = http.Request.Headers[parameter.ModelName];
+
+                return (parameter.Info.ParameterType.IsArray
+                    ? http.Request.Headers.GetCommaSeparatedValues(parameter.ModelName)
+                    : header.Count == 0 ? [] : (IReadOnlyList<string?>)[header.ToString()], false);
 
             case ValuePlace.Query:
                 return ([.. http.Request.Query[parameter.ModelName]], true);
