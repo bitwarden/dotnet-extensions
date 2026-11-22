@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 
 namespace Bitwarden.Server.Sdk.Resources.Endpoints;
@@ -25,7 +26,13 @@ internal sealed record RequestParameter(
     public Type Underlying => Nullable.GetUnderlyingType(Info.ParameterType) ?? Info.ParameterType;
 
     /// <summary>
-    /// The parameter's own name, which an MVC controller's messages call it by.
+    /// What an MVC controller's messages call the parameter: the name its <see cref="DisplayAttribute"/> gives, or its
+    /// own.
     /// </summary>
-    public string DisplayName => Info.Name ?? ModelName;
+    public string DisplayName { get; } = Info.GetCustomAttribute<DisplayAttribute>()?.GetName() ?? Info.Name ?? ModelName;
+
+    /// <summary>
+    /// The validation attributes the parameter itself carries, which a request's value for it must satisfy.
+    /// </summary>
+    public IReadOnlyList<ValidationAttribute> Validators { get; } = [.. Info.GetCustomAttributes(inherit: true).OfType<ValidationAttribute>()];
 }

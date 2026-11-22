@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using Bitwarden.Server.Sdk.Authorization;
 using Bitwarden.Server.Sdk.Context;
@@ -42,7 +41,7 @@ internal static class StandardEndpointConvention
         var name = NameOf(method);
 
         // Run last (Finally), so every filter added to the endpoint or its groups is here.
-        endpoint.Metadata.Add(new EndpointFilters(endpoint.FilterFactories.Count(factory => !IsPlatforms(factory.Method, method, services))));
+        endpoint.Metadata.Add(new EndpointFilters(endpoint.FilterFactories.Count(factory => !IsPlatforms(factory.Method, endpoint))));
 
         try
         {
@@ -55,31 +54,12 @@ internal static class StandardEndpointConvention
     }
 
     /// <summary>
-    /// Whether a filter is the platform's own: the standard filter, or the framework's validation filter where it has
-    /// nothing of the service's own to check.
+    /// Whether a filter is the platform's own: the standard filter, or the framework's validation filter where the
+    /// endpoint turns it off, as <see cref="StandardEndpointExtensions.WithStandards{TBuilder}"/> does, so it adds nothing.
     /// </summary>
-    private static bool IsPlatforms(MethodInfo factory, MethodInfo handler, IServiceProvider services) =>
-        factory == PlatformFilter || (factory == ValidationFilter && NothingToValidate(handler, services));
-
-    /// <summary>
-    /// Whether every parameter of the handler is supplied by the framework or the container, or is a simple value or
-    /// one of the platform's query types, with no rule on it.
-    /// </summary>
-    /// <remarks>
-    /// The framework's validation filter refuses a request breaking a rule before the handler runs. A rule on a
-    /// parameter, on a property of a body or <c>[AsParameters]</c> type, or an <c>IValidatableObject</c> is the
-    /// service's own, so any other parameter, or one the standards cannot bind, leaves the filter counted.
-    /// </remarks>
-    private static bool NothingToValidate(MethodInfo handler, IServiceProvider services)
-    {
-        var parameters = RequestParameters.For(handler, services, new List<string>());
-
-        return parameters.Count == handler.GetParameters().Length
-            && parameters.All(parameter =>
-                !parameter.Info.IsDefined(typeof(ValidationAttribute), inherit: true)
-                && (parameter.Kind is ParameterKind.Ignored or ParameterKind.Simple
-                    || (parameter.Kind is ParameterKind.Bound && RequestParameters.IsQueryType(parameter.Underlying))));
-    }
+    private static bool IsPlatforms(MethodInfo factory, EndpointBuilder endpoint) =>
+        factory == PlatformFilter
+        || (factory == ValidationFilter && endpoint.Metadata.OfType<IDisableValidationMetadata>().Any());
 
     /// <summary>
     /// How an operation is named in the messages that refuse it: its class and method.
