@@ -1,7 +1,10 @@
+using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using Bitwarden.Server.Sdk.Authorization;
 using Bitwarden.Server.Sdk.Resources.Endpoints;
+using Bitwarden.Server.Sdk.Resources.Querying;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
@@ -64,6 +67,77 @@ public sealed class StandardEndpointConventionTests
 
         Assert.Equal(2, Assert.Single(endpoint.Metadata.OfType<EndpointFilters>()).Count);
     }
+
+    // Runtime(...) is a Delegate the request delegate generator can't resolve (RDG002), so the framework's runtime
+    // factory builds that endpoint: each test below runs on both of the framework's code paths.
+#pragma warning disable RDG002
+    // The framework puts its validation filter on every endpoint of a host that calls AddValidation, first and whatever
+    // the handler takes; where it has nothing of the service's own to check, it is the platform's, as the standard
+    // filter is. Built by a host, as the framework builds it, with the request delegate generator and without.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Apply_HostCallingAddValidation_CountsNoFilters(bool generated)
+    {
+        var endpoint = BuiltWithValidation(generated
+            ? group => group.MapGet("{id}", Handlers.ReadWidget)
+            : group => group.MapGet("{id}", Runtime(Handlers.ReadWidget)));
+
+        Assert.Equal(0, Assert.Single(endpoint.Metadata.OfType<EndpointFilters>()).Count);
+    }
+
+    // A read as a cacheable one is written: the identifier, the fieldset, a cancellation token and a dependency.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Apply_HostCallingAddValidationForAStandardRead_CountsNoFilters(bool generated)
+    {
+        var endpoint = BuiltWithValidation(generated
+            ? group => group.MapGet("{id}", Handlers.ReadGadget)
+            : group => group.MapGet("{id}", Runtime(Handlers.ReadGadget)));
+
+        Assert.Equal(0, Assert.Single(endpoint.Metadata.OfType<EndpointFilters>()).Count);
+    }
+
+    // A rule on a parameter is the service's own, and the validation filter refuses a request breaking it before the
+    // handler runs.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Apply_HostCallingAddValidationForARuleOnAParameter_CountsTheValidationFilter(bool generated)
+    {
+        var endpoint = BuiltWithValidation(generated
+            ? group => group.MapGet("{id}", Handlers.ReadShortWidget)
+            : group => group.MapGet("{id}", Runtime(Handlers.ReadShortWidget)));
+
+        Assert.Equal(1, Assert.Single(endpoint.Metadata.OfType<EndpointFilters>()).Count);
+    }
+
+    // A body's type is the service's own, and may carry rules the validation filter checks.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Apply_HostCallingAddValidationForABody_CountsTheValidationFilter(bool generated)
+    {
+        var endpoint = BuiltWithValidation(generated
+            ? group => group.MapPost("", Handlers.CreateWidget)
+            : group => group.MapPost("", Runtime(Handlers.CreateWidget)));
+
+        Assert.Equal(1, Assert.Single(endpoint.Metadata.OfType<EndpointFilters>()).Count);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Apply_HostCallingAddValidationAndAFilterBeside_CountsTheFilter(bool generated)
+    {
+        var endpoint = BuiltWithValidation(generated
+            ? group => group.MapGet("{id}", Handlers.ReadWidget).AddEndpointFilter((context, next) => next(context))
+            : group => group.MapGet("{id}", Runtime(Handlers.ReadWidget)).AddEndpointFilter((context, next) => next(context)));
+
+        Assert.Equal(1, Assert.Single(endpoint.Metadata.OfType<EndpointFilters>()).Count);
+    }
+#pragma warning restore RDG002
 
     [Theory]
     [InlineData("api/v1/widgets", "createWidget")]
@@ -278,6 +352,26 @@ public sealed class StandardEndpointConventionTests
 
     private static MethodInfo Method(string name) => typeof(Handlers).GetMethod(name)!;
 
+    /// <summary>
+    /// The handler as a <see cref="Delegate"/> the request delegate generator can't resolve, so the framework's runtime
+    /// factory builds its endpoint.
+    /// </summary>
+    private static Delegate Runtime(Delegate handler) => handler;
+
+    /// <summary>
+    /// The one endpoint <paramref name="map"/> maps under the standards, as a host calling <c>AddValidation</c> builds it.
+    /// </summary>
+    private static Endpoint BuiltWithValidation(Action<RouteGroupBuilder> map)
+    {
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.Services.AddValidation();
+        builder.Services.AddSingleton(TimeProvider.System);
+        var app = builder.Build();
+        map(app.MapGroup("api/v1/widgets").WithStandards());
+
+        return Assert.Single(((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints));
+    }
+
     private static RouteEndpointBuilder Endpoint(string handler, string route = "api/v1/widgets", IServiceProvider? services = null)
     {
         var endpoint = new RouteEndpointBuilder(_ => Task.CompletedTask, RoutePatternFactory.Parse(route), 0)
@@ -335,6 +429,20 @@ public sealed class StandardEndpointConventionTests
         /// </summary>
         [StandardDelete]
         public static Task DeleteWidget(string id) => Task.CompletedTask;
+
+        /// <summary>
+        /// A standard read taking what a cacheable read takes.
+        /// </summary>
+        [StandardReadOne]
+        public static Task<ResourceDocument<Gadget>> ReadGadget(
+            string id, Fields<Gadget> fields, TimeProvider clock, CancellationToken cancellationToken) =>
+            Task.FromResult(new ResourceDocument<Gadget> { Data = new Gadget { Id = id } });
+
+        /// <summary>
+        /// A standard read with a rule on its identifier.
+        /// </summary>
+        [StandardReadOne]
+        public static string ReadShortWidget([StringLength(3)] string id) => id;
 
         /// <summary>
         /// A standard read declaring its own response.
