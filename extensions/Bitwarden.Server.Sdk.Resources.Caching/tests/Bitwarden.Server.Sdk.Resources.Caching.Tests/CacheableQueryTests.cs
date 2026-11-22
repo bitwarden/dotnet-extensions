@@ -161,6 +161,18 @@ public sealed class CacheableQueryTests(RedisFixture redis) : IClassFixture<Redi
         Assert.Contains(expected, refused.Message);
     }
 
+    // A host calling AddValidation gives every endpoint the framework's validation filter, which is the platform's own
+    // and not one a cacheable read may not have: the read starts, and its second answer is the entry's.
+    [Fact]
+    public async Task Start_HostCallingAddValidation_CacheableReadStarts()
+    {
+        await using var host = await StartAsync(validation: true);
+
+        await BodyAsync(host, $"/api/v1/books/{_book}?fields[book]=title");
+
+        Assert.True(await Redis.KeyExistsAsync(BookKey));
+    }
+
     [Fact]
     public async Task Start_ReadDemandingARole_Refused()
     {
@@ -261,12 +273,20 @@ public sealed class CacheableQueryTests(RedisFixture redis) : IClassFixture<Redi
         Assert.Contains("has no Version", refusal.Message);
     }
 
-    private async Task<ShelfHost> StartAsync()
+    private async Task<ShelfHost> StartAsync(bool validation = false)
     {
-        var host = await ShelfHost.StartAsync(redis.Service, services => services
-            .AddQuery<IGetBookQuery, GetBookQuery>()
-            .AddQuery<IGetQuotaQuery, GetQuotaQuery>()
-            .AddOwnedCache<ShelfContext>());
+        var host = await ShelfHost.StartAsync(redis.Service, services =>
+        {
+            services
+                .AddQuery<IGetBookQuery, GetBookQuery>()
+                .AddQuery<IGetQuotaQuery, GetQuotaQuery>()
+                .AddOwnedCache<ShelfContext>();
+
+            if (validation)
+            {
+                services.AddValidation();
+            }
+        });
 
         await host.InScopeAsync(Ours, async database =>
         {
