@@ -85,9 +85,19 @@ entry.
 - Empty strings, trimming and the 255-character default apply only to a resource's top-level
   attributes; nested objects and plain bodies keep `""` and padding, and the implied required check
   accepts `""` (`Endpoints/ModelValidation.cs`).
-- A blank query or header value reaches a `string` parameter as sent (`""` or whitespace), where a
-  controller binds it as null. Its rules are checked against null, as a controller checks them, but
-  a non-nullable one isn't refused as required (`Endpoints/RequestRefusal.cs`).
+- A blank value for a nullable value type (`int?`, or an element of an `int?[]`) isn't bound as
+  none, as a controller binds it: the framework can't bind it, so whitespace is refused as not
+  valid, and an empty value is refused `400` without an error where the framework's runtime factory
+  builds the endpoint (`Endpoints/RequestRefusal.cs`).
+- A query value sent more than once for a value that isn't a `string` is refused `400` without an
+  error, where a controller binds the first: the framework can't bind the values joined.
+- A blank query or header value reaches a `string` member of an `[AsParameters]` model as sent,
+  where a controller binds it as none (`Endpoints/BlankValues.cs` handles parameters only).
+- An `[AcceptsInvalidRequests]` handler receives a required `string` sent blank as sent, where a
+  controller binds none, so the refusal it gives can name what was sent (`Endpoints/BlankValues.cs`).
+  Sent empty in the query or a header, it never reaches the handler where the request delegate
+  generator builds the endpoint: the generator can't bind it.
+- An array that wasn't sent reaches the handler empty, where a controller passes its default.
 - Two resources may share a `type`, and `[ResourceType]` values aren't validated
   (`ResourceTypes.cs`).
 - An `[Encrypted]` member without `MaxLength` doesn't stop startup; it fails with `500` on the
