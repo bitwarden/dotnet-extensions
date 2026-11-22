@@ -10,18 +10,18 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Bitwarden.Server.Sdk.Service;
 
 /// <summary>
-/// Applies <see cref="InternalTls"/> to what a service serves: its server certificate from settings, the refusal to
-/// listen on plain HTTP with <see cref="InternalTls.RequireHttps"/>, and the probes alone on
-/// <see cref="InternalTls.HealthPort"/>.
+/// Applies <see cref="ServiceTls"/> to what a service serves: its server certificate from settings, the refusal to
+/// listen on plain HTTP with <see cref="ServiceTls.RequireHttps"/>, and the probes alone on
+/// <see cref="ServiceTls.HealthPort"/>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// With <see cref="InternalTls.ServerCertificate"/> and <see cref="InternalTls.ServerKey"/>, every HTTPS endpoint
+/// With <see cref="ServiceTls.ServerCertificate"/> and <see cref="ServiceTls.ServerKey"/>, every HTTPS endpoint
 /// without a certificate of its own serves that one (Kestrel's HTTPS defaults). A certificate that can't be read stops
 /// the service at startup.
 /// </para>
 /// <para>
-/// With <see cref="InternalTls.RequireHttps"/>, the service doesn't start when an address it is configured to listen
+/// With <see cref="ServiceTls.RequireHttps"/>, the service doesn't start when an address it is configured to listen
 /// on (<c>urls</c>, that is <c>ASPNETCORE_URLS</c>; <c>http_ports</c>; <c>Kestrel:Endpoints:*:Url</c>) is plain HTTP,
 /// checked before it listens; and it stops when an address it is listening on is, checked once it listens, which
 /// catches an address set in code or Kestrel's own default. The health port is the exception for both.
@@ -40,14 +40,14 @@ internal static partial class InternalTlsServer
     /// </param>
     public static void Add(IServiceCollection services, IConfiguration configuration, bool describing = false)
     {
-        var tls = configuration.GetSection(InternalTls.Section).Get<InternalTls>() ?? new InternalTls();
+        var tls = configuration.GetSection(InternalTls.Section).Get<ServiceTls>() ?? new ServiceTls();
         Add(services, tls, describing);
     }
 
     /// <summary>
     /// Registers what <paramref name="tls"/> asks for.
     /// </summary>
-    internal static void Add(IServiceCollection services, InternalTls tls, bool describing = false)
+    internal static void Add(IServiceCollection services, ServiceTls tls, bool describing = false)
     {
         if (tls.HealthPort is { } port && port is < 1 or > 65535)
         {
