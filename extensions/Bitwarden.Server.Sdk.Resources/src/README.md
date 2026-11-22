@@ -160,7 +160,8 @@ entry.
 ## Testing
 
 Every source file has a matching test class in `tests/Bitwarden.Server.Sdk.Resources.Tests`, in a
-folder that mirrors `src`. They test the package's types on their own.
+folder that mirrors `src`. They test the package's types on their own, except where only a host
+builds what is tested, such as the validation filter a host calling `AddValidation` gets.
 
 ```bash
 dotnet test --project extensions/Bitwarden.Server.Sdk.Resources/tests/Bitwarden.Server.Sdk.Resources.Tests
@@ -178,6 +179,11 @@ dotnet test --project extensions/Bitwarden.Server.Sdk.Service/tests/Bitwarden.Se
 - `Bitwarden.Server.Sdk.Service.Tests` compiles its handlers with the request delegate generator, as
   a service does; `Bitwarden.Server.Sdk.Service.MinimalApi.Tests` compiles the same files without
   it. A change must pass both.
+- This package's tests compile with the generator too. A test that builds endpoints through a host
+  maps each handler twice: as a method group, which the generator intercepts, and through
+  `Runtime(...)`, a `Delegate` it can't resolve, which the framework's runtime factory builds.
+  `RDG002` is suppressed around those tests only, so any other `Map` call the generator can't
+  resolve still fails the build.
 - `MinimalApiParity.golden.txt` records the status, headers and body of every request in
   `MinimalApiParityTests`' matrix, and `MinimalApiParity.openapi.golden.json` the published
   document. A change that alters either changes what every caller sees; when it is deliberate, rerun
