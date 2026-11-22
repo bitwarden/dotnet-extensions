@@ -72,8 +72,9 @@ public sealed class StandardEndpointConventionTests
     // factory builds that endpoint: each test below runs on both of the framework's code paths.
 #pragma warning disable RDG002
     // The framework puts its validation filter on every endpoint of a host that calls AddValidation, first and whatever
-    // the handler takes; where it has nothing of the service's own to check, it is the platform's, as the standard
-    // filter is. Built by a host, as the framework builds it, with the request delegate generator and without.
+    // the handler takes. The standards turn it off, so it adds nothing and is the platform's, as the standard filter is,
+    // whatever the handler takes. Built by a host, as the framework builds it, with the request delegate generator and
+    // without.
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -99,29 +100,41 @@ public sealed class StandardEndpointConventionTests
         Assert.Equal(0, Assert.Single(endpoint.Metadata.OfType<EndpointFilters>()).Count);
     }
 
-    // A rule on a parameter is the service's own, and the validation filter refuses a request breaking it before the
-    // handler runs.
+    // A rule on a parameter is checked by the standard filter, so the validation filter has nothing to do there either.
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void Apply_HostCallingAddValidationForARuleOnAParameter_CountsTheValidationFilter(bool generated)
+    public void Apply_HostCallingAddValidationForARuleOnAParameter_CountsNoFilters(bool generated)
     {
         var endpoint = BuiltWithValidation(generated
             ? group => group.MapGet("{id}", Handlers.ReadShortWidget)
             : group => group.MapGet("{id}", Runtime(Handlers.ReadShortWidget)));
 
-        Assert.Equal(1, Assert.Single(endpoint.Metadata.OfType<EndpointFilters>()).Count);
+        Assert.Equal(0, Assert.Single(endpoint.Metadata.OfType<EndpointFilters>()).Count);
     }
 
-    // A body's type is the service's own, and may carry rules the validation filter checks.
+    // A body's rules are checked by the standard filter too.
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void Apply_HostCallingAddValidationForABody_CountsTheValidationFilter(bool generated)
+    public void Apply_HostCallingAddValidationForABody_CountsNoFilters(bool generated)
     {
         var endpoint = BuiltWithValidation(generated
             ? group => group.MapPost("", Handlers.CreateWidget)
             : group => group.MapPost("", Runtime(Handlers.CreateWidget)));
+
+        Assert.Equal(0, Assert.Single(endpoint.Metadata.OfType<EndpointFilters>()).Count);
+    }
+
+    // Where something takes the standards' opt-out away again, the validation filter runs, and is counted.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Apply_HostCallingAddValidationWithValidationTurnedBackOn_CountsTheValidationFilter(bool generated)
+    {
+        var endpoint = BuiltWithValidation(generated
+            ? group => group.MapGet("{id}", Handlers.ReadWidget).Add(TurnValidationBackOn)
+            : group => group.MapGet("{id}", Runtime(Handlers.ReadWidget)).Add(TurnValidationBackOn));
 
         Assert.Equal(1, Assert.Single(endpoint.Metadata.OfType<EndpointFilters>()).Count);
     }
@@ -357,6 +370,14 @@ public sealed class StandardEndpointConventionTests
     /// factory builds its endpoint.
     /// </summary>
     private static Delegate Runtime(Delegate handler) => handler;
+
+    private static void TurnValidationBackOn(EndpointBuilder endpoint)
+    {
+        foreach (var disabled in endpoint.Metadata.OfType<IDisableValidationMetadata>().ToList())
+        {
+            endpoint.Metadata.Remove(disabled);
+        }
+    }
 
     /// <summary>
     /// The one endpoint <paramref name="map"/> maps under the standards, as a host calling <c>AddValidation</c> builds it.
