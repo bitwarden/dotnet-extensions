@@ -109,6 +109,42 @@ public sealed class CurrentStandingCheckTests
         await Assert.ThrowsAsync<NotFoundException>(() => InvokeAsync(Session(provider: Provider)));
     }
 
+    // A role the platform doesn't define would outrank Owner where roles are compared, and None holds nothing: both
+    // are no membership.
+    [Theory]
+    [InlineData(OrganizationRole.None)]
+    [InlineData((OrganizationRole)99)]
+    [InlineData((OrganizationRole)(-1))]
+    public async Task Invoke_MembershipInNoKnownRole_RefusedNotFound(OrganizationRole role)
+    {
+        _standing.Membership = MemberStanding.Of(role);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => InvokeAsync(Session(Organization)));
+    }
+
+    [Theory]
+    [InlineData(ProviderRole.None)]
+    [InlineData((ProviderRole)99)]
+    public async Task Invoke_ProviderStaffInNoKnownRole_RefusedNotFound(ProviderRole role)
+    {
+        _standing.ProviderRole = role;
+
+        await Assert.ThrowsAsync<NotFoundException>(() => InvokeAsync(Session(provider: Provider)));
+    }
+
+    [Theory]
+    [InlineData(ProviderRole.None)]
+    [InlineData((ProviderRole)99)]
+    public async Task Invoke_ClientOrganizationStaffInNoKnownRole_Forbidden(ProviderRole role)
+    {
+        _standing.ProviderOf = Provider;
+        _standing.ProviderRole = role;
+
+        var refused = await Assert.ThrowsAsync<ForbiddenException>(() => InvokeAsync(Session(Organization, Provider)));
+
+        Assert.Equal(CurrentStandingCheck.NotProviderStaff, refused.Message);
+    }
+
     [Fact]
     public async Task Invoke_PersonalSession_AsksNothing()
     {

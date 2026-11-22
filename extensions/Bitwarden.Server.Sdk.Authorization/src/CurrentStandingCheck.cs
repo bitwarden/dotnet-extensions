@@ -36,6 +36,10 @@ namespace Bitwarden.Server.Sdk.Authorization;
 ///   that standing on each request and forbids the request when it fails, whatever the session's claims say.</description></item>
 /// </list>
 /// <para>
+/// An answer whose role is <c>None</c>, or a value the platform doesn't define, is no standing and refused the same way:
+/// an undefined role would otherwise outrank every defined one where roles are compared.
+/// </para>
+/// <para>
 /// Nothing is asked for a request with no person behind it (an organization credential, a machine account, a Send's
 /// token), a session naming neither an organization nor a provider, or an operation open to anybody. Constructed when
 /// the pipeline is built, so a product service with no <see cref="ICurrentStanding"/> registered fails at startup rather
@@ -110,11 +114,13 @@ internal sealed class CurrentStandingCheck
                 // person still be its confirmed staff. They hold no organization role there, as the session was issued.
                 return await current.ProviderOfAsync(named, cancellationToken) == administering
                     && await current.ProviderRoleAsync(person, administering, cancellationToken) is { } staff
+                    && Holds(staff)
                         ? CallerStanding.Nothing with { ProviderRole = staff }
                         : throw new ForbiddenException(NotProviderStaff);
             }
 
             return await current.MembershipAsync(person, named, cancellationToken) is { } member
+                && Holds(member.Role)
                 ? new CallerStanding(
                     member.Role,
                     member.Role == OrganizationRole.Custom ? member.Permissions : CallerStanding.Nothing.Permissions,
@@ -123,7 +129,22 @@ internal sealed class CurrentStandingCheck
         }
 
         return await current.ProviderRoleAsync(person, provider!.Value, cancellationToken) is { } role
+            && Holds(role)
             ? CallerStanding.Nothing with { ProviderRole = role }
             : throw new NotFoundException();
     }
+
+    /// <summary>
+    /// Whether an answer's organization role is one a member can hold: neither <see cref="OrganizationRole.None"/> nor
+    /// a value the platform doesn't define. Anything else is no membership, as <see cref="ICurrentStanding"/> promises.
+    /// </summary>
+    /// <param name="role">The role the answer gave.</param>
+    private static bool Holds(OrganizationRole role) => role != OrganizationRole.None && Enum.IsDefined(role);
+
+    /// <summary>
+    /// Whether an answer's provider role is one a staff member can hold: neither <see cref="ProviderRole.None"/> nor a
+    /// value the platform doesn't define. Anything else is no place on the staff.
+    /// </summary>
+    /// <param name="role">The role the answer gave.</param>
+    private static bool Holds(ProviderRole role) => role != ProviderRole.None && Enum.IsDefined(role);
 }
