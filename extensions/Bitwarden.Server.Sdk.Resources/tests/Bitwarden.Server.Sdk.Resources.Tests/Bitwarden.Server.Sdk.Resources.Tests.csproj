@@ -2,6 +2,10 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <!-- A handler a test maps through a host is compiled with the request delegate generator, as a service compiles
+         its Map calls; see the README's Testing section for how a test covers the runtime factory too. -->
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.Http.Generated</InterceptorsNamespaces>
   </PropertyGroup>
 
   <ItemGroup>
