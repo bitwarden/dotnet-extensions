@@ -106,7 +106,6 @@ public sealed class HttpClientBuilderSsrfExtensionsTests
         var sender = Assert.IsType<SocketsHttpHandler>(handler);
         Assert.False(sender.AllowAutoRedirect);
         Assert.False(sender.UseCookies);
-        Assert.IsType<SsrfConnection>(sender.ConnectCallback?.Target);
     }
 
     // An attacker's server redirecting to the metadata address is refused however the client was put together:
@@ -119,7 +118,7 @@ public sealed class HttpClientBuilderSsrfExtensionsTests
         var services = Services(network);
         services.AddHttpClient("test")
             .AddSsrfProtection()
-            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { UseProxy = false });
+            .ConfigurePrimaryHttpMessageHandler(() => network.Handler());
         var client = services.BuildServiceProvider().GetRequiredService<IHttpClientFactory>().CreateClient("test");
 
         await Assert.ThrowsAsync<SsrfProtectionException>(
@@ -194,7 +193,7 @@ public sealed class HttpClientBuilderSsrfExtensionsTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(
-            [new IPEndPoint(IPAddress.Parse("8.8.8.8"), 80), new IPEndPoint(IPAddress.Parse("1.1.1.1"), 80)],
+            [new DnsEndPoint("8.8.8.8", 80), new DnsEndPoint("1.1.1.1", 80)],
             network.Opened);
     }
 
@@ -226,9 +225,9 @@ public sealed class HttpClientBuilderSsrfExtensionsTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton<SsrfConnector>(network);
+        services.AddSingleton<SsrfResolver>(network);
         services.ConfigureHttpClientDefaults(defaults => defaults.ConfigurePrimaryHttpMessageHandler(
-            () => new SocketsHttpHandler { UseProxy = proxy is not null, Proxy = proxy }));
+            () => network.Handler(proxy)));
         return services;
     }
 
