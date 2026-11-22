@@ -50,6 +50,11 @@ filters do around a controller action.
   overflow). `PageNumber` reads the same attribute off the `PageSize` parameter beside it, and
   `PagingDocumentTransformer` publishes it. `Page.MaximumSize` (200) is the maximum when an
   operation declares none.
+- **The standard filter is the only validation.** A handler's parameters are held to their own
+  validation attributes there, keyed as a controller's model state keys them. `WithStandards()`
+  turns off the framework's validation filter (`DisableValidation()`), which a host calling
+  `AddValidation()` would otherwise run first, in the framework's words and regardless of
+  `[AcceptsInvalidRequests]`.
 - **Handlers behave the same with and without the request delegate generator.** The generated code
   and `RequestDelegateFactory` differ at the edges, so both paths are tested (see Testing).
 
@@ -80,6 +85,9 @@ entry.
 - Empty strings, trimming and the 255-character default apply only to a resource's top-level
   attributes; nested objects and plain bodies keep `""` and padding, and the implied required check
   accepts `""` (`Endpoints/ModelValidation.cs`).
+- A blank query or header value reaches a `string` parameter as sent (`""` or whitespace), where a
+  controller binds it as null. Its rules are checked against null, as a controller checks them, but
+  a non-nullable one isn't refused as required (`Endpoints/RequestRefusal.cs`).
 - Two resources may share a `type`, and `[ResourceType]` values aren't validated
   (`ResourceTypes.cs`).
 - An `[Encrypted]` member without `MaxLength` doesn't stop startup; it fails with `500` on the
