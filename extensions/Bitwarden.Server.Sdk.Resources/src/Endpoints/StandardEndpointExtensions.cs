@@ -51,6 +51,10 @@ public static class StandardEndpointExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
+        // The standard filter validates the request in a controller's words and honours
+        // [AcceptsInvalidRequests], so the framework's own validation filter, which a host calling
+        // AddValidation puts ahead of it, is turned off here.
+        builder.DisableValidation();
         builder.AddEndpointFilterFactory(StandardEndpointFilter.Create);
         builder.Finally(StandardEndpointConvention.Apply);
 
