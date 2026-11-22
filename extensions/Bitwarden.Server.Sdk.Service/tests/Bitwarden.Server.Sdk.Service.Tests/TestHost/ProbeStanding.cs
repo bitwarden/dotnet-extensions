@@ -10,8 +10,9 @@ namespace Bitwarden.Server.Sdk.Service.Tests.TestHost;
 /// <remarks>
 /// Unless a test says otherwise, a person holds what their session names, in no role: a member of its organization in
 /// <see cref="OrganizationRole.None"/>, staff of its provider in <see cref="ProviderRole.None"/>, and the session's
-/// provider administers its client organization. A test about a role sets it here, as the service that owns
-/// organizations would answer it; the session's role claims count for nothing.
+/// provider administers its client organization. A role of <c>None</c> is no standing, so such a request is refused
+/// before any operation. A test about a role sets it here, as the service that owns organizations would answer it; the
+/// session's role claims count for nothing.
 /// </remarks>
 public sealed class ProbeStanding : ICurrentStanding
 {

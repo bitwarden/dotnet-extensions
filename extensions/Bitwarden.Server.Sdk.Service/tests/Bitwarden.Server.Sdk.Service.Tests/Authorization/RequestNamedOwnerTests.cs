@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using Bitwarden.Server.Sdk.Authorization;
 using Bitwarden.Server.Sdk.Context;
 using Bitwarden.Server.Sdk.Service.Tests.TestHost;
 
@@ -57,8 +58,11 @@ public sealed class RequestNamedOwnerTests : IAsyncLifetime
     [Fact]
     public async Task Path_ASessionForAnOrganization_Forbidden()
     {
+        var issuedFor = Guid.NewGuid();
+        _service.Standing.Member(Person, issuedFor, MemberStanding.Of(OrganizationRole.Owner));
+
         using var response = await _service.Client().SendAsync(
-            ProductServiceAttributeTests.Get($"/api/v1/organizations/{OrganizationA}/probe", Session(Guid.NewGuid(), "Owner")),
+            ProductServiceAttributeTests.Get($"/api/v1/organizations/{OrganizationA}/probe", Session(issuedFor, "Owner")),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);

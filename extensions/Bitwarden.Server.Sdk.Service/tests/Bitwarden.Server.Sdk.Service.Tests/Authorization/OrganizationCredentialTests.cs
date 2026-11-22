@@ -135,6 +135,7 @@ public sealed class OrganizationCredentialTests : IAsyncLifetime
     [Fact]
     public async Task PersonsOrganizationSession_HoldingOnlyTheCredentialScope_Forbidden()
     {
+        _service.Standing.Member(Person, Organization, MemberStanding.Of(OrganizationRole.Owner));
         var token = SessionHost.Token(
             Person,
             new Dictionary<string, object> { ["organization"] = Organization.ToString(), ["organization_role"] = "Owner" },
