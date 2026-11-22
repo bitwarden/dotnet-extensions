@@ -291,6 +291,77 @@ public sealed class ModelValidationTests
         Assert.Equal("Item not checked, in CheckedHolder.", error.Message);
     }
 
+    // A rule on the parameter a body was bound to runs with the body's own, once its members pass, and first, as a
+    // controller lists a parameter's attributes before its type's.
+    [Fact]
+    public void Validate_BodyParameterWithARule_RunBeforeTheTypesOwn()
+    {
+        var errors = new List<ModelError>();
+
+        ModelValidation.Validate(new Checked { Number = "1" }, string.Empty, Services, errors, Parameter("body"));
+
+        Assert.Equal(
+            [new ModelError(string.Empty, "body refused, given Checked."), new ModelError(string.Empty, "body not checked, in Checked.")],
+            errors);
+    }
+
+    // Its own validation too calls it by the parameter's name.
+    [Fact]
+    public void Validate_BodyParameterValidatingItself_CalledByTheParametersName()
+    {
+        var errors = new List<ModelError>();
+
+        ModelValidation.Validate(new Introspective(), string.Empty, Services, errors, Parameter("self"));
+
+        Assert.Equal([new ModelError(string.Empty, "self/self")], errors);
+    }
+
+    [Fact]
+    public void Validate_BodyParameterWithAFailingMember_ParameterRuleNotRun()
+    {
+        var errors = new List<ModelError>();
+
+        ModelValidation.Validate(new Checked(), string.Empty, Services, errors, Parameter("body"));
+
+        Assert.Equal("Number", Assert.Single(errors).Key);
+    }
+
+    // A controller gives a null value an object of its own as the context's instance, which a rule may not be handed.
+    [Fact]
+    public void ValidateParameter_Null_ValidatedAsNull()
+    {
+        var errors = new List<ModelError>();
+
+        ModelValidation.ValidateParameter(Parameter("body"), null, string.Empty, Services, errors);
+
+        Assert.Equal([new ModelError(string.Empty, "body refused, given Object.")], errors);
+    }
+
+    // A failure naming the parameter itself is keyed by it; one naming another member, below it.
+    [Theory]
+    [InlineData("code", "q")]
+    [InlineData("Other", "q.Other")]
+    public void ValidateParameter_FailureNamingAMember_KeyedAsAControllerKeysIt(string member, string key)
+    {
+        var errors = new List<ModelError>();
+
+        ModelValidation.ValidateParameter(Parameter("code"), member, "q", Services, errors);
+
+        Assert.Equal([new ModelError(key, "Names a member.")], errors);
+    }
+
+    private static RequestParameter Parameter(string name)
+    {
+        var info = typeof(ModelValidationTests).GetMethod(nameof(Takes), BindingFlags.NonPublic | BindingFlags.Static)!
+            .GetParameters().Single(parameter => parameter.Name == name);
+
+        return new RequestParameter(info.Position, info, ParameterKind.Body, name, ValuePlace.Query, Required: false);
+    }
+
+    private static void Takes([Refused] Checked body, [NamesMember] string code, Introspective self)
+    {
+    }
+
     private static List<ModelError> Validate(object model)
     {
         var errors = new List<ModelError>();
@@ -430,6 +501,32 @@ public sealed class ModelValidationTests
                 ? ValidationResult.Success
                 : new ValidationResult(
                     $"{validationContext.DisplayName} not checked, in {validationContext.ObjectInstance.GetType().Name}.");
+    }
+
+    /// <summary>
+    /// Refuses itself, saying what it was called.
+    /// </summary>
+    private sealed class Introspective : IValidatableObject
+    {
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext) =>
+            [new($"{validationContext.DisplayName}/{validationContext.MemberName}")];
+    }
+
+    [AttributeUsage(AttributeTargets.Parameter)]
+    private sealed class RefusedAttribute : ValidationAttribute
+    {
+        protected override ValidationResult? IsValid(object? value, ValidationContext validationContext) =>
+            new($"{validationContext.DisplayName} refused, given {validationContext.ObjectInstance.GetType().Name}.");
+    }
+
+    /// <summary>
+    /// Fails naming the member its value says.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Parameter)]
+    private sealed class NamesMemberAttribute : ValidationAttribute
+    {
+        protected override ValidationResult? IsValid(object? value, ValidationContext validationContext) =>
+            new("Names a member.", [(string)value!]);
     }
 
     private sealed class CheckedList

@@ -35,8 +35,26 @@ public sealed class RequestParameterTests
         Assert.Equal("value", Of(Method.ReturnParameter, "value").DisplayName);
     }
 
+    [Fact]
+    public void DisplayName_Declared_TheDeclaredName()
+    {
+        Assert.Equal("Page size", Of(Method.GetParameters()[3], "size").DisplayName);
+    }
+
+    [Fact]
+    public void Validators_TheParametersOwn()
+    {
+        Assert.IsType<System.ComponentModel.DataAnnotations.RangeAttribute>(Assert.Single(Of(Method.GetParameters()[3], "size").Validators));
+        Assert.Empty(Of(Method.GetParameters()[0], "count").Validators);
+    }
+
     private static RequestParameter Of(ParameterInfo info, string modelName) =>
         new(0, info, ParameterKind.Simple, modelName, ValuePlace.Query, Required: false);
 
-    private static int Handler(int count, int? limit, string? name) => count + (limit ?? 0) + (name?.Length ?? 0);
+    private static int Handler(
+        int count,
+        int? limit,
+        string? name,
+        [System.ComponentModel.DataAnnotations.Range(1, 10)][System.ComponentModel.DataAnnotations.Display(Name = "Page size")] int size) =>
+        count + (limit ?? 0) + (name?.Length ?? 0) + size;
 }

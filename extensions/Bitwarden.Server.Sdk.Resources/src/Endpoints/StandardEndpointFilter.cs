@@ -198,10 +198,23 @@ internal static class StandardEndpointFilter
                     errors.Add(new ModelError(string.Empty, RequestRefusal.Required(parameter.DisplayName)));
                     break;
 
+                case ParameterKind.Bound:
+                    ModelValidation.ValidateParameter(parameter, argument, string.Empty, http.RequestServices, errors);
+                    break;
+
+                // The parameter's own rules once the resource passes, as a controller checks a model's own once
+                // its members do.
                 case ParameterKind.Document when argument is ISingleResourceDocument single:
+                    var before = errors.Count;
+
                     if (single.Resource is { } resource)
                     {
                         ModelValidation.Validate(resource, nameof(ResourceDocument<Resource>.Data), http.RequestServices, errors);
+                    }
+
+                    if (errors.Count == before)
+                    {
+                        ModelValidation.ValidateParameter(parameter, argument, string.Empty, http.RequestServices, errors);
                     }
 
                     break;
@@ -210,8 +223,14 @@ internal static class StandardEndpointFilter
                     errors.Add(new ModelError(parameter.ModelName, RequestRefusal.Required(parameter.DisplayName)));
                     break;
 
-                case ParameterKind.Body when argument is not null:
-                    ModelValidation.Validate(argument, string.Empty, http.RequestServices, errors);
+                // An optional body sent as none is still held to its parameter's rules, as a controller holds a body
+                // bound to null.
+                case ParameterKind.Body when argument is null:
+                    ModelValidation.ValidateParameter(parameter, null, string.Empty, http.RequestServices, errors);
+                    break;
+
+                case ParameterKind.Body:
+                    ModelValidation.Validate(argument, string.Empty, http.RequestServices, errors, parameter);
                     break;
 
                 case ParameterKind.Model:
@@ -219,7 +238,7 @@ internal static class StandardEndpointFilter
 
                     if (argument is not null && !errors.Any())
                     {
-                        ModelValidation.ValidateBound(argument, http.RequestServices, errors);
+                        ModelValidation.ValidateBound(argument, http.RequestServices, errors, parameter);
                     }
 
                     break;

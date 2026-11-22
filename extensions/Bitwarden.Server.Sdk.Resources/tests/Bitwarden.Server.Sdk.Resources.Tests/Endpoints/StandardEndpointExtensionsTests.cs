@@ -1,5 +1,6 @@
 using Bitwarden.Server.Sdk.Resources.Endpoints;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,6 +31,19 @@ public sealed class StandardEndpointExtensionsTests
 
         Assert.Single(endpoint.FilterFactories);
         Assert.Contains(StandardEndpointMetadata.Instance, endpoint.Metadata);
+    }
+
+    // The standard filter validates the request, so the framework's validation filter is turned off, the way the
+    // framework offers.
+    [Fact]
+    public void WithStandards_Endpoint_FrameworksValidationTurnedOff()
+    {
+        var builder = new Recording().WithStandards();
+        var endpoint = Endpoint();
+
+        builder.Build(endpoint);
+
+        Assert.Single(endpoint.Metadata.OfType<IDisableValidationMetadata>());
     }
 
     // Added after WithStandards, as an endpoint's own conventions are, yet run before it: the
