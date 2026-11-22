@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Bitwarden.Server.Sdk.Errors;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,7 +28,9 @@ internal static class RequestRefusal
             })]);
 
     /// <summary>
-    /// Names what is wrong with a route, query or header value, as a controller's binder would.
+    /// Names what is wrong with a route, query or header value, as a controller's binder would, then
+    /// holds a value that binds to the parameter's validation attributes, as a controller's
+    /// validation would.
     /// </summary>
     public static void CheckSimple(
         HttpContext http,
@@ -48,10 +51,20 @@ internal static class RequestRefusal
                 sources[parameter.ModelName] = source;
             }
 
+            // A controller validates a parameter nothing was sent for only when it is required: declared so, or a
+            // value that cannot be null. It validates it as null, which only a rule requiring a value refuses.
+            else if (parameter.Validators.Count > 0
+                && (parameter.Validators.Any(validator => validator is RequiredAttribute)
+                    || Nullable.GetUnderlyingType(parameter.Info.ParameterType) is null && parameter.Info.ParameterType.IsValueType))
+            {
+                Validate(http, parameter, value: null, errors, sources, source);
+            }
+
             return;
         }
 
         var element = parameter.Info.ParameterType.IsArray ? parameter.Info.ParameterType.GetElementType()! : parameter.Underlying;
+        var bound = new List<object?>();
 
         foreach (var value in parameter.Info.ParameterType.IsArray ? values : [values[^1]])
         {
@@ -61,6 +74,13 @@ internal static class RequestRefusal
                 {
                     errors.Add(new ModelError(parameter.ModelName, $"The value '{value}' is invalid."));
                     sources[parameter.ModelName] = source;
+                    return;
+                }
+
+                // A controller's binder reads an empty value as none.
+                if (!parameter.Info.ParameterType.IsArray)
+                {
+                    bound.Add(null);
                 }
 
                 continue;
@@ -72,8 +92,62 @@ internal static class RequestRefusal
                 sources[parameter.ModelName] = source;
                 return;
             }
+
+            bound.Add(Convert(element, value));
+        }
+
+        if (parameter.Validators.Count == 0)
+        {
+            return;
+        }
+
+        if (parameter.Info.ParameterType.IsArray)
+        {
+            var array = Array.CreateInstance(element, bound.Count);
+
+            for (var i = 0; i < bound.Count; i++)
+            {
+                array.SetValue(bound[i], i);
+            }
+
+            Validate(http, parameter, array, errors, sources, source);
+        }
+        else
+        {
+            Validate(http, parameter, bound[0], errors, sources, source);
         }
     }
+
+    /// <summary>
+    /// Holds a simple value to its parameter's validation attributes, a failure keyed and pointed as a
+    /// binding failure of the same value is.
+    /// </summary>
+    private static void Validate(
+        HttpContext http,
+        RequestParameter parameter,
+        object? value,
+        List<ModelError> errors,
+        Dictionary<string, ErrorSource> sources,
+        ErrorSource source)
+    {
+        var before = errors.Count;
+
+        ModelValidation.ValidateParameter(parameter, value, parameter.ModelName, http.RequestServices, errors);
+
+        if (errors.Count > before)
+        {
+            sources[parameter.ModelName] = source;
+        }
+    }
+
+    /// <summary>
+    /// A value converted as a controller's binder converts it: a string as it came, unless it is blank,
+    /// which is none; anything else by its type's converter, in the invariant culture.
+    /// </summary>
+    private static object? Convert(Type type, string value) =>
+        type == typeof(string)
+            ? string.IsNullOrWhiteSpace(value) ? null : value
+            : System.ComponentModel.TypeDescriptor.GetConverter(type).ConvertFromString(null, System.Globalization.CultureInfo.InvariantCulture, value);
 
     /// <summary>
     /// A simple value's raw text, and whether it came from the query.
