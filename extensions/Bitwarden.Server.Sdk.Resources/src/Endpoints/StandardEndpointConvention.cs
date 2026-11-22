@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using Bitwarden.Server.Sdk.Authorization;
 using Bitwarden.Server.Sdk.Context;
@@ -17,6 +18,18 @@ internal static class StandardEndpointConvention
 {
     private static readonly MethodInfo PlatformFilter = typeof(StandardEndpointFilter).GetMethod(nameof(StandardEndpointFilter.Create))!;
 
+    /// <summary>
+    /// The filter the framework puts on every endpoint of a host that calls <c>AddValidation</c>, whatever the
+    /// handler takes. The framework keeps its type internal, so it is found by name; where a later framework renames it,
+    /// this is null and the filter is counted, so a check reading the count refuses the endpoint rather than passing it.
+    /// </summary>
+    private static readonly MethodInfo? ValidationFilter = typeof(RouteHandlerBuilder).Assembly
+        .GetType("Microsoft.AspNetCore.Http.Validation.ValidationEndpointFilterFactory")
+        ?.GetMethod(
+            "Create",
+            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static,
+            [typeof(EndpointFilterFactoryContext), typeof(EndpointFilterDelegate)]);
+
     public static void Apply(EndpointBuilder endpoint)
     {
         if (endpoint.Metadata.OfType<MethodInfo>().LastOrDefault() is not { } method)
@@ -29,7 +42,7 @@ internal static class StandardEndpointConvention
         var name = NameOf(method);
 
         // Run last (Finally), so every filter added to the endpoint or its groups is here.
-        endpoint.Metadata.Add(new EndpointFilters(endpoint.FilterFactories.Count(factory => factory.Method != PlatformFilter)));
+        endpoint.Metadata.Add(new EndpointFilters(endpoint.FilterFactories.Count(factory => !IsPlatforms(factory.Method, method, services))));
 
         try
         {
@@ -39,6 +52,33 @@ internal static class StandardEndpointConvention
         {
             problems.Add(refused.Message);
         }
+    }
+
+    /// <summary>
+    /// Whether a filter is the platform's own: the standard filter, or the framework's validation filter where it has
+    /// nothing of the service's own to check.
+    /// </summary>
+    private static bool IsPlatforms(MethodInfo factory, MethodInfo handler, IServiceProvider services) =>
+        factory == PlatformFilter || (factory == ValidationFilter && NothingToValidate(handler, services));
+
+    /// <summary>
+    /// Whether every parameter of the handler is supplied by the framework or the container, or is a simple value or
+    /// one of the platform's query types, with no rule on it.
+    /// </summary>
+    /// <remarks>
+    /// The framework's validation filter refuses a request breaking a rule before the handler runs. A rule on a
+    /// parameter, on a property of a body or <c>[AsParameters]</c> type, or an <c>IValidatableObject</c> is the
+    /// service's own, so any other parameter, or one the standards cannot bind, leaves the filter counted.
+    /// </remarks>
+    private static bool NothingToValidate(MethodInfo handler, IServiceProvider services)
+    {
+        var parameters = RequestParameters.For(handler, services, new List<string>());
+
+        return parameters.Count == handler.GetParameters().Length
+            && parameters.All(parameter =>
+                !parameter.Info.IsDefined(typeof(ValidationAttribute), inherit: true)
+                && (parameter.Kind is ParameterKind.Ignored or ParameterKind.Simple
+                    || (parameter.Kind is ParameterKind.Bound && RequestParameters.IsQueryType(parameter.Underlying))));
     }
 
     /// <summary>
