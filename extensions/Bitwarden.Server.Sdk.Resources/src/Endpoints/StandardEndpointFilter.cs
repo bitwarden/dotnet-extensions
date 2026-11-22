@@ -104,6 +104,9 @@ internal static class StandardEndpointFilter
                 }
             }
 
+            // A string is what a controller binds, a blank one none, whether or not the request is then refused.
+            BlankValues.BindAsNone(context, parameters, acceptsInvalid);
+
             if (!acceptsInvalid && Refusal(context, parameters) is { } refused)
             {
                 return refused;

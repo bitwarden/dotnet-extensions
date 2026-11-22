@@ -287,6 +287,145 @@ public sealed class StandardEndpointFilterTests
         Assert.Equal(200, status);
     }
 
+    // A blank string reaches the handler as none, or as its default, and a blank value of an array as null in its
+    // place, as a controller binds them; a rule is then held to none.
+    [Theory]
+    [InlineData(true, "", "")]
+    [InlineData(false, "", "")]
+    [InlineData(true, "%20", " ")]
+    [InlineData(false, "%20", " ")]
+    public async Task Create_BlankValues_ReachTheHandlerAsNone(bool generated, string query, string header)
+    {
+        var (status, _, received) = await SendBlanks(
+            generated,
+            "api/v1/blanks/abc",
+            $"required=x&optional={query}&ruled={query}&fallback={query}&many=a&many={query}",
+            $"X-Required:x|X-Optional:{header}");
+
+        Assert.Equal(200, status);
+        Assert.Null(received!.Optional);
+        Assert.Null(received.Ruled);
+        Assert.Equal("default", received.Fallback);
+        Assert.Equal(new string?[] { "a", null }, received.Many);
+        Assert.Null(received.OptionalHeader);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Create_ValuesNotBlank_ReachTheHandlerAsSent(bool generated)
+    {
+        var (status, _, received) = await SendBlanks(
+            generated, "api/v1/blanks/abc", "required=%20x%20&optional=a%20b&many=a&many=b", "X-Required: y |X-Optional:z");
+
+        Assert.Equal(200, status);
+        Assert.Equal("abc", received!.Id);
+        Assert.Equal(" x ", received.Required);
+        Assert.Equal(" y ", received.RequiredHeader);
+        Assert.Equal("a b", received.Optional);
+        Assert.Equal("default", received.Fallback);
+        Assert.Equal(new string?[] { "a", "b" }, received.Many);
+        Assert.Equal("z", received.OptionalHeader);
+    }
+
+    // A value that cannot be null sent blank is refused as required, as one not sent is, from every place.
+    public static TheoryData<bool, string, string, string, string, string, bool> BlankRequired() => Cases(
+    [
+        ("abc", "required=", "X-Required:x", "required", "The required field is required.", true),
+        ("abc", "required=%20%20", "X-Required:x", "required", "The required field is required.", true),
+        ("abc", "", "X-Required:x", "required", "The required field is required.", true),
+        ("abc", "required=x", "X-Required:", "X-Required", "The requiredHeader field is required.", false),
+        ("abc", "required=x", "X-Required: ", "X-Required", "The requiredHeader field is required.", false),
+        ("abc", "required=x", "", "X-Required", "The requiredHeader field is required.", false),
+        (" ", "required=x", "X-Required:x", "id", "The id field is required.", false),
+    ]);
+
+    [Theory]
+    [MemberData(nameof(BlankRequired))]
+    public async Task Create_RequiredValueBlank_RefusedAsRequired(
+        bool generated, string id, string query, string headers, string key, string message, bool queryParameter)
+    {
+        var (status, errors, received) = await SendBlanks(generated, $"api/v1/blanks/{id}", query, headers);
+
+        Assert.Null(received);
+        Assert.Equal(422, status);
+        var error = Assert.Single(errors);
+        Assert.Equal("422", error.Status);
+        Assert.Equal(ErrorCodes.InvalidValue, error.Code);
+        Assert.Equal(message, error.Detail);
+        Assert.Equal(queryParameter ? key : null, error.Parameter);
+        Assert.Equal(queryParameter ? null : RequestPointer.For(key), error.Pointer);
+    }
+
+    // A query value sent more than once is the first, as a controller binds and checks it, where the platform joins them.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Create_QueryValueSentTwice_TheFirstReachesTheHandler(bool generated)
+    {
+        var (status, _, received) = await SendBlanks(
+            generated, "api/v1/blanks/abc", "required=x&required=y&ruled=abcd&ruled=efgh", "X-Required:x");
+
+        Assert.Equal(200, status);
+        Assert.Equal("x", received!.Required);
+        Assert.Equal("abcd", received.Ruled);
+    }
+
+    [Theory]
+    [InlineData(true, "required=x&ruled=abcdefgh&ruled=ab", "The field ruled must be a string with a minimum length of 2 and a maximum length of 5.")]
+    [InlineData(false, "required=x&ruled=abcdefgh&ruled=ab", "The field ruled must be a string with a minimum length of 2 and a maximum length of 5.")]
+    [InlineData(true, "required=&required=x", "The required field is required.")]
+    [InlineData(false, "required=&required=x", "The required field is required.")]
+    public async Task Create_QueryValueSentTwice_TheFirstChecked(bool generated, string query, string message)
+    {
+        var (status, errors, received) = await SendBlanks(generated, "api/v1/blanks/abc", query, "X-Required:x");
+
+        Assert.Null(received);
+        Assert.Equal(422, status);
+        Assert.Equal([message], errors.Select(error => error.Detail));
+    }
+
+    // A handler that answers invalid requests itself receives a required value as sent, so it can name it, and an
+    // optional one as none. Whitespace, since the request delegate generator can't bind an empty required value at all.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Create_AcceptsInvalidRequestsBlank_RequiredAsSentOptionalAsNone(bool generated)
+    {
+        var (status, _, received) = await SendBlanks(generated, "api/v1/blanks/lenient/ ", "required=%20&optional=%20", string.Empty);
+
+        Assert.Equal(200, status);
+        Assert.Equal(" ", received!.Id);
+        Assert.Equal(" ", received.Required);
+        Assert.Null(received.Optional);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Create_AcceptsInvalidRequestsSentTwice_TheFirstReachesTheHandler(bool generated)
+    {
+        var (status, _, received) = await SendBlanks(generated, "api/v1/blanks/lenient/abc", "required=x&required=y&optional=p&optional=q", string.Empty);
+
+        Assert.Equal(200, status);
+        Assert.Equal("x", received!.Required);
+        Assert.Equal("p", received.Optional);
+    }
+
+    // The rule held to none is the parameter's own, which a value that is not blank must keep.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Create_RuledValueNotBlank_HeldToItsRule(bool generated)
+    {
+        var (status, errors, _) = await SendBlanks(generated, "api/v1/blanks/abc", "required=x&ruled=a", "X-Required:x");
+
+        Assert.Equal(422, status);
+        Assert.Equal(
+            ["The field ruled must be a string with a minimum length of 2 and a maximum length of 5."],
+            errors.Select(error => error.Detail));
+    }
+
     /// <summary>
     /// Every case, with the request delegate generator and without.
     /// </summary>
@@ -337,8 +476,20 @@ public sealed class StandardEndpointFilterTests
     private static async Task<(int Status, List<Failure> Errors, bool Ran)> Send(
         bool generated, string path, string query, string headers, string? body = null, bool validation = false)
     {
+        var (status, errors, ran, _) = await SendAndRecord(generated, path, query, headers, body, validation);
+
+        return (status, errors, ran);
+    }
+
+    /// <summary>
+    /// Sends a request as <see cref="Send"/> does, and also says what a handler that records its arguments received.
+    /// </summary>
+    private static async Task<(int Status, List<Failure> Errors, bool Ran, Received.Values? Received)> SendAndRecord(
+        bool generated, string path, string query, string headers, string? body = null, bool validation = false)
+    {
         var builder = WebApplication.CreateSlimBuilder();
         builder.Services.AddSingleton<Ran>();
+        builder.Services.AddSingleton<Received>();
 
         if (validation)
         {
@@ -351,6 +502,7 @@ public sealed class StandardEndpointFilterTests
         await using var app = builder.Build();
         var rules = app.MapGroup("api/v1/rules").WithStandards();
         var lenient = app.MapGroup("api/v1/lenient").WithStandards();
+        var blanks = app.MapGroup("api/v1/blanks").WithStandards();
 
         if (generated)
         {
@@ -361,6 +513,8 @@ public sealed class StandardEndpointFilterTests
             rules.MapGet("bound", Rules.ReadBound);
             rules.MapPost("optional", Rules.CreateOptional);
             lenient.MapGet("{id}", LenientRules.ReadLenient);
+            blanks.MapGet("{id}", Blanks.ReadBlanks);
+            blanks.MapGet("lenient/{id}", Blanks.ReadLenientBlanks);
         }
         else
         {
@@ -371,6 +525,8 @@ public sealed class StandardEndpointFilterTests
             rules.MapGet("bound", Runtime(Rules.ReadBound));
             rules.MapPost("optional", Runtime(Rules.CreateOptional));
             lenient.MapGet("{id}", Runtime(LenientRules.ReadLenient));
+            blanks.MapGet("{id}", Runtime(Blanks.ReadBlanks));
+            blanks.MapGet("lenient/{id}", Runtime(Blanks.ReadLenientBlanks));
         }
 
         await using var scope = app.Services.CreateAsyncScope();
@@ -403,7 +559,20 @@ public sealed class StandardEndpointFilterTests
 
         await endpoint.RequestDelegate!(http);
 
-        return (http.Response.StatusCode, Failures(http), scope.ServiceProvider.GetRequiredService<Ran>().Value);
+        return (http.Response.StatusCode, Failures(http), scope.ServiceProvider.GetRequiredService<Ran>().Value,
+            scope.ServiceProvider.GetRequiredService<Received>().Arguments);
+    }
+
+    /// <summary>
+    /// Sends a request to the handler that records what it received, and says how it was answered and what the
+    /// handler received, or null when it did not run.
+    /// </summary>
+    private static async Task<(int Status, List<Failure> Errors, Received.Values? Received)> SendBlanks(
+        bool generated, string path, string query, string headers)
+    {
+        var (status, errors, _, received) = await SendAndRecord(generated, path, query, headers);
+
+        return (status, errors, received);
     }
 
     /// <summary>
@@ -503,6 +672,64 @@ public sealed class StandardEndpointFilterTests
         /// Required, being non-nullable.
         /// </summary>
         public string Text { get; init; } = null!;
+    }
+
+    /// <summary>
+    /// What the handler that records its arguments received.
+    /// </summary>
+    public sealed class Received
+    {
+        public Values? Arguments { get; set; }
+
+        /// <summary>
+        /// Its arguments.
+        /// </summary>
+        public sealed record Values(
+            string Id,
+            string Required,
+            string RequiredHeader,
+            string? Optional,
+            string? Ruled,
+            string Fallback,
+            string?[]? Many,
+            string? OptionalHeader);
+    }
+
+    /// <summary>
+    /// A handler that records the strings it received, from every place a simple value is read.
+    /// </summary>
+    public static class Blanks
+    {
+        /// <summary>
+        /// A read whose strings may be sent blank.
+        /// </summary>
+        [StandardReadOne]
+        public static string ReadBlanks(
+            string id,
+            [FromQuery] string required,
+            [FromHeader(Name = "X-Required")] string requiredHeader,
+            [FromServices] Received received,
+            [FromQuery] string? optional = null,
+            [FromQuery][StringLength(5, MinimumLength = 2)] string? ruled = null,
+            [FromQuery] string fallback = "default",
+            [FromQuery] string?[]? many = null,
+            [FromHeader(Name = "X-Optional")] string? optionalHeader = null)
+        {
+            received.Arguments = new Received.Values(id, required, requiredHeader, optional, ruled, fallback, many, optionalHeader);
+            return "ok";
+        }
+
+        /// <summary>
+        /// A read that answers invalid requests itself.
+        /// </summary>
+        [StandardReadOne]
+        [AcceptsInvalidRequests]
+        public static string ReadLenientBlanks(
+            string id, [FromQuery] string required, [FromServices] Received received, [FromQuery] string? optional = null)
+        {
+            received.Arguments = new Received.Values(id, required, string.Empty, optional, null, string.Empty, null, null);
+            return "ok";
+        }
     }
 
     /// <summary>
