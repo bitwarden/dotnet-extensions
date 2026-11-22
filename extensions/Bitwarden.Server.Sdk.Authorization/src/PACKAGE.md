@@ -222,7 +222,8 @@ authorization, once per request:
 | Neither, or no person (an organization credential) | Nothing                                                        | Never                                                                                        |
 
 The `404` is the platform's answer for an organization the person isn't a member of; the `403` is its answer when the
-person is no longer the administering provider's staff. Operations open to anybody ask nothing.
+person is no longer the administering provider's staff. An answer whose role is `None` or not a defined value counts as
+no standing and is refused the same way. Operations open to anybody ask nothing.
 
 ### Accept other callers and owners
 
