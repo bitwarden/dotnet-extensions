@@ -14,8 +14,8 @@ operations whose writes span services.
 
 A concern that stands on its own goes in its own package, which `Service` references and registers:
 resources and the standard endpoints in Resources, authorization and context checks in
-Authorization, per-address limits in RateLimiting, outbound HTTP and the `InternalTls` settings type
-in Http, idempotency keys in Idempotency, the error document in Errors. Types a service and its
+Authorization, per-address limits in RateLimiting, outbound HTTP and the internal authorities' chain
+policy (`InternalTls`) in Http, idempotency keys in Idempotency, the error document in Errors. Types a service and its
 callers both need go in an abstractions package (Context, Data.Abstractions,
 Resources.Caching.Abstractions, Idempotency.Abstractions, Service.Abstractions). Calling another
 service belongs in Client.
@@ -50,16 +50,17 @@ service belongs in Client.
   prereleases a stable package can't depend on (NU5104). Query values stay redacted, as the
   instrumentation does by default, because a query can carry a credential.
 
-| File                                                    | What it holds                                                         |
-| ------------------------------------------------------- | --------------------------------------------------------------------- |
-| `Service.cs`                                            | The base class, `Build()`, the registrations and the middleware order |
-| `Http/InternalTlsTrust.cs`, `Http/InternalTlsServer.cs` | `Tls:*` applied to outbound clients and to what the service serves    |
-| `Http/FinishedWrites.cs`                                | Writes that run to the end when their client leaves                   |
-| `BrowserOrigins.cs`                                     | `Service:BrowserOrigins`, its checks and the CORS policy              |
-| `Observability/`                                        | Telemetry, the request log scope and the health status publisher      |
-| `Features/`                                             | The config resource and the LaunchDarkly context builder              |
-| `Sagas/`                                                | The guard on operations whose writes span services                    |
-| `OpenApi/`                                              | Schema transformers, the documentation UI's assets and the export     |
+| File                                              | What it holds                                                              |
+| ------------------------------------------------- | -------------------------------------------------------------------------- |
+| `Service.cs`                                      | The base class, `Build()`, the registrations and the middleware order      |
+| `Http/ServiceTls.cs`, `Http/InternalTlsServer.cs` | `Tls:*`, applied to what the service serves                                |
+| `Http/InternalTlsTrust.cs`                        | The internal authorities for the bearer handler's fetch of Identity's keys |
+| `Http/FinishedWrites.cs`                          | Writes that run to the end when their client leaves                        |
+| `BrowserOrigins.cs`                               | `Service:BrowserOrigins`, its checks and the CORS policy                   |
+| `Observability/`                                  | Telemetry, the request log scope and the health status publisher           |
+| `Features/`                                       | The config resource and the LaunchDarkly context builder                   |
+| `Sagas/`                                          | The guard on operations whose writes span services                         |
+| `OpenApi/`                                        | Schema transformers, the documentation UI's assets and the export          |
 
 ## Known limitations
 

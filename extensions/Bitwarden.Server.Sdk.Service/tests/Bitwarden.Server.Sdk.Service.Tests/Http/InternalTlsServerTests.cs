@@ -87,7 +87,7 @@ public sealed class InternalTlsServerTests : IDisposable
     [Fact]
     public async Task Start_WithRequireHttps_AndAPlainConfiguredAddress_IsRefused()
     {
-        await using var app = Build(new InternalTls { RequireHttps = true }, builder => builder.WebHost.UseUrls("http://127.0.0.1:0"));
+        await using var app = Build(new ServiceTls { RequireHttps = true }, builder => builder.WebHost.UseUrls("http://127.0.0.1:0"));
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => app.StartAsync(Token));
 
@@ -99,7 +99,7 @@ public sealed class InternalTlsServerTests : IDisposable
     [Fact]
     public async Task Start_WithRequireHttps_AndAPlainListenerSetInCode_IsRefused()
     {
-        await using var app = Build(new InternalTls { RequireHttps = true },
+        await using var app = Build(new ServiceTls { RequireHttps = true },
             builder => builder.WebHost.ConfigureKestrel(kestrel => kestrel.Listen(IPAddress.Loopback, 0)));
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => app.StartAsync(Token));
@@ -112,7 +112,7 @@ public sealed class InternalTlsServerTests : IDisposable
     public void Add_WithNothingSet_RegistersNothing()
     {
         var services = new ServiceCollection();
-        InternalTlsServer.Add(services, new InternalTls());
+        InternalTlsServer.Add(services, new ServiceTls());
 
         Assert.Empty(services);
     }
@@ -121,7 +121,7 @@ public sealed class InternalTlsServerTests : IDisposable
     [Fact]
     public async Task Start_WithRequireHttps_AndNoAddressAtAll_IsRefused()
     {
-        await using var app = Build(new InternalTls { RequireHttps = true }, _ => { });
+        await using var app = Build(new ServiceTls { RequireHttps = true }, _ => { });
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => app.StartAsync(Token));
     }
@@ -130,7 +130,7 @@ public sealed class InternalTlsServerTests : IDisposable
     [Fact]
     public async Task Start_WithRequireHttps_AndTheCertificateFromSettings_ServesHttps()
     {
-        var tls = Server(new InternalTls { RequireHttps = true });
+        var tls = Server(new ServiceTls { RequireHttps = true });
         await using var app = Build(tls, builder => builder.WebHost.UseUrls("https://127.0.0.1:0"));
         await app.StartAsync(Token);
 
@@ -146,7 +146,7 @@ public sealed class InternalTlsServerTests : IDisposable
     public async Task HealthPort_AllowsAPlainListener_ThatAnswersOnlyTheProbes()
     {
         var healthPort = FreePort();
-        var tls = Server(new InternalTls { RequireHttps = true, HealthPort = healthPort });
+        var tls = Server(new ServiceTls { RequireHttps = true, HealthPort = healthPort });
         await using var app = Build(tls, builder => builder.WebHost.UseUrls($"https://127.0.0.1:0;http://127.0.0.1:{healthPort}"));
         app.MapGet("/api/v1/health", () => "healthy");
         await app.StartAsync(Token);
@@ -168,20 +168,20 @@ public sealed class InternalTlsServerTests : IDisposable
     [InlineData(0)]
     [InlineData(65536)]
     public void HealthPort_ThatIsNoPort_Throws(int port) =>
-        Assert.Throws<InvalidOperationException>(() => InternalTlsServer.Add(new ServiceCollection(), new InternalTls { HealthPort = port }));
+        Assert.Throws<InvalidOperationException>(() => InternalTlsServer.Add(new ServiceCollection(), new ServiceTls { HealthPort = port }));
 
     // A certificate that can't be read stops the service as it is set up, naming the setting and never the value.
     [Fact]
     public void Add_ACertificateThatCantBeRead_Throws()
     {
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            InternalTlsServer.Add(new ServiceCollection(), new InternalTls { ServerCertificate = "bm90IGEgY2VydA==", ServerKey = "c2VjcmV0" }));
+            InternalTlsServer.Add(new ServiceCollection(), new ServiceTls { ServerCertificate = "bm90IGEgY2VydA==", ServerKey = "c2VjcmV0" }));
 
         Assert.Contains("Tls:ServerCertificate", exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("c2VjcmV0", exception.Message, StringComparison.Ordinal);
     }
 
-    private static WebApplication Build(InternalTls tls, Action<WebApplicationBuilder> configure)
+    private static WebApplication Build(ServiceTls tls, Action<WebApplicationBuilder> configure)
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseKestrelHttpsConfiguration();
@@ -195,7 +195,7 @@ public sealed class InternalTlsServerTests : IDisposable
     /// <summary>
     /// A server certificate for 127.0.0.1 from the test's authority, in <paramref name="tls"/>'s settings.
     /// </summary>
-    private InternalTls Server(InternalTls tls)
+    private ServiceTls Server(ServiceTls tls)
     {
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var request = new CertificateRequest("CN=127.0.0.1", key, HashAlgorithmName.SHA256);
@@ -210,16 +210,17 @@ public sealed class InternalTlsServerTests : IDisposable
     }
 
     /// <summary>
-    /// A client trusting the test's authority, as a service with it in <c>Tls:CertificateAuthorities</c>.
+    /// A client trusting the test's authority alone, as a service's clients of the deployment's own services do with it
+    /// in <c>Tls:CertificateAuthorities</c>.
     /// </summary>
-    private HttpClient Caller()
-    {
-        var services = new ServiceCollection();
-        InternalTlsTrust.Add(services, new InternalTls { CertificateAuthorities = [AuthorityPath] });
-        services.AddHttpClient("callee");
-        var provider = services.BuildServiceProvider();
-        return provider.GetRequiredService<IHttpClientFactory>().CreateClient("callee");
-    }
+    private HttpClient Caller() =>
+        new(new SocketsHttpHandler
+        {
+            SslOptions =
+            {
+                CertificateChainPolicy = InternalTls.ChainPolicy(new ServiceTls { CertificateAuthorities = [AuthorityPath] }.LoadAuthorities()),
+            },
+        });
 
     private static int FreePort()
     {

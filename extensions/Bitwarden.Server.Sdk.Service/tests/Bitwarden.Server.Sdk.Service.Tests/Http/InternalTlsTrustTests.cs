@@ -1,8 +1,6 @@
 using System.Net;
-using System.Net.Security;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-using Bitwarden.Server.Sdk.Http;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -14,9 +12,9 @@ using Microsoft.Extensions.Options;
 namespace Bitwarden.Server.Sdk.Service.Tests.Http;
 
 /// <summary>
-/// TLS between a deployment's services: a service served over HTTPS with Kestrel's own settings is
-/// called over TLS, trusted through an internal certificate authority named in <c>Tls:CertificateAuthorities</c>, and
-/// <c>Tls:RequireHttps</c> refuses plain addresses.
+/// TLS between a deployment's services, as the host applies it: the bearer handler fetches Identity's keys over TLS
+/// from a server certified by an internal certificate authority named in <c>Tls:CertificateAuthorities</c>, no other
+/// client is given that authority here, and <c>Tls:RequireHttps</c> refuses a plain authority.
 /// </summary>
 public sealed class InternalTlsTrustTests : IAsyncLifetime
 {
@@ -72,84 +70,12 @@ public sealed class InternalTlsTrustTests : IAsyncLifetime
         Directory.Delete(_directory, recursive: true);
     }
 
-    [Fact]
-    public async Task Call_ToAServiceWhoseAuthorityIsTrusted_Succeeds()
-    {
-        using var provider = Clients(new InternalTls { CertificateAuthorities = [Path.Combine(_directory, "authority.pem")] });
-
-        var answer = await provider.GetRequiredService<IHttpClientFactory>().CreateClient("callee").GetStringAsync($"{_address}/alive", Token);
-
-        Assert.StartsWith("https://", _address, StringComparison.Ordinal);
-        Assert.Equal("alive", answer);
-    }
-
-    // A client sending with an HttpClientHandler rather than the default SocketsHttpHandler is trusted the same way.
-    [Fact]
-    public async Task Call_ThroughAnHttpClientHandler_ToAServiceWhoseAuthorityIsTrusted_Succeeds()
-    {
-        var services = new ServiceCollection();
-        services.ConfigureHttpClientDefaults(http => http.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler()));
-        InternalTlsTrust.Add(services, new InternalTls { CertificateAuthorities = [Path.Combine(_directory, "authority.pem")] });
-        services.AddHttpClient("callee");
-        using var provider = services.BuildServiceProvider();
-
-        var answer = await provider.GetRequiredService<IHttpClientFactory>().CreateClient("callee").GetStringAsync($"{_address}/alive", Token);
-
-        Assert.Equal("alive", answer);
-    }
-
-    // A client that names its own primary handler after the platform's, as a proxying service's does, is trusted the
-    // same way.
-    [Fact]
-    public async Task Call_ThroughAPrimaryHandlerTheClientSetsAfterThePlatform_ToAServiceWhoseAuthorityIsTrusted_Succeeds()
-    {
-        var services = new ServiceCollection();
-        InternalTlsTrust.Add(services, new InternalTls { CertificateAuthorities = [Path.Combine(_directory, "authority.pem")] });
-        services.AddHttpClient("callee").ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
-        using var provider = services.BuildServiceProvider();
-
-        var answer = await provider.GetRequiredService<IHttpClientFactory>().CreateClient("callee").GetStringAsync($"{_address}/alive", Token);
-
-        Assert.Equal("alive", answer);
-    }
-
-    // A primary handler that hands requests on, as a test's or a wrapper's does, is followed to the handler that sends
-    // them, which is trusted the same way.
-    [Fact]
-    public async Task Call_ThroughAPrimaryHandlerThatHandsRequestsOn_ToAServiceWhoseAuthorityIsTrusted_Succeeds()
-    {
-        var services = new ServiceCollection();
-        InternalTlsTrust.Add(services, new InternalTls { CertificateAuthorities = [Path.Combine(_directory, "authority.pem")] });
-        services.AddHttpClient("callee").ConfigurePrimaryHttpMessageHandler(() => new HandingOn(new HandingOn(new SocketsHttpHandler())));
-        using var provider = services.BuildServiceProvider();
-
-        var answer = await provider.GetRequiredService<IHttpClientFactory>().CreateClient("callee").GetStringAsync($"{_address}/alive", Token);
-
-        Assert.Equal("alive", answer);
-    }
-
-    // A handler that checks certificates itself keeps its own check: the platform adds nothing to it.
-    [Fact]
-    public async Task Call_ThroughAHandlerWithItsOwnCheck_KeepsThatCheck()
-    {
-        var services = new ServiceCollection();
-        InternalTlsTrust.Add(services, new InternalTls { CertificateAuthorities = [Path.Combine(_directory, "authority.pem")] });
-        services.AddHttpClient("callee").ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
-        {
-            SslOptions = { RemoteCertificateValidationCallback = (_, _, _, _) => false },
-        });
-        using var provider = services.BuildServiceProvider();
-
-        await Assert.ThrowsAsync<HttpRequestException>(
-            () => provider.GetRequiredService<IHttpClientFactory>().CreateClient("callee").GetStringAsync($"{_address}/alive", Token));
-    }
-
     // The bearer handler fetches Identity's discovery document and keys through a backchannel of its own, built by the
     // framework's post-configure: the trust is set before it, so an internally certified Identity's keys load.
     [Fact]
     public async Task BearerBackchannel_ToAnIssuerWhoseAuthorityIsTrusted_LoadsItsConfiguration()
     {
-        using var provider = Bearer(new InternalTls { CertificateAuthorities = [Path.Combine(_directory, "authority.pem")] });
+        using var provider = Bearer(new ServiceTls { CertificateAuthorities = [Path.Combine(_directory, "authority.pem")] });
         var options = provider.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>().Get(JwtBearerDefaults.AuthenticationScheme);
 
         var configuration = await options.ConfigurationManager!.GetConfigurationAsync(Token);
@@ -160,30 +86,38 @@ public sealed class InternalTlsTrustTests : IAsyncLifetime
     [Fact]
     public async Task BearerBackchannel_ToAnIssuerWhoseAuthorityIsntTrusted_Fails()
     {
-        using var provider = Bearer(new InternalTls());
+        using var provider = Bearer(new ServiceTls());
         var options = provider.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>().Get(JwtBearerDefaults.AuthenticationScheme);
 
         await Assert.ThrowsAnyAsync<Exception>(() => options.ConfigurationManager!.GetConfigurationAsync(Token));
     }
 
-    // Without the authority named, the system's roots don't know it, and the call is refused.
+    // Only the bearer handler is given the authorities here: any other client calls with the system's roots, and the
+    // Client package's clients opt in themselves (TrustInternalAuthorities).
     [Fact]
-    public async Task Call_ToAServiceWhoseAuthorityIsntTrusted_Fails()
+    public async Task Call_FromAnyOtherClient_GetsNoInternalAuthority()
     {
-        using var provider = Clients(new InternalTls());
+        using var provider = Clients(new ServiceTls { CertificateAuthorities = [Path.Combine(_directory, "authority.pem")] });
 
         await Assert.ThrowsAsync<HttpRequestException>(
             () => provider.GetRequiredService<IHttpClientFactory>().CreateClient("callee").GetStringAsync($"{_address}/alive", Token));
     }
 
-    // A name that doesn't match is never rescued by the internal authority.
+    // A backchannel the service sets itself is kept.
     [Fact]
-    public void Trusts_ANameMismatch_Refused()
+    public void BearerBackchannel_TheServiceSetsItself_IsKept()
     {
-        var authorities = new X509Certificate2Collection(_authority);
+        using var own = new HttpClientHandler();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddAuthentication().AddJwtBearer();
+        services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options => options.BackchannelHttpHandler = own);
+        InternalTlsTrust.Add(services, new ServiceTls { CertificateAuthorities = [Path.Combine(_directory, "authority.pem")] });
+        using var provider = services.BuildServiceProvider();
 
-        Assert.False(InternalTls.Trusts(authorities, _authority, null, SslPolicyErrors.RemoteCertificateNameMismatch | SslPolicyErrors.RemoteCertificateChainErrors));
-        Assert.True(InternalTls.Trusts(authorities, _authority, null, SslPolicyErrors.None));
+        var options = provider.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>().Get(JwtBearerDefaults.AuthenticationScheme);
+
+        Assert.Same(own, options.BackchannelHttpHandler);
     }
 
     [Theory]
@@ -194,7 +128,7 @@ public sealed class InternalTlsTrustTests : IAsyncLifetime
         File.WriteAllText(Path.Combine(_directory, "empty.pem"), "not a certificate");
 
         var exception = Assert.Throws<InvalidOperationException>(
-            () => new InternalTls { CertificateAuthorities = [Path.Combine(_directory, file)] }.LoadAuthorities());
+            () => new ServiceTls { CertificateAuthorities = [Path.Combine(_directory, file)] }.LoadAuthorities());
 
         Assert.Contains(file, exception.Message, StringComparison.Ordinal);
     }
@@ -211,7 +145,7 @@ public sealed class InternalTlsTrustTests : IAsyncLifetime
             options.Authority = "http://identity.internal";
             options.RequireHttpsMetadata = false;
         });
-        InternalTlsTrust.Add(builder.Services, new InternalTls { RequireHttps = true });
+        InternalTlsTrust.Add(builder.Services, new ServiceTls { RequireHttps = true });
         await using var app = builder.Build();
 
         var exception = await Assert.ThrowsAsync<OptionsValidationException>(() => app.StartAsync(Token));
@@ -227,7 +161,7 @@ public sealed class InternalTlsTrustTests : IAsyncLifetime
     public void RequireHttps_TheBearerAuthority_MustBeHttps(string? authority, bool valid)
     {
         var services = new ServiceCollection();
-        InternalTlsTrust.Add(services, new InternalTls { RequireHttps = true });
+        InternalTlsTrust.Add(services, new ServiceTls { RequireHttps = true });
         using var provider = services.BuildServiceProvider();
         var validator = provider.GetServices<IValidateOptions<JwtBearerOptions>>().Single();
 
@@ -239,7 +173,7 @@ public sealed class InternalTlsTrustTests : IAsyncLifetime
     /// <summary>
     /// The bearer handler as the platform registers it (authentication first, then the trust), pointed at the server.
     /// </summary>
-    private ServiceProvider Bearer(InternalTls tls)
+    private ServiceProvider Bearer(ServiceTls tls)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -249,12 +183,7 @@ public sealed class InternalTlsTrustTests : IAsyncLifetime
         return services.BuildServiceProvider();
     }
 
-    /// <summary>
-    /// A handler that hands every request on to the next, as a test's or a wrapper's does.
-    /// </summary>
-    private sealed class HandingOn(HttpMessageHandler inner) : DelegatingHandler(inner);
-
-    private static ServiceProvider Clients(InternalTls tls)
+    private static ServiceProvider Clients(ServiceTls tls)
     {
         var services = new ServiceCollection();
         InternalTlsTrust.Add(services, tls);
