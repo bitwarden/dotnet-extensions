@@ -176,12 +176,16 @@ public static class InternalCalls
         var tls = configuration.GetSection(InternalTls.Section).Get<InternalTls>() ?? new InternalTls();
         var authorities = tls.LoadAuthorities();
 
-        // Only the clients that call your own services, never a guarded one.
-        services.AddHttpClient("widget-service")
-            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+        // Only the clients that call your own services, never a guarded one. With no authority named, as on a
+        // developer's machine, the client keeps the system's roots.
+        var client = services.AddHttpClient("widget-service");
+        if (authorities.Count > 0)
+        {
+            client.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
             {
                 SslOptions = { CertificateChainPolicy = InternalTls.ChainPolicy(authorities) },
             });
+        }
 
         return services;
     }
@@ -235,9 +239,9 @@ public static class InternalCalls
 
 ## Types
 
-| Type                              | Purpose                                                                          |
-| --------------------------------- | -------------------------------------------------------------------------------- |
-| `HttpClientBuilderSsrfExtensions` | `AddSsrfProtection()` and `AddCloudSsrfProtection()` on an HTTP client           |
-| `SsrfProtectionException`         | A request the guard refused                                                      |
-| `IPAddressExtensions`             | `IsInternal()`: whether an address is in a private or reserved range             |
-| `InternalTls`                     | The `Tls` settings, and the chain policy trusting the internal authorities alone |
+| Type                              | Purpose                                                                                    |
+| --------------------------------- | ------------------------------------------------------------------------------------------ |
+| `HttpClientBuilderSsrfExtensions` | `AddSsrfProtection()` and `AddCloudSsrfProtection()` on an HTTP client                     |
+| `SsrfProtectionException`         | A request the guard refused                                                                |
+| `IPAddressExtensions`             | `IsInternal()`: whether an address is in a private or reserved range                       |
+| `InternalTls`                     | `Tls:CertificateAuthorities`, and the chain policy trusting the internal authorities alone |
