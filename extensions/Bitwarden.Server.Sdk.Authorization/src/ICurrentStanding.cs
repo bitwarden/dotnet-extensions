@@ -27,7 +27,8 @@ public interface ICurrentStanding
 {
     /// <summary>
     /// The person's confirmed membership of the organization, or null when they have none: not a member, invited or
-    /// accepted but not confirmed, revoked, or in a role the platform doesn't know.
+    /// accepted but not confirmed, revoked, or in a role the platform doesn't know. A membership whose role is
+    /// <see cref="OrganizationRole.None"/> or undefined is treated as null.
     /// </summary>
     /// <param name="person">The person.</param>
     /// <param name="organization">The organization.</param>
@@ -44,7 +45,8 @@ public interface ICurrentStanding
     Task<Guid?> ProviderOfAsync(Guid organization, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// The person's role on the provider's staff, when they are confirmed staff of it; null when they aren't.
+    /// The person's role on the provider's staff, when they are confirmed staff of it; null when they aren't. A role of
+    /// <see cref="ProviderRole.None"/> or an undefined one is treated as null.
     /// </summary>
     /// <param name="person">The person.</param>
     /// <param name="provider">The provider.</param>
