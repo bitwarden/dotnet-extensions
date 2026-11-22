@@ -1,0 +1,20 @@
+{
+  "openapi": "3.0.4",
+  "paths": {
+    "/api/v1/idempotency-probes": {
+      "post": { "operationId": "Write", "x-bitwarden-idempotency-key": true }
+    },
+    "/api/v1/idempotency-probes/{id}": {
+      "put": { "operationId": "Replace", "x-bitwarden-idempotency-key": true }
+    },
+    "/api/v1/idempotency-probes/failing": {
+      "post": { "operationId": "Fail", "x-bitwarden-idempotency-key": true }
+    },
+    "/api/v1/idempotency-probes/throwing": {
+      "post": { "operationId": "Throw", "x-bitwarden-idempotency-key": true }
+    },
+    "/api/v1/idempotency-probes/slow": {
+      "post": { "operationId": "WriteSlowly", "x-bitwarden-idempotency-key": true }
+    }
+  }
+}
