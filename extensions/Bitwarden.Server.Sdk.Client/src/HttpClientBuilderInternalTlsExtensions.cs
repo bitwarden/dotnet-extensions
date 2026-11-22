@@ -1,6 +1,7 @@
 using Bitwarden.Server.Sdk.Client;
 using Bitwarden.Server.Sdk.Http;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -18,11 +19,13 @@ public static class HttpClientBuilderInternalTlsExtensions
     /// <returns>The same builder, to configure further.</returns>
     /// <remarks>
     /// <para>
-    /// The client sends with a <see cref="SocketsHttpHandler"/> whose certificate chain policy is
-    /// <see cref="InternalTls.ChainPolicy"/>: no system roots, no validation callback, no revocation check (certificate
+    /// The handler the client sends with, once all its configuration has run, gets <see cref="InternalTls.ChainPolicy"/>
+    /// as its certificate chain policy: no system roots, no validation callback, no revocation check (certificate
     /// lifetime is the control) and no downloads. <see cref="System.Net.Security.SslStream"/> still checks the host name
-    /// and the server-authentication usage. With no authority named, nothing changes and the system's roots apply. A
-    /// handler that already has a chain policy keeps it, and a primary handler set after this call replaces it.
+    /// and the server-authentication usage. With no authority named, nothing changes and the system's roots apply. The
+    /// client's primary handler is kept whenever and however it was set, and one that already has a chain policy keeps
+    /// it. With an authority named, a primary handler that isn't a <see cref="SocketsHttpHandler"/> is refused when the
+    /// client is made, as it couldn't take the policy.
     /// </para>
     /// <para>
     /// The files are read once, and one that can't be read stops the host as it starts. Use this only on a client that
@@ -37,14 +40,9 @@ public static class HttpClientBuilderInternalTlsExtensions
         builder.Services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IConfigureOptions<InternalAuthorities>, InternalAuthorities.FromConfiguration>());
         builder.Services.AddOptions<InternalAuthorities>().ValidateOnStart();
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IHttpMessageHandlerBuilderFilter, InternalTrustFilter>());
+        builder.Services.Configure<InternalTrustedClients>(clients => clients.Names.Add(builder.Name));
 
-        return builder.UseSocketsHttpHandler((handler, provider) =>
-        {
-            var authorities = provider.GetRequiredService<IOptions<InternalAuthorities>>().Value.Certificates;
-            if (authorities.Count > 0)
-            {
-                handler.SslOptions.CertificateChainPolicy ??= InternalTls.ChainPolicy(authorities);
-            }
-        });
+        return builder;
     }
 }
