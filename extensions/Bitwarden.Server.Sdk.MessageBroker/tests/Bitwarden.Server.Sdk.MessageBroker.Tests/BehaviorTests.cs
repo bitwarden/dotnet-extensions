@@ -88,6 +88,19 @@ public abstract class BehaviorTests : IAsyncLifetime
 {
     private readonly List<IHost> _instances = [];
 
+    // Brokers that keep messages between tests (the Service Bus emulator) can hand a test a
+    // message an earlier test left locked: it reappears once the lock expires. Tests that count
+    // what they receive number their messages from a base of their own and skip the rest.
+    private readonly int _ownItemBase = Random.Shared.Next(1, 1_000_000) * 1_000;
+
+    private MyItem OwnItem(int index) => new(_ownItemBase + index);
+
+    private bool IsOwnItem(MyItem item, out int index)
+    {
+        index = item.Id - _ownItemBase;
+        return index is >= 0 and < 1_000;
+    }
+
     protected abstract Dictionary<string, string?> CreateConfig();
 
     /// <summary>Topic/queue name used for all registrations.</summary>
@@ -535,7 +548,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(PublisherKey);
 
         for (var i = 0; i < total; i++)
-            await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
+            await publisher.Publish(OwnItem(i)).SendAsync(TestContext.Current.CancellationToken);
 
         // First subscriber receives and completes firstBatch messages, then stops.
         var firstHost = await CreateSecondaryInstanceAsync(host);
@@ -544,7 +557,9 @@ public abstract class BehaviorTests : IAsyncLifetime
             .SubscribeAsync(TestContext.Current.CancellationToken))
         {
             await envelope.CompleteAsync(TestContext.Current.CancellationToken);
-            firstIds.Add(envelope.Payload.Id);
+            if (!IsOwnItem(envelope.Payload, out var index))
+                continue;
+            firstIds.Add(index);
             if (firstIds.Count >= firstBatch) break;
         }
 
@@ -562,7 +577,9 @@ public abstract class BehaviorTests : IAsyncLifetime
             .SubscribeAsync(TestContext.Current.CancellationToken))
         {
             await envelope.CompleteAsync(TestContext.Current.CancellationToken);
-            secondIds.Add(envelope.Payload.Id);
+            if (!IsOwnItem(envelope.Payload, out var index))
+                continue;
+            secondIds.Add(index);
             if (secondIds.Count >= total - firstBatch) break;
         }
 
@@ -888,7 +905,9 @@ public abstract class BehaviorTests : IAsyncLifetime
                 await foreach (var envelope in subscriber.SubscribeAsync(cts.Token))
                 {
                     await envelope.CompleteAsync(TestContext.Current.CancellationToken);
-                    bag.Add(envelope.Payload.Id);
+                    if (!IsOwnItem(envelope.Payload, out var index))
+                        continue;
+                    bag.Add(index);
                     if (Interlocked.Increment(ref totalReceived) >= messageCount)
                         cts.Cancel();
                 }
@@ -908,7 +927,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         await Task.Delay(200, TestContext.Current.CancellationToken);
 
         for (var i = 0; i < messageCount; i++)
-            await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
+            await publisher.Publish(OwnItem(i)).SendAsync(TestContext.Current.CancellationToken);
 
         await collectTask;
 
@@ -943,7 +962,9 @@ public abstract class BehaviorTests : IAsyncLifetime
                 await foreach (var envelope in subscriber.SubscribeAsync(cts.Token))
                 {
                     await envelope.CompleteAsync(TestContext.Current.CancellationToken);
-                    bag.Add(envelope.Payload.Id);
+                    if (!IsOwnItem(envelope.Payload, out var index))
+                        continue;
+                    bag.Add(index);
                     if (Interlocked.Increment(ref totalReceived) >= totalMessages)
                         cts.Cancel();
                 }
@@ -963,12 +984,12 @@ public abstract class BehaviorTests : IAsyncLifetime
             Task.Run(async () =>
             {
                 for (var i = 0; i < messagesPerPublisher; i++)
-                    await publisher1.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
+                    await publisher1.Publish(OwnItem(i)).SendAsync(TestContext.Current.CancellationToken);
             }, TestContext.Current.CancellationToken),
             Task.Run(async () =>
             {
                 for (var i = messagesPerPublisher; i < totalMessages; i++)
-                    await publisher2.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
+                    await publisher2.Publish(OwnItem(i)).SendAsync(TestContext.Current.CancellationToken);
             }, TestContext.Current.CancellationToken));
 
         await collectTask;
@@ -1002,7 +1023,9 @@ public abstract class BehaviorTests : IAsyncLifetime
                 await foreach (var envelope in subscriber.SubscribeAsync(cts.Token))
                 {
                     await envelope.CompleteAsync(TestContext.Current.CancellationToken);
-                    received.Add(envelope.Payload.Id);
+                    if (!IsOwnItem(envelope.Payload, out var index))
+                        continue;
+                    received.Add(index);
                     if (received.Count >= messagesPerPublisher * 2)
                         cts.Cancel();
                 }
@@ -1015,12 +1038,12 @@ public abstract class BehaviorTests : IAsyncLifetime
             Task.Run(async () =>
             {
                 for (var i = 0; i < messagesPerPublisher; i++)
-                    await publisher1.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
+                    await publisher1.Publish(OwnItem(i)).SendAsync(TestContext.Current.CancellationToken);
             }, TestContext.Current.CancellationToken),
             Task.Run(async () =>
             {
                 for (var i = messagesPerPublisher; i < messagesPerPublisher * 2; i++)
-                    await publisher2.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
+                    await publisher2.Publish(OwnItem(i)).SendAsync(TestContext.Current.CancellationToken);
             }, TestContext.Current.CancellationToken));
 
         await subscribeTask;
@@ -1156,7 +1179,9 @@ public abstract class BehaviorTests : IAsyncLifetime
                 await foreach (var envelope in subscriber.SubscribeAsync(cts.Token))
                 {
                     await envelope.CompleteAsync(TestContext.Current.CancellationToken);
-                    bag.Add(envelope.Payload.Id);
+                    if (!IsOwnItem(envelope.Payload, out var index))
+                        continue;
+                    bag.Add(index);
                     if (Interlocked.Increment(ref totalReceived) >= messageCount)
                         cts.Cancel();
                 }
@@ -1171,7 +1196,7 @@ public abstract class BehaviorTests : IAsyncLifetime
         await Task.Delay(200, TestContext.Current.CancellationToken);
 
         for (var i = 0; i < messageCount; i++)
-            await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
+            await publisher.Publish(OwnItem(i)).SendAsync(TestContext.Current.CancellationToken);
 
         await collectTask;
 
