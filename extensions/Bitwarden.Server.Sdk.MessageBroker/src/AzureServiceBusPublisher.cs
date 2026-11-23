@@ -22,6 +22,7 @@ internal sealed class AzureServiceBusPublisher<TPayload, TCeiling> : Publisher<T
 
     protected internal override async Task SendAsync(
         IReadOnlyList<Payload<TPayload>.IVariant> variants,
+        string messageId,
         CancellationToken cancellationToken)
     {
         using var activity = MessageBrokerActivitySource.StartProducerActivity(_topicName, TPayload.WireName);
@@ -30,7 +31,7 @@ internal sealed class AzureServiceBusPublisher<TPayload, TCeiling> : Publisher<T
         _serializer.SerializeVariants<TPayload>(variants, buffer);
         var sbMessage = new ServiceBusMessage(buffer.WrittenMemory)
         {
-            MessageId = Guid.NewGuid().ToString(),
+            MessageId = messageId,
         };
         sbMessage.ApplicationProperties[BrokerProperties.PayloadFamily] = TPayload.WireName;
         if (activity?.Id is { } traceId)

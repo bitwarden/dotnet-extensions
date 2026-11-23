@@ -2,7 +2,8 @@ namespace Bitwarden.Server.Sdk.MessageBroker;
 
 /// <summary>
 /// Thrown from concrete <see cref="Publisher{TPayload,TCeiling}"/> implementations when the message broker cannot
-/// be reached to send a message. The original broker-specific exception is preserved as
+/// be reached to send a message, or refuses it for a reason a retry could fix, such as a RabbitMQ queue that is full
+/// and rejects publishes. The original broker-specific exception is preserved as
 /// <see cref="Exception.InnerException"/>.
 /// </summary>
 public sealed class BrokerUnavailableException : Exception
