@@ -43,9 +43,7 @@ internal sealed class ErrorResponseExceptionHandler(
 
         // A library's failure that means one of the platform's is answered as that one. The log
         // keeps the original, so it still shows what happened.
-        var answered = translators
-            .Select(translator => translator.Translate(exception))
-            .FirstOrDefault(translated => translated is not null) ?? exception;
+        var answered = Translate(exception, translators);
 
         var errorId = httpContext.TraceIdentifier;
 
@@ -96,6 +94,17 @@ internal sealed class ErrorResponseExceptionHandler(
 
         await httpContext.Response.WriteAsJsonAsync(new ErrorResponse { Errors = errors }, cancellationToken);
     }
+
+    /// <summary>
+    /// The platform exception <paramref name="exception"/> means: the first registered translator's
+    /// answer, or the exception itself when none recognises it.
+    /// </summary>
+    /// <param name="exception">The exception to answer.</param>
+    /// <param name="translators">Say which platform exception a library's exception means.</param>
+    internal static Exception Translate(Exception exception, IEnumerable<IExceptionTranslator> translators) =>
+        translators
+            .Select(translator => translator.Translate(exception))
+            .FirstOrDefault(translated => translated is not null) ?? exception;
 
     /// <summary>
     /// Maps an exception to the response it deserves.
