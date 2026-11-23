@@ -66,6 +66,64 @@ public sealed class RequestMemoTests
         Assert.Equal(2, reads);
     }
 
+    // An answer shared but not kept reaches the caller already waiting on it, and nobody after.
+    [Fact]
+    public async Task RememberAsync_SharedAnswerInFlight_ReachesItsWaiterAndIsNotKept()
+    {
+        using var memo = RequestMemo.Begin();
+        var release = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reads = 0;
+
+        var first = memo.RememberAsync("k", false, async _ =>
+        {
+            reads++;
+            return new RequestMemoRead<int>(await release.Task, 4, RequestMemoKeep.Share);
+        }, Token);
+        var waiter = memo.RememberAsync("k", false, Counting(() => ++reads), Token);
+        release.SetResult(9);
+
+        Assert.Equal((9, RequestMemoOutcome.Joined), await waiter);
+        Assert.Equal(9, (await first).Value);
+        Assert.Equal(1, reads);
+
+        Assert.Equal((2, RequestMemoOutcome.Miss), await memo.RememberAsync("k", false, Counting(() => ++reads), Token));
+    }
+
+    // An answer that may not be shared never reaches the caller waiting on it: that caller reads for itself.
+    [Fact]
+    public async Task RememberAsync_UnshareableAnswerInFlight_ItsWaiterReadsForItself()
+    {
+        using var memo = RequestMemo.Begin();
+        var release = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var first = memo.RememberAsync(
+            "k", false, async _ => new RequestMemoRead<int>(await release.Task, 4, RequestMemoKeep.Alone), Token);
+        var waiter = memo.RememberAsync("k", false, Counting(() => 2), Token);
+        release.SetResult(9);
+
+        Assert.Equal((2, RequestMemoOutcome.Bypassed), await waiter);
+        Assert.Equal(9, (await first).Value);
+    }
+
+    // A waiting caller that is cancelled stops waiting; the read it waited on goes on and is kept.
+    [Fact]
+    public async Task RememberAsync_AWaitingCallerCancelled_StopsWaitingAndTheReadIsStillKept()
+    {
+        using var memo = RequestMemo.Begin();
+        using var waiter = new CancellationTokenSource();
+        var release = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var first = memo.RememberAsync(
+            "k", false, async _ => new RequestMemoRead<int>(await release.Task, 4, RequestMemoKeep.Keep), Token);
+        var second = memo.RememberAsync("k", false, Counting(() => 7), waiter.Token);
+        await waiter.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => second.WaitAsync(TimeSpan.FromSeconds(5), Token));
+        release.SetResult(9);
+        Assert.Equal((9, RequestMemoOutcome.Miss), await first);
+        Assert.Equal((9, RequestMemoOutcome.Hit), await memo.RememberAsync("k", false, Counting(() => 8), Token));
+    }
+
     [Fact]
     public async Task Forget_ForgetsTheCurrentMemo()
     {
