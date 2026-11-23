@@ -30,7 +30,7 @@ namespace Bitwarden.Server.Sdk.Resources.Endpoints;
 ///   </description></item>
 /// </list>
 /// <para>
-/// <c>StandardEndpointConvention</c> applies each only where the author has not been
+/// <see cref="StandardEndpointConvention"/> applies each only where the author has not been
 /// explicit, so adding <c>[ProducesResponseType]</c> or <c>[EndpointName]</c> by hand always wins.
 /// </para>
 /// </remarks>
