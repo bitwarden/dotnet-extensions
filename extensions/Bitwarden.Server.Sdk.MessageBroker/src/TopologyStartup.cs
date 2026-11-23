@@ -89,7 +89,7 @@ internal sealed class TopologyGate
 /// consumers wait until it finishes.
 /// </para>
 /// <para>
-/// Checking, RabbitMQ and LavinMQ: a passive declare of each exchange and queue, which needs only the
+/// Checking, RabbitMQ: a passive declare of each exchange and queue, which needs only the
 /// read or write right the service already has; RabbitMQ refuses one on an object the service has no
 /// rights to, so a refusal is reported as an object it may not use. Azure Service Bus: a peek at the
 /// service's own subscriptions and command queues; its topics and the queues it only sends to can't be
