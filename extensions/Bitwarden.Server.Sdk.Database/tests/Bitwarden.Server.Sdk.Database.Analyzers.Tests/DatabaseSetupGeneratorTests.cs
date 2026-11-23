@@ -224,11 +224,33 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                             builder.UseNpgsql(opts.ConnectionString);
                             break;
                         case DatabaseProvider.MySql:
-                            builder.UseMySql(opts.ConnectionString, ServerVersion.AutoDetect(opts.ConnectionString));
+                            builder.UseMySql(opts.ConnectionString, MySqlServerVersionFor(opts.ConnectionString));
                             break;
                         default:
                             throw new global::System.InvalidOperationException($"Provider {opts.Provider} is not supported by MyDatabase.");
                     }
+                }
+
+                // MySQL server versions, by the server's address, so each server is asked its version once per
+                // process rather than each time a context's options are built. A detection that throws stores
+                // nothing, so the next options build asks again. Builds that race on a server's first detection
+                // may each ask it; the first answer stored is the one kept.
+                private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<string, ServerVersion> _mySqlServerVersions = new();
+
+                private static ServerVersion MySqlServerVersionFor(string connectionString)
+                {
+                    var connection = new global::MySqlConnector.MySqlConnectionStringBuilder(connectionString);
+                    var server = new global::MySqlConnector.MySqlConnectionStringBuilder
+                    {
+                        Server = connection.Server,
+                        Port = connection.Port,
+                        ConnectionProtocol = connection.ConnectionProtocol,
+                        PipeName = connection.PipeName,
+                    }.ConnectionString;
+                    return _mySqlServerVersions.GetOrAdd(
+                        server,
+                        static (_, connectionString) => ServerVersion.AutoDetect(connectionString),
+                        connectionString);
                 }
             #endif
             }
@@ -554,11 +576,33 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                             builder.UseNpgsql(opts.ConnectionString);
                             break;
                         case DatabaseProvider.MySql:
-                            builder.UseMySql(opts.ConnectionString, ServerVersion.AutoDetect(opts.ConnectionString));
+                            builder.UseMySql(opts.ConnectionString, MySqlServerVersionFor(opts.ConnectionString));
                             break;
                         default:
                             throw new global::System.InvalidOperationException($"Provider {opts.Provider} is not supported by FooDatabase.");
                     }
+                }
+
+                // MySQL server versions, by the server's address, so each server is asked its version once per
+                // process rather than each time a context's options are built. A detection that throws stores
+                // nothing, so the next options build asks again. Builds that race on a server's first detection
+                // may each ask it; the first answer stored is the one kept.
+                private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<string, ServerVersion> _mySqlServerVersions = new();
+
+                private static ServerVersion MySqlServerVersionFor(string connectionString)
+                {
+                    var connection = new global::MySqlConnector.MySqlConnectionStringBuilder(connectionString);
+                    var server = new global::MySqlConnector.MySqlConnectionStringBuilder
+                    {
+                        Server = connection.Server,
+                        Port = connection.Port,
+                        ConnectionProtocol = connection.ConnectionProtocol,
+                        PipeName = connection.PipeName,
+                    }.ConnectionString;
+                    return _mySqlServerVersions.GetOrAdd(
+                        server,
+                        static (_, connectionString) => ServerVersion.AutoDetect(connectionString),
+                        connectionString);
                 }
             #endif
             }
@@ -1205,11 +1249,33 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                             builder.UseNpgsql(opts.ConnectionString);
                             break;
                         case DatabaseProvider.MySql:
-                            builder.UseMySql(opts.ConnectionString, ServerVersion.AutoDetect(opts.ConnectionString));
+                            builder.UseMySql(opts.ConnectionString, MySqlServerVersionFor(opts.ConnectionString));
                             break;
                         default:
                             throw new global::System.InvalidOperationException($"Provider {opts.Provider} is not supported by MyDatabase.");
                     }
+                }
+
+                // MySQL server versions, by the server's address, so each server is asked its version once per
+                // process rather than each time a context's options are built. A detection that throws stores
+                // nothing, so the next options build asks again. Builds that race on a server's first detection
+                // may each ask it; the first answer stored is the one kept.
+                private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<string, ServerVersion> _mySqlServerVersions = new();
+
+                private static ServerVersion MySqlServerVersionFor(string connectionString)
+                {
+                    var connection = new global::MySqlConnector.MySqlConnectionStringBuilder(connectionString);
+                    var server = new global::MySqlConnector.MySqlConnectionStringBuilder
+                    {
+                        Server = connection.Server,
+                        Port = connection.Port,
+                        ConnectionProtocol = connection.ConnectionProtocol,
+                        PipeName = connection.PipeName,
+                    }.ConnectionString;
+                    return _mySqlServerVersions.GetOrAdd(
+                        server,
+                        static (_, connectionString) => ServerVersion.AutoDetect(connectionString),
+                        connectionString);
                 }
             #endif
             }
@@ -1477,7 +1543,7 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
             generated);
         Assert.Contains("case DatabaseProvider.MySql:", generated);
         Assert.Contains(
-            "builder.UseMySql(opts.ConnectionString, ServerVersion.AutoDetect(opts.ConnectionString));",
+            "builder.UseMySql(opts.ConnectionString, MySqlServerVersionFor(opts.ConnectionString));",
             generated);
         Assert.Contains("file sealed class MySqlContextFactory", generated);
         Assert.DoesNotContain("Pomelo", generated);
