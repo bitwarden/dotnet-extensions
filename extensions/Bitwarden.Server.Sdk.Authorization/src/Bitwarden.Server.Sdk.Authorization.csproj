@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- Writes the error document with the host's own JSON options, by reflection, so a service's
+         serializer settings apply to it as to every other response. That cannot be proven trim- or
+         AOT-safe, so this package is declared not AOT-compatible rather than suppressed. -->
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <PreReleaseVersionLabel>alpha</PreReleaseVersionLabel>
+    <PreReleaseVersionIteration>1</PreReleaseVersionIteration>
+    <VersionSuffix Condition="'$(VersionSuffix)' == '' AND '$(IsPreRelease)' == 'true'">$(PreReleaseVersionLabel).$(PreReleaseVersionIteration)</VersionSuffix>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Description>Context authorization for Bitwarden services: who may call an operation, on whose behalf, and for which owner.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The Bearer scheme and Bitwarden's token-validation rules, which this package's token checks extend. -->
+    <PackageReference Include="Bitwarden.Server.Sdk.Authentication" Version="0.6.0" />
+    <!-- The bearer handler's IdentityModel packages, raised so the whole family resolves to one
+         version without AIKIDO-2026-11109 (fixed in 7.7.2) or AIKIDO-2026-11098 (fixed in 8.19.0). -->
+    <PackageReference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="8.23.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.23.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Context\src\Bitwarden.Server.Sdk.Context.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Errors\src\Bitwarden.Server.Sdk.Errors.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Authorization.Tests" />
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Service.Tests" />
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Service.MinimalApi.Tests" />
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Service.Testing" />
+    <!-- The service-owned cache settles authorization exactly as the standard operations do. -->
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Resources.Caching" />
+  </ItemGroup>
+
+</Project>
