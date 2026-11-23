@@ -343,7 +343,18 @@ build and the record, the next run builds the index again, so write the build to
 On PostgreSQL an interrupted `CREATE INDEX CONCURRENTLY` leaves an invalid index of that name, which
 `CREATE INDEX CONCURRENTLY IF NOT EXISTS` then skips. Drop it first with
 `DROP INDEX CONCURRENTLY IF EXISTS`, then create it, each statement in its own
-`Sql(..., suppressTransaction: true)` call, since neither can run in a transaction block.
+`Sql(..., suppressTransaction: true)` call, since neither can run in a transaction block. A repeat
+after a build that succeeded drops and rebuilds the index, so use this only for an index name the
+previous release doesn't have.
+
+Two more things matter on PostgreSQL:
+
+- **The command timeout.** Npgsql's default command timeout, 30 seconds, applies to migrations and
+  cancels a longer build, leaving the invalid index. Give the migrator a longer one, such as
+  `Command Timeout=3600` in its connection string.
+- **One migrator at a time.** EF Core releases its migration lock before a step that suppresses
+  the transaction, so two migrators running the same migration can deadlock. The drop and create
+  above still end with a valid index, but run the migration from one place.
 
 `Migrations/SqlServer/20261201000000_IndexItemsName.cs`:
 
