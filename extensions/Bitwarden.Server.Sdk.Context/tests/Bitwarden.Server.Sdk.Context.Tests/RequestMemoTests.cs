@@ -203,15 +203,29 @@ public sealed class RequestMemoTests
         Assert.Equal((7, RequestMemoOutcome.Bypassed), await second);
     }
 
+    // Work started inside a memo and not awaited shares it, and has none once the memo ends.
     [Fact]
-    public async Task RememberAsync_AFlowForkedInside_SharesItUntilItEnds()
+    public async Task Current_OnAFlowForkedInside_IsNoneOnceTheMemoEnds()
     {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var ended = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var memo = RequestMemo.Begin();
-        var forked = Task.Run(() => RequestMemo.Current, Token);
 
-        Assert.Same(memo, await forked);
+        var forked = Task.Run(async () =>
+        {
+            var before = RequestMemo.Current;
+            started.SetResult();
+            await ended.Task;
+
+            return (Before: before, After: RequestMemo.Current);
+        }, Token);
+        await started.Task.WaitAsync(Token);
         memo.Dispose();
-        Assert.Null(await Task.Run(() => RequestMemo.Current, Token));
+        ended.SetResult();
+
+        var (before, after) = await forked;
+        Assert.Same(memo, before);
+        Assert.Null(after);
     }
 
     [Theory]
