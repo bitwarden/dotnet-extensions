@@ -10,11 +10,25 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Bitwarden.Server.Sdk.Resources.Endpoints;
 
 /// <summary>
-/// Configures each endpoint a group's <c>StandardEndpointExtensions.WithStandards{TBuilder}</c>
+/// Configures each endpoint a group's <see cref="StandardEndpointExtensions.WithStandards{TBuilder}"/>
 /// maps: its OpenAPI metadata, success status and standard filter.
 /// </summary>
 internal static class StandardEndpointConvention
 {
+    private static readonly MethodInfo PlatformFilter = typeof(StandardEndpointFilter).GetMethod(nameof(StandardEndpointFilter.Create))!;
+
+    /// <summary>
+    /// The filter the framework puts on every endpoint of a host that calls <c>AddValidation</c>, whatever the
+    /// handler takes. The framework keeps its type internal, so it is found by name; where a later framework renames it,
+    /// this is null and the filter is counted, so a check reading the count refuses the endpoint rather than passing it.
+    /// </summary>
+    private static readonly MethodInfo? ValidationFilter = typeof(RouteHandlerBuilder).Assembly
+        .GetType("Microsoft.AspNetCore.Http.Validation.ValidationEndpointFilterFactory")
+        ?.GetMethod(
+            "Create",
+            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static,
+            [typeof(EndpointFilterFactoryContext), typeof(EndpointFilterDelegate)]);
+
     public static void Apply(EndpointBuilder endpoint)
     {
         if (endpoint.Metadata.OfType<MethodInfo>().LastOrDefault() is not { } method)
@@ -26,6 +40,10 @@ internal static class StandardEndpointConvention
         var problems = services.GetService<StandardEndpointProblems>();
         var name = NameOf(method);
 
+        // Run last (Finally), so every filter added to the endpoint or its groups is here.
+        var filterCount = endpoint.FilterFactories.Count(factory => !IsPlatforms(factory.Method, endpoint));
+        endpoint.Metadata.Add(new EndpointFilters(filterCount));
+
         try
         {
             Configure(endpoint, method, name, services);
@@ -35,6 +53,14 @@ internal static class StandardEndpointConvention
             problems.Add(refused.Message);
         }
     }
+
+    /// <summary>
+    /// Whether a filter is the platform's own: the standard filter, or the framework's validation filter where the
+    /// endpoint turns it off, as <see cref="StandardEndpointExtensions.WithStandards{TBuilder}"/> does, so it adds nothing.
+    /// </summary>
+    private static bool IsPlatforms(MethodInfo factory, EndpointBuilder endpoint) =>
+        factory == PlatformFilter
+        || (factory == ValidationFilter && endpoint.Metadata.OfType<IDisableValidationMetadata>().Any());
 
     /// <summary>
     /// How an operation is named in the messages that refuse it: its class and method.
@@ -100,7 +126,7 @@ internal static class StandardEndpointConvention
         var organization = method.IsDefined(typeof(NamesOrganizationAttribute), inherit: true);
         var provider = method.IsDefined(typeof(NamesProviderAttribute), inherit: true);
 
-        // Inert below the product layer, which takes them from the service calling it.
+        // Checked only in a product service: a domain service takes the owner from the service calling it.
         if ((organization || provider) && services.GetService<IServiceIdentity>()?.IsProductService == true)
         {
             OperationAuthorization.CheckNamesOwner(
