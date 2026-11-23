@@ -185,6 +185,19 @@ public class UserService(
     [FromKeyedServices("user-events#user.deleted")] Publisher<UserDeletedPayload, UserDeleted> deleted);
 ```
 
+### Message identifiers
+
+`SendAsync(ct)` gives each message a new version 7 GUID. To send a message again under the same
+identifier, pass it: `SendAsync(messageId, ct)`. An identifier must be ASCII, not blank, and at most
+128 characters.
+
+### When a send completes
+
+`SendAsync` completes once the broker has accepted the message. If the broker can't be reached, or
+refuses the message for a reason a retry could fix, it throws `BrokerUnavailableException`.
+
+### Assisted downcasts
+
 If a downcast between the ceiling and the floor needs caller-supplied data (an "assisted"
 downcast), chain a `.With(assist)` call for each such crossing before `SendAsync`. The compiler
 refuses `SendAsync` until every assisted downcast has been crossed, so a publisher cannot omit data
@@ -280,9 +293,19 @@ broker metadata:
 | Property        | Description                                                                                                   |
 | --------------- | ------------------------------------------------------------------------------------------------------------- |
 | `Payload`       | The resolved variant at `TCeiling` (see above).                                                               |
-| `MessageId`     | Unique identifier assigned by the publisher.                                                                  |
+| `MessageId`     | The identifier the publisher sent the message under; the same on every redelivery and re-send.                |
 | `TraceId`       | W3C traceparent of the publish span, for linking consumer traces to producer traces.                          |
 | `DeliveryCount` | Number of times this message has been delivered. `1` on the first attempt, incrementing with each redelivery. |
+
+### Broker outages
+
+Consumers registered with `AddMessageConsumer` keep running through a broker outage: they subscribe
+again, waiting one second at first and up to thirty seconds between attempts. A host whose broker
+is down when it starts still starts. On RabbitMQ, a send while the broker is unreachable throws
+`BrokerUnavailableException` rather than waiting for it. On Azure Service Bus, the client retries
+first, and a send throws `BrokerUnavailableException` once its retry policy gives up. A raw
+`ISubscriber` stream (registered with `AddSubscriber`) ends with `BrokerDisconnectedException`
+instead; subscribing again is up to you.
 
 ### Stopping gracefully
 
