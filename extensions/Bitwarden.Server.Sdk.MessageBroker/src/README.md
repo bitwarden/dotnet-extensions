@@ -4,9 +4,8 @@
 [PACKAGE.md](PACKAGE.md) instead.
 
 Transport-agnostic publish/subscribe messaging for Bitwarden services. Three backends share one API:
-Azure Service Bus, RabbitMQ (which also serves LavinMQ), and an in-memory
-`System.Threading.Channels` fallback. Which brokers are supported for which deployment is in
-[BROKER-TOPOLOGY.md](BROKER-TOPOLOGY.md#supported-brokers).
+Azure Service Bus, RabbitMQ, and an in-memory `System.Threading.Channels` fallback. Which brokers
+are supported for which deployment is in [BROKER-TOPOLOGY.md](BROKER-TOPOLOGY.md#supported-brokers).
 
 A topic is a service's outbound event stream, so one topic can carry many payload families (for
 example, a user service might publish `user.created` and `user.deleted` through one
@@ -92,7 +91,7 @@ The library does not provision RabbitMQ topology; operators pre-declare it (see
 expected shape is driven by two design choices:
 
 - **Quorum queues** for subscriber queues. The `x-delivery-count` header on quorum queues
-  (RabbitMQ 3.12+, and LavinMQ, which sends it as a 32-bit integer where RabbitMQ sends a 64-bit one)
+  (RabbitMQ 3.12+)
   is what `RabbitSubscriber` reads into `Envelope<TPayload, TCeiling>.DeliveryCount`. Classic
   queues only expose a boolean `redelivered` flag, which is not enough to drive delivery-limit
   behavior.
@@ -209,9 +208,4 @@ The test suite covers all three backends via the shared `BehaviorTests` base cla
 queues via `CommandBehaviorTests`.
 Channel-specific tests (drain on shutdown, queue depth gauge) live in `ChannelBehaviorTests`.
 
-The RabbitMQ tests run against `rabbitmq:4.3.6`, the version the self-hosted install ships, unless `MESSAGING_TESTS_AMQP_IMAGE` names
-another AMQP 0-9-1 broker's image. CI runs them on LavinMQ as well:
-
-```bash
-MESSAGING_TESTS_AMQP_IMAGE=cloudamqp/lavinmq:2.10.4@sha256:2d92aa41dda178e18ed1d64d3b48af47273a4c2134e82f61fcbc112797c378a9 dotnet run -- --filter-class "*.RabbitBehaviorTests" --filter-class "*.RabbitCommandBehaviorTests" --filter-class "*.RabbitOutageTests" --filter-class "*.RabbitTopologyCheckTests"
-```
+The RabbitMQ tests run against `rabbitmq:4.3.6`, the version the self-hosted install ships.

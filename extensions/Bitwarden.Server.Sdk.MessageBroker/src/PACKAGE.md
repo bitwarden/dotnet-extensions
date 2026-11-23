@@ -100,10 +100,10 @@ else raises a validation error at startup.
 
 ## Broker setup
 
-MessageBroker supports three brokers, chosen through configuration: Azure Service Bus, RabbitMQ and
-LavinMQ. Services don't depend on which one is in use.
+MessageBroker supports two brokers, chosen through configuration: Azure Service Bus and RabbitMQ.
+Services don't depend on which one is in use.
 
-The library does not provision broker topology. For the Azure Service Bus, RabbitMQ and LavinMQ backends,
+The library does not provision broker topology. For the Azure Service Bus and RabbitMQ backends,
 the exchanges, queues, topics, subscriptions, and related filters / policies must be declared on
 the broker before the application starts. See
 [BROKER-TOPOLOGY.md](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/BROKER-TOPOLOGY.md)
