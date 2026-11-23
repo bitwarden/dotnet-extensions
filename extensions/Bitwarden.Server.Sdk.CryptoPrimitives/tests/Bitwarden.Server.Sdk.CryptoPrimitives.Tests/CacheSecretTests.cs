@@ -36,12 +36,22 @@ public sealed class CacheSecretTests
     }
 
     [Fact]
-    public void ToString_RoundTripsThroughFromString()
+    public void ToBase64_RoundTripsThroughFromString()
     {
         var secret = new CacheSecret(SequentialBytes);
 
-        Assert.Equal(SequentialBase64, secret.ToString());
-        Assert.Equal(secret, CacheSecret.FromString(secret.ToString()));
+        Assert.Equal(SequentialBase64, secret.ToBase64());
+        Assert.Equal(secret, CacheSecret.FromString(secret.ToBase64()));
+    }
+
+    [Fact]
+    public void ToString_NeverWritesTheSecret()
+    {
+        var secret = new CacheSecret(SequentialBytes);
+
+        Assert.Equal("[cache secret]", secret.ToString());
+        Assert.Equal("[cache secret]", $"{secret}");
+        Assert.DoesNotContain(SequentialBase64, secret.ToString(), StringComparison.Ordinal);
     }
 
     [Theory]
