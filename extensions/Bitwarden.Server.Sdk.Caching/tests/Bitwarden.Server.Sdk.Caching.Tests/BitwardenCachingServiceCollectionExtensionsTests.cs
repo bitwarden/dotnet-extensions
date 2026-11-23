@@ -414,6 +414,8 @@ public class BitwardenCachingServiceCollectionExtensionsTests : IClassFixture<Re
         var ex = Assert.Throws<InvalidOperationException>(
             () => provider.GetRequiredKeyedService<IFusionCache>(KeyedService.AnyKey)
         );
+        // Since .NET 10 the container refuses AnyKey itself, in its own words, before the
+        // package's check is reached; either way it is refused by name.
         Assert.Contains("AnyKey", ex.Message);
     }
 

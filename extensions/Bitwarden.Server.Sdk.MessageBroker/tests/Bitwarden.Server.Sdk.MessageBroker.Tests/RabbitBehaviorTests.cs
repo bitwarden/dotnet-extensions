@@ -56,11 +56,9 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
                 if (decl.SubscriptionName is not null)
                 {
                     var queueName = $"{decl.TopicName}.{decl.SubscriptionName}";
-                    // With a delivery limit, as BROKER-TOPOLOGY.md's policy gives every subscription queue:
-                    // LavinMQ counts deliveries in x-delivery-count only on a queue that has one.
                     await channel.QueueDeclareAsync(queueName, durable: true, exclusive: false,
                         autoDelete: false,
-                        arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum", ["x-delivery-limit"] = 10 },
+                        arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum" },
                         cancellationToken: cancellationToken);
                     await channel.QueueBindAsync(queueName, decl.TopicName, routingKey: decl.FamilyWireName,
                         cancellationToken: cancellationToken);
@@ -382,8 +380,8 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
         var deadLetterExchange = $"dlx.{topic}";
         var deadLetterQueue = $"dlq.{topic}.{Subscription}";
 
-        // The delivery limit and dead-letter exchange as queue arguments, which RabbitMQ and LavinMQ
-        // treat as BROKER-TOPOLOGY.md's policy keys.
+        // The delivery limit and dead-letter exchange as queue arguments, which RabbitMQ treats as
+        // BROKER-TOPOLOGY.md's policy keys.
         await using (var conn = await new ConnectionFactory { Uri = new Uri(_fixture.GetUri()) }
             .CreateConnectionAsync(TestContext.Current.CancellationToken))
         await using (var channel = await conn.CreateChannelAsync(cancellationToken: TestContext.Current.CancellationToken))
@@ -469,7 +467,7 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
 
         public async Task AddUserAsync(string user, string password, string configure, string write, string read)
         {
-            var tool = AmqpTestBroker.Image.Contains("lavinmq", StringComparison.OrdinalIgnoreCase) ? "lavinmqctl" : "rabbitmqctl";
+            const string tool = "rabbitmqctl";
             foreach (var command in new[]
             {
                 new[] { tool, "add_user", user, password },

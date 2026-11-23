@@ -100,8 +100,8 @@ else raises a validation error at startup.
 
 ## Broker setup
 
-MessageBroker supports three brokers, chosen through configuration: Azure Service Bus, RabbitMQ and
-LavinMQ. Services don't depend on which one is in use.
+MessageBroker supports two brokers, chosen through configuration: Azure Service Bus and RabbitMQ.
+Services don't depend on which one is in use.
 
 A self-hosted service creates the topics, queues and subscriptions it needs as it starts; in the
 cloud, infrastructure-as-code creates them before release. `AutoProvisionTopology` switches either

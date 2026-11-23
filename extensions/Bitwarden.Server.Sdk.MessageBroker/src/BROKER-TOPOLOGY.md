@@ -1,28 +1,24 @@
 # Broker topology
 
-**Audience:** Operators and platform engineers provisioning Azure Service Bus, RabbitMQ or LavinMQ
+**Audience:** Operators and platform engineers provisioning Azure Service Bus or RabbitMQ
 infrastructure for services that use `Bitwarden.Server.Sdk.MessageBroker`. Application developers
 can skip this document — the in-memory channel backend used during development needs no setup.
 
 ## Supported brokers
 
-MessageBroker supports three brokers, chosen through configuration: Azure Service Bus, RabbitMQ and
-LavinMQ. Services don't depend on which one is in use.
+MessageBroker supports two brokers, chosen through configuration: Azure Service Bus and RabbitMQ.
+Services don't depend on which one is in use.
 
-| Deployment | Default broker    | Can instead use                        |
-| ---------- | ----------------- | -------------------------------------- |
-| Cloud      | Azure Service Bus | Nothing else                           |
-| Self-host  | RabbitMQ 4.3.6    | Azure Service Bus, LavinMQ 2.10.4      |
-| Lite       | LavinMQ 2.10.4    | Azure Service Bus, RabbitMQ 4.3.6      |
+| Deployment | Default broker    | Can instead use   |
+| ---------- | ----------------- | ----------------- |
+| Cloud      | Azure Service Bus | Nothing else      |
+| Self-host  | RabbitMQ 4.3.6    | Azure Service Bus |
 
 A self-hosted service creates the topics, queues and subscriptions it needs as it starts, so a
 self-hosted install's broker needs no setup. In the cloud, infrastructure-as-code creates them before
 release. An operator can switch either way with
 `AutoProvisionTopology`; a service that doesn't create its topology checks it at startup, and stops,
 naming what is missing.
-
-RabbitMQ and LavinMQ share one backend in the library (the `Rabbit*` types, configured with
-`RabbitUri`); see [RabbitMQ and LavinMQ](#rabbitmq-and-lavinmq).
 
 ## Provisioning
 
@@ -100,9 +96,9 @@ those the service already has (see
 [Users and permissions](#users-and-permissions) and
 [Access with a managed identity](#access-with-a-managed-identity)):
 
-- **RabbitMQ and LavinMQ:** a passive declare of each of its topic exchanges, its subscription queues
+- **RabbitMQ:** a passive declare of each of its topic exchanges, its subscription queues
   (`{topic}.{subscription}`), its command queue and the exchange of each command queue it sends to.
-  A passive declare needs only the read or write right on the object, not configure. RabbitMQ also
+  A passive declare needs only the read or write right on the object, not configure. RabbitMQ
   refuses one on an object the user has no rights to, whether or not it exists, so the check reports
   such an object as missing or not permitted. It doesn't check bindings or policies.
 - **Azure Service Bus:** a peek at each of its subscriptions and its command queue, which needs only
@@ -192,9 +188,9 @@ Sender** on each topic it publishes to and each command queue it sends to, and *
 Data Receiver** on each of its own subscriptions and on its own command queue. No other service
 needs receive rights on them.
 
-## RabbitMQ and LavinMQ
+## RabbitMQ
 
-RabbitMQ and LavinMQ take the same topology, declared the same way. For each unique `topic` passed to `AddPublisher<TPayload, TCeiling>(topic)`:
+For each unique `topic` passed to `AddPublisher<TPayload, TCeiling>(topic)`:
 
 - A durable **topic** exchange named `{topic}`.
 
@@ -221,10 +217,9 @@ RabbitMQ counts toward the limit and in the `x-delivery-count` header that becom
 
 Policies must be used rather than queue arguments because quorum queue arguments cannot be
 changed on an existing queue. Declare the topology in a `definitions.json` file and import it when
-the broker starts: both brokers import the same file, RabbitMQ with `load_definitions` (see the
-RabbitMQ documentation on [definitions](https://www.rabbitmq.com/docs/definitions) and
-[quorum queue poison-message handling](https://www.rabbitmq.com/docs/quorum-queues#poison-message-handling)),
-and LavinMQ with its definitions import.
+the broker starts with `load_definitions` (see the RabbitMQ documentation on
+[definitions](https://www.rabbitmq.com/docs/definitions) and
+[quorum queue poison-message handling](https://www.rabbitmq.com/docs/quorum-queues#poison-message-handling)).
 
 ### Example: a user service
 
@@ -336,22 +331,3 @@ sender's user needs `write` on `^{queue}$` for each queue it sends to, and the r
 `read` on its own queue. The permissions are regular expressions, so escape the dots in a queue's
 name (`^notification\.commands$`). Don't grant service users `write` on the default exchange
 (`amq.default`): it reaches every queue in the virtual host.
-
-### Where RabbitMQ and LavinMQ differ
-
-- **Delivery count.** LavinMQ sends `x-delivery-count` only on a queue that has a delivery limit, so
-  without the policy every redelivery reads as the second.
-- **Provisioning.** Both import `definitions.json`. `rabbitmqadmin` and `rabbitmqctl` have no
-  equivalents in `lavinmqctl`, so use a definitions file for either broker.
-- **Dead-lettering.** Both set the `x-death` header on a dead-lettered message, naming the queue it
-  came from, which is what replaying it relies on.
-- **Permissions.** Both check `configure`, `write` and `read` against regular expressions over
-  resource names, so the rights described under command queues apply to both. They differ on a
-  passive declare of an object the user has no rights to: RabbitMQ refuses it (`403`) whether or not
-  the object exists, and LavinMQ answers as it would for anyone (`404` when it is missing). The
-  startup check reports a refusal as an object that is missing or not permitted. LavinMQ 2.10.4 also
-  refuses to declare a queue with a dead-letter exchange unless the user's `read` pattern matches any
-  name (`.*`); narrower patterns, even ones matching both the queue and its dead-letter exchange, are
-  refused, and RabbitMQ accepts them.
-
-CI runs the library's broker tests on both RabbitMQ 4.3.6 and LavinMQ 2.10.4.
