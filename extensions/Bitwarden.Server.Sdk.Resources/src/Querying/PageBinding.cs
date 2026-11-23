@@ -47,9 +47,17 @@ internal static class PageBinding
         // The last value, as the platform's other single-valued parameters take it.
         var value = supplied[^1]!;
 
-        return type == typeof(PageAfter)
-            ? new PageAfter(value)
-            : type == typeof(PageNumber) ? new PageNumber(Number(value, maximum)) : new PageSize(Whole(name, value), maximum);
+        if (type == typeof(PageAfter))
+        {
+            return new PageAfter(value);
+        }
+
+        if (type == typeof(PageNumber))
+        {
+            return new PageNumber(Number(value, maximum));
+        }
+
+        return new PageSize(Whole(name, value), maximum);
     }
 
     /// <remarks>
