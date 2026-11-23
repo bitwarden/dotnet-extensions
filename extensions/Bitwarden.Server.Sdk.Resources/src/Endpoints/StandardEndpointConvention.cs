@@ -41,7 +41,8 @@ internal static class StandardEndpointConvention
         var name = NameOf(method);
 
         // Run last (Finally), so every filter added to the endpoint or its groups is here.
-        endpoint.Metadata.Add(new EndpointFilters(endpoint.FilterFactories.Count(factory => !IsPlatforms(factory.Method, endpoint))));
+        var filterCount = endpoint.FilterFactories.Count(factory => !IsPlatforms(factory.Method, endpoint));
+        endpoint.Metadata.Add(new EndpointFilters(filterCount));
 
         try
         {
