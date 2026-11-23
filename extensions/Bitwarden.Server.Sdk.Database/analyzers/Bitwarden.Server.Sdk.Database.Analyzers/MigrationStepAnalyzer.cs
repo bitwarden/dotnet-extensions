@@ -10,8 +10,8 @@ namespace Bitwarden.Server.Sdk.Database.Analyzers;
 /// Reports steps in an EF Core migration's <c>Up</c> that the release before it can't run against.
 /// During a rolling deployment the previous release keeps running on the migrated schema, so a
 /// column it reads must outlive it: a drop or a rename waits for the release after the one that
-/// stopped using it. Steps on a table created earlier in the same <c>Up</c> are never reported,
-/// since no earlier release knows that table.
+/// stopped using it. Steps on a table created earlier in the same <c>Up</c> aren't reported, since
+/// no earlier release knows that table, apart from a foreign key from it to an existing table.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
