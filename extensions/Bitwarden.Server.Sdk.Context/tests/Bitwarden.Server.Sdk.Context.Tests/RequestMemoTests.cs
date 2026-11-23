@@ -300,6 +300,19 @@ public sealed class RequestMemoTests
         Assert.Equal((3, RequestMemoOutcome.Hit), kept);
     }
 
+    // A fresh read that replaces a kept answer gives that answer's bytes back, so the memo can keep as much again.
+    [Fact]
+    public async Task RememberAsync_FreshReplacesAKeptAnswer_ItsBytesAreGivenBack()
+    {
+        using var memo = RequestMemo.Begin(maxEntries: 10, maxBytes: 8);
+
+        await memo.RememberAsync("k", false, Counting(() => 1), Token);
+        await memo.RememberAsync("k", true, Counting(() => 2), Token);
+        await memo.RememberAsync("other", false, Counting(() => 3), Token);
+
+        Assert.Equal((3, RequestMemoOutcome.Hit), await memo.RememberAsync("other", false, Counting(() => 4), Token));
+    }
+
     // An answer that doesn't fit the bound on bytes, or gives no size, is answered but not kept.
     [Theory]
     [InlineData(5)]
