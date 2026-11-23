@@ -6,7 +6,7 @@ namespace Bitwarden.Server.Sdk.Resources.Querying;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Two halves, like <c>CursorQueryable</c>, because the platform does not know how a service
+/// Two halves, like <see cref="CursorQueryable"/>, because the platform does not know how a service
 /// reads its database. <see cref="Page{TEntity}"/> takes the page from an ordered query; the service
 /// materialises it however it materialises anything; <see cref="ToPagedAsync{TRow, TResource}"/>
 /// works out the total, running the service's count only if it must:
