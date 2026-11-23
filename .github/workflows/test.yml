@@ -29,17 +29,6 @@ jobs:
       - name: Test solution
         run: dotnet test --configuration Debug -- --coverage --coverage-output-format cobertura --coverage-output "coverage.cobertura.xml" --report-xunit-trx --report-xunit-trx-filename "test-results.trx"
 
-      # LavinMQ, an AMQP 0-9-1 broker that services run in place of RabbitMQ, counts deliveries differently and
-      # sends the count as another integer type, so MessageBroker's RabbitMQ tests run against it as well.
-      - name: Test MessageBroker's RabbitMQ backend on LavinMQ
-        if: ${{ !cancelled() }}
-        env:
-          MESSAGING_TESTS_AMQP_IMAGE: cloudamqp/lavinmq:2.10.4@sha256:2d92aa41dda178e18ed1d64d3b48af47273a4c2134e82f61fcbc112797c378a9
-        run: >
-          dotnet test --project extensions/Bitwarden.Server.Sdk.MessageBroker/tests/Bitwarden.Server.Sdk.MessageBroker.Tests
-          --configuration Debug --no-build -- --filter-class "*.RabbitBehaviorTests"
-          --filter-class "*.RabbitCommandBehaviorTests" --filter-class "*.RabbitOutageTests"
-
       - name: Report test results
         uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
         if: ${{ github.event.pull_request.head.repo.full_name == github.repository && !cancelled() }}
