@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -16,19 +17,30 @@ internal sealed class ConsumerBackgroundService<TPayload, TCeiling, TConsumer> :
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ISubscriber<TPayload, TCeiling> _subscriber;
+    private readonly ILogger _logger;
+    private readonly string _subscriptionKey;
 
-    /// <param name="scopeFactory">Used to create a per-message DI scope.</param>
+    /// <param name="scopeFactory">The factory for dependency-injection scopes.</param>
     /// <param name="subscriber">The subscriber to consume messages from.</param>
-    public ConsumerBackgroundService(IServiceScopeFactory scopeFactory, ISubscriber<TPayload, TCeiling> subscriber)
+    /// <param name="logger">The logger for the consumer.</param>
+    /// <param name="subscriptionKey">The <c>{topic}/{subscription}</c> being consumed.</param>
+    public ConsumerBackgroundService(
+        IServiceScopeFactory scopeFactory, ISubscriber<TPayload, TCeiling> subscriber, ILogger logger, string subscriptionKey)
     {
         _scopeFactory = scopeFactory;
         _subscriber = subscriber;
+        _logger = logger;
+        _subscriptionKey = subscriptionKey;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
+        ResubscribeLoop.RunAsync(ReceiveAsync, _logger, _subscriptionKey, TimeProvider.System, stoppingToken);
+
+    private async Task ReceiveAsync(Action onMessage, CancellationToken stoppingToken)
     {
         await foreach (var envelope in _subscriber.SubscribeAsync(stoppingToken))
         {
+            onMessage();
             // Make the consumer span current so telemetry emitted inside HandleAsync (nested
             // activities, HttpClient spans, EF Core command spans, scoped logs) is parented to
             // the receive span. The backends create the Activity on the subscriber iterator's
