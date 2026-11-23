@@ -28,7 +28,7 @@ the exchanges, queues, topics, subscriptions, and related filters and policies m
 broker before the application starts, through infrastructure-as-code or the broker's definitions.
 
 [`Bitwarden.Server.Sdk.MessageBroker.Topology`](../../Bitwarden.Server.Sdk.MessageBroker.Topology/src/PACKAGE.md)
-does that from every service's declarations, writing the RabbitMQ and LavinMQ `definitions.json`
+does that from every service's declarations, writing the RabbitMQ `definitions.json`
 described below and the parameters of the Azure Service Bus Bicep template in
 [`infra/messaging/`](../../../infra/messaging/README.md).
 

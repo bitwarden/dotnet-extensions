@@ -24,7 +24,7 @@ and nothing writes a credential: users, passwords, keys and connection strings a
   a queue's senders from their own declarations alone, and the writers grant nothing else.
 - **Broker names.** Each writer works out the names its broker gives every declaration and refuses
   two declarations that make one. `RabbitDefinitions` treats exchanges and queues as one name space,
-  since both brokers grant rights by patterns over names; a command queue's exchange and queue share
+  since RabbitMQ grants rights by patterns over names; a command queue's exchange and queue share
   their name as one declaration. It reserves the first name part `dead-letter` for the
   `dead-letter.{queue}` exchanges and queues. `ServiceBusTopology` compares names without regard to
   case, as Service Bus does.
@@ -33,7 +33,7 @@ and nothing writes a credential: users, passwords, keys and connection strings a
   MessageBroker's own provisioning uses queue arguments instead, because a service can't set policies
   over AMQP; the names are the same, so either can provision a queue the other then finds. Policies
   apply to `queues` rather than `quorum_queues`: every queue written is a quorum queue, and the
-  provisioning tests show the limit taking effect that way on RabbitMQ and LavinMQ alike.
+  provisioning tests show the limit taking effect that way on RabbitMQ.
 - **Service Bus.** `ServiceBusTopology.BicepParameters` writes the template's parameters flat
   (topics, subscriptions, queues, senders, each naming its service) because Bicep loops over one
   array at a time. The template, [`infra/messaging/`](../../../infra/messaging/README.md), gives each
@@ -56,14 +56,13 @@ and nothing writes a credential: users, passwords, keys and connection strings a
 Tests are in `tests/Bitwarden.Server.Sdk.MessageBroker.Topology.Tests`, one class per source file,
 from three sample services registered with MessageBroker (`Model.cs`). Two more classes need Docker:
 
-- `RabbitProvisioningTests` imports the definitions into a real broker, RabbitMQ 4.3.6 or the image
-  `MESSAGING_TESTS_AMQP_IMAGE` names, and sends MessageBroker's traffic through it.
+- `RabbitProvisioningTests` imports the definitions into a real RabbitMQ 4.3.6 broker and sends
+  MessageBroker's traffic through it.
 - `ServiceBusProvisioningTests` does the same on the Service Bus emulator, configured from
   `EmulatorConfig`.
 
 ```bash
 dotnet test --project extensions/Bitwarden.Server.Sdk.MessageBroker.Topology/tests/Bitwarden.Server.Sdk.MessageBroker.Topology.Tests
-MESSAGING_TESTS_AMQP_IMAGE=cloudamqp/lavinmq:2.10.4@sha256:2d92aa41dda178e18ed1d64d3b48af47273a4c2134e82f61fcbc112797c378a9 dotnet test --project extensions/Bitwarden.Server.Sdk.MessageBroker.Topology/tests/Bitwarden.Server.Sdk.MessageBroker.Topology.Tests -- --filter-class "*.RabbitProvisioningTests"
 ```
 
 `ServiceBusTopologyTests` reads `infra/messaging/message-broker.bicep` and

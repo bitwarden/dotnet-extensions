@@ -27,7 +27,7 @@ public sealed class RabbitProvisioningTests : IAsyncLifetime
             new RabbitDefinitionsOptions { MaxDeliveryCount = MaxDeliveryCount });
         await _broker.CopyAsync(Encoding.UTF8.GetBytes(definitions.ToJsonString()), "/tmp/definitions.json",
             ct: TestContext.Current.CancellationToken);
-        var control = AmqpTestBroker.Image.Contains("lavinmq", StringComparison.Ordinal) ? "lavinmqctl" : "rabbitmqctl";
+        const string control = "rabbitmqctl";
         var imported = await _broker.ExecAsync([control, "import_definitions", "/tmp/definitions.json"], TestContext.Current.CancellationToken);
         Assert.True(imported.ExitCode == 0, $"{control} import_definitions: {imported.Stdout}{imported.Stderr}");
 
@@ -117,9 +117,8 @@ public sealed class RabbitProvisioningTests : IAsyncLifetime
         catch (BrokerDisconnectedException) { /* expected: the channel closed when the loop ended */ }
 
         Assert.Equal([1, 2, 3], deliveries);
-        var counted = await _broker!.ExecAsync(AmqpTestBroker.Image.Contains("lavinmq", StringComparison.Ordinal)
-            ? ["lavinmqctl", "list_queues", "name", "messages"]
-            : ["rabbitmqctl", "list_queues", "--quiet", "name", "messages"], TestContext.Current.CancellationToken);
+        var counted = await _broker!.ExecAsync(["rabbitmqctl", "list_queues", "--quiet", "name", "messages"],
+            TestContext.Current.CancellationToken);
         Assert.Matches(@"(?m)^dead-letter\.identity\.events\.vault\s+1\s*$", counted.Stdout);
     }
 

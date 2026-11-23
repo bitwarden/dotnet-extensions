@@ -7,7 +7,7 @@ tests) that sets up the message broker for Bitwarden services built on
 ## About
 
 Turns the messaging requirements services declare with `Bitwarden.Server.Sdk.MessageBroker` into
-broker setup: RabbitMQ and LavinMQ definitions, and the parameters of an Azure Service Bus Bicep
+broker setup: RabbitMQ definitions, and the parameters of an Azure Service Bus Bicep
 template. It first checks every service's requirements together, as MessageBroker's
 [BROKER-TOPOLOGY.md](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/BROKER-TOPOLOGY.md)
 asks of provisioning. It depends on `Bitwarden.Server.Sdk.MessageBroker`.
@@ -40,7 +40,7 @@ dotnet add package Bitwarden.Server.Sdk.MessageBroker.Topology
   and a queue's owner may receive, and only the services that declare a command for a queue may send
   to it. The Azure Service Bus template grants exactly those when deployed as a deployment stack, as
   [its README](https://github.com/bitwarden/dotnet-extensions/blob/main/infra/messaging/README.md)
-  says; a plain deployment leaves rights a service no longer needs. On RabbitMQ and LavinMQ, an
+  says; a plain deployment leaves rights a service no longer needs. On RabbitMQ, an
   install grants them to each service's user, as BROKER-TOPOLOGY.md's "Users and permissions" says.
 
 ## Usage
@@ -74,7 +74,7 @@ lists every one, not just the first:
 A test that already runs the services' startup can skip the files:
 `ServiceManifest.FromRequirements` takes the requirements as `InfrastructureOptions` holds them.
 
-### Write RabbitMQ and LavinMQ definitions
+### Write RabbitMQ definitions
 
 In `Program.cs`, after collecting:
 
@@ -83,8 +83,7 @@ File.WriteAllText("definitions.json", RabbitDefinitions.Build(topology).ToJsonSt
 ```
 
 RabbitMQ imports the file with `rabbitmqctl import_definitions` or loads it at start
-(`management.load_definitions`); LavinMQ imports it with `lavinmqctl import_definitions`. It holds
-the shapes BROKER-TOPOLOGY.md describes, under the names a service that creates its own topology
+(`management.load_definitions`). It holds the shapes BROKER-TOPOLOGY.md describes, under the names a service that creates its own topology
 uses:
 
 | For each                       | Definitions                                                                                      |
@@ -145,8 +144,8 @@ template sets ten.
   and reader in the output, and the key of `principalIds` in the deployment.
 - **Collect for the hosting mode you provision.** A service can declare different requirements when
   self-hosted, so collect its manifest the way it will run.
-- **Importing adds and updates.** Neither RabbitMQ nor LavinMQ deletes an exchange, queue or policy
-  that a later definitions file leaves out; remove it by hand.
+- **Importing adds and updates.** RabbitMQ doesn't delete an exchange, queue or policy that a later
+  definitions file leaves out; remove it by hand.
 - **A deployment stack deletes what the parameters leave out.** On Azure Service Bus, a topic,
   subscription or queue that a later parameters file leaves out is deleted with its role
   assignments, and with it every message it holds, its dead-letter queue's included. Drain or move
