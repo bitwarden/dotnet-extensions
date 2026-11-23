@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Bitwarden.Server.Sdk.MessageBroker.Topology;
 
 /// <summary>
-/// A topology as RabbitMQ definitions, for RabbitMQ to import. The virtual host, exchanges, queues,
+/// A topology as RabbitMQ and LavinMQ definitions, for either broker to import. The virtual host, exchanges, queues,
 /// bindings and policies only: no users, permissions or passwords, which each install sets itself.
 /// </summary>
 public static class RabbitDefinitions
@@ -139,7 +139,7 @@ public static class RabbitDefinitions
                 ["priority"] = 0,
                 ["definition"] = new JsonObject
                 {
-                    // RabbitMQ counts redeliveries: the first delivery isn't one.
+                    // RabbitMQ and LavinMQ count redeliveries: the first delivery isn't one.
                     ["delivery-limit"] = options.MaxDeliveryCount - 1,
                     ["dead-letter-exchange"] = l.DeadLetter,
                     ["dead-letter-strategy"] = "at-least-once",
@@ -160,7 +160,7 @@ public static class RabbitDefinitions
             problems.Add($"The {what} {name} is named with {reservedPart}, the first name part reserved for RabbitMQ's dead-letter exchanges and queues.");
         }
 
-        // RabbitMQ grants rights by patterns over names, whatever the kind, so no two declarations may share a name.
+        // Both brokers grant rights by patterns over names, whatever the kind, so no two declarations may share a name.
         foreach (var name in made.GroupBy(m => m.Name, StringComparer.Ordinal))
         {
             var declarations = name.Select(m => m.Declaration).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();

@@ -268,10 +268,11 @@ public class RabbitCommandBehaviorTests : CommandBehaviorTests, IClassFixture<Ra
         await using var channel = await conn.CreateChannelAsync(cancellationToken: TestContext.Current.CancellationToken);
         foreach (var queue in host.Services.GetServices<CommandQueueDeclaration>().Where(d => d.IsConsumer).Select(d => d.QueueName).Distinct())
         {
+            // LavinMQ counts x-delivery-count only on a queue with a delivery limit.
             await channel.ExchangeDeclareAsync(queue, ExchangeType.Direct, durable: true,
                 cancellationToken: TestContext.Current.CancellationToken);
             await channel.QueueDeclareAsync(queue, durable: true, exclusive: false, autoDelete: false,
-                arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum" },
+                arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum", ["x-delivery-limit"] = 10 },
                 cancellationToken: TestContext.Current.CancellationToken);
             await channel.QueueBindAsync(queue, queue, routingKey: queue,
                 cancellationToken: TestContext.Current.CancellationToken);

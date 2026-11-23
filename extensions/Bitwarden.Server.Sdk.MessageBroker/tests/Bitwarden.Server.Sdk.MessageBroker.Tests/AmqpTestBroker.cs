@@ -9,13 +9,16 @@ namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 internal static class AmqpTestBroker
 {
     /// <summary>
-    /// RabbitMQ 4.3.6, the version the self-hosted install ships.
+    /// RabbitMQ 4.3.6, the version the self-hosted install ships, unless <c>MESSAGING_TESTS_AMQP_IMAGE</c>
+    /// names another AMQP 0-9-1 broker's image,
+    /// such as <c>cloudamqp/lavinmq</c>, which Lite ships.
     /// </summary>
-    public static string Image => "rabbitmq:4.3.6";
+    public static string Image =>
+        System.Environment.GetEnvironmentVariable("MESSAGING_TESTS_AMQP_IMAGE") is { Length: > 0 } image ? image : "rabbitmq:4.3.6";
 
     /// <summary>
-    /// Ready once RabbitMQ logs the end of its startup.
+    /// Ready once RabbitMQ or LavinMQ logs the end of its startup.
     /// </summary>
     public static IWaitForContainerOS Ready =>
-        Wait.ForUnixContainer().UntilMessageIsLogged("Server startup complete");
+        Wait.ForUnixContainer().UntilMessageIsLogged("Server startup complete|Finished startup");
 }
