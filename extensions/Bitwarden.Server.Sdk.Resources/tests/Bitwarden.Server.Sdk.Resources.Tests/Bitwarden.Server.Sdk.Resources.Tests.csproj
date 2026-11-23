@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- A handler a test maps through a host is compiled with the request delegate generator, as a service compiles
+         its Map calls; see the README's Testing section for how a test covers the runtime factory too. -->
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.Http.Generated</InterceptorsNamespaces>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="[18.12.0]" />
+    <PackageReference Include="xunit.v3.mtp-v2" Version="[3.2.2]" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Bitwarden.Server.Sdk.Resources.csproj" />
+  </ItemGroup>
+
+</Project>
