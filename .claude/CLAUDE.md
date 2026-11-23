@@ -40,6 +40,12 @@ See the [README.md](README.md) for detailed information about each package. Main
 -   Test projects use exact version pinning: `Version="[X.Y.Z]"`
 -   `<Using Include="Xunit" />` for global xUnit usings
 
+### Readable Test Cases
+
+-   Write test cases a person can read at a glance. When a theory's cases are code, SQL or other long strings, put them in a `TheoryData` class used with `[ClassData]`, not in `[InlineData]`.
+-   Give each case a short description as its first value, saying what the case is (for example "Dropping a column"), and lay out long code over several lines in a raw string literal.
+-   Keep `[InlineData]` for short values, such as numbers, names or one-word strings.
+
 ## Code Style and Conventions
 
 ### C# Language Features
