@@ -182,11 +182,18 @@ internal static class RequestRefusal
             // An array's values are the header's, split at commas, as a controller's binder and the platform split them;
             // a single value is every one the header was sent with, joined.
             case ValuePlace.Header:
-                var header = http.Request.Headers[parameter.ModelName];
+                if (parameter.Info.ParameterType.IsArray)
+                {
+                    return (http.Request.Headers.GetCommaSeparatedValues(parameter.ModelName), false);
+                }
 
-                return (parameter.Info.ParameterType.IsArray
-                    ? http.Request.Headers.GetCommaSeparatedValues(parameter.ModelName)
-                    : header.Count == 0 ? [] : (IReadOnlyList<string?>)[header.ToString()], false);
+                var header = http.Request.Headers[parameter.ModelName];
+                if (header.Count == 0)
+                {
+                    return ([], false);
+                }
+
+                return ([header.ToString()], false);
 
             case ValuePlace.Query:
                 return ([.. http.Request.Query[parameter.ModelName]], true);

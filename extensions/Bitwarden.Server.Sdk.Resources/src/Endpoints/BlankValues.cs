@@ -44,9 +44,13 @@ internal static class BlankValues
                     continue;
                 }
 
-                context.Arguments[parameter.Index] = string.IsNullOrWhiteSpace(values[0]) && !(acceptsInvalid && parameter.Required)
-                    ? parameter.Info.HasDefaultValue ? parameter.Info.DefaultValue : null
-                    : values[0];
+                object? value = values[0];
+                if (string.IsNullOrWhiteSpace(values[0]) && !(acceptsInvalid && parameter.Required))
+                {
+                    value = parameter.Info.HasDefaultValue ? parameter.Info.DefaultValue : null;
+                }
+
+                context.Arguments[parameter.Index] = value;
             }
             else if (context.Arguments[parameter.Index] is string?[] elements && elements.Any(string.IsNullOrWhiteSpace))
             {
