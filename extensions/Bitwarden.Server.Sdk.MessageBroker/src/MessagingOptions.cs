@@ -31,7 +31,7 @@ public class MessagingOptions
 
     /// <summary>
     /// The maximum number of times a message is delivered before being routed to a dead-letter
-    /// destination. The in-memory channel backend enforces it. On RabbitMQ, LavinMQ and Azure Service
+    /// destination. The in-memory channel backend enforces it. On RabbitMQ and Azure Service
     /// Bus the broker enforces its own limit; a service that provisions its topology
     /// (<see cref="AutoProvisionTopology"/>) gives the queues and subscriptions it creates this one, and
     /// leaves existing ones as they are. Default is 10.
@@ -57,8 +57,8 @@ public class MessagingOptions
 
     /// <summary>
     /// Whether the service creates the missing topics, subscriptions and queues its registrations need,
-    /// once it first reaches its broker. It needs the rights to create them: configure on RabbitMQ and
-    /// LavinMQ, the Manage right on Azure Service Bus. Unset, a self-hosted service provisions and any
+    /// once it first reaches its broker. It needs the rights to create them: configure on RabbitMQ,
+    /// the Manage right on Azure Service Bus. Unset, a self-hosted service provisions and any
     /// other doesn't.
     /// </summary>
     public bool? AutoProvisionTopology { get; set; }
