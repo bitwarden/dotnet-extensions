@@ -299,9 +299,10 @@ The package's analyzer checks each migration's `Up` against these rules.
 reports a step that breaks the previous release, and
 [`BW0027`](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#BW0027) a
 constraint that existing rows or the previous release's writes may not satisfy. Their entries list
-the steps each covers. Neither reports a step on a table created earlier in the same `Up`, and
-neither reads `Down`, `Sql` or a helper script. When a step is right, such as the drop in the second
-release, suppress the warning on the migration and say why.
+the steps each covers. Neither reports a step on a table created earlier in the same `Up`, apart
+from BW0026 on a foreign key from a new table to an existing one, and neither reads `Down`, `Sql`
+or a helper script. When a step is right, such as the drop in the second release, suppress the
+warning on the migration and say why.
 
 `Migrations/PostgreSql/20261201000000_DropItemsLegacy.cs`:
 

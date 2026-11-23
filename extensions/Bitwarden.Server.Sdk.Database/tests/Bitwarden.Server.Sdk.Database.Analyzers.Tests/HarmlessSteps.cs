@@ -140,5 +140,50 @@ public sealed class HarmlessSteps : TheoryData<string, string>
         Add(
             "Running SQL, which the analyzer doesn't read",
             """migrationBuilder.Sql("UPDATE [Items] SET [Count] = 0");""");
+
+        // A new table's foreign keys that leave the previous release's deletes working.
+        Add(
+            "A new table's foreign key to an existing table that cascades deletes",
+            """
+            migrationBuilder.CreateTable(
+                name: "ItemTags",
+                columns: table => new { Id = table.Column<int>(nullable: false), ItemId = table.Column<int>(nullable: false) },
+                constraints: table => table.ForeignKey(
+                    name: "FK_ItemTags_Items", column: x => x.ItemId,
+                    principalTable: "Items", principalColumn: "Id", onDelete: ReferentialAction.Cascade));
+            """);
+        Add(
+            "A new table's foreign key to an existing table that sets the reference to NULL",
+            """
+            migrationBuilder.CreateTable(
+                name: "ItemTags",
+                columns: table => new { Id = table.Column<int>(nullable: false), OwnerId = table.Column<int>(nullable: true) });
+            migrationBuilder.AddForeignKey(
+                name: "FK_ItemTags_Owners", table: "ItemTags", column: "OwnerId",
+                principalTable: "Owners", principalColumn: "Id", onDelete: ReferentialAction.SetNull);
+            """);
+        Add(
+            "A new table's foreign key to itself",
+            """
+            migrationBuilder.CreateTable(
+                name: "ItemTags",
+                columns: table => new { Id = table.Column<int>(nullable: false), ParentId = table.Column<int>(nullable: true) },
+                constraints: table => table.ForeignKey(
+                    name: "FK_ItemTags_ItemTags", column: x => x.ParentId,
+                    principalTable: "ItemTags", principalColumn: "Id"));
+            """);
+        Add(
+            "A new table's foreign key to another table created in the same Up",
+            """
+            migrationBuilder.CreateTable(
+                name: "Tags", schema: "catalog",
+                columns: table => new { Id = table.Column<int>(nullable: false) });
+            migrationBuilder.CreateTable(
+                name: "ItemTags",
+                columns: table => new { Id = table.Column<int>(nullable: false), TagId = table.Column<int>(nullable: true) });
+            migrationBuilder.AddForeignKey(
+                name: "FK_ItemTags_Tags", table: "ItemTags", column: "TagId",
+                principalTable: "Tags", principalSchema: "catalog", principalColumn: "Id");
+            """);
     }
 }

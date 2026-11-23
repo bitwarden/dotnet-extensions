@@ -20,6 +20,7 @@ public sealed class BreakingSteps : TheoryData<string, string, string>
     private const string Shortens = "it shortens the column";
     private const string ReducesPrecision = "it reduces the column's precision or scale";
     private const string ChangesComputation = "it changes how the column is computed";
+    private const string RefusesDeletes = "the previous release can't delete a row of the table it refers to once the new table holds a reference to it";
 
     public BreakingSteps()
     {
@@ -249,5 +250,41 @@ public sealed class BreakingSteps : TheoryData<string, string, string>
                 oldClrType: typeof(int), oldComputedColumnSql: "[A]");
             """,
             ChangesComputation);
+
+        // A new table's foreign key to a table the previous release already uses.
+        Add(
+            "A new table's foreign key, scaffolded in CreateTable, with no onDelete",
+            """
+            migrationBuilder.CreateTable(
+                name: "ItemTags",
+                columns: table => new { Id = table.Column<int>(nullable: false), ItemId = table.Column<int>(nullable: true) },
+                constraints: table => table.{|#0:ForeignKey|}(
+                    name: "FK_ItemTags_Items", column: x => x.ItemId,
+                    principalTable: "Items", principalColumn: "Id"));
+            """,
+            RefusesDeletes);
+        Add(
+            "A new table's foreign key, added after CreateTable, that restricts deletes",
+            """
+            migrationBuilder.CreateTable(
+                name: "ItemTags",
+                columns: table => new { Id = table.Column<int>(nullable: false), OwnerId = table.Column<int>(nullable: true) });
+            migrationBuilder.{|#0:AddForeignKey|}(
+                name: "FK_ItemTags_Owners", table: "ItemTags", column: "OwnerId",
+                principalTable: "Owners", principalColumn: "Id", onDelete: ReferentialAction.Restrict);
+            """,
+            RefusesDeletes);
+        Add(
+            "A new table's foreign key whose onDelete isn't a constant",
+            """
+            var onDelete = ReferentialAction.Cascade;
+            migrationBuilder.CreateTable(
+                name: "ItemTags",
+                columns: table => new { Id = table.Column<int>(nullable: false), OwnerId = table.Column<int>(nullable: true) });
+            migrationBuilder.{|#0:AddForeignKey|}(
+                name: "FK_ItemTags_Owners", table: "ItemTags", column: "OwnerId",
+                principalTable: "Owners", principalColumn: "Id", onDelete: onDelete);
+            """,
+            RefusesDeletes);
     }
 }

@@ -88,7 +88,7 @@ public partial class MigrationStepAnalyzerTests
         => await RunAsync(Up("""
             migrationBuilder.CreateTable(name: "ItemsNew", columns: table => new { Id = table.Column<int>(nullable: false) });
             migrationBuilder.RenameTable(name: "ItemsNew", newName: "Items");
-            migrationBuilder.AddForeignKey(name: "FK_Items_Owners", table: "Items", column: "Id", principalTable: "Owners", principalColumn: "Id");
+            migrationBuilder.AddForeignKey(name: "FK_Items_Owners", table: "Items", column: "Id", principalTable: "Owners", principalColumn: "Id", onDelete: ReferentialAction.Cascade);
             migrationBuilder.DropTable(name: "Items");
             migrationBuilder.{|BW0026:DropColumn|}(name: "Legacy", table: "Items");
             """));

@@ -690,7 +690,7 @@ public class OrderDatabaseContext(DbContextOptions<OrderDatabaseContext> options
 
 ### Summary
 
-Reported on a step in an EF Core migration's `Up` that the previous release can't run against while the new release rolls out. Steps on a table created earlier in the same `Up` aren't reported.
+Reported on a step in an EF Core migration's `Up` that the previous release can't run against while the new release rolls out. Steps on a table created earlier in the same `Up` aren't reported, apart from a foreign key to an existing table.
 
 ### Details
 
@@ -700,6 +700,7 @@ The steps reported:
 - Adding a `NOT NULL` column with no default.
 - An `AlterColumn` that changes the column's type or store type, shortens it, lowers its precision or scale, makes it `NOT NULL` or nullable, removes the default from a `NOT NULL` column, or changes its collation, character set or computed expression.
 - An `AlterColumn` that doesn't give the column's old shape (`oldClrType`), as a hand-written one may not.
+- A foreign key from a table created in the same `Up` to an existing table, unless deleting a row of the existing table cascades or sets the reference to `NULL`. The previous release doesn't know the new table, so it can't delete a row the new table refers to.
 
 ### Example
 
@@ -717,6 +718,7 @@ public partial class RemoveItemsLegacy : Migration
 - **To drop a column:** in one release, stop mapping the property and delete the generated `DropColumn` from its migration. Drop the column in the next release.
 - **To rename a column:** add the new column and write both; copy the old values into it and read it; then drop the old column as above.
 - **To narrow a column:** add a new column with the new shape and move to it as a rename does.
+- **To add a foreign key from a new table to an existing one:** give it `onDelete: ReferentialAction.Cascade` or `ReferentialAction.SetNull`, so the previous release's deletes still work.
 
 The migration that takes the final step still reports BW0026. Suppress it there with `[SuppressMessage("Bitwarden.Database", "BW0026", Justification = "...")]`, naming the release that stopped using what it removes.
 

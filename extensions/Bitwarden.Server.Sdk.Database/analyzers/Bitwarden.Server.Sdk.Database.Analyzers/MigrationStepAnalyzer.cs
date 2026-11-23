@@ -18,6 +18,10 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
 {
     private const string HelpUrlFormat = "https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#{0}";
 
+    // EF Core's ReferentialAction values; the analyzer doesn't reference EF Core.
+    private const int ReferentialActionNoAction = 0;
+    private const int ReferentialActionRestrict = 1;
+
     /// <summary>
     /// Reported for a step that removes or reshapes something the previous release may still use.
     /// </summary>
@@ -119,6 +123,11 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
                     created.Add(TableKey(Text(step, "schema").Value, name));
                 }
 
+                foreach (var foreignKey in step.Descendants().OfType<IInvocationOperation>().Where(call => call.TargetMethod is { Name: "ForeignKey", ContainingType.Name: "CreateTableBuilder" }))
+                {
+                    ReportIfRefusesDeletes(context, foreignKey, created);
+                }
+
                 break;
             case "DropTable":
                 ReportUnlessCreated(context, step, created, "name", BreaksPreviousRelease, "it drops a table the previous release may still use");
@@ -190,7 +199,15 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
                 ReportConstraintUnlessCreated(context, step, created, "a check constraint");
                 break;
             case "AddForeignKey":
-                ReportConstraintUnlessCreated(context, step, created, "a foreign key");
+                if (IsCreated(step, created, "table"))
+                {
+                    ReportIfRefusesDeletes(context, step, created);
+                }
+                else
+                {
+                    ReportConstraintUnlessCreated(context, step, created, "a foreign key");
+                }
+
                 break;
         }
     }
@@ -389,8 +406,8 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
         return true;
     }
 
-    private static bool IsCreated(IInvocationOperation step, HashSet<string> created, string tableParameter)
-        => Text(step, tableParameter) is { Known: true, Value: { } name } && created.Contains(TableKey(Text(step, "schema").Value, name));
+    private static bool IsCreated(IInvocationOperation step, HashSet<string> created, string tableParameter, string schemaParameter = "schema")
+        => Text(step, tableParameter) is { Known: true, Value: { } name } && created.Contains(TableKey(Text(step, schemaParameter).Value, name));
 
     private static void Forget(IInvocationOperation step, HashSet<string> created)
     {
@@ -411,6 +428,21 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
         if (!IsCreated(step, created, tableParameter))
         {
             Report(context, step, descriptor, reason);
+        }
+    }
+
+    /// <summary>
+    /// A foreign key on a table created in this <c>Up</c> still binds the table it refers to. When
+    /// that table already exists and the delete neither cascades nor clears the reference, the
+    /// previous release, which knows nothing of the new table, can't delete a row it refers to.
+    /// </summary>
+    private static void ReportIfRefusesDeletes(OperationBlockAnalysisContext context, IInvocationOperation foreignKey, HashSet<string> created)
+    {
+        var refusesDeletes = Constant(foreignKey, "onDelete") is not { HasValue: true, Value: int onDelete }
+            || onDelete is ReferentialActionNoAction or ReferentialActionRestrict;
+        if (refusesDeletes && !IsCreated(foreignKey, created, "principalTable", "principalSchema"))
+        {
+            Report(context, foreignKey, BreaksPreviousRelease, "the previous release can't delete a row of the table it refers to once the new table holds a reference to it");
         }
     }
 
