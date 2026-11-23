@@ -305,6 +305,9 @@ Known limitations:
   `MySql:CharSet` are read. Pomelo's MySQL provider scaffolds both.
 - A change between related store types that widens, such as `varchar(100)` to `nvarchar(100)` on SQL
   Server, is reported as a store type change.
+- A foreign key from a table created in the same `Up` to an existing one isn't reported, though with
+  no cascade it stops the previous release deleting a row the new table refers to. Reporting it
+  would warn on most new tables, for a failure that needs that delete during the rollout.
 
 ## Possible future work
 

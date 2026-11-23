@@ -24,24 +24,24 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
     internal static readonly DiagnosticDescriptor BreaksPreviousRelease = new(
         id: "BW0026",
         title: "Migration step breaks the previous release",
-        messageFormat: "{0} breaks the previous release, which still runs against this schema while this "
-            + "release rolls out: {1}. Spread the change across releases, or suppress this with a "
-            + "justification saying why the previous release is unaffected.",
+        messageFormat: "{0} breaks the previous release: {1}. The previous release still runs against this "
+            + "schema until this release finishes rolling out. Make the change across releases instead, or "
+            + "suppress this warning with a justification saying why the previous release is unaffected.",
         category: "Bitwarden.Database",
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         helpLinkUri: string.Format(HelpUrlFormat, "BW0026"));
 
     /// <summary>
-    /// Reported for a step that adds a rule existing rows, or the previous release's writes, may
-    /// not satisfy.
+    /// Reported for a constraint added to an existing table, which rows already there, or the
+    /// previous release's writes, may not satisfy.
     /// </summary>
     internal static readonly DiagnosticDescriptor MayRefuseWrites = new(
         id: "BW0027",
-        title: "Migration step can refuse existing rows or the previous release's writes",
-        messageFormat: "{0} can refuse rows already in {1}, or rows the previous release writes while "
-            + "this release rolls out. Confirm both satisfy it, and suppress this with a justification "
-            + "saying why.",
+        title: "Migration step adds a constraint to an existing table",
+        messageFormat: "{0} adds {1} to {2}. The migration fails if rows already there don't satisfy it, "
+            + "and the previous release's writes fail if they don't satisfy it while this release rolls "
+            + "out. Confirm that both satisfy it, then suppress this warning with a justification saying why.",
         category: "Bitwarden.Database",
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
@@ -170,16 +170,27 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
 
                 break;
             case "CreateIndex":
-                if (Flag(step, "unique") is not false)
+                if (Flag(step, "unique") is { } unique)
                 {
-                    ReportUnlessCreated(context, step, created, "table", MayRefuseWrites, null);
+                    if (unique)
+                    {
+                        ReportConstraintUnlessCreated(context, step, created, "a unique index");
+                    }
+                }
+                else
+                {
+                    ReportConstraintUnlessCreated(context, step, created, "an index that may be unique");
                 }
 
                 break;
             case "AddUniqueConstraint":
+                ReportConstraintUnlessCreated(context, step, created, "a unique constraint");
+                break;
             case "AddCheckConstraint":
+                ReportConstraintUnlessCreated(context, step, created, "a check constraint");
+                break;
             case "AddForeignKey":
-                ReportUnlessCreated(context, step, created, "table", MayRefuseWrites, null);
+                ReportConstraintUnlessCreated(context, step, created, "a foreign key");
                 break;
         }
     }
@@ -198,6 +209,12 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
     /// </summary>
     private static string? NarrowingReason(IInvocationOperation step)
     {
+        // EF Core always scaffolds the old CLR type; without it the old shape is unknown.
+        if (Argument(step, "oldClrType") is not { ArgumentKind: not ArgumentKind.DefaultValue })
+        {
+            return "it doesn't give the column's old shape (oldClrType and the other old values), so it can't be shown to leave the column usable";
+        }
+
         var type = step.TargetMethod.TypeArguments.FirstOrDefault();
         if (type is not null && Argument(step, "oldClrType")?.Value is ITypeOfOperation oldClrType
             && !SymbolEqualityComparer.Default.Equals(Underlying(type), Underlying(oldClrType.TypeOperand)))
@@ -208,6 +225,18 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
         if (Flag(step, "nullable") is not true && Flag(step, "oldNullable") is not false)
         {
             return "it makes the column NOT NULL, which the previous release may not write";
+        }
+
+        if (Flag(step, "nullable") is not false && Flag(step, "oldNullable") is not true)
+        {
+            return "it lets the column hold NULL, which the previous release may map as required and fail to read";
+        }
+
+        if (Flag(step, "nullable") is not true
+            && HasDefault(step, "oldDefaultValue", "oldDefaultValueSql")
+            && !HasDefault(step, "defaultValue", "defaultValueSql"))
+        {
+            return "it removes the default from a NOT NULL column, which the previous release's inserts may rely on";
         }
 
         if (Differs(Text(step, "collation"), OldAnnotation(step, "oldCollation", "Relational:Collation")))
@@ -377,24 +406,29 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
         HashSet<string> created,
         string tableParameter,
         DiagnosticDescriptor descriptor,
-        string? reason)
+        string reason)
     {
-        if (IsCreated(step, created, tableParameter))
+        if (!IsCreated(step, created, tableParameter))
         {
-            return;
+            Report(context, step, descriptor, reason);
         }
-
-        var table = Text(step, tableParameter);
-        Report(context, step, descriptor, reason ?? (table.Value is { } name ? $"'{name}'" : "the table"));
     }
 
-    private static void Report(OperationBlockAnalysisContext context, IInvocationOperation step, DiagnosticDescriptor descriptor, string detail)
+    private static void ReportConstraintUnlessCreated(OperationBlockAnalysisContext context, IInvocationOperation step, HashSet<string> created, string constraint)
+    {
+        if (!IsCreated(step, created, "table"))
+        {
+            Report(context, step, MayRefuseWrites, constraint, Text(step, "table").Value is { } name ? $"'{name}'" : "the table");
+        }
+    }
+
+    private static void Report(OperationBlockAnalysisContext context, IInvocationOperation step, DiagnosticDescriptor descriptor, params string[] details)
     {
         // The step's name alone, without a generic call's type argument.
         var location = step.Syntax is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax member }
             ? member.Name.Identifier.GetLocation()
             : step.Syntax.GetLocation();
-        context.ReportDiagnostic(Diagnostic.Create(descriptor, location, step.TargetMethod.Name, detail));
+        context.ReportDiagnostic(Diagnostic.Create(descriptor, location, [step.TargetMethod.Name, .. details]));
     }
 
     private static bool DerivesFrom(INamedTypeSymbol? type, INamedTypeSymbol baseType)
@@ -465,6 +499,9 @@ public sealed class MigrationStepAnalyzer : DiagnosticAnalyzer
         var constant = Constant(step, parameter);
         return constant.HasValue && constant.Value is null;
     }
+
+    private static bool HasDefault(IInvocationOperation step, string valueParameter, string sqlParameter)
+        => !IsAbsent(step, valueParameter) || !IsAbsent(step, sqlParameter);
 
     private static bool? Flag(IInvocationOperation step, string parameter)
         => Constant(step, parameter) is { HasValue: true, Value: bool value } ? value : null;

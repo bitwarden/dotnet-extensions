@@ -274,16 +274,22 @@ change is spread across releases instead:
 
 - **Drop a column in two releases.** In the first, remove the property from the model completely
   and delete the `DropColumn` EF generates from that release's migration. If the column is `NOT NULL`
-  with no default, make that migration give it a default or make it nullable, since this release
-  no longer writes it. In the next release, add a migration with `add-migration` (the package finds
+  with no default, make that migration give it a default, since this release no longer writes it.
+  Don't make it nullable instead: the previous release still maps it as required, and fails to read
+  a row holding `NULL`. In the next release, add a migration with `add-migration` (the package finds
   migrations by the attributes in the file EF generates beside it) and write the `DropColumn` in it.
   EF generates nothing for it, because its snapshot already has no such column.
 - **Drop a table the same way:** stop mapping it in one release, drop it in the next.
 - **Rename a column in four releases.** First, add the new column and write both, still reading the
-  old. Second, copy existing values into the new column in a migration (in batches on a large
-  table), read the new column, and keep writing both, since the release before still reads the old.
-  Then drop the old column in two releases, as above. A table is renamed the same way, with a new
-  table in place of the new column.
+  old. Second, copy the old column into the new one in every row where they differ, read the new
+  column, and keep writing both, since the release before still reads the old. Then drop the old
+  column in two releases, as above. A table is renamed the same way, with a new table in place of
+  the new column.
+
+On a large table, copy in batches, one `migrationBuilder.Sql(..., suppressTransaction: true)` call
+per batch, and write each batch to be safe to repeat. EF Core runs a migration's other steps in one
+transaction, so batches inside it keep their locks until the last one finishes. A helper script
+always runs inside the transaction.
 
 Don't use a shadow property to stop a release using a column. A shadow property is still mapped, so
 EF selects it in entity queries and writes it on insert, exactly as it would a CLR property.
@@ -333,6 +339,11 @@ blocks writers until the transaction commits. Run the build outside it with
 and records the migration afterwards, outside any transaction. If the migrator stops between the
 build and the record, the next run builds the index again, so write the build to be safe to repeat.
 
+On PostgreSQL an interrupted `CREATE INDEX CONCURRENTLY` leaves an invalid index of that name, which
+`CREATE INDEX CONCURRENTLY IF NOT EXISTS` then skips. Drop it first with
+`DROP INDEX CONCURRENTLY IF EXISTS`, then create it, each statement in its own
+`Sql(..., suppressTransaction: true)` call, since neither can run in a transaction block.
+
 `Migrations/SqlServer/20261201000000_IndexItemsName.cs`:
 
 ```csharp
@@ -359,8 +370,8 @@ public partial class IndexItemsName : Migration
 ```
 
 `AlterColumn` can rewrite a whole table on SQL Server, a collation change among others, holding a
-lock on it throughout. On a large table, add a new column, copy the data in batches, and switch
-over across releases instead.
+lock on it throughout. On a large table, add a new column, copy the data in batches as a rename
+does, and switch over across releases instead.
 
 ## EF Core migrations for SQL Server
 
