@@ -252,6 +252,8 @@ invalidated by any write to a row of that table, for the caller the row had befo
 A domain service declares one by extending `CacheableListQuery`. The declaration is all a developer writes: whose rows
 (the party a request's context names, across every owner its rows belong to), which, in what order, how each is shaped,
 the scope, and how many at most. The platform runs the query, keeps the entry, pages it and invalidates it.
+`AtMost` is the platform's maximum page size unless declared. `.Lifetime(...)` (ten minutes by default),
+`.CascadeCovered<T>(...)` and `.WhenCacheUnreachable(...)` mean what they mean for a read of one.
 
 `ListOpenLoansQuery.cs`:
 
@@ -306,7 +308,7 @@ public static class OpenLoansEndpoints
 }
 ```
 
-What can't be written, so it can't be got wrong (each refuses the host as it starts):
+What the service refuses to start with, so a list can't be declared in a way that gives a wrong or out-of-date answer:
 
 - **No filter, no sort, no context of its own.** The operation takes nothing but the read, the fieldset, the page and
   a cancellation token; it requires the party, forbids the other owners, demands the declared scope alone, and has no
@@ -319,6 +321,11 @@ What can't be written, so it can't be got wrong (each refuses the host as it sta
 - **One order, ending in a unique column.** The database orders the rows; a client only takes a slice, as its
   collation may order text differently.
 - **A page holds an entry.** `AtMost` may not exceed the operation's maximum page size.
+- **A mapping from the row alone.** `Map` may capture nothing. This one refuses the declaration itself.
+
+Don't make an existing list answer from the cache for some of its filters: give the cached list a path and a resource
+of its own, beside the general list. Where an existing list already is only the caller's own rows, with no filter or
+sort its callers use, that list itself becomes the cached list.
 
 How it works:
 
@@ -336,7 +343,7 @@ How it works:
   erasure, which kills it for the full lifetime.
 - **Published.** The operation carries `x-bitwarden-cache` with `"readMany": { "atMost": ... }`, the party's
   placeholder in the key, the party `required` and the other owners `forbidden` in `context`, and the scope.
-  Bitwarden.Server.Sdk.Client's `ReadManyAsync` answers a page of it.
+  Bitwarden.Server.Sdk.Client's `ReadManyAsync` answers a page of it, and `ReadAllAsync` the whole list.
 
 ### Version a row whose writes are last-writer-wins
 
