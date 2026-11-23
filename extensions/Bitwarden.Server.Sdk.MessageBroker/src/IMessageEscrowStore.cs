@@ -4,7 +4,9 @@ namespace Bitwarden.Server.Sdk.MessageBroker;
 /// An in-flight message captured during host shutdown, ready to be durably stored and replayed
 /// after the process restarts.
 /// </summary>
-/// <param name="MessageId">Unique identifier assigned by the publisher.</param>
+/// <param name="MessageId">
+/// The identifier the publisher sent the message under. A re-send that passes it again carries the same one.
+/// </param>
 /// <param name="TraceId">W3C traceparent of the publish span, or <see langword="null"/> if unavailable.</param>
 /// <param name="DeliveryCount">Number of times this message has been delivered before escrow.</param>
 /// <param name="Payload">
