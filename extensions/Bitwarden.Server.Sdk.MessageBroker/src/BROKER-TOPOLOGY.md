@@ -41,9 +41,9 @@ The check needs no rights beyond those the service already has (see
 [Users and permissions](#users-and-permissions) and
 [Access with a managed identity](#access-with-a-managed-identity)):
 
-- **RabbitMQ and LavinMQ:** a passive declare of each of its topic exchanges, its subscription queues
+- **RabbitMQ:** a passive declare of each of its topic exchanges, its subscription queues
   (`{topic}.{subscription}`), its command queue and the exchange of each command queue it sends to.
-  A passive declare needs only the read or write right on the object, not configure. RabbitMQ also
+  A passive declare needs only the read or write right on the object, not configure. RabbitMQ
   refuses one on an object the user has no rights to, whether or not it exists, so the check reports
   such an object as missing or not permitted. It doesn't check bindings or policies.
 - **Azure Service Bus:** a peek at each of its subscriptions and its command queue, which needs only

@@ -155,8 +155,7 @@ public class RabbitTopologyCheckTests : IClassFixture<RabbitBehaviorTests.Rabbit
         Assert.Contains($"exchange of the command queue '{OtherQueue}' doesn't exist", critical.Message);
     }
 
-    // RabbitMQ refuses a passive declare of an object the user has no rights to, whether or not it exists;
-    // LavinMQ answers as it would for anyone.
+    // RabbitMQ refuses a passive declare of an object the user has no rights to, whether or not it exists.
     [Fact(Timeout = 60 * 1000)]
     public async Task ObjectsTheServiceHasNoRightsToAreReportedAsTheBrokerAnswers()
     {
@@ -183,16 +182,8 @@ public class RabbitTopologyCheckTests : IClassFixture<RabbitBehaviorTests.Rabbit
 
         Assert.Equal(1, exitCode());
         var critical = Assert.Single(host.Services.GetFakeLogCollector().GetSnapshot(), r => r.Level == LogLevel.Critical);
-        if (AmqpTestBroker.Image.Contains("lavinmq", StringComparison.OrdinalIgnoreCase))
-        {
-            Assert.Contains($"topic exchange '{missingTopic}' doesn't exist", critical.Message);
-            Assert.DoesNotContain($"'{Topic}'", critical.Message);
-        }
-        else
-        {
-            Assert.Contains($"topic exchange '{missingTopic}' is missing or the service may not use it", critical.Message);
-            Assert.Contains($"topic exchange '{Topic}' is missing or the service may not use it", critical.Message);
-        }
+        Assert.Contains($"topic exchange '{missingTopic}' is missing or the service may not use it", critical.Message);
+        Assert.Contains($"topic exchange '{Topic}' is missing or the service may not use it", critical.Message);
     }
 
     [Fact(Timeout = 60 * 1000)]

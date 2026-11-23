@@ -467,7 +467,7 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
 
         public async Task AddUserAsync(string user, string password, string configure, string write, string read)
         {
-            var tool = AmqpTestBroker.Image.Contains("lavinmq", StringComparison.OrdinalIgnoreCase) ? "lavinmqctl" : "rabbitmqctl";
+            const string tool = "rabbitmqctl";
             foreach (var command in new[]
             {
                 new[] { tool, "add_user", user, password },
