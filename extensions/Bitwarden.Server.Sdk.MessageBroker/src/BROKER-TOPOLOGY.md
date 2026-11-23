@@ -47,9 +47,9 @@ The service creates what is missing and leaves what exists alone, whoever made i
 operator provisioned keeps its own settings, dead-lettering included:
 
 - its own topics;
-- its subscriptions, and on RabbitMQ and LavinMQ their bindings; on Azure Service Bus, a rule for
+- its subscriptions, and on RabbitMQ their bindings; on Azure Service Bus, a rule for
   each family no rule of the subscription admits yet;
-- its command queues, and on RabbitMQ and LavinMQ their exchanges.
+- its command queues, and on RabbitMQ their exchanges.
 
 It doesn't create the topics it subscribes to or the queues it sends to; their owners do, and a
 subscription whose topic doesn't exist yet waits for it. Its hosted consumers wait until it is done.
@@ -57,7 +57,7 @@ Bindings and rules are made again on every start, so a family a release adds rea
 subscription; one the service may not make on an object it didn't create is left, with a warning.
 `MaxDeliveryCount` (default 10) is the delivery limit of what it creates.
 
-- **RabbitMQ and LavinMQ:** the shapes below, with one difference: each queue's delivery limit and
+- **RabbitMQ:** the shapes below, with one difference: each queue's delivery limit and
   dead-lettering are queue arguments (`x-delivery-limit`, `x-dead-letter-exchange`,
   `x-dead-letter-strategy`, `x-overflow`), not policies, because a service can't set policies over
   AMQP. Each queue it creates dead-letters to an exchange and queue of its own, `dead-letter.{queue}`,
@@ -76,11 +76,9 @@ A service that creates its own topology holds the rights to create it for as lon
 self-hosted service holds the right to change its database schema. If it is compromised, so are those
 rights:
 
-- **RabbitMQ and LavinMQ:** `configure` lets it delete and recreate the objects it is granted it on,
+- **RabbitMQ:** `configure` lets it delete and recreate the objects it is granted it on,
   losing their messages. Anchor the grants to its own names, as below, and it can harm only its own
-  objects. On LavinMQ it also needs `read` on every name (see
-  [Where RabbitMQ and LavinMQ differ](#where-rabbitmq-and-lavinmq-differ)), which lets it read every
-  queue.
+  objects.
 - **Azure Service Bus:** the Manage right lets it read, send to and delete every entity in the
   namespace.
 
@@ -301,16 +299,15 @@ queue and `R` each queue it sends to:
 - **write:** `T`, `R`, `S`, `dead-letter.S`, `Q`, `dead-letter.Q`. A queue declared with a dead-letter
   exchange needs `write` on that exchange, and binding a queue needs `write` on the queue.
 - **read:** `F`, `S`, `dead-letter.S`, `Q`, `dead-letter.Q`. Binding a queue needs `read` on the
-  exchange it binds to. On LavinMQ, `.*` instead (see
-  [Where RabbitMQ and LavinMQ differ](#where-rabbitmq-and-lavinmq-differ)).
+  exchange it binds to.
 
-Both brokers check these as regular expressions over resource names, so anchor each name and escape
+RabbitMQ checks these as regular expressions over resource names, so anchor each name and escape
 its dots (`^user-events$`, `^notification\.commands$`,
 `^(user-events\.vault|dead-letter\.user-events\.vault)$`). A pattern such as `^dead-letter\.` would
 let a service delete every other service's dead-lettered messages.
 
-Remove the default `guest` user, or at least change its password and limit it, on both brokers:
-both official images accept `guest` from outside the container. A service sharing one administrator
+Remove the default `guest` user, or at least change its password and limit it: the
+official image accepts `guest` from outside the container. A service sharing one administrator
 login can publish to any queue and read any other service's messages, whatever the rules above say.
 
 Keep users and their credentials out of the topology file that ships with a release or sits in a
