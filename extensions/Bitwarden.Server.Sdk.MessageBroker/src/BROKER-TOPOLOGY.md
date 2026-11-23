@@ -103,9 +103,7 @@ For each `AddSubscriber<TPayload, TCeiling>(topic, subscription)`:
   routing key `{WireName}` (the `IPayloadWireName<TPayload>.WireName` of the family the
   subscriber consumes).
 - A server-side policy applying `delivery-limit` to the queue, capping the number of
-  redelivery attempts before a message is dead-lettered. LavinMQ also needs it for
-  `Envelope.DeliveryCount`: it sends `x-delivery-count` only on a queue that has a delivery limit,
-  so without one every redelivery reads as the second.
+  redelivery attempts before a message is dead-lettered.
 - A server-side policy applying `dead-letter-exchange`, `dead-letter-strategy: at-least-once`,
   and `overflow: reject-publish` to the queue, plus the target dead-letter exchange and a
   quorum queue bound to it.
