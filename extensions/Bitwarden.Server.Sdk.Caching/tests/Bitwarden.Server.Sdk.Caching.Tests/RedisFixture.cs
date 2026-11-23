@@ -12,6 +12,7 @@ public sealed class RedisFixture : IAsyncLifetime
         Container = new ContainerBuilder()
             .WithImage("redis")
             .WithPortBinding(InnerRedisPort, true)
+            .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Ready to accept connections"))
             .Build();
     }
 
