@@ -208,7 +208,9 @@ public static class MessageBrokerServiceCollectionExtensions
         services.TryAddKeyedSingleton<ConsumerBackgroundService<TPayload, TCeiling, TConsumer>>(subscriptionKey, (sp, _) =>
             new ConsumerBackgroundService<TPayload, TCeiling, TConsumer>(
                 sp.GetRequiredService<IServiceScopeFactory>(),
-                sp.GetRequiredKeyedService<ISubscriber<TPayload, TCeiling>>(subscriptionKey)));
+                sp.GetRequiredKeyedService<ISubscriber<TPayload, TCeiling>>(subscriptionKey),
+                sp.GetRequiredService<ILogger<ConsumerBackgroundService<TPayload, TCeiling, TConsumer>>>(),
+                subscriptionKey));
         if (consumerIsNew)
             services.AddSingleton<IHostedService>(sp =>
                 sp.GetRequiredKeyedService<ConsumerBackgroundService<TPayload, TCeiling, TConsumer>>(subscriptionKey));
