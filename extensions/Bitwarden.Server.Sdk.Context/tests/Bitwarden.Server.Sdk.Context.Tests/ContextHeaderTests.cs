@@ -197,6 +197,8 @@ public sealed class ContextHeaderTests
     [InlineData("2001:0db8:0000:0000:0000:0000:0000:0001", "2001:db8::1")]
     [InlineData("::ffff:203.0.113.9", "203.0.113.9")]
     [InlineData("::1", "::1")]
+    // An IPv4 tail written without leading zeros is still read.
+    [InlineData("64:ff9b::192.0.2.33", "64:ff9b::c000:221")]
     public void TryParse_AnAddress_IsCanonical(string address, string canonical)
     {
         Assert.True(ContextHeader.TryParse($$"""{"v":1,"clientIp":"{{address}}"}""", out var read, out _));
@@ -286,6 +288,11 @@ public sealed class ContextHeaderTests
     [InlineData("""{"v":1,"credential":"SYSTEM","recordedUser":" b0000000-0000-4000-8000-000000000001 "}""")]
     [InlineData("""{"v":1,"recordedProvider":"\td0000000-0000-4000-8000-000000000001"}""")]
     [InlineData("""{"v":1,"organizations":["a0000000-0000-4000-8000-000000000001\n"]}""")]
+    // An identifier with a '+' or '0x' before a group, which Guid.TryParseExact would take.
+    [InlineData("""{"v":1,"flagKey":"+0000001-0000-4000-8000-000000000001"}""")]
+    [InlineData("""{"v":1,"organizations":["0x000001-0000-4000-8000-000000000001"]}""")]
+    // A leading zero in the IPv4 tail of an IPv6 address, which another reader could take as octal.
+    [InlineData("""{"v":1,"clientIp":"::ffff:203.0.113.010"}""")]
     [InlineData("""{"v":1,"clientVersion":"2026"}""")]
     [InlineData("""{"v":1,"clientVersion":"2026.10.0-beta"}""")]
     [InlineData("""{"v":1,"clientVersion":2026.1}""")]
@@ -316,6 +323,7 @@ public sealed class ContextHeaderTests
         new ContextValue { ClientIp = "127.1" },
         new ContextValue { ClientIp = "017.0.0.1" },
         new ContextValue { ClientIp = "0x7f.0.0.1" },
+        new ContextValue { ClientIp = "::ffff:203.0.113.010" },
         new ContextValue { ClientIp = "::203.0.113.9" },
         new ContextValue { ClientIp = "0.0.0.0" },
         new ContextValue { ClientIp = "::" },

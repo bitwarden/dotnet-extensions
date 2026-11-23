@@ -475,7 +475,8 @@ public static partial class ContextHeader
     /// </summary>
     /// <remarks>
     /// <c>IPAddress.TryParse</c> also takes IPv4's legacy forms (<c>1</c>, <c>127.1</c>, <c>017.0.0.1</c> read as
-    /// octal, <c>0x7f.0.0.1</c>), IPv6 with a zone (<c>fe80::1%eth0</c>), brackets or a port, and the deprecated
+    /// octal, <c>0x7f.0.0.1</c>), a leading zero in the IPv4 tail of an IPv6 address (<c>::ffff:203.0.113.010</c>),
+    /// IPv6 with a zone (<c>fe80::1%eth0</c>), brackets or a port, and the deprecated
     /// IPv4-compatible form (<c>::203.0.113.9</c>). None of them is an address another service can use, the legacy
     /// forms name a different address than they appear to, and the IPv4-compatible form spells an IPv4 client a
     /// second way.
@@ -497,9 +498,16 @@ public static partial class ContextHeader
         if (address.AddressFamily == AddressFamily.InterNetworkV6)
         {
             return !IsIPv4Compatible(address)
-                && value.All(character => char.IsAsciiHexDigit(character) || character is ':' or '.');
+                && value.All(character => char.IsAsciiHexDigit(character) || character is ':' or '.')
+                && (!value.Contains('.') || IsDottedDecimal(value[(value.LastIndexOf(':') + 1)..]));
         }
 
+        return IsDottedDecimal(value);
+    }
+
+    // Four decimal numbers with no leading zero, which another reader could take as octal.
+    private static bool IsDottedDecimal(string value)
+    {
         var parts = value.Split('.');
         return parts.Length == 4 && parts.All(part =>
             part.Length is > 0 and <= 3 && part.All(char.IsAsciiDigit) && (part.Length == 1 || part[0] != '0'));
@@ -526,12 +534,14 @@ public static partial class ContextHeader
         return parsed.IsIPv4MappedToIPv6 ? parsed.MapToIPv4() : parsed;
     }
 
-    // Guid.TryParseExact takes surrounding whitespace, so the length is checked first: a padded identifier is refused.
+    // Guid.TryParseExact takes surrounding whitespace and a '+' or '0x' before each group, so the length and the
+    // characters are checked first: a padded or prefixed identifier is refused.
     private static bool TryIdentifier(string? text, out Guid identifier)
     {
         identifier = Guid.Empty;
 
         return text is { Length: GuidLength }
+            && text.All(character => char.IsAsciiHexDigit(character) || character == '-')
             && Guid.TryParseExact(text, "D", out identifier)
             && identifier != Guid.Empty;
     }
