@@ -98,10 +98,4 @@ public static class ErrorCodes
     /// The caller is known but may not perform this operation.
     /// </summary>
     public const string Forbidden = "forbidden";
-
-    /// <summary>
-    /// The person's keys are being rotated. A write is refused (<c>409</c>), and a read that could
-    /// mix key generations asks the caller to retry (<c>503</c>).
-    /// </summary>
-    public const string KeyRotationInProgress = "key-rotation-in-progress";
 }

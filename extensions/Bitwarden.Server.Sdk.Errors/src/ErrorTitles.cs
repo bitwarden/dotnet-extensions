@@ -98,9 +98,4 @@ public static class ErrorTitles
     /// Title for <see cref="ErrorCodes.Forbidden"/>.
     /// </summary>
     public const string Forbidden = "The caller is not permitted to do this.";
-
-    /// <summary>
-    /// Title for <see cref="ErrorCodes.KeyRotationInProgress"/>.
-    /// </summary>
-    public const string KeyRotationInProgress = "A key rotation is in progress.";
 }
