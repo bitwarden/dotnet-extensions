@@ -44,7 +44,7 @@ public static class MessageBrokerServiceCollectionExtensions
             }
             if (!string.IsNullOrEmpty(options.RabbitUri))
             {
-                return new RabbitPublisher<TPayload, TCeiling>(sp.GetRequiredService<RabbitConnection>(), name,
+                return new RabbitPublisher<TPayload, TCeiling>(sp.GetRequiredService<RabbitConnection>(),
                     exchangeName: name, routingKey: TPayload.WireName, mandatory: false, serializer, metrics);
             }
             return new ChannelPublisher<TPayload, TCeiling>(sp.GetRequiredKeyedService<ChannelTopic<TPayload, TCeiling>>(publisherKey), name, metrics,
@@ -106,12 +106,15 @@ public static class MessageBrokerServiceCollectionExtensions
             var metrics = sp.GetRequiredService<MessageBrokerMetrics>();
             if (options.UsesAzureServiceBus)
             {
-                return new AzureServiceBusSubscriber<TPayload, TCeiling>(sp.GetRequiredService<AzureServiceBusConnection>(), name, subscriptionName, serializer, metrics,
-                    options.MaxLockRenewalDuration);
+                return new BrokerSubscriber<TPayload, TCeiling>(
+                    new AzureServiceBusReceiver(sp.GetRequiredService<AzureServiceBusConnection>(), name, subscriptionName, options.MaxLockRenewalDuration),
+                    name, serializer, metrics);
             }
             if (!string.IsNullOrEmpty(options.RabbitUri))
             {
-                return new RabbitSubscriber<TPayload, TCeiling>(sp.GetRequiredService<RabbitConnection>(), name, subscriptionName, serializer, metrics);
+                return new BrokerSubscriber<TPayload, TCeiling>(
+                    new RabbitQueueReceiver(sp.GetRequiredService<RabbitConnection>(), RabbitQueueReceiver.SubscriptionQueueName(name, subscriptionName), name),
+                    name, serializer, metrics);
             }
             return new ChannelSubscriber<TPayload, TCeiling>(sp.GetRequiredKeyedService<ChannelTopic<TPayload, TCeiling>>(publisherKey).GetOrAddSubscription(subscriptionName).Reader, name, metrics);
         });
@@ -184,8 +187,10 @@ public static class MessageBrokerServiceCollectionExtensions
                 sp.GetService<IMessageEscrowStore>(),
                 sp.GetRequiredService<ILogger<ChannelEscrowRegistration<TPayload, TCeiling>>>()));
         if (escrowIsNew)
+        {
             services.AddSingleton<ChannelEscrowRegistration<TPayload, TCeiling>>(sp =>
                 sp.GetRequiredKeyedService<ChannelEscrowRegistration<TPayload, TCeiling>>(subscriptionKey));
+        }
 
         // TConsumer is scoped so each message is handled in its own DI scope, letting the handler
         // inject scoped dependencies (e.g. a DbContext) the same way a controller action would.
@@ -210,8 +215,10 @@ public static class MessageBrokerServiceCollectionExtensions
                 sp.GetRequiredService<SubscriptionReadiness>()));
         AddSubscriptionHealthCheck(services);
         if (consumerIsNew)
+        {
             services.AddSingleton<IHostedService>(sp =>
                 sp.GetRequiredKeyedService<ConsumerBackgroundService<TPayload, TCeiling, TConsumer>>(subscriptionKey));
+        }
 
         services.AddSingleton(new ChannelConsumerDescriptor(typeof(TPayload), subscriptionKey));
         // The validator is registered here (not in AddSubscriber) so it only activates when the app
@@ -255,7 +262,7 @@ public static class MessageBrokerServiceCollectionExtensions
             }
             if (!string.IsNullOrEmpty(options.RabbitUri))
             {
-                return new RabbitPublisher<TPayload, TCeiling>(sp.GetRequiredService<RabbitConnection>(), queueName,
+                return new RabbitPublisher<TPayload, TCeiling>(sp.GetRequiredService<RabbitConnection>(),
                     exchangeName: queueName, routingKey: queueName, mandatory: true, serializer, metrics);
             }
             return new ChannelCommandSender<TPayload, TCeiling>(sp.GetRequiredKeyedService<ChannelCommandQueue>(queueName), queueName, serializer, metrics);
@@ -292,7 +299,10 @@ public static class MessageBrokerServiceCollectionExtensions
         ChainValidator<TPayload, TCeiling>.ThrowIfInvalid();
         ClaimTopicFamily<TPayload>(services, queueName);
         if (!ClaimCommandConsumer<TPayload, TConsumer>(services, queueName))
+        {
             return services;
+        }
+
         AddBrokerInfrastructure(services);
         AddFamilySerializer<TPayload>(services, queueName);
         AddChannelCommandQueue(services, queueName);
@@ -300,7 +310,7 @@ public static class MessageBrokerServiceCollectionExtensions
 
         services.TryAddScoped<TConsumer>();
         var key = MessageBrokerKeys.Publisher<TPayload>(queueName);
-        services.AddSingleton<CommandFamilyHandler>(sp => new CommandFamilyHandler<TPayload, TCeiling, TConsumer>(
+        services.AddSingleton<ICommandFamilyHandler>(sp => new CommandFamilyHandler<TPayload, TCeiling, TConsumer>(
             queueName,
             sp.GetRequiredKeyedService<IMessageSerializer>(key),
             sp.GetRequiredService<IServiceScopeFactory>(),
@@ -314,14 +324,22 @@ public static class MessageBrokerServiceCollectionExtensions
             services.AddKeyedSingleton<CommandQueueService>(queueName, (sp, _) =>
             {
                 var options = sp.GetRequiredService<IOptions<MessagingOptions>>().Value;
-                ICommandQueueReceiver receiver;
+                IMessageReceiver receiver;
                 if (options.UsesAzureServiceBus)
-                    receiver = new AzureServiceBusCommandQueueReceiver(sp.GetRequiredService<AzureServiceBusConnection>(), queueName, options.MaxLockRenewalDuration);
+                {
+                    receiver = new AzureServiceBusReceiver(
+                        sp.GetRequiredService<AzureServiceBusConnection>(), queueName, subscriptionName: null, options.MaxLockRenewalDuration);
+                }
                 else if (!string.IsNullOrEmpty(options.RabbitUri))
-                    receiver = new RabbitCommandQueueReceiver(sp.GetRequiredService<RabbitConnection>(), queueName);
+                {
+                    receiver = new RabbitQueueReceiver(sp.GetRequiredService<RabbitConnection>(), queueName, queueName);
+                }
                 else
+                {
                     receiver = sp.GetRequiredKeyedService<ChannelCommandQueue>(queueName);
-                return new CommandQueueService(queueName, receiver, sp.GetServices<CommandFamilyHandler>(),
+                }
+
+                return new CommandQueueService(queueName, receiver, sp.GetServices<ICommandFamilyHandler>(),
                     sp.GetRequiredService<ILogger<CommandQueueService>>(), sp.GetRequiredService<SubscriptionReadiness>());
             });
             services.AddSingleton<IHostedService>(sp => sp.GetRequiredKeyedService<CommandQueueService>(queueName));
@@ -351,9 +369,21 @@ public static class MessageBrokerServiceCollectionExtensions
     {
         foreach (var descriptor in services)
         {
-            if (descriptor.ImplementationInstance is not CommandConsumerClaim claim) continue;
-            if (claim.QueueName != queueName || claim.FamilyWireName != TPayload.WireName) continue;
-            if (claim.ConsumerType == typeof(TConsumer)) return false;
+            if (descriptor.ImplementationInstance is not CommandConsumerClaim claim)
+            {
+                continue;
+            }
+
+            if (claim.QueueName != queueName || claim.FamilyWireName != TPayload.WireName)
+            {
+                continue;
+            }
+
+            if (claim.ConsumerType == typeof(TConsumer))
+            {
+                return false;
+            }
+
             throw new InvalidOperationException(
                 $"Command family '{TPayload.WireName}' on queue '{queueName}' is already consumed by " +
                 $"'{claim.ConsumerType.Name}'. Cannot also register '{typeof(TConsumer).Name}'. " +
@@ -368,7 +398,9 @@ public static class MessageBrokerServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ConsumerRetryOptions>, ConsumerRetryOptionsValidator>());
         var options = services.AddOptions<ConsumerRetryOptions>(name).ValidateOnStart();
         if (configure is not null)
+        {
             options.Configure(configure);
+        }
     }
 
     private static void AddBrokerInfrastructure(IServiceCollection services)
@@ -421,10 +453,26 @@ public static class MessageBrokerServiceCollectionExtensions
         var wireName = TPayload.WireName;
         foreach (var descriptor in services)
         {
-            if (descriptor.ServiceType != typeof(TopicFamilyClaim)) continue;
-            if (descriptor.ImplementationInstance is not TopicFamilyClaim claim) continue;
-            if (claim.TopicName != name || claim.FamilyWireName != wireName) continue;
-            if (claim.PayloadType == typeof(TPayload)) return;
+            if (descriptor.ServiceType != typeof(TopicFamilyClaim))
+            {
+                continue;
+            }
+
+            if (descriptor.ImplementationInstance is not TopicFamilyClaim claim)
+            {
+                continue;
+            }
+
+            if (claim.TopicName != name || claim.FamilyWireName != wireName)
+            {
+                continue;
+            }
+
+            if (claim.PayloadType == typeof(TPayload))
+            {
+                return;
+            }
+
             throw new InvalidOperationException(
                 $"Topic '{name}' already has family wire name '{wireName}' claimed by payload " +
                 $"'{claim.PayloadType.Name}'. Cannot also claim it for '{typeof(TPayload).Name}'. " +
@@ -437,10 +485,26 @@ public static class MessageBrokerServiceCollectionExtensions
     {
         foreach (var descriptor in services)
         {
-            if (descriptor.ServiceType != typeof(TopicSubscriptionClaim)) continue;
-            if (descriptor.ImplementationInstance is not TopicSubscriptionClaim claim) continue;
-            if (claim.TopicName != name || claim.SubscriptionName != subscriptionName) continue;
-            if (claim.PayloadType == typeof(TPayload)) return;
+            if (descriptor.ServiceType != typeof(TopicSubscriptionClaim))
+            {
+                continue;
+            }
+
+            if (descriptor.ImplementationInstance is not TopicSubscriptionClaim claim)
+            {
+                continue;
+            }
+
+            if (claim.TopicName != name || claim.SubscriptionName != subscriptionName)
+            {
+                continue;
+            }
+
+            if (claim.PayloadType == typeof(TPayload))
+            {
+                return;
+            }
+
             throw new InvalidOperationException(
                 $"Subscription '{subscriptionName}' on topic '{name}' is already registered for " +
                 $"payload '{claim.PayloadType.Name}'. Cannot also register it for " +
@@ -453,7 +517,10 @@ public static class MessageBrokerServiceCollectionExtensions
     private static void AddRabbitInfrastructure(IServiceCollection services)
     {
         if (services.Any(d => d.ServiceType == typeof(RabbitConnection)))
+        {
             return;
+        }
+
         services.AddSingleton<RabbitConnection>();
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<RabbitConnection>());
     }

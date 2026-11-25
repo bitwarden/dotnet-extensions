@@ -31,7 +31,10 @@ public sealed class ConsumerRetryOptions
     internal TimeSpan RetryDelayAfter(int deliveryCount)
     {
         if (RetryDelay <= TimeSpan.Zero)
+        {
             return TimeSpan.Zero;
+        }
+
         var doublings = Math.Clamp(deliveryCount - 1, 0, 30);
         var ticks = RetryDelay.Ticks * Math.Pow(2, doublings);
         return ticks >= MaxRetryDelay.Ticks ? MaxRetryDelay : TimeSpan.FromTicks((long)ticks);
