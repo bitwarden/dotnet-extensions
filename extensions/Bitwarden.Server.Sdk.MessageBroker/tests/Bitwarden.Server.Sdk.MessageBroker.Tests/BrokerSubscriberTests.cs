@@ -37,8 +37,9 @@ public sealed class BrokerSubscriberTests : IDisposable
     private sealed class FakeReceiver(params ReceivedMessage[] messages) : IMessageReceiver
     {
         public async IAsyncEnumerable<ReceivedMessage> ReceiveAsync(
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+            Action onSubscribed, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
         {
+            onSubscribed();
             foreach (var message in messages)
             {
                 await Task.Yield();
@@ -178,5 +179,18 @@ public sealed class BrokerSubscriberTests : IDisposable
 
         Assert.True(good.Completed);
         Assert.False(good.DeadLettered || good.Requeued);
+    }
+
+    [Fact]
+    public async Task TheReceiversSubscribedSignal_ReachesTheConsumerEvenWithNoMessages()
+    {
+        var subscribed = false;
+
+        await foreach (var _ in Subscriber<SendMailPayload, SendMail>().SubscribeAsync(
+            () => subscribed = true, TestContext.Current.CancellationToken))
+        {
+        }
+
+        Assert.True(subscribed);
     }
 }

@@ -5,6 +5,7 @@ using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
@@ -76,6 +77,7 @@ public sealed class RabbitOutageTests : IAsyncLifetime
         .ConfigureServices(services =>
         {
             services.AddMetrics();
+            services.AddHealthChecks();
             services.AddSingleton<ItemRecorder>();
             services.AddSingleton<CommandRecorder>();
             services.AddPublisher<MyItemPayload, MyItem>(_topic);
@@ -212,6 +214,34 @@ public sealed class RabbitOutageTests : IAsyncLifetime
             $"Five concurrent sends took {DateTime.UtcNow - started} to fail.");
     }
 
+    [Fact(Timeout = 120 * 1000)]
+    public async Task AConsumerThatCannotReachItsBrokerIsReportedDegraded()
+    {
+        // An address that doesn't answer, so each attempt to connect runs until its timeout.
+        var host = new HostBuilder()
+            .ConfigureAppConfiguration(b => b.AddInMemoryCollection(
+                new Dictionary<string, string?> { ["RabbitUri"] = "amqp://guest:guest@10.255.255.1:5672/" }))
+            .ConfigureServices(services =>
+            {
+                services.AddHealthChecks();
+                services.AddSingleton<ItemRecorder>();
+                services.AddMessageConsumer<MyItemPayload, MyItem, RecordingItemConsumer>(_topic, "outage");
+                services.AddOptions<MessagingOptions>().BindConfiguration("");
+            })
+            .Build();
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        _hosts.Add(host);
+        var health = host.Services.GetRequiredService<HealthCheckService>();
+
+        var until = DateTime.UtcNow + RabbitConnection.ConnectTimeout * 3;
+        while (DateTime.UtcNow < until)
+        {
+            var report = await health.CheckHealthAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(HealthStatus.Degraded, report.Status);
+            await Task.Delay(250, TestContext.Current.CancellationToken);
+        }
+    }
+
     [Fact(Timeout = 180 * 1000)]
     public async Task HostThatStartsWhileTheBrokerIsDownCatchesUpWhenItComesBack()
     {
@@ -222,10 +252,36 @@ public sealed class RabbitOutageTests : IAsyncLifetime
             item.Publish(new MyItem(0)).SendAsync(TestContext.Current.CancellationToken)
                 .WaitAsync(TimeSpan.FromSeconds(15), TestContext.Current.CancellationToken));
 
+        // The readiness probe says which consumers can't receive, and nothing about the broker.
+        var health = host.Services.GetRequiredService<HealthCheckService>();
+        var down = await WaitForHealthAsync(health, HealthStatus.Degraded);
+        var reason = down.Entries.Single().Value.Description!;
+        Assert.Contains($"{_topic}/outage", reason);
+        Assert.Contains(Queue, reason);
+        Assert.DoesNotContain(_port.ToString(), reason);
+        Assert.DoesNotContain("localhost", reason);
+
         await StartBrokerAsync();
         await DeclareTopologyAsync();
 
         await SendBothAsync(host, _topic, Queue, 1);
         await WaitForBothAsync(host, 1);
+        await WaitForHealthAsync(health, HealthStatus.Healthy);
+    }
+
+    private static async Task<HealthReport> WaitForHealthAsync(HealthCheckService health, HealthStatus status)
+    {
+        var deadline = DateTime.UtcNow + RecoveryTimeout;
+        while (true)
+        {
+            var report = await health.CheckHealthAsync(TestContext.Current.CancellationToken);
+            if (report.Status == status)
+            {
+                return report;
+            }
+
+            Assert.True(DateTime.UtcNow < deadline, $"Health stayed {report.Status}, expected {status}.");
+            await Task.Delay(200, TestContext.Current.CancellationToken);
+        }
     }
 }

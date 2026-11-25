@@ -6,7 +6,8 @@ namespace Microsoft.Extensions.DependencyInjection;
 internal interface IMessageReceiver
 {
     /// <summary>
-    /// Returns the queue's messages as they arrive, one unsettled message at a time.
+    /// Returns the queue's messages as they arrive, one unsettled message at a time, calling
+    /// <paramref name="onSubscribed"/> once the receiver is in place, whether or not a message comes.
     /// </summary>
-    IAsyncEnumerable<ReceivedMessage> ReceiveAsync(CancellationToken cancellationToken);
+    IAsyncEnumerable<ReceivedMessage> ReceiveAsync(Action onSubscribed, CancellationToken cancellationToken);
 }

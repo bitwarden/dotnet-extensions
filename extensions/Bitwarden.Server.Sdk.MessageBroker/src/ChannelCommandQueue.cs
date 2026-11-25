@@ -21,8 +21,12 @@ internal sealed class ChannelCommandQueue : IMessageReceiver
         _logger = logger;
     }
 
-    public IAsyncEnumerable<ReceivedMessage> ReceiveAsync(CancellationToken cancellationToken) =>
-        _channel.Reader.ReadAllAsync(cancellationToken);
+    public IAsyncEnumerable<ReceivedMessage> ReceiveAsync(Action onSubscribed, CancellationToken cancellationToken)
+    {
+        // In process, the queue is there as soon as it is read.
+        onSubscribed();
+        return _channel.Reader.ReadAllAsync(cancellationToken);
+    }
 
     public ValueTask WriteAsync(
         ReadOnlyMemory<byte> body, string familyWireName, string messageId, string? traceParent,

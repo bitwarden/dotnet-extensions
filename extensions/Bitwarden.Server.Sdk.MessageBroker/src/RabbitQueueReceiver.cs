@@ -30,7 +30,7 @@ internal sealed class RabbitQueueReceiver : IMessageReceiver
     /// </summary>
     public static string SubscriptionQueueName(string topic, string subscription) => $"{topic}.{subscription}";
 
-    public async IAsyncEnumerable<ReceivedMessage> ReceiveAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<ReceivedMessage> ReceiveAsync(Action onSubscribed, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // The host closing the connection during setup is a shutdown, not a broker failure.
         using var setupCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _connection.Closed);
@@ -96,6 +96,8 @@ internal sealed class RabbitQueueReceiver : IMessageReceiver
         {
             yield break;
         }
+
+        onSubscribed();
 
         await foreach (var message in innerChannel.Reader.ReadAllAsync(cancellationToken))
         {

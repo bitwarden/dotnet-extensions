@@ -6,7 +6,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// Receives payload family <typeparamref name="TPayload"/> from a topic subscription on RabbitMQ or
 /// Azure Service Bus, decoding each message from the broker's <see cref="IMessageReceiver"/>.
 /// </summary>
-internal sealed class BrokerSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>
+internal sealed class BrokerSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>, ISignalsSubscribed<TPayload, TCeiling>
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
 {
@@ -23,9 +23,13 @@ internal sealed class BrokerSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
         _metrics = metrics;
     }
 
-    public async IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    public IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync(CancellationToken cancellationToken) =>
+        SubscribeAsync(static () => { }, cancellationToken);
+
+    public async IAsyncEnumerable<Envelope<TPayload, TCeiling>> SubscribeAsync(
+        Action onSubscribed, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await foreach (var message in _receiver.ReceiveAsync(cancellationToken))
+        await foreach (var message in _receiver.ReceiveAsync(onSubscribed, cancellationToken))
         {
             // The broker's binding or filter should deliver only this family. If it is wrong, say so
             // here rather than failing to decode another family's message.
