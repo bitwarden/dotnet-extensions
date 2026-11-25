@@ -58,7 +58,9 @@ internal sealed class ChannelEscrowRegistration<TPayload, TCeiling>
     private async Task StartupRecoveryAsync(ChannelWriter<Envelope<TPayload, TCeiling>> writer, CancellationToken cancellationToken)
     {
         if (IsExternalBackend() || _primaryStore is null)
+        {
             return;
+        }
 
         IReadOnlyList<EscrowedMessage> escrowed;
         try
@@ -72,7 +74,9 @@ internal sealed class ChannelEscrowRegistration<TPayload, TCeiling>
         }
 
         if (escrowed.Count == 0)
+        {
             return;
+        }
 
         var maxDeliveryCount = _messagingOptions.Value.MaxDeliveryCount;
 
@@ -115,7 +119,9 @@ internal sealed class ChannelEscrowRegistration<TPayload, TCeiling>
     private async Task ShutdownDrainAsync(IReadOnlyList<Envelope<TPayload, TCeiling>> messages, CancellationToken cancellationToken)
     {
         if (IsExternalBackend())
+        {
             return;
+        }
 
         var escrowed = new List<EscrowedMessage>(messages.Count);
         foreach (var envelope in messages)
@@ -135,7 +141,9 @@ internal sealed class ChannelEscrowRegistration<TPayload, TCeiling>
         }
 
         if (escrowed.Count == 0)
+        {
             return;
+        }
 
         if (_primaryStore is not null)
         {
@@ -154,8 +162,10 @@ internal sealed class ChannelEscrowRegistration<TPayload, TCeiling>
         }
 
         foreach (var m in escrowed)
+        {
             _logger.LogError("Undelivered message escrowed to log for {Key}: {MessageId}",
                 _subscriptionKey, m.MessageId);
+        }
     }
 
     // Safety net: called when RequeueCoreAsync cannot write back to the channel because the
@@ -163,7 +173,9 @@ internal sealed class ChannelEscrowRegistration<TPayload, TCeiling>
     private async Task EscrowDirectAsync(Envelope<TPayload, TCeiling> envelope, CancellationToken cancellationToken)
     {
         if (IsExternalBackend())
+        {
             return;
+        }
 
         byte[] payload;
         try

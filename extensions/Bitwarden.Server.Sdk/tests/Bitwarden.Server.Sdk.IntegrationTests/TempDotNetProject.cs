@@ -109,15 +109,30 @@ internal sealed class TempDotNetProject : IDisposable
         EnsureProjectWritten();
 
         var args = new List<string> { "msbuild", _projectPath, "--nologo" };
-        if (restore) args.Add("-restore");
+        if (restore)
+        {
+            args.Add("-restore");
+        }
+
         foreach (var target in targets)
+        {
             args.Add($"-t:{target}");
+        }
+
         if (extraProperties != null)
+        {
             foreach (var (k, v) in extraProperties)
+            {
                 args.Add($"-p:{k}={v}");
+            }
+        }
 
         var result = RunDotNet(args);
-        if (restore) _hasRestored = true;
+        if (restore)
+        {
+            _hasRestored = true;
+        }
+
         return result;
     }
 
@@ -140,8 +155,10 @@ internal sealed class TempDotNetProject : IDisposable
         process.WaitForExit();
 
         if (process.ExitCode != 0)
+        {
             throw new InvalidOperationException(
                 $"msbuild -getProperty:{name} failed (exit {process.ExitCode}):{System.Environment.NewLine}{stdoutTask.Result}{stderrTask.Result}");
+        }
 
         var output = stdoutTask.Result.Trim();
         return string.IsNullOrEmpty(output) ? null : output;
@@ -162,19 +179,29 @@ internal sealed class TempDotNetProject : IDisposable
 
     private void EnsureProjectWritten()
     {
-        if (_projectWritten) return;
+        if (_projectWritten)
+        {
+            return;
+        }
+
         _projectWritten = true;
         WriteProjectFile();
     }
 
     private void EnsureRestored()
     {
-        if (_hasRestored) return;
+        if (_hasRestored)
+        {
+            return;
+        }
+
         _hasRestored = true;
         EnsureProjectWritten();
         var result = RunDotNet(["restore", _projectPath, "--nologo"]);
         if (!result.Succeeded)
+        {
             throw new InvalidOperationException($"dotnet restore failed:{System.Environment.NewLine}{result.Output}");
+        }
     }
 
     private void WriteProjectFile()
@@ -220,7 +247,10 @@ internal sealed class TempDotNetProject : IDisposable
             {
                 sb.AppendLine(">");
                 foreach (var (key, value) in metadata)
+                {
                     sb.AppendLine($"      <{key}>{SecurityElement.Escape(value ?? "")}</{key}>");
+                }
+
                 sb.AppendLine($"    </{type}>");
             }
         }
@@ -240,9 +270,11 @@ internal sealed class TempDotNetProject : IDisposable
             Path.Combine(ThisAssemblyDirectory, "..", "..", "..", "..", "..", "..", "..", "global.json"));
 
         if (!File.Exists(globalJson))
+        {
             throw new InvalidOperationException(
                 $"global.json not found at expected path '{globalJson}'. " +
                 "The 7-level relative walk from the test output directory may need updating.");
+        }
 
         // Parse and mutate via JsonNode so the patch is format-independent — no regex
         // needed, and the guard checks the parsed value rather than the serialized text.
@@ -253,11 +285,15 @@ internal sealed class TempDotNetProject : IDisposable
         // in the same feature band (e.g. 10.0.204 when 10.0.202 is not installed) without
         // jumping to a different band (e.g. 10.0.400) that carries an incompatible MSBuild.
         if (rollForward == "disable")
+        {
             root["sdk"]!["rollForward"] = "latestPatch";
+        }
         else if (rollForward is not null && rollForward != "latestPatch")
+        {
             throw new InvalidOperationException(
                 $"global.json at '{globalJson}' has unexpected rollForward value '{rollForward}'. " +
                 "The subprocess SDK selection may not match the repo's intended feature band.");
+        }
 
         File.WriteAllText(Path.Combine(_directory, "global.json"), root.ToJsonString());
     }
@@ -270,7 +306,9 @@ internal sealed class TempDotNetProject : IDisposable
         var localPackagesDir = Path.Combine(_directory, "local-packages");
         System.IO.Directory.CreateDirectory(localPackagesDir);
         foreach (var package in LocalNugetPackages)
+        {
             File.Copy(package.FullName, Path.Combine(localPackagesDir, package.Name), overwrite: true);
+        }
 
         File.WriteAllText(Path.Combine(_directory, "nuget.config"), $"""
             <?xml version="1.0" encoding="utf-8"?>

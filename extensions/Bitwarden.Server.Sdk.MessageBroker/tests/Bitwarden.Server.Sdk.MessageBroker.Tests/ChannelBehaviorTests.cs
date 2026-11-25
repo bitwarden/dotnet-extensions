@@ -80,7 +80,9 @@ public class ChannelBehaviorTests : BehaviorTests
 
         // Fill the channel before the subscriber starts so all messages sit buffered.
         for (var i = 0; i < messageCount; i++)
+        {
             await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
+        }
 
         // Iterate without an external cancellation token — the enumerable must yield every
         // buffered message before completing when ApplicationStopping fires.
@@ -118,7 +120,9 @@ public class ChannelBehaviorTests : BehaviorTests
         var subscriber = host.Services.GetRequiredKeyedService<ISubscriber<MyItemPayload, MyItem>>(SubscriptionKey);
 
         for (var i = 0; i < messageCount; i++)
+        {
             await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
+        }
 
         Assert.Equal(messageCount, ReadQueueDepth());
 
@@ -126,7 +130,10 @@ public class ChannelBehaviorTests : BehaviorTests
         await foreach (var envelope in subscriber.SubscribeAsync(TestContext.Current.CancellationToken))
         {
             await envelope.CompleteAsync(TestContext.Current.CancellationToken);
-            if (++received >= messageCount) break;
+            if (++received >= messageCount)
+            {
+                break;
+            }
         }
 
         Assert.Equal(0L, ReadQueueDepth());
@@ -139,15 +146,21 @@ public class ChannelBehaviorTests : BehaviorTests
             {
                 if (instrument.Meter.Name == "Bitwarden.Server.Sdk.MessageBroker" &&
                     instrument.Name == "messaging.channel.queued.messages")
+                {
                     listener.EnableMeasurementEvents(instrument);
+                }
             };
             // Filter by topic tag: parallel test hosts share the meter name and would
             // otherwise overwrite depth with their own (unrelated) topic's measurement.
             meterListener.SetMeasurementEventCallback<long>((_, measurement, tags, _) =>
             {
                 foreach (var tag in tags)
+                {
                     if (tag.Key == "messaging.destination.name" && (string?)tag.Value == TopicName)
+                    {
                         depth = measurement;
+                    }
+                }
             });
             meterListener.Start();
             meterListener.RecordObservableInstruments();
@@ -230,7 +243,9 @@ public class ChannelBehaviorTests : BehaviorTests
 
         // Fill the channel with messages before the subscriber starts.
         for (var i = 0; i < messageCount; i++)
+        {
             await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
+        }
 
         // Cancel immediately — a user-owned token unrelated to ApplicationStopping.
         using var cts = new CancellationTokenSource();

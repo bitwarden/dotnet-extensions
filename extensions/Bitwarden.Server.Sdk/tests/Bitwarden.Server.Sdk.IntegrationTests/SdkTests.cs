@@ -24,7 +24,9 @@ public class SdkTests
         Assert.True(result.Succeeded, result.GetConsoleLog());
 
         foreach (var (feature, expectedDefault) in featuresAndDefaults)
+        {
             Assert.Equal(expectedDefault, project.HasConstant($"BIT_INCLUDE_{feature}"));
+        }
     }
 
     [Fact]
@@ -33,7 +35,9 @@ public class SdkTests
         using var project = new TempDotNetProject("Microsoft.NET.Sdk");
 
         foreach (var feature in new[] { "TELEMETRY", "AUTHENTICATION", "WEB_ESSENTIALS" })
+        {
             Assert.False(project.HasConstant($"BIT_INCLUDE_{feature}"));
+        }
 
         Assert.True(project.HasConstant("BIT_INCLUDE_FEATURES"));
         Assert.True(project.HasConstant("BIT_INCLUDE_ENVIRONMENT"));
@@ -264,7 +268,10 @@ public class SdkTests
 
         using var project = new TempDotNetProject();
         foreach (var property in properties)
+        {
             project.WithProperty(property.Key, property.Value);
+        }
+
         project.WithDefaultProgramCs();
 
         var result = project.Build();

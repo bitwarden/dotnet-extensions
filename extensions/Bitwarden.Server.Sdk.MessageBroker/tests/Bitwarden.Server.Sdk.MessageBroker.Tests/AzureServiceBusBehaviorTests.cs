@@ -53,10 +53,15 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
                 {
                     var message = await deadLetters.ReceiveMessageAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
                     if (message is null)
+                    {
                         continue;
+                    }
+
                     await deadLetters.CompleteMessageAsync(message, TestContext.Current.CancellationToken);
                     if (message.MessageId == messageId)
+                    {
                         return;
+                    }
                 }
                 Assert.Fail($"Message {messageId} wasn't in the subscription's dead-letter queue.");
             });
@@ -447,9 +452,24 @@ public class AzureServiceBusFixture : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
-        if (_emulatorContainer != null) await _emulatorContainer.DisposeAsync();
-        if (_sqlContainer != null) await _sqlContainer.DisposeAsync();
-        if (_network != null) await _network.DisposeAsync();
-        if (_configFile != null) File.Delete(_configFile);
+        if (_emulatorContainer != null)
+        {
+            await _emulatorContainer.DisposeAsync();
+        }
+
+        if (_sqlContainer != null)
+        {
+            await _sqlContainer.DisposeAsync();
+        }
+
+        if (_network != null)
+        {
+            await _network.DisposeAsync();
+        }
+
+        if (_configFile != null)
+        {
+            File.Delete(_configFile);
+        }
     }
 }

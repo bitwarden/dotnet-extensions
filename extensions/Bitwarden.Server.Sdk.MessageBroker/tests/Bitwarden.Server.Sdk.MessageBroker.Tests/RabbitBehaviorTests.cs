@@ -36,11 +36,15 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
     {
         var declarations = host.Services.GetServices<BrokerTopologyDeclaration>().ToList();
         if (declarations.Count == 0)
+        {
             return;
+        }
 
         var uri = host.Services.GetRequiredService<IOptions<MessagingOptions>>().Value.RabbitUri;
         if (string.IsNullOrEmpty(uri))
+        {
             return;
+        }
 
         try
         {
@@ -166,7 +170,9 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
             try { await publisher.Publish(new MyItem(1)).SendAsync(TestContext.Current.CancellationToken); }
             catch (BrokerUnavailableException e) { ex = e; }
             if (ex is null)
+            {
                 await Task.Delay(250, TestContext.Current.CancellationToken);
+            }
         }
 
         Assert.NotNull(ex);
@@ -452,7 +458,9 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
             host.Dispose();
         }
         if (_droppableContainer is not null)
+        {
             await _droppableContainer.DisposeAsync();
+        }
     }
 
     private static string GetContainerUri(IContainer container) =>
@@ -478,7 +486,10 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
 
         public async ValueTask DisposeAsync()
         {
-            if (_container != null) await _container.DisposeAsync();
+            if (_container != null)
+            {
+                await _container.DisposeAsync();
+            }
         }
     }
 }

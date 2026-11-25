@@ -55,7 +55,9 @@ public class SqlServerMigratorIntegrationTests(SqlServerFixture sqlServer) : ICl
 
         var rows = new List<string>();
         while (await reader.ReadAsync(TestContext.Current.CancellationToken))
+        {
             rows.Add(reader.GetString(0));
+        }
 
         return rows;
     }

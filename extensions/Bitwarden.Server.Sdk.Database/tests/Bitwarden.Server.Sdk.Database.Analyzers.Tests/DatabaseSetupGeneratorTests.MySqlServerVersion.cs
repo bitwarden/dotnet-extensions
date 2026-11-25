@@ -19,7 +19,9 @@ public partial class DatabaseSetupGeneratorTests
         await using var other = FakeMySqlServer.Start();
 
         for (var i = 0; i < 5; i++)
+        {
             BuildContextOptions(assembly, server.ConnectionString("orders"));
+        }
 
         // The version belongs to the server, so another database or account on it doesn't ask again.
         BuildContextOptions(assembly, server.ConnectionString("vault", user: "someone-else"));

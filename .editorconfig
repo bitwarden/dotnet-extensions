@@ -122,6 +122,9 @@ csharp_style_inlined_variable_declaration = true:suggestion
 csharp_style_throw_expression = true:suggestion
 csharp_style_conditional_delegate_call = true:suggestion
 
+# Brace every control-flow body (if, else, for, foreach, while, do, using, lock, fixed)
+csharp_prefer_braces = true:warning
+
 # Newline settings
 csharp_new_line_before_open_brace = all
 csharp_new_line_before_else = true

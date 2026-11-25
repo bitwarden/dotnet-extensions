@@ -35,7 +35,10 @@ internal sealed class AzureServiceBusPublisher<TPayload, TCeiling> : Publisher<T
         };
         sbMessage.ApplicationProperties[BrokerProperties.PayloadFamily] = TPayload.WireName;
         if (activity?.Id is { } traceId)
+        {
             sbMessage.ApplicationProperties[BrokerProperties.TraceParent] = traceId;
+        }
+
         try
         {
             await _sender.SendMessageAsync(sbMessage, cancellationToken);

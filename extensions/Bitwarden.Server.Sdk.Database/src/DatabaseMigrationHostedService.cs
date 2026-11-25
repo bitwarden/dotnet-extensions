@@ -60,7 +60,9 @@ internal sealed class DatabaseMigrationHostedService : IHostedService
             }
 
             if (migrator is IDatabaseAvailability availability)
+            {
                 await WaitForDatabaseAsync(migrator.Name, availability, cancellationToken);
+            }
 
             // Migrated once. A failing migration fails the same way every time, since it runs in a
             // transaction, so retrying would only delay the error.
@@ -93,7 +95,9 @@ internal sealed class DatabaseMigrationHostedService : IHostedService
         {
             var error = await availability.CheckConnectionAsync(cancellationToken);
             if (error is null)
+            {
                 return;
+            }
 
             if (_timeProvider.GetUtcNow() >= deadline)
             {

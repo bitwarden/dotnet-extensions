@@ -24,7 +24,9 @@ internal sealed class ChannelConsumerValidationService(
         var opts = options.Value;
         if (!string.IsNullOrEmpty(opts.AzureServiceBusConnectionString) ||
             !string.IsNullOrEmpty(opts.RabbitUri))
+        {
             return Task.CompletedTask;
+        }
 
         var consumerKeys = consumers
             .Select(c => (c.MessageType, c.SubscriptionKey))

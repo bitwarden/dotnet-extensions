@@ -22,7 +22,10 @@ internal static class MessageBrokerActivitySource
     {
         ActivityContext parentContext = default;
         if (traceId is not null)
+        {
             ActivityContext.TryParse(traceId, null, isRemote: true, out parentContext);
+        }
+
         var activity = Source.StartActivity($"{topicName} receive", ActivityKind.Consumer, parentContext);
         activity?.SetTag(MessageBrokerMetrics.DestinationTag, topicName);
         activity?.SetTag(MessageBrokerMetrics.PayloadFamilyTag, familyWireName);

@@ -230,13 +230,17 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
     {
         var referenced = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var a in compilation.ReferencedAssemblyNames)
+        {
             referenced.Add(a.Name);
+        }
 
         var result = ImmutableArray.CreateBuilder<ProviderSpec>();
         foreach (var p in AllProviders)
         {
             if (referenced.Contains(p.Assembly))
+            {
                 result.Add(p);
+            }
         }
         return new EquatableArray<ProviderSpec>(result.ToImmutable());
     }
@@ -309,7 +313,9 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
         foreach (var ctor in context.InstanceConstructors)
         {
             if (ctor.DeclaredAccessibility == Accessibility.Private || ctor.Parameters.Length <= bestCount)
+            {
                 continue;
+            }
 
             var optionsIndex = -1;
             var genericOptions = false;
@@ -337,7 +343,9 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
             }
 
             if (!usable || optionsIndex < 0)
+            {
                 continue;
+            }
 
             best = new ContextConstructor(
                 new EquatableArray<ConstructorParameter>(parameters.ToImmutable()), optionsIndex, genericOptions);
@@ -357,7 +365,9 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
         }
 
         if (named.Arity == 0)
+        {
             return true;
+        }
 
         generic = named.Arity == 1 && SymbolEqualityComparer.Default.Equals(named.TypeArguments[0], context);
         return generic;
@@ -369,11 +379,15 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
     private static string? DefaultOf(IParameterSymbol parameter)
     {
         if (!parameter.HasExplicitDefaultValue)
+        {
             return null;
+        }
 
         var value = parameter.ExplicitDefaultValue;
         if (value is null)
+        {
             return "default";
+        }
 
         var literal = SymbolDisplay.FormatPrimitive(value, quoteStrings: true, useHexadecimalNumbers: false);
         return parameter.Type.TypeKind == TypeKind.Enum
@@ -412,7 +426,9 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
         foreach (var value in providers.Values)
         {
             if (value.Value is { } v && names.TryGetValue(v, out var name) && !declared.Contains(name))
+            {
                 declared.Add(name);
+            }
         }
 
         return new EquatableArray<string>(declared.ToImmutable());
@@ -425,13 +441,22 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
     private static MigrationRawEntry? TryExtractMigration(GeneratorAttributeSyntaxContext ctx)
     {
         var type = (INamedTypeSymbol)ctx.TargetSymbol;
-        if (type.IsAbstract) return null;
+        if (type.IsAbstract)
+        {
+            return null;
+        }
 
         var provider = ProviderFromNamespace(type);
-        if (provider is null) return null;
+        if (provider is null)
+        {
+            return null;
+        }
 
         var attr = ctx.Attributes[0];
-        if (attr.ConstructorArguments is not [{ Value: string migId }]) return null;
+        if (attr.ConstructorArguments is not [{ Value: string migId }])
+        {
+            return null;
+        }
 
         return new MigrationRawEntry(provider, migId, type.ToDisplayString());
     }
@@ -441,14 +466,23 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
     private static ProviderSnapshot? TryExtractSnapshot(GeneratorAttributeSyntaxContext ctx)
     {
         var type = (INamedTypeSymbol)ctx.TargetSymbol;
-        if (type.IsAbstract) return null;
+        if (type.IsAbstract)
+        {
+            return null;
+        }
 
         var snapshotBase = ctx.SemanticModel.Compilation.GetTypeByMetadataName(
             "Microsoft.EntityFrameworkCore.Infrastructure.ModelSnapshot");
-        if (snapshotBase is null || !InheritsFrom(type, snapshotBase)) return null;
+        if (snapshotBase is null || !InheritsFrom(type, snapshotBase))
+        {
+            return null;
+        }
 
         var provider = ProviderFromNamespace(type);
-        if (provider is null) return null;
+        if (provider is null)
+        {
+            return null;
+        }
 
         return new ProviderSnapshot(provider, type.ToDisplayString());
     }
@@ -461,7 +495,10 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
         foreach (var m in rawMigrations)
         {
             if (!groups.TryGetValue(m.Provider, out var list))
+            {
                 groups[m.Provider] = list = new List<MigrationEntry>();
+            }
+
             list.Add(new MigrationEntry(m.Id, m.FqTypeName));
         }
 
@@ -487,7 +524,10 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
         {
             if (SymbolEqualityComparer.Default.Equals(
                     current.OriginalDefinition, baseType.OriginalDefinition))
+            {
                 return true;
+            }
+
             current = current.BaseType;
         }
         return false;
@@ -518,7 +558,9 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
             foreach (var (prefix, provider) in ProviderNamespacePrefixes)
             {
                 if (segment.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
                     return provider;
+                }
             }
         }
         return null;
@@ -529,14 +571,26 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
     private static ImmutableArray<MigrationEntry> GetMigrations(MigrationData data, string provider)
     {
         foreach (var pm in data.Migrations.Array)
-            if (pm.Provider == provider) return pm.Entries.Array;
+        {
+            if (pm.Provider == provider)
+            {
+                return pm.Entries.Array;
+            }
+        }
+
         return ImmutableArray<MigrationEntry>.Empty;
     }
 
     private static string? GetSnapshot(MigrationData data, string provider)
     {
         foreach (var ps in data.Snapshots.Array)
-            if (ps.Provider == provider) return ps.FqTypeName;
+        {
+            if (ps.Provider == provider)
+            {
+                return ps.FqTypeName;
+            }
+        }
+
         return null;
     }
 
@@ -567,7 +621,9 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
         foreach (var name in declared)
         {
             if (selected.Any(p => p.Name == name))
+            {
                 continue;
+            }
 
             spc.ReportDiagnostic(Diagnostic.Create(
                 MissingProviderPackage,
@@ -625,7 +681,9 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
         }
 
         if (failed)
+        {
             return;
+        }
 
         spc.AddSource(
             $"{schema.SchemaName}.g.cs",
@@ -743,11 +801,29 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
 
         public bool Equals(EquatableArray<T> other)
         {
-            if (Array.IsDefault && other.Array.IsDefault) return true;
-            if (Array.IsDefault || other.Array.IsDefault) return false;
-            if (Array.Length != other.Array.Length) return false;
+            if (Array.IsDefault && other.Array.IsDefault)
+            {
+                return true;
+            }
+
+            if (Array.IsDefault || other.Array.IsDefault)
+            {
+                return false;
+            }
+
+            if (Array.Length != other.Array.Length)
+            {
+                return false;
+            }
+
             for (var i = 0; i < Array.Length; i++)
-                if (!Array[i].Equals(other.Array[i])) return false;
+            {
+                if (!Array[i].Equals(other.Array[i]))
+                {
+                    return false;
+                }
+            }
+
             return true;
         }
 
@@ -756,12 +832,19 @@ public sealed partial class DatabaseSetupGenerator : IIncrementalGenerator
 
         public override int GetHashCode()
         {
-            if (Array.IsDefault) return 0;
+            if (Array.IsDefault)
+            {
+                return 0;
+            }
+
             unchecked
             {
                 var hash = 17;
                 foreach (var item in Array)
+                {
                     hash = hash * 31 + item.GetHashCode();
+                }
+
                 return hash;
             }
         }

@@ -51,9 +51,13 @@ public class AddBitwardenEnvironmentTests
                 .Configure<IConfiguration>((opts, config) =>
                 {
                     if (config["BitwardenSettings:SelfHosted"] == "true")
+                    {
                         opts.MakeSelfHost(config["BitwardenSettings:SelfHostFlavor"] ?? string.Empty);
+                    }
                     else
+                    {
                         opts.MakeCloud();
+                    }
                 }));
 
         var env = sp.GetRequiredService<IBitwardenEnvironment>();
@@ -76,9 +80,13 @@ public class AddBitwardenEnvironmentTests
                 .Configure<IConfiguration>((opts, config) =>
                 {
                     if (config["BitwardenSettings:SelfHosted"] == "true")
+                    {
                         opts.MakeSelfHost(config["BitwardenSettings:SelfHostFlavor"] ?? string.Empty);
+                    }
                     else
+                    {
                         opts.MakeCloud();
+                    }
                 }));
 
         var env = sp.GetRequiredService<IBitwardenEnvironment>();

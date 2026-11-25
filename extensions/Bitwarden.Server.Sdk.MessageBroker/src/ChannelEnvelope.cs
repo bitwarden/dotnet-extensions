@@ -71,7 +71,9 @@ internal sealed class ChannelEnvelope<TPayload, TCeiling> : Envelope<TPayload, T
         if (!_writer.TryWrite(redelivery))
         {
             if (_escrowFallback is not null)
+            {
                 return _escrowFallback(redelivery, cancellationToken);
+            }
 
             _logger.LogWarning(
                 "Message {MessageId} on topic {Topic} was abandoned during shutdown with no escrow configured; the message will be lost.",

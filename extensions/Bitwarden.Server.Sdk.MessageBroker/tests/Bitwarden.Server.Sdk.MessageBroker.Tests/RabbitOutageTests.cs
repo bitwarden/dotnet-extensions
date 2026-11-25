@@ -43,7 +43,10 @@ public sealed class RabbitOutageTests : IAsyncLifetime
             await host.StopAsync();
             host.Dispose();
         }
-        if (_broker is not null) await _broker.DisposeAsync();
+        if (_broker is not null)
+        {
+            await _broker.DisposeAsync();
+        }
     }
 
     private static int FreePort()
