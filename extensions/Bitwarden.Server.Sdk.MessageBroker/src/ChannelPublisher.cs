@@ -14,14 +14,17 @@ internal sealed class ChannelPublisher<TPayload, TCeiling> : Publisher<TPayload,
     private readonly MessageBrokerMetrics _metrics;
     private readonly int _maxDeliveryCount;
     private readonly ILogger<ChannelPublisher<TPayload, TCeiling>> _logger;
+    private readonly IMessageSerializer _serializer;
 
     public ChannelPublisher(
         ChannelTopic<TPayload, TCeiling> topic,
         string topicName,
         MessageBrokerMetrics metrics,
         int maxDeliveryCount,
-        ILogger<ChannelPublisher<TPayload, TCeiling>> logger)
+        ILogger<ChannelPublisher<TPayload, TCeiling>> logger,
+        IMessageSerializer serializer)
     {
+        _serializer = serializer;
         _topic = topic;
         _topicName = topicName;
         _metrics = metrics;
@@ -48,4 +51,8 @@ internal sealed class ChannelPublisher<TPayload, TCeiling> : Publisher<TPayload,
         // Producer span closes here. Each subscriber group received its own consumer span
         // (started above in the factory) that lives until the envelope is settled.
     }
+
+    // In process, every stored version is one this build knows.
+    internal override Task SendRawAsync(ReadOnlyMemory<byte> body, string messageId, CancellationToken cancellationToken) =>
+        SendAsync(_serializer.DeserializeVariants<TPayload>(body.Span), messageId, cancellationToken);
 }

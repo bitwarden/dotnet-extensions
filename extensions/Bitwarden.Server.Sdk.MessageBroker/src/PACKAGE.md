@@ -235,6 +235,9 @@ public class UserService(
 identifier, pass it: `SendAsync(messageId, ct)`. An identifier must be ASCII, not blank, and at most
 128 characters.
 
+To send a message only if the change it belongs to commits, use
+[Bitwarden.Server.Sdk.MessageBroker.Sender](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker.Sender/src/PACKAGE.md).
+
 ### When a send completes
 
 `SendAsync` completes once the broker has accepted the message. If the broker can't be reached, or

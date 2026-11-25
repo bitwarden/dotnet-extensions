@@ -28,11 +28,16 @@ internal sealed class AzureServiceBusPublisher<TPayload, TCeiling> : Publisher<T
         string messageId,
         CancellationToken cancellationToken)
     {
-        using var activity = MessageBrokerActivitySource.StartProducerActivity(_topicName, TPayload.WireName);
-        _metrics.RecordPublish(_topicName, TPayload.WireName);
         var buffer = new ArrayBufferWriter<byte>();
         _serializer.SerializeVariants<TPayload>(variants, buffer);
-        var sbMessage = new ServiceBusMessage(buffer.WrittenMemory)
+        await SendRawAsync(buffer.WrittenMemory, messageId, cancellationToken);
+    }
+
+    internal override async Task SendRawAsync(ReadOnlyMemory<byte> body, string messageId, CancellationToken cancellationToken)
+    {
+        using var activity = MessageBrokerActivitySource.StartProducerActivity(_topicName, TPayload.WireName);
+        _metrics.RecordPublish(_topicName, TPayload.WireName);
+        var sbMessage = new ServiceBusMessage(body)
         {
             MessageId = messageId,
         };
