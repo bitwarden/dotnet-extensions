@@ -36,6 +36,43 @@ flowchart LR
 Every queue and subscription has a delivery limit. A message that reaches it, or that the
 service sets aside, goes to a dead-letter queue rather than back to the service.
 
+## Collecting a service's topology
+
+Each registration declares what it needs through `Bitwarden.Server.Sdk.Infrastructure`, so the
+topology can be collected from a service's startup (with `Bitwarden.Server.Sdk.Infrastructure.Testing`)
+and provisioned from that list rather than written by hand. The kinds are constants on
+`MessagingRequirements`:
+
+| Kind                      | Declared by                | Properties                         | Provision                                                       |
+| ------------------------- | -------------------------- | ---------------------------------- | --------------------------------------------------------------- |
+| `messaging-topic`         | `AddPublisher`             | `topic`                            | The topic, owned by this service                                |
+| `messaging-publish`       | `AddPublisher`             | `topic`, `family`                  | Send rights on the topic                                        |
+| `messaging-subscription`  | `AddSubscriber` and the consumers built on it | `topic`, `subscription`, `family` | The subscription, filtered or bound to the family, and receive rights on it |
+| `messaging-command-queue` | `AddCommandConsumer`       | `queue`                            | The queue, owned by this service, and receive rights on it      |
+| `messaging-command-consume` | `AddCommandConsumer`     | `queue`, `family`                  | Nothing; lets provisioning check senders against what the queue accepts |
+| `messaging-command-send`  | `AddCommandSender`         | `queue`, `family`                  | Send rights on the receiving service's queue (on RabbitMQ, write on the queue's own exchange) |
+
+None of them carries a connection string or key.
+
+Provisioning collects every service's list and checks it before granting anything:
+
+- **One owner per topic and per queue.** Each topic appears under `messaging-topic`, and each queue
+  under `messaging-command-queue`, for exactly one service. Fail if two services claim the same
+  one: a non-owner could publish another service's events or read its commands.
+- **One owner per subscription.** Each topic and subscription pair appears under
+  `messaging-subscription` for exactly one service, and its topic has an owner under
+  `messaging-topic`. Fail otherwise: two services on one subscription would take each other's
+  messages.
+- **No two declarations make the same broker object.** Fail if two declarations of any kinds produce
+  the same broker name, dead-letter exchanges and queues included. On RabbitMQ everything shares one
+  name space (a topic's exchange is `{topic}`, a subscription's queue `{topic}.{subscription}`, a
+  command queue and its exchange both `{queue}`), so the subscription `vault` on the topic
+  `notification` and the command queue `notification.vault` would be the same queue.
+- **Send rights only where declared.** Grant send rights on a topic only to its owner, and on a
+  queue only to the services that declare `messaging-command-send` for it.
+- **Senders match consumers.** Each `messaging-command-send` should name a family the queue's owner
+  declares under `messaging-command-consume`; a command nobody consumes is dead-lettered at runtime.
+
 ## Azure Service Bus
 
 For each unique `topic` passed to `AddPublisher<TPayload, TCeiling>(topic)`:

@@ -18,9 +18,13 @@ builder.Services.AddInfrastructureRequirement("messaging-subscription", new Json
 {
     ["topic"] = "orders",
     ["subscription"] = "billing",
+    ["family"] = "order.placed",
 });
 builder.Services.AddInfrastructureRequirement("distributed-cache");
 ```
+
+`Bitwarden.Server.Sdk.MessageBroker` declares its `messaging-*` kinds itself, in this shape, for every
+publisher, subscriber and command queue a service registers.
 
 These are collected grouped by kind, with kinds in alphabetical order:
 
@@ -28,7 +32,7 @@ These are collected grouped by kind, with kinds in alphabetical order:
 {
   "database": [ { "name": "vault" } ],
   "distributed-cache": [ {} ],
-  "messaging-subscription": [ { "topic": "orders", "subscription": "billing" } ]
+  "messaging-subscription": [ { "topic": "orders", "subscription": "billing", "family": "order.placed" } ]
 }
 ```
 

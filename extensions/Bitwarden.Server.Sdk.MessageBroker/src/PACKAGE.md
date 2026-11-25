@@ -107,6 +107,10 @@ the broker before the application starts. See
 for the required shapes, defensive behavior when topology is misconfigured, and a worked
 `rabbitmqadmin` example.
 
+Every registration also declares the topology it needs as infrastructure requirements (kinds on
+`MessagingRequirements`), so provisioning can be generated from a service's startup; see
+[BROKER-TOPOLOGY.md](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/BROKER-TOPOLOGY.md#collecting-a-services-topology).
+
 ## Defining a payload
 
 A payload is a family of variants forming a chain from the oldest known shape (**floor**) to the
