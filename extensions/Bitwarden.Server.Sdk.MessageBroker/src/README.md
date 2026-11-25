@@ -4,7 +4,8 @@
 [PACKAGE.md](PACKAGE.md) instead.
 
 Transport-agnostic publish/subscribe messaging for Bitwarden services. Three backends share one API:
-Azure Service Bus, RabbitMQ, and an in-memory `System.Threading.Channels` fallback.
+Azure Service Bus, RabbitMQ, and an in-memory `System.Threading.Channels` fallback. Which brokers
+are supported for which deployment is in [BROKER-TOPOLOGY.md](BROKER-TOPOLOGY.md#supported-brokers).
 
 A topic is a service's outbound event stream, so one topic can carry many payload families (for
 example, a user service might publish `user.created` and `user.deleted` through one
@@ -187,3 +188,5 @@ containers. Use `dotnet run` rather than `dotnet test`; this is an xUnit v3 proj
 The test suite covers all three backends via the shared `BehaviorTests` base class, and command
 queues via `CommandBehaviorTests`.
 Channel-specific tests (drain on shutdown, queue depth gauge) live in `ChannelBehaviorTests`.
+
+The RabbitMQ tests run against RabbitMQ 4.3.6, the version the self-hosted install ships, pinned by digest in `AmqpTestBroker`.
