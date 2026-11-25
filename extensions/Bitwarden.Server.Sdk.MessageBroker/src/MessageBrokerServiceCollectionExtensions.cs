@@ -37,7 +37,7 @@ public static class MessageBrokerServiceCollectionExtensions
             var options = sp.GetRequiredService<IOptions<MessagingOptions>>().Value;
             var serializer = sp.GetRequiredKeyedService<IMessageSerializer>(publisherKey);
             var metrics = sp.GetRequiredService<MessageBrokerMetrics>();
-            if (!string.IsNullOrEmpty(options.AzureServiceBusConnectionString))
+            if (options.UsesAzureServiceBus)
             {
                 return new AzureServiceBusPublisher<TPayload, TCeiling>(sp.GetRequiredService<AzureServiceBusConnection>().Client, name, serializer, metrics);
             }
@@ -103,7 +103,7 @@ public static class MessageBrokerServiceCollectionExtensions
             var options = sp.GetRequiredService<IOptions<MessagingOptions>>().Value;
             var serializer = sp.GetRequiredKeyedService<IMessageSerializer>(publisherKey);
             var metrics = sp.GetRequiredService<MessageBrokerMetrics>();
-            if (!string.IsNullOrEmpty(options.AzureServiceBusConnectionString))
+            if (options.UsesAzureServiceBus)
             {
                 return new BrokerSubscriber<TPayload, TCeiling>(
                     new AzureServiceBusReceiver(sp.GetRequiredService<AzureServiceBusConnection>(), name, subscriptionName, options.MaxLockRenewalDuration),
@@ -252,7 +252,7 @@ public static class MessageBrokerServiceCollectionExtensions
             var options = sp.GetRequiredService<IOptions<MessagingOptions>>().Value;
             var serializer = sp.GetRequiredKeyedService<IMessageSerializer>(key);
             var metrics = sp.GetRequiredService<MessageBrokerMetrics>();
-            if (!string.IsNullOrEmpty(options.AzureServiceBusConnectionString))
+            if (options.UsesAzureServiceBus)
             {
                 // A ServiceBusSender sends to a queue exactly as to a topic.
                 return new AzureServiceBusPublisher<TPayload, TCeiling>(sp.GetRequiredService<AzureServiceBusConnection>().Client, queueName, serializer, metrics);
@@ -322,7 +322,7 @@ public static class MessageBrokerServiceCollectionExtensions
             {
                 var options = sp.GetRequiredService<IOptions<MessagingOptions>>().Value;
                 IMessageReceiver receiver;
-                if (!string.IsNullOrEmpty(options.AzureServiceBusConnectionString))
+                if (options.UsesAzureServiceBus)
                 {
                     receiver = new AzureServiceBusReceiver(
                         sp.GetRequiredService<AzureServiceBusConnection>(), queueName, subscriptionName: null, options.MaxLockRenewalDuration);
@@ -518,5 +518,6 @@ public static class MessageBrokerServiceCollectionExtensions
     private static void AddAzureServiceBusInfrastructure(IServiceCollection services)
     {
         services.TryAddSingleton<AzureServiceBusConnection>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<MessagingOptions>, MessagingCredentialValidator>());
     }
 }

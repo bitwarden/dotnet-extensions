@@ -69,7 +69,7 @@ uniquely names the receiver.
 `AddCommandConsumer<TPayload, TCeiling, TConsumer>`) registers the appropriate backend at service-resolution time
 based on `MessagingOptions`:
 
-1. `AzureServiceBusConnectionString` set → Azure Service Bus
+1. `AzureServiceBusConnectionString` or `AzureServiceBusFullyQualifiedNamespace` set → Azure Service Bus
 2. `RabbitUri` set → RabbitMQ
 3. Neither set → in-memory `System.Threading.Channels`
 
