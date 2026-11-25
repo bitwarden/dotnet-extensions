@@ -46,7 +46,10 @@ public sealed class RabbitOutageTests : IAsyncLifetime
             await host.StopAsync();
             host.Dispose();
         }
-        if (_broker is not null) await _broker.DisposeAsync();
+        if (_broker is not null)
+        {
+            await _broker.DisposeAsync();
+        }
     }
 
     private static int FreePort()
@@ -272,7 +275,11 @@ public sealed class RabbitOutageTests : IAsyncLifetime
         while (true)
         {
             var report = await health.CheckHealthAsync(TestContext.Current.CancellationToken);
-            if (report.Status == status) return report;
+            if (report.Status == status)
+            {
+                return report;
+            }
+
             Assert.True(DateTime.UtcNow < deadline, $"Health stayed {report.Status}, expected {status}.");
             await Task.Delay(200, TestContext.Current.CancellationToken);
         }

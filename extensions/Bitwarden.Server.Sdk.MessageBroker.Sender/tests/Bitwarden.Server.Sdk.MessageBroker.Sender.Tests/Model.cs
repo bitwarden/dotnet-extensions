@@ -41,7 +41,13 @@ public sealed class Received
         while (DateTime.UtcNow < deadline)
         {
             foreach (var message in Messages)
-                if (message.OrderId == orderId) return message;
+            {
+                if (message.OrderId == orderId)
+                {
+                    return message;
+                }
+            }
+
             await Task.Delay(20, TestContext.Current.CancellationToken);
         }
         throw new TimeoutException($"Order {orderId} was never received.");

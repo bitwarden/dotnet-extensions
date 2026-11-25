@@ -46,7 +46,9 @@ public class ChannelEscrowTests
 
         var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>("test"));
         for (var i = 0; i < messageCount; i++)
+        {
             await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
+        }
 
         await host.StopAsync(TestContext.Current.CancellationToken);
 
@@ -79,7 +81,9 @@ public class ChannelEscrowTests
 
         var publisher = host1.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>("test"));
         for (var i = 0; i < messageCount; i++)
+        {
             await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
+        }
 
         await host1.StopAsync(TestContext.Current.CancellationToken);
 
@@ -102,7 +106,9 @@ public class ChannelEscrowTests
         await host2.StartAsync(TestContext.Current.CancellationToken);
 
         for (var i = 0; i < messageCount; i++)
+        {
             await state.Received.WaitAsync(TestContext.Current.CancellationToken);
+        }
 
         await host2.StopAsync(TestContext.Current.CancellationToken);
 
@@ -132,7 +138,9 @@ public class ChannelEscrowTests
 
         var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>("test"));
         for (var i = 0; i < messageCount; i++)
+        {
             await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
+        }
 
         // Must complete without throwing even though there is no escrow store.
         await host.StopAsync(TestContext.Current.CancellationToken);
@@ -255,7 +263,9 @@ public class ChannelEscrowTests
 
         var publisher = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>("test"));
         for (var i = 0; i < messageCount; i++)
+        {
             await publisher.Publish(new MyItem(i)).SendAsync(TestContext.Current.CancellationToken);
+        }
 
         // Must complete without throwing even though the store throws on WriteAsync.
         await host.StopAsync(TestContext.Current.CancellationToken);
@@ -332,7 +342,10 @@ public class ChannelEscrowTests
         public Task WriteAsync(string key, IReadOnlyList<EscrowedMessage> messages, CancellationToken cancellationToken = default)
         {
             if (!_store.TryGetValue(key, out var existing))
+            {
                 _store[key] = existing = [];
+            }
+
             existing.AddRange(messages);
             return Task.CompletedTask;
         }

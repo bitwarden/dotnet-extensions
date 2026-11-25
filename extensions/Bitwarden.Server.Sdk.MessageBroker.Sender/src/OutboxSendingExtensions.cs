@@ -43,8 +43,11 @@ public static class OutboxSendingExtensions
     {
         PublisherExtensions.ThrowIfInvalidMessageId(messageId);
         if (builder.Publisher is not IOutboxPublisher<TPayload> outbox)
+        {
             throw new InvalidOperationException(
                 "Only a publisher registered through the outbox (AddOutboxPublisher, AddOutboxCommandSender) can send later.");
+        }
+
         builder.Current.DescendToFloor(builder.Accumulated);
         await outbox.SendLaterAsync(builder.Accumulated, messageId, notBefore, cancellationToken);
         return messageId;
@@ -126,7 +129,10 @@ public static class OutboxSendingExtensions
 
         var saved = outbox.Where(row => row.MessageType == messageType && row.MessageId.StartsWith(idPrefix));
         if (except is not null)
+        {
             saved = saved.Where(row => row.MessageId != except);
+        }
+
         return retracted + await saved.ExecuteDeleteAsync(cancellationToken);
     }
 }

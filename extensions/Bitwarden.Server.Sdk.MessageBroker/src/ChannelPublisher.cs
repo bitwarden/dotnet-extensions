@@ -2,6 +2,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
+/// <summary>
+/// Publishes a payload family to an in-memory <see cref="ChannelTopic{TPayload, TCeiling}"/>.
+/// </summary>
 internal sealed class ChannelPublisher<TPayload, TCeiling> : Publisher<TPayload, TCeiling>
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling

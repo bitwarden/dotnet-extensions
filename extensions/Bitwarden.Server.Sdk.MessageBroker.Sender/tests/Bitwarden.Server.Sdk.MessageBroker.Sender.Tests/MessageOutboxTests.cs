@@ -52,7 +52,10 @@ public sealed class MessageOutboxTests : IAsyncDisposable
             DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
         {
             foreach (var order in eventData.Context!.ChangeTracker.Entries<Order>().Where(e => e.State == EntityState.Added).ToList())
+            {
                 MessageOutbox.Add<ReserveStockPayload, ReserveStock>(eventData.Context, MessageOutbox.Local, new ReserveStock(order.Entity.Id));
+            }
+
             return ValueTask.FromResult(result);
         }
     }

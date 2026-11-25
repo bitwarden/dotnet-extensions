@@ -32,7 +32,9 @@ internal sealed class OutboxSender(IServiceProvider services, IEnumerable<Outbox
 
         var publisher = services.GetRequiredKeyedService<Publisher<TPayload, TCeiling>>(MessageBrokerKeys.Publisher<TPayload>(destination));
         if (publisher is not IOutboxPublisher<TPayload> outbox)
+        {
             throw new InvalidOperationException($"'{TPayload.WireName}' to '{destination}' isn't sent through the outbox.");
+        }
 
         var variants = new List<Payload<TPayload>.IVariant> { message };
         message.DescendToFloor(variants);

@@ -103,25 +103,33 @@ internal sealed class OutboxSendOnCommitInterceptor<TContext>(OutboxWake<TContex
     private void Saved(DbContext? context)
     {
         if (context is not null && context.Database.CurrentTransaction is null && _pending.Remove(context))
+        {
             wake.Signal();
+        }
     }
 
     // Inside a caller's transaction an earlier save's rows may still commit, so they stay pending.
     private void Failed(DbContext? context)
     {
         if (context is not null && context.Database.CurrentTransaction is null)
+        {
             _pending.Remove(context);
+        }
     }
 
     private void Committed(DbContext? context)
     {
         if (context is not null && _pending.Remove(context))
+        {
             wake.Signal();
+        }
     }
 
     private void Forget(DbContext? context)
     {
         if (context is not null)
+        {
             _pending.Remove(context);
+        }
     }
 }

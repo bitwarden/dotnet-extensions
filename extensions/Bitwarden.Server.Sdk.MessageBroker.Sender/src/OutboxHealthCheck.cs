@@ -27,10 +27,15 @@ internal sealed class OutboxHealthCheck<TContext>(OutboxBacklog<TContext> backlo
             ["setAside"] = sample.SetAside,
         };
         if (sample.SetAside > 0)
+        {
             return HealthCheckResult.Unhealthy(
                 $"{sample.SetAside} message(s) in {name}'s outbox were set aside and won't be sent.", data: data);
+        }
+
         if (sample.OldestLateness is not { } late)
+        {
             return HealthCheckResult.Healthy(data: data);
+        }
 
         var description = $"{sample.Due} message(s) are due in {name}'s outbox; the oldest is {late:d\\.hh\\:mm\\:ss} late.";
         return late >= options.Value.BacklogUnhealthyAge
