@@ -5,19 +5,19 @@ namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Receives everything on one command queue and hands each message to the
-/// <see cref="CommandFamilyHandler"/> registered for its payload family.
+/// <see cref="ICommandFamilyHandler"/> registered for its payload family.
 /// </summary>
 internal sealed class CommandQueueService : BackgroundService
 {
     private readonly string _queueName;
     private readonly ICommandQueueReceiver _receiver;
-    private readonly Dictionary<string, CommandFamilyHandler> _handlers;
+    private readonly Dictionary<string, ICommandFamilyHandler> _handlers;
     private readonly ILogger<CommandQueueService> _logger;
 
     public CommandQueueService(
         string queueName,
         ICommandQueueReceiver receiver,
-        IEnumerable<CommandFamilyHandler> handlers,
+        IEnumerable<ICommandFamilyHandler> handlers,
         ILogger<CommandQueueService> logger)
     {
         _queueName = queueName;

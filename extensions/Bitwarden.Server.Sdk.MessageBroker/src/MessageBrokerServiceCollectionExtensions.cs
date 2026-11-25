@@ -277,7 +277,7 @@ public static class MessageBrokerServiceCollectionExtensions
 
         services.TryAddScoped<TConsumer>();
         var key = MessageBrokerKeys.Publisher<TPayload>(queueName);
-        services.AddSingleton<CommandFamilyHandler>(sp => new CommandFamilyHandler<TPayload, TCeiling, TConsumer>(
+        services.AddSingleton<ICommandFamilyHandler>(sp => new CommandFamilyHandler<TPayload, TCeiling, TConsumer>(
             queueName,
             sp.GetRequiredKeyedService<IMessageSerializer>(key),
             sp.GetRequiredService<IServiceScopeFactory>(),
@@ -297,7 +297,7 @@ public static class MessageBrokerServiceCollectionExtensions
                     receiver = new RabbitCommandQueueReceiver(sp.GetRequiredService<RabbitConnection>(), queueName);
                 else
                     receiver = sp.GetRequiredKeyedService<ChannelCommandQueue>(queueName);
-                return new CommandQueueService(queueName, receiver, sp.GetServices<CommandFamilyHandler>(),
+                return new CommandQueueService(queueName, receiver, sp.GetServices<ICommandFamilyHandler>(),
                     sp.GetRequiredService<ILogger<CommandQueueService>>());
             });
             services.AddSingleton<IHostedService>(sp => sp.GetRequiredKeyedService<CommandQueueService>(queueName));

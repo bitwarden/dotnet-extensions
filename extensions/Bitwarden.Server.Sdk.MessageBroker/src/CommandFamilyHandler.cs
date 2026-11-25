@@ -3,22 +3,10 @@ using System.Diagnostics;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Handles one command family on one command queue: decodes a <see cref="CommandQueueMessage"/>
-/// into an <see cref="Envelope{TPayload, TCeiling}"/> and runs the registered consumer.
+/// The <see cref="ICommandFamilyHandler"/> for command family <typeparamref name="TPayload"/>, run by
+/// consumer <typeparamref name="TConsumer"/>.
 /// </summary>
-internal abstract class CommandFamilyHandler
-{
-    public abstract string QueueName { get; }
-
-    public abstract string FamilyWireName { get; }
-
-    /// <summary>
-    /// Decodes, handles and settles <paramref name="message"/>.
-    /// </summary>
-    public abstract Task HandleAsync(CommandQueueMessage message, CancellationToken stoppingToken);
-}
-
-internal sealed class CommandFamilyHandler<TPayload, TCeiling, TConsumer> : CommandFamilyHandler
+internal sealed class CommandFamilyHandler<TPayload, TCeiling, TConsumer> : ICommandFamilyHandler
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
     where TConsumer : class, IMessageConsumer<TPayload, TCeiling>
@@ -35,11 +23,11 @@ internal sealed class CommandFamilyHandler<TPayload, TCeiling, TConsumer> : Comm
         _metrics = metrics;
     }
 
-    public override string QueueName { get; }
+    public string QueueName { get; }
 
-    public override string FamilyWireName => TPayload.WireName;
+    public string FamilyWireName => TPayload.WireName;
 
-    public override async Task HandleAsync(CommandQueueMessage message, CancellationToken stoppingToken)
+    public async Task HandleAsync(CommandQueueMessage message, CancellationToken stoppingToken)
     {
         IReadOnlyList<Payload<TPayload>.IVariant> variants;
         try
