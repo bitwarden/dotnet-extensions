@@ -260,7 +260,10 @@ public class RetryDelayTests
         public async Task<IReadOnlyList<DateTime>> WaitForAsync(int count)
         {
             while (_deliveries.Count < count)
+            {
                 await Task.Delay(20, TestContext.Current.CancellationToken);
+            }
+
             return [.. _deliveries];
         }
     }
