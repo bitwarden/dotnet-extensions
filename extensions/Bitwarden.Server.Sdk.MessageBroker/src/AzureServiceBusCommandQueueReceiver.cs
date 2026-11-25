@@ -6,7 +6,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Receives every message on an Azure Service Bus queue.
 /// </summary>
-internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceiver
+internal sealed class AzureServiceBusCommandQueueReceiver : IMessageReceiver
 {
     private readonly AzureServiceBusConnection _connection;
     private readonly string _queueName;
@@ -17,7 +17,7 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
         _queueName = queueName;
     }
 
-    public async IAsyncEnumerable<CommandQueueMessage> ReceiveAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<ReceivedMessage> ReceiveAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ServiceBusReceiver receiver;
         try
@@ -59,7 +59,7 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
 
             foreach (var sbMessage in received)
             {
-                yield return new CommandQueueMessage
+                yield return new ReceivedMessage
                 {
                     Body = sbMessage.Body.ToMemory(),
                     FamilyWireName = sbMessage.ApplicationProperties.TryGetValue(BrokerProperties.PayloadFamily, out var family)

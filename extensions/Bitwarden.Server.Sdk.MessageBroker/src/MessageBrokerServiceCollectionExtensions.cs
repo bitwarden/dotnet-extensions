@@ -297,7 +297,7 @@ public static class MessageBrokerServiceCollectionExtensions
             services.AddKeyedSingleton<CommandQueueService>(queueName, (sp, _) =>
             {
                 var options = sp.GetRequiredService<IOptions<MessagingOptions>>().Value;
-                ICommandQueueReceiver receiver;
+                IMessageReceiver receiver;
                 if (!string.IsNullOrEmpty(options.AzureServiceBusConnectionString))
                 {
                     receiver = new AzureServiceBusCommandQueueReceiver(sp.GetRequiredService<AzureServiceBusConnection>(), queueName);

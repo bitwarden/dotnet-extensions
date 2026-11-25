@@ -1,7 +1,7 @@
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Handles one command family on one command queue: decodes a <see cref="CommandQueueMessage"/>
+/// Handles one command family on one command queue: decodes a <see cref="ReceivedMessage"/>
 /// into an <see cref="Envelope{TPayload, TCeiling}"/> and runs the registered consumer.
 /// </summary>
 internal interface ICommandFamilyHandler
@@ -16,5 +16,5 @@ internal interface ICommandFamilyHandler
     /// </summary>
     string FamilyWireName { get; }
 
-    Task HandleAsync(CommandQueueMessage message, CancellationToken stoppingToken);
+    Task HandleAsync(ReceivedMessage message, CancellationToken stoppingToken);
 }

@@ -7,9 +7,9 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// An in-memory command queue, shared by every sender and the receiver in one process. It keeps no
 /// escrow: commands still queued when the host stops are lost.
 /// </summary>
-internal sealed class ChannelCommandQueue : ICommandQueueReceiver
+internal sealed class ChannelCommandQueue : IMessageReceiver
 {
-    private readonly Channel<CommandQueueMessage> _channel = Channel.CreateUnbounded<CommandQueueMessage>();
+    private readonly Channel<ReceivedMessage> _channel = Channel.CreateUnbounded<ReceivedMessage>();
     private readonly string _queueName;
     private readonly int _maxDeliveryCount;
     private readonly ILogger<ChannelCommandQueue> _logger;
@@ -21,7 +21,7 @@ internal sealed class ChannelCommandQueue : ICommandQueueReceiver
         _logger = logger;
     }
 
-    public IAsyncEnumerable<CommandQueueMessage> ReceiveAsync(CancellationToken cancellationToken) =>
+    public IAsyncEnumerable<ReceivedMessage> ReceiveAsync(CancellationToken cancellationToken) =>
         _channel.Reader.ReadAllAsync(cancellationToken);
 
     public ValueTask WriteAsync(
@@ -29,7 +29,7 @@ internal sealed class ChannelCommandQueue : ICommandQueueReceiver
         CancellationToken cancellationToken) =>
         _channel.Writer.WriteAsync(Create(body, familyWireName, messageId, traceParent, deliveryCount: 1), cancellationToken);
 
-    private CommandQueueMessage Create(
+    private ReceivedMessage Create(
         ReadOnlyMemory<byte> body, string familyWireName, string messageId, string? traceParent, int deliveryCount) => new()
         {
             Body = body,

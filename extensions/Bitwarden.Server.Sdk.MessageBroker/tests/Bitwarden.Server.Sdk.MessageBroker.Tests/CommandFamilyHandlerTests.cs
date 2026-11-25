@@ -39,7 +39,7 @@ public sealed class CommandFamilyHandlerTests : IDisposable
         public bool DeadLettered { get; set; }
     }
 
-    private static CommandQueueMessage Message(string body, Settlement settlement) => new()
+    private static ReceivedMessage Message(string body, Settlement settlement) => new()
     {
         Body = Encoding.UTF8.GetBytes(body),
         FamilyWireName = SendMailPayload.WireName,

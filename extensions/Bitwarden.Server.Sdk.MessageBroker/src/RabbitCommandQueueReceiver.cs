@@ -9,7 +9,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Receives every message on a RabbitMQ command queue, which senders reach through its own exchange.
 /// </summary>
-internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
+internal sealed class RabbitCommandQueueReceiver : IMessageReceiver
 {
     private readonly RabbitConnection _connection;
     private readonly string _queueName;
@@ -20,7 +20,7 @@ internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
         _queueName = queueName;
     }
 
-    public async IAsyncEnumerable<CommandQueueMessage> ReceiveAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<ReceivedMessage> ReceiveAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // The host closing the connection during setup is a shutdown, not a broker failure.
         using var setupCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _connection.Closed);
@@ -37,7 +37,7 @@ internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
 
         await using var channelLifetime = rabbitChannel;
 
-        var innerChannel = Channel.CreateUnbounded<CommandQueueMessage>();
+        var innerChannel = Channel.CreateUnbounded<ReceivedMessage>();
 
         var consumer = new AsyncEventingBasicConsumer(rabbitChannel);
         consumer.ReceivedAsync += async (_, ea) =>
@@ -45,7 +45,7 @@ internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
             var headers = ea.BasicProperties.Headers;
             var deliveryTag = ea.DeliveryTag;
             var deliveryCount = RabbitDeliveryCount.Read(headers, ea.Redelivered);
-            await innerChannel.Writer.WriteAsync(new CommandQueueMessage
+            await innerChannel.Writer.WriteAsync(new ReceivedMessage
             {
                 // The body's memory belongs to the client and is reused once this handler returns.
                 Body = ea.Body.ToArray(),

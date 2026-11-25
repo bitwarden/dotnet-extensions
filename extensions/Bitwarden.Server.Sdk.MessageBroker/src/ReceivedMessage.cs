@@ -1,9 +1,9 @@
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// A message received from a command queue before its payload family is known.
+/// A message received from a queue or a topic subscription, before it is decoded.
 /// </summary>
-internal sealed class CommandQueueMessage
+internal sealed class ReceivedMessage
 {
     /// <summary>
     /// The serialized variants, as the sender wrote them.
@@ -15,10 +15,13 @@ internal sealed class CommandQueueMessage
     /// </summary>
     public required string? FamilyWireName { get; init; }
 
+    /// <summary>
+    /// The sender's message identifier.
+    /// </summary>
     public required string MessageId { get; init; }
 
     /// <summary>
-    /// The W3C traceparent of the send span, if the command was sent under a trace.
+    /// The W3C traceparent of the send span, if the message was sent under a trace.
     /// </summary>
     public required string? TraceParent { get; init; }
 

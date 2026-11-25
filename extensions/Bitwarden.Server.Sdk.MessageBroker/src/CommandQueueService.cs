@@ -10,13 +10,13 @@ namespace Microsoft.Extensions.DependencyInjection;
 internal sealed class CommandQueueService : BackgroundService
 {
     private readonly string _queueName;
-    private readonly ICommandQueueReceiver _receiver;
+    private readonly IMessageReceiver _receiver;
     private readonly Dictionary<string, ICommandFamilyHandler> _handlers;
     private readonly ILogger<CommandQueueService> _logger;
 
     public CommandQueueService(
         string queueName,
-        ICommandQueueReceiver receiver,
+        IMessageReceiver receiver,
         IEnumerable<ICommandFamilyHandler> handlers,
         ILogger<CommandQueueService> logger)
     {
@@ -39,16 +39,8 @@ internal sealed class CommandQueueService : BackgroundService
                 _logger.LogWarning(
                     "Command {MessageId} on queue {Queue} has family {Family}, which no consumer here accepts; dead-lettering it.",
                     message.MessageId, _queueName, message.FamilyWireName ?? "(none)");
-                try
-                {
-                    await message.DeadLetterAsync(
-                        $"No consumer accepts command family '{message.FamilyWireName ?? "(none)"}' on queue '{_queueName}'.",
-                        CancellationToken.None);
-                }
-                catch (Exception)
-                {
-                    // An unsettled message is redelivered when its lock expires.
-                }
+                await ReceivedMessageDecoder.DeadLetterAsync(
+                    message, $"No consumer accepts command family '{message.FamilyWireName ?? "(none)"}' on queue '{_queueName}'.");
                 continue;
             }
 
