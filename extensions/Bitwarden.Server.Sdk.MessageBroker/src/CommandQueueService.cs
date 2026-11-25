@@ -5,19 +5,19 @@ namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Receives everything on one command queue and hands each message to the
-/// <see cref="CommandFamilyHandler"/> registered for its payload family.
+/// <see cref="ICommandFamilyHandler"/> registered for its payload family.
 /// </summary>
 internal sealed class CommandQueueService : BackgroundService
 {
     private readonly string _queueName;
-    private readonly ICommandQueueReceiver _receiver;
-    private readonly Dictionary<string, CommandFamilyHandler> _handlers;
+    private readonly IMessageReceiver _receiver;
+    private readonly Dictionary<string, ICommandFamilyHandler> _handlers;
     private readonly ILogger<CommandQueueService> _logger;
 
     public CommandQueueService(
         string queueName,
-        ICommandQueueReceiver receiver,
-        IEnumerable<CommandFamilyHandler> handlers,
+        IMessageReceiver receiver,
+        IEnumerable<ICommandFamilyHandler> handlers,
         ILogger<CommandQueueService> logger)
     {
         _queueName = queueName;
@@ -39,16 +39,8 @@ internal sealed class CommandQueueService : BackgroundService
                 _logger.LogWarning(
                     "Command {MessageId} on queue {Queue} has family {Family}, which no consumer here accepts; dead-lettering it.",
                     message.MessageId, _queueName, message.FamilyWireName ?? "(none)");
-                try
-                {
-                    await message.DeadLetterAsync(
-                        $"No consumer accepts command family '{message.FamilyWireName ?? "(none)"}' on queue '{_queueName}'.",
-                        CancellationToken.None);
-                }
-                catch (Exception)
-                {
-                    // An unsettled message is redelivered when its lock expires.
-                }
+                await ReceivedMessageDecoder.DeadLetterAsync(
+                    message, $"No consumer accepts command family '{message.FamilyWireName ?? "(none)"}' on queue '{_queueName}'.");
                 continue;
             }
 

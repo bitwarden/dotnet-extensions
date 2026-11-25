@@ -13,6 +13,29 @@ A broker topic carries messages from many payload families. Publishers stamp eve
 their family wire name (`IPayloadWireName<TPayload>.WireName`) so subscriptions can bind or filter
 down to the family they consume.
 
+The two shapes this document provisions, with generic services in place of real ones:
+
+```mermaid
+flowchart LR
+    subgraph Topics["Topic: one service's events, many readers"]
+        direction LR
+        P[Publishing service] -->|"user.created<br/>user.deleted"| T(("Topic<br/>user-events"))
+        T -->|"family = user.created"| S1[["Subscription<br/>vault"]]
+        T -->|"family = user.deleted"| S2[["Subscription<br/>organizations"]]
+        S1 --> R1[Subscribing service A]
+        S2 --> R2[Subscribing service B]
+    end
+    subgraph Commands["Command queue: many senders, one receiving service"]
+        direction LR
+        C1[Sending service A] -->|send.mail| Q[["Command queue<br/>notification.commands"]]
+        C2[Sending service B] -->|send.push| Q
+        Q --> N[Receiving service]
+    end
+```
+
+Every queue and subscription has a delivery limit. A message that reaches it, or that the
+service sets aside, goes to a dead-letter queue rather than back to the service.
+
 ## Azure Service Bus
 
 For each unique `topic` passed to `AddPublisher<TPayload, TCeiling>(topic)`:
@@ -27,11 +50,11 @@ For each `AddSubscriber<TPayload, TCeiling>(topic, subscription)`:
   `ConsumerRetryOptions.MaxDeliveries` its consumer is configured with; the subscription's
   built-in dead-letter queue handles exhausted or explicitly dead-lettered messages automatically.
 
-If the Correlation filter is missing or wrong, the subscriber still falls back safely —
-`AzureServiceBusSubscriber` reads the `x-bw-payload-family` application property on every message
-and dead-letters anything that does not match `TPayload.WireName` before attempting
-deserialization. The filter is still the right production configuration because it moves routing
-off the subscriber and into the broker.
+If the Correlation filter is missing or wrong, the subscriber still falls back safely. It reads
+the `x-bw-payload-family` application property on every message and dead-letters any message whose
+family isn't `TPayload.WireName` before deserializing it, with a reason that names both families.
+The filter is still the right production configuration, because it moves routing off the
+subscriber and into the broker.
 
 The library creates and owns its own `ServiceBusClient` from the configured connection string
 and does not consume any `ServiceBusClient` the app registers separately. An app that also uses
@@ -63,7 +86,7 @@ For each `AddSubscriber<TPayload, TCeiling>(topic, subscription)`:
   and `overflow: reject-publish` to the queue, plus the target dead-letter exchange and a
   quorum queue bound to it.
 
-If the queue's routing-key binding is wrong, `RabbitSubscriber` falls back to the same defensive
+If the queue's routing-key binding is wrong, the subscriber falls back to the same defensive
 check — it reads the `x-bw-payload-family` header and dead-letters mismatches. The routing-key
 binding is still the right production configuration because it moves the filter into the broker.
 
@@ -79,6 +102,20 @@ changed on an existing queue. See the RabbitMQ documentation on
 and [policies](https://www.rabbitmq.com/docs/policies) for the full command reference, and
 `management.load_definitions` for declarative bootstrap via a `definitions.json` file loaded
 at broker startup.
+
+### What RabbitMQ needs for one topic
+
+```mermaid
+flowchart LR
+    P[Publishing service] -->|"routing key = family"| X{{"Topic exchange<br/>user-events"}}
+    X -->|"user.created"| Q1[["Quorum queue<br/>user-events.vault"]]
+    X -->|"user.deleted"| Q2[["Quorum queue<br/>user-events.organizations"]]
+    Q1 --> A[Subscribing service A]
+    Q2 --> B[Subscribing service B]
+    Q1 -.->|"past delivery-limit"| DX{{"Fanout exchange<br/>dead-letter.user-events"}}
+    Q2 -.->|"past delivery-limit"| DX
+    DX -.-> DQ[["Quorum queue<br/>dead-letter.user-events"]]
+```
 
 ### Example: a user service
 
@@ -130,6 +167,16 @@ For each unique `queue` passed to `AddCommandConsumer<TPayload, TCeiling, TConsu
 - A durable quorum queue named `{queue}`, bound to that exchange with the queue's name as its
   routing key. Senders publish to the exchange with the same routing key.
 - Apply the same `delivery-limit` and dead-letter policy as subscription queues.
+
+```mermaid
+flowchart LR
+    S1[Sending service A] -->|"write on the exchange"| X{{"Direct exchange<br/>notification.commands"}}
+    S2[Sending service B] -->|"write on the exchange"| X
+    X -->|"routing key = queue name"| Q[["Quorum queue<br/>notification.commands"]]
+    Q -->|"read on its own queue"| R[Receiving service]
+    Q -.->|"past delivery-limit,<br/>or no consumer for the family"| DLQ[["Dead-letter queue"]]
+    X -. "no queue bound: send returned,<br/>sender throws" .-> S1
+```
 
 Each command queue has its own exchange so that sending can be granted one queue at a time: a
 sender's user needs `write` on `^{queue}$` for each queue it sends to, and the receiver's user
