@@ -1,0 +1,578 @@
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+
+namespace Bitwarden.Server.Sdk.Context;
+
+/// <summary>
+/// Writes and reads <see cref="BitwardenHeaders.Context"/>.
+/// </summary>
+/// <remarks>
+/// Reading is strict. An unknown member, a member twice, a value of the wrong kind or shape, or a
+/// header longer than <see cref="MaximumLength"/> bytes is refused rather than partly believed. Only
+/// a calling service writes this header, so a malformed one is a defect or a forgery.
+/// </remarks>
+public static partial class ContextHeader
+{
+    /// <summary>
+    /// The version this writes and the only one it reads.
+    /// </summary>
+    public const int Version = 1;
+
+    /// <summary>
+    /// The longest value accepted, in bytes.
+    /// </summary>
+    public const int MaximumLength = 16384;
+
+    private const int GuidLength = 36;
+
+    /// <summary>
+    /// The most organizations <see cref="ContextValue.Organizations"/> may list. <see cref="Write"/>
+    /// refuses a value listing more, so a writer leaves the member out for a person in more.
+    /// </summary>
+    public const int MaximumOrganizations = 300;
+
+    private const string VersionMember = "v";
+    private const string ClientIpMember = "clientIp";
+    private const string DeviceTypeMember = "deviceType";
+    private const string DeviceIdentifierMember = "deviceIdentifier";
+    private const string CredentialMember = "credential";
+    private const string RecordedUserMember = "recordedUser";
+    private const string RecordedProviderMember = "recordedProvider";
+    private const string OrganizationsMember = "organizations";
+    private const string FlagKindMember = "flagKind";
+    private const string FlagKeyMember = "flagKey";
+    private const string ClientVersionMember = "clientVersion";
+    private const string ClientVersionIsPrereleaseMember = "clientVersionIsPrerelease";
+
+    /// <summary>
+    /// Writes a value.
+    /// </summary>
+    /// <param name="value">What to carry.</param>
+    /// <returns>
+    /// Compact JSON with <c>v</c> first and absent members omitted, the address in its canonical form.
+    /// With nothing else to carry it is <c>{"v":1}</c>.
+    /// </returns>
+    /// <exception cref="ArgumentException">A member is one <see cref="TryParse"/> would refuse.</exception>
+    public static string Write(ContextValue value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        var problem = Check(value);
+        if (problem is not null)
+        {
+            throw new ArgumentException($"The context can't be sent: {problem}", nameof(value));
+        }
+
+        using var buffer = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartObject();
+            writer.WriteNumber(VersionMember, Version);
+            WriteIfPresent(writer, ClientIpMember, value.ClientIp is { } clientIp ? Canonical(clientIp) : null);
+            WriteIfPresent(writer, DeviceTypeMember, value.DeviceType);
+            WriteIfPresent(writer, DeviceIdentifierMember, value.DeviceIdentifier);
+            WriteIfPresent(writer, CredentialMember, value.Credential is { } credential ? Name(credential) : null);
+            WriteIfPresent(writer, RecordedUserMember, value.RecordedUser?.ToString());
+            WriteIfPresent(writer, RecordedProviderMember, value.RecordedProvider?.ToString());
+            if (value.Organizations is { Count: > 0 } organizations)
+            {
+                writer.WriteStartArray(OrganizationsMember);
+                foreach (var organization in organizations)
+                {
+                    writer.WriteStringValue(organization.ToString());
+                }
+
+                writer.WriteEndArray();
+            }
+
+            WriteIfPresent(writer, FlagKindMember, value.FlagKind == FlagSubjectKind.User ? null : Name(value.FlagKind));
+            WriteIfPresent(writer, FlagKeyMember, value.FlagKey?.ToString());
+            WriteIfPresent(writer, ClientVersionMember, value.ClientVersion);
+            if (value.ClientVersionIsPrerelease)
+            {
+                writer.WriteBoolean(ClientVersionIsPrereleaseMember, true);
+            }
+
+            writer.WriteEndObject();
+        }
+
+        return Encoding.UTF8.GetString(buffer.ToArray());
+    }
+
+    /// <summary>
+    /// Reads a value strictly.
+    /// </summary>
+    /// <param name="header">The header's value.</param>
+    /// <param name="value">What it carries, when it is well formed.</param>
+    /// <param name="problem">Why it was refused, otherwise: a sentence naming the member, never echoing a value.</param>
+    /// <returns>Whether it is well formed.</returns>
+    public static bool TryParse(string? header, out ContextValue value, out string? problem)
+    {
+        value = new ContextValue();
+
+        if (string.IsNullOrEmpty(header))
+        {
+            problem = "It is empty.";
+            return false;
+        }
+
+        // UTF-8 never takes fewer bytes than UTF-16 takes characters, so a value with too many characters is refused
+        // before anything counts or copies its bytes.
+        if (header.Length > MaximumLength || Encoding.UTF8.GetByteCount(header) > MaximumLength)
+        {
+            problem = $"It is longer than {MaximumLength} bytes.";
+            return false;
+        }
+
+        var bytes = Encoding.UTF8.GetBytes(header);
+
+        try
+        {
+            var members = new Members();
+            problem = ReadObject(bytes, members) ?? ToValue(members, out value);
+        }
+        catch (Exception e) when (e is JsonException or InvalidOperationException)
+        {
+            problem = "It is not well-formed JSON.";
+        }
+
+        return problem is null;
+    }
+
+    /// <summary>
+    /// Whether a value is a device type: up to 50 letters, digits, hyphens and underscores.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    public static bool IsDeviceType(string? value) => value is not null && DeviceTypePattern().IsMatch(value);
+
+    /// <summary>
+    /// Whether a value is a device identifier: up to 50 letters, digits, <c>-</c>, <c>_</c> and <c>:</c>,
+    /// which is what a push tag allows.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    public static bool IsDeviceIdentifier(string? value) => value is not null && DeviceIdentifierPattern().IsMatch(value);
+
+    /// <summary>
+    /// The wire name of a credential.
+    /// </summary>
+    /// <param name="credential">The credential.</param>
+    public static string Name(CallerCredential credential) => credential switch
+    {
+        CallerCredential.User => "USER",
+        CallerCredential.Organization => "ORGANIZATION",
+        CallerCredential.Machine => "MACHINE",
+        CallerCredential.System => "SYSTEM",
+        _ => throw new ArgumentOutOfRangeException(nameof(credential)),
+    };
+
+    /// <summary>
+    /// The wire name of a flag subject's kind.
+    /// </summary>
+    /// <param name="kind">The kind.</param>
+    public static string Name(FlagSubjectKind kind) => kind switch
+    {
+        FlagSubjectKind.User => "USER",
+        FlagSubjectKind.Organization => "ORGANIZATION",
+        FlagSubjectKind.ServiceAccount => "SERVICE_ACCOUNT",
+        FlagSubjectKind.AccessConnector => "ACCESS_CONNECTOR",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    };
+
+    /// <summary>
+    /// Whether a value is a client version as <see cref="System.Version.ToString()"/> writes one: two to four whole
+    /// numbers of up to nine digits, joined by dots.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    public static bool IsClientVersion(string? value) => value is not null && ClientVersionPattern().IsMatch(value);
+
+    internal static FlagSubjectKind? FlagKind(string name) => name switch
+    {
+        "USER" => FlagSubjectKind.User,
+        "ORGANIZATION" => FlagSubjectKind.Organization,
+        "SERVICE_ACCOUNT" => FlagSubjectKind.ServiceAccount,
+        "ACCESS_CONNECTOR" => FlagSubjectKind.AccessConnector,
+        _ => null,
+    };
+
+    internal static CallerCredential? Credential(string name) => name switch
+    {
+        "USER" => CallerCredential.User,
+        "ORGANIZATION" => CallerCredential.Organization,
+        "MACHINE" => CallerCredential.Machine,
+        "SYSTEM" => CallerCredential.System,
+        _ => null,
+    };
+
+    private static string? ReadObject(byte[] bytes, Members members)
+    {
+        var reader = new Utf8JsonReader(bytes, new JsonReaderOptions { CommentHandling = JsonCommentHandling.Disallow, MaxDepth = 2 });
+
+        if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
+        {
+            return "It is not a JSON object.";
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
+        {
+            if (reader.TokenType != JsonTokenType.PropertyName)
+            {
+                return "It is not a flat JSON object.";
+            }
+
+            var name = reader.GetString()!;
+            if (!seen.Add(name))
+            {
+                return $"'{Shown(name)}' appears more than once.";
+            }
+
+            if (!reader.Read())
+            {
+                return "It ends early.";
+            }
+
+            var problem = ReadMember(ref reader, name, members);
+            if (problem is not null)
+            {
+                return problem;
+            }
+        }
+
+        if (reader.TokenType != JsonTokenType.EndObject || reader.Read())
+        {
+            return "It is not one JSON object.";
+        }
+
+        return null;
+    }
+
+    private static string? ReadMember(ref Utf8JsonReader reader, string name, Members members)
+    {
+        switch (name)
+        {
+            case VersionMember:
+                if (reader.TokenType != JsonTokenType.Number || !reader.TryGetInt32(out var number))
+                {
+                    return $"'{VersionMember}' is not a whole number.";
+                }
+
+                members.Version = number;
+                return null;
+
+            case ClientIpMember:
+            case DeviceTypeMember:
+            case DeviceIdentifierMember:
+            case CredentialMember:
+            case RecordedUserMember:
+            case RecordedProviderMember:
+            case FlagKindMember:
+            case FlagKeyMember:
+            case ClientVersionMember:
+                if (reader.TokenType != JsonTokenType.String)
+                {
+                    return $"'{name}' is not a string.";
+                }
+
+                members.Strings[name] = reader.GetString();
+                return null;
+
+            case OrganizationsMember:
+                return ReadOrganizations(ref reader, members);
+
+            // Carried only when true, so true is the only value it takes.
+            case ClientVersionIsPrereleaseMember:
+                if (reader.TokenType != JsonTokenType.True)
+                {
+                    return $"'{ClientVersionIsPrereleaseMember}' is not true.";
+                }
+
+                members.ClientVersionIsPrerelease = true;
+                return null;
+
+            default:
+                return $"'{Shown(name)}' is not a member of version {Version}.";
+        }
+    }
+
+    private static string? ReadOrganizations(ref Utf8JsonReader reader, Members members)
+    {
+        if (reader.TokenType != JsonTokenType.StartArray)
+        {
+            return $"'{OrganizationsMember}' is not an array.";
+        }
+
+        var organizations = new List<Guid>();
+        while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+        {
+            if (reader.TokenType != JsonTokenType.String || !TryIdentifier(reader.GetString(), out var organization))
+            {
+                return $"'{OrganizationsMember}' holds something that is not an identifier.";
+            }
+
+            organizations.Add(organization);
+        }
+
+        if (reader.TokenType != JsonTokenType.EndArray)
+        {
+            return "It ends early.";
+        }
+
+        members.Organizations = organizations;
+        return null;
+    }
+
+    private static string? ToValue(Members members, out ContextValue value)
+    {
+        value = new ContextValue();
+
+        if (members.Version is not { } version)
+        {
+            return $"'{VersionMember}' is required.";
+        }
+
+        if (version != Version)
+        {
+            return $"'{VersionMember}' is not a version this service reads.";
+        }
+
+        CallerCredential? credential = null;
+        if (members.Strings.GetValueOrDefault(CredentialMember) is { } credentialName)
+        {
+            credential = Credential(credentialName);
+            if (credential is null)
+            {
+                return $"'{CredentialMember}' is not USER, ORGANIZATION, MACHINE or SYSTEM.";
+            }
+        }
+
+        if (!TryOptionalIdentifier(members.Strings.GetValueOrDefault(RecordedUserMember), out var recordedUser))
+        {
+            return $"'{RecordedUserMember}' is not an identifier.";
+        }
+
+        if (!TryOptionalIdentifier(members.Strings.GetValueOrDefault(RecordedProviderMember), out var recordedProvider))
+        {
+            return $"'{RecordedProviderMember}' is not an identifier.";
+        }
+
+        var flagKind = FlagSubjectKind.User;
+        if (members.Strings.GetValueOrDefault(FlagKindMember) is { } flagKindName)
+        {
+            if (FlagKind(flagKindName) is not { } named)
+            {
+                return $"'{FlagKindMember}' is not USER, ORGANIZATION, SERVICE_ACCOUNT or ACCESS_CONNECTOR.";
+            }
+
+            flagKind = named;
+        }
+
+        if (!TryOptionalIdentifier(members.Strings.GetValueOrDefault(FlagKeyMember), out var flagKey))
+        {
+            return $"'{FlagKeyMember}' is not an identifier.";
+        }
+
+        var clientIp = members.Strings.GetValueOrDefault(ClientIpMember);
+        var candidate = new ContextValue
+        {
+            ClientIp = clientIp,
+            DeviceType = members.Strings.GetValueOrDefault(DeviceTypeMember),
+            DeviceIdentifier = members.Strings.GetValueOrDefault(DeviceIdentifierMember),
+            Credential = credential,
+            RecordedUser = recordedUser,
+            RecordedProvider = recordedProvider,
+            Organizations = members.Organizations,
+            FlagKind = flagKind,
+            FlagKey = flagKey,
+            ClientVersion = members.Strings.GetValueOrDefault(ClientVersionMember),
+            ClientVersionIsPrerelease = members.ClientVersionIsPrerelease,
+        };
+
+        var problem = Check(candidate);
+        if (problem is not null)
+        {
+            return problem;
+        }
+
+        value = candidate with { ClientIp = clientIp is null ? null : Canonical(clientIp) };
+        return null;
+    }
+
+    private static string? Check(ContextValue value)
+    {
+        if (value.ClientIp is not null && !IsAddress(value.ClientIp))
+        {
+            return $"'{ClientIpMember}' is not an address.";
+        }
+
+        if (value.DeviceType is not null && !IsDeviceType(value.DeviceType))
+        {
+            return $"'{DeviceTypeMember}' is not a short name.";
+        }
+
+        if (value.DeviceIdentifier is not null && !IsDeviceIdentifier(value.DeviceIdentifier))
+        {
+            return $"'{DeviceIdentifierMember}' is not a device identifier.";
+        }
+
+        if (value.Credential is { } credential && !Enum.IsDefined(credential))
+        {
+            return $"'{CredentialMember}' is not a credential.";
+        }
+
+        if (value.RecordedUser is { } recorded
+            && (recorded == Guid.Empty || value.Credential != CallerCredential.System))
+        {
+            return $"'{RecordedUserMember}' is carried only on a SYSTEM call, naming a person.";
+        }
+
+        if (value.RecordedProvider == Guid.Empty)
+        {
+            return $"'{RecordedProviderMember}' does not name a provider.";
+        }
+
+        if (value.Organizations is { } organizations)
+        {
+            if (organizations.Count > MaximumOrganizations)
+            {
+                return $"'{OrganizationsMember}' lists more than {MaximumOrganizations} organizations.";
+            }
+
+            if (organizations.Contains(Guid.Empty) || organizations.Distinct().Count() != organizations.Count)
+            {
+                return $"'{OrganizationsMember}' names an empty or repeated organization.";
+            }
+        }
+
+        if (!Enum.IsDefined(value.FlagKind))
+        {
+            return $"'{FlagKindMember}' is not a kind of flag subject.";
+        }
+
+        if (value.FlagKey == Guid.Empty)
+        {
+            return $"'{FlagKeyMember}' does not name anyone.";
+        }
+
+        if (value.ClientVersion is not null && !IsClientVersion(value.ClientVersion))
+        {
+            return $"'{ClientVersionMember}' is not a version.";
+        }
+
+        if (value.ClientVersionIsPrerelease && value.ClientVersion is null)
+        {
+            return $"'{ClientVersionIsPrereleaseMember}' is carried only alongside '{ClientVersionMember}'.";
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Whether a value is an address as a host writes one: IPv4 as four decimal numbers, or IPv6 without a zone. The
+    /// unspecified address (<c>0.0.0.0</c> or <c>::</c>) names no client, so it is not one.
+    /// </summary>
+    /// <remarks>
+    /// <c>IPAddress.TryParse</c> also takes IPv4's legacy forms (<c>1</c>, <c>127.1</c>, <c>017.0.0.1</c> read as
+    /// octal, <c>0x7f.0.0.1</c>), and IPv6 with a zone (<c>fe80::1%eth0</c>), brackets or a port. None of them is an
+    /// address another service can use, and the legacy forms name a different address than they appear to.
+    /// </remarks>
+    /// <param name="value">The value.</param>
+    public static bool IsAddress(string? value)
+    {
+        if (value is null || !IPAddress.TryParse(value, out var address))
+        {
+            return false;
+        }
+
+        var mapped = address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address;
+        if (mapped.Equals(IPAddress.Any) || mapped.Equals(IPAddress.IPv6Any))
+        {
+            return false;
+        }
+
+        if (address.AddressFamily == AddressFamily.InterNetworkV6)
+        {
+            return value.All(character => char.IsAsciiHexDigit(character) || character is ':' or '.');
+        }
+
+        var parts = value.Split('.');
+        return parts.Length == 4 && parts.All(part =>
+            part.Length is > 0 and <= 3 && part.All(char.IsAsciiDigit) && (part.Length == 1 || part[0] != '0'));
+    }
+
+    /// <summary>
+    /// The one spelling of an address: an IPv4 address written as IPv6 (<c>::ffff:203.0.113.9</c>, as a dual-stack
+    /// socket reports an IPv4 client) is written as IPv4.
+    /// </summary>
+    private static string Canonical(string address) => Parse(address).ToString();
+
+    private static IPAddress Parse(string address)
+    {
+        var parsed = IPAddress.Parse(address);
+
+        return parsed.IsIPv4MappedToIPv6 ? parsed.MapToIPv4() : parsed;
+    }
+
+    // Guid.TryParseExact takes surrounding whitespace, so the length is checked first: a padded identifier is refused.
+    private static bool TryIdentifier(string? text, out Guid identifier)
+    {
+        identifier = Guid.Empty;
+
+        return text is { Length: GuidLength }
+            && Guid.TryParseExact(text, "D", out identifier)
+            && identifier != Guid.Empty;
+    }
+
+    private static bool TryOptionalIdentifier(string? text, out Guid? identifier)
+    {
+        identifier = null;
+        if (text is null)
+        {
+            return true;
+        }
+
+        if (!TryIdentifier(text, out var parsed))
+        {
+            return false;
+        }
+
+        identifier = parsed;
+        return true;
+    }
+
+    private static void WriteIfPresent(Utf8JsonWriter writer, string name, string? value)
+    {
+        if (value is not null)
+        {
+            writer.WriteString(name, value);
+        }
+    }
+
+    private static string Shown(string name) =>
+        name.Length <= 32 && MemberNamePattern().IsMatch(name) ? name : "a member";
+
+    [GeneratedRegex(@"^[A-Za-z0-9_-]{1,50}\z")]
+    private static partial Regex DeviceTypePattern();
+
+    [GeneratedRegex(@"^[A-Za-z0-9_:-]{1,50}\z")]
+    private static partial Regex DeviceIdentifierPattern();
+
+    [GeneratedRegex(@"^[A-Za-z0-9_]+\z")]
+    private static partial Regex MemberNamePattern();
+
+    [GeneratedRegex(@"^[0-9]{1,9}(\.[0-9]{1,9}){1,3}\z")]
+    private static partial Regex ClientVersionPattern();
+
+    private sealed class Members
+    {
+        public int? Version { get; set; }
+
+        public Dictionary<string, string?> Strings { get; } = new(StringComparer.Ordinal);
+
+        public List<Guid>? Organizations { get; set; }
+
+        public bool ClientVersionIsPrerelease { get; set; }
+    }
+}
