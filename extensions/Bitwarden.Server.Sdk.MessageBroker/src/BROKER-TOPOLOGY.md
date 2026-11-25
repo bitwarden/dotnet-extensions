@@ -49,11 +49,11 @@ For each `AddSubscriber<TPayload, TCeiling>(topic, subscription)`:
   Set `MaxDeliveryCount` on the subscription to cap redelivery attempts; the subscription's
   built-in dead-letter queue handles exhausted or explicitly dead-lettered messages automatically.
 
-If the Correlation filter is missing or wrong, the subscriber still falls back safely —
-`AzureServiceBusSubscriber` reads the `x-bw-payload-family` application property on every message
-and dead-letters anything that does not match `TPayload.WireName` before attempting
-deserialization. The filter is still the right production configuration because it moves routing
-off the subscriber and into the broker.
+If the Correlation filter is missing or wrong, the subscriber still falls back safely. It reads
+the `x-bw-payload-family` application property on every message and dead-letters any message whose
+family isn't `TPayload.WireName` before deserializing it, with a reason that names both families.
+The filter is still the right production configuration, because it moves routing off the
+subscriber and into the broker.
 
 The library creates and owns its own `ServiceBusClient` from the configured connection string
 and does not consume any `ServiceBusClient` the app registers separately. An app that also uses
@@ -85,7 +85,7 @@ For each `AddSubscriber<TPayload, TCeiling>(topic, subscription)`:
   and `overflow: reject-publish` to the queue, plus the target dead-letter exchange and a
   quorum queue bound to it.
 
-If the queue's routing-key binding is wrong, `RabbitSubscriber` falls back to the same defensive
+If the queue's routing-key binding is wrong, the subscriber falls back to the same defensive
 check — it reads the `x-bw-payload-family` header and dead-letters mismatches. The routing-key
 binding is still the right production configuration because it moves the filter into the broker.
 

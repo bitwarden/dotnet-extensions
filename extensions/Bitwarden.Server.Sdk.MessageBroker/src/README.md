@@ -83,7 +83,7 @@ expected shape is driven by two design choices:
 
 - **Quorum queues** for subscriber queues. The `x-delivery-count` header on quorum queues
   (RabbitMQ 3.12+)
-  is what `RabbitSubscriber` reads into `Envelope<TPayload, TCeiling>.DeliveryCount`. Classic
+  is what `RabbitQueueReceiver` reads into `Envelope<TPayload, TCeiling>.DeliveryCount`. Classic
   queues only expose a boolean `redelivered` flag, which is not enough to drive delivery-limit
   behavior.
 - **Topic exchanges** per topic, with one durable queue per subscription bound to the exchange
