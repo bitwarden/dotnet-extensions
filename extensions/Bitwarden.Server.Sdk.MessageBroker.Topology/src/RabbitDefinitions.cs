@@ -15,7 +15,7 @@ public static class RabbitDefinitions
     /// The prefix of every dead-letter exchange and queue, as MessageBroker names them. Its first name part,
     /// <c>dead-letter</c>, is reserved: no topic or command queue may be named with it.
     /// </summary>
-    public const string DeadLetterPrefix = RabbitSubscriber.DeadLetterPrefix;
+    public const string DeadLetterPrefix = RabbitQueueReceiver.DeadLetterPrefix;
 
     /// <summary>
     /// Writes the definitions.
@@ -78,7 +78,7 @@ public static class RabbitDefinitions
             made.Add((topic.Name, $"the topic {topic.Name}"));
             foreach (var subscription in topic.Subscriptions)
             {
-                var queue = RabbitSubscriber.QueueName(topic.Name, subscription.Name);
+                var queue = RabbitQueueReceiver.SubscriptionQueueName(topic.Name, subscription.Name);
                 DeadLettered(queue, $"the subscription {subscription.Name} on {topic.Name}");
                 bindings.Add((topic.Name, queue, subscription.Family));
             }

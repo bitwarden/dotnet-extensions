@@ -2,6 +2,9 @@ using System.Diagnostics;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
+/// <summary>
+/// The shared <see cref="System.Diagnostics.ActivitySource"/> for publish and consume spans.
+/// </summary>
 internal static class MessageBrokerActivitySource
 {
     internal const string Name = "Bitwarden.Server.Sdk.MessageBroker";
@@ -22,7 +25,10 @@ internal static class MessageBrokerActivitySource
     {
         ActivityContext parentContext = default;
         if (traceId is not null)
+        {
             ActivityContext.TryParse(traceId, null, isRemote: true, out parentContext);
+        }
+
         var activity = Source.StartActivity($"{topicName} receive", ActivityKind.Consumer, parentContext);
         activity?.SetTag(MessageBrokerMetrics.DestinationTag, topicName);
         activity?.SetTag(MessageBrokerMetrics.PayloadFamilyTag, familyWireName);

@@ -25,7 +25,10 @@ internal sealed class AzureServiceBusLockRenewal
     public async Task StopAsync()
     {
         if (!_stop.IsCancellationRequested)
+        {
             await _stop.CancelAsync();
+        }
+
         await _renewing;
         _stop.Dispose();
     }
@@ -39,12 +42,20 @@ internal sealed class AzureServiceBusLockRenewal
             {
                 var wait = (message.LockedUntil - DateTimeOffset.UtcNow) / 2;
                 if (wait < MinimumWait)
+                {
                     wait = MinimumWait;
+                }
+
                 if (DateTimeOffset.UtcNow + wait > renewUntil)
+                {
                     return;
+                }
+
                 await Task.Delay(wait, stop);
                 if (receiver.IsClosed)
+                {
                     return;
+                }
                 // Updates message.LockedUntil, which the next wait reads.
                 await receiver.RenewMessageLockAsync(message, stop);
             }

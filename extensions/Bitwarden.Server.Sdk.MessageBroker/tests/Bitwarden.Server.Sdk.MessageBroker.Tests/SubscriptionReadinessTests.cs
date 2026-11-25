@@ -30,7 +30,9 @@ public class SubscriptionReadinessTests
         {
             report = await health.CheckHealthAsync(TestContext.Current.CancellationToken);
             if (report.Status != HealthStatus.Healthy)
+            {
                 await Task.Delay(100, TestContext.Current.CancellationToken);
+            }
         } while (report.Status != HealthStatus.Healthy);
 
         await host.StopAsync(TestContext.Current.CancellationToken);

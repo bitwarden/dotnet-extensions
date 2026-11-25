@@ -505,7 +505,10 @@ public class RabbitProvisioningTests : IClassFixture<RabbitBehaviorTests.RabbitF
         while (DateTime.UtcNow < deadline)
         {
             if (await channel.BasicGetAsync(queue, autoAck: true, token) is { } result)
+            {
                 return result;
+            }
+
             await Task.Delay(100, token);
         }
         return null;

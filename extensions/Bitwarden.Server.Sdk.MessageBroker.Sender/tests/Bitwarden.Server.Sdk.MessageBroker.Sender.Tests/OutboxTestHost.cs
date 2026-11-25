@@ -32,7 +32,9 @@ internal sealed class OutboxTestHost : IAsyncDisposable
         Dictionary<string, string?>? settings = null)
     {
         if (Connection.State != System.Data.ConnectionState.Open)
+        {
             await Connection.OpenAsync(Token);
+        }
 
         var host = new HostBuilder()
             .ConfigureAppConfiguration(c => c.AddInMemoryCollection(settings ?? []))
@@ -54,9 +56,15 @@ internal sealed class OutboxTestHost : IAsyncDisposable
             .Build();
         _hosts.Add(host);
         await using (var scope = host.Services.CreateAsyncScope())
+        {
             await scope.ServiceProvider.GetRequiredService<ShopContext>().Database.EnsureCreatedAsync(Token);
+        }
+
         if (start)
+        {
             await host.StartAsync(Token);
+        }
+
         return host;
     }
 

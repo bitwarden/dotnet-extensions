@@ -23,7 +23,10 @@ public abstract class OutboxEngineTests(OutboxEngineFixture fixture) : IAsyncLif
     public async ValueTask DisposeAsync()
     {
         foreach (var host in _hosts)
+        {
             host.Dispose();
+        }
+
         await Task.CompletedTask;
     }
 
@@ -64,7 +67,10 @@ public abstract class OutboxEngineTests(OutboxEngineFixture fixture) : IAsyncLif
         await using var scope = host.Services.CreateAsyncScope();
         var outbox = scope.ServiceProvider.GetRequiredService<IOutboxSender>();
         for (var i = 0; i < count; i++)
+        {
             await outbox.SendAsync<OrderPlacedPayload, OrderPlaced>(new OrderPlaced(i), $"{prefix}{i:D3}", notBefore, Token);
+        }
+
         await scope.ServiceProvider.GetRequiredService<ShopContext>().SaveChangesAsync(Token);
     }
 
@@ -243,12 +249,18 @@ public abstract class OutboxEngineTests(OutboxEngineFixture fixture) : IAsyncLif
         // left, and nothing it is still handling.
         var instances = Enumerable.Range(0, 2).Select(_ => Instance(o => o.Lease = TimeSpan.FromSeconds(4))).ToList();
         foreach (var instance in instances)
+        {
             instance.Services.GetRequiredService<StockReservations>().Next = _ => Task.Delay(600, Token);
+        }
+
         await using (var scope = instances[0].Services.CreateAsyncScope())
         {
             var outbox = scope.ServiceProvider.GetRequiredService<IOutboxSender>();
             for (var i = 0; i < 8; i++)
+            {
                 await outbox.SendAsync<ReserveStockPayload, ReserveStock>(new ReserveStock(i), $"reserve-{i}", cancellationToken: Token);
+            }
+
             await scope.ServiceProvider.GetRequiredService<ShopContext>().SaveChangesAsync(Token);
         }
 
@@ -257,7 +269,9 @@ public abstract class OutboxEngineTests(OutboxEngineFixture fixture) : IAsyncLif
             while ((await RowsAsync()).Count > 0)
             {
                 if (await Dispatcher(instance).DispatchAsync(Token) == 0)
+                {
                     await Task.Delay(100, Token);
+                }
             }
         }, Token)));
 

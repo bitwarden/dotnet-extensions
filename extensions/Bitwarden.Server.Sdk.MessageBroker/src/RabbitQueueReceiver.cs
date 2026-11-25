@@ -7,20 +7,36 @@ using RabbitMQ.Client.Events;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Receives every message on a RabbitMQ command queue, which senders reach through its own exchange.
+/// Receives every message on one RabbitMQ quorum queue: a topic subscription's queue or a command queue.
 /// </summary>
-internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
+internal sealed class RabbitQueueReceiver : IMessageReceiver
 {
     private readonly RabbitConnection _connection;
     private readonly string _queueName;
+    private readonly string _entityName;
 
-    public RabbitCommandQueueReceiver(RabbitConnection connection, string queueName)
+    /// <param name="connection">The shared RabbitMQ connection.</param>
+    /// <param name="queueName">The queue to consume.</param>
+    /// <param name="entityName">The topic or command queue the queue serves, named when the broker disconnects.</param>
+    public RabbitQueueReceiver(RabbitConnection connection, string queueName, string entityName)
     {
         _connection = connection;
         _queueName = queueName;
+        _entityName = entityName;
     }
 
-    public async IAsyncEnumerable<CommandQueueMessage> ReceiveAsync(Action onSubscribed, [EnumeratorCancellation] CancellationToken cancellationToken)
+    /// <summary>
+    /// The queue a subscription reads on RabbitMQ and LavinMQ, bound to its topic's exchange.
+    /// </summary>
+    public static string SubscriptionQueueName(string topic, string subscription) => $"{topic}.{subscription}";
+
+    /// <summary>
+    /// The prefix of the dead-letter exchange and queue each subscription queue and command queue dead-letters to,
+    /// <c>dead-letter.{queue}</c>.
+    /// </summary>
+    internal const string DeadLetterPrefix = "dead-letter.";
+
+    public async IAsyncEnumerable<ReceivedMessage> ReceiveAsync(Action onSubscribed, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // The host closing the connection during setup is a shutdown, not a broker failure.
         using var setupCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _connection.Closed);
@@ -37,7 +53,7 @@ internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
 
         await using var channelLifetime = rabbitChannel;
 
-        var innerChannel = Channel.CreateUnbounded<CommandQueueMessage>();
+        var innerChannel = Channel.CreateUnbounded<ReceivedMessage>();
 
         var consumer = new AsyncEventingBasicConsumer(rabbitChannel);
         consumer.ReceivedAsync += async (_, ea) =>
@@ -45,7 +61,7 @@ internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
             var headers = ea.BasicProperties.Headers;
             var deliveryTag = ea.DeliveryTag;
             var deliveryCount = RabbitDeliveryCount.Read(headers, ea.Redelivered);
-            await innerChannel.Writer.WriteAsync(new CommandQueueMessage
+            await innerChannel.Writer.WriteAsync(new ReceivedMessage
             {
                 // The body's memory belongs to the client and is reused once this handler returns.
                 Body = ea.Body.ToArray(),
@@ -69,7 +85,10 @@ internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
         rabbitChannel.ChannelShutdownAsync += (_, args) =>
         {
             if (args.Initiator != ShutdownInitiator.Application)
+            {
                 brokerDisconnect = new Exception(args.ReplyText);
+            }
+
             innerChannel.Writer.TryComplete();
             return Task.CompletedTask;
         };
@@ -87,10 +106,14 @@ internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
         onSubscribed();
 
         await foreach (var message in innerChannel.Reader.ReadAllAsync(cancellationToken))
+        {
             yield return message;
+        }
 
         if (brokerDisconnect is not null)
-            throw new BrokerDisconnectedException(_queueName, brokerDisconnect);
+        {
+            throw new BrokerDisconnectedException(_entityName, brokerDisconnect);
+        }
     }
 
     private static string? ReadHeader(IDictionary<string, object?>? headers, string name) =>

@@ -99,7 +99,9 @@ internal sealed class OutboxMetrics
         foreach (var (database, sample) in _backlogs)
         {
             if (sample() is { } taken)
+            {
                 yield return new Measurement<T>(value(taken), new KeyValuePair<string, object?>(DatabaseTag, database));
+            }
         }
     }
 }

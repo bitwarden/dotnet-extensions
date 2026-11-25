@@ -75,9 +75,21 @@ public sealed class ServiceBusProvisioningTests : IAsyncLifetime
             _host.Dispose();
         }
 
-        if (_emulator is not null) await _emulator.DisposeAsync();
-        if (_sql is not null) await _sql.DisposeAsync();
-        if (_network is not null) await _network.DisposeAsync();
+        if (_emulator is not null)
+        {
+            await _emulator.DisposeAsync();
+        }
+
+        if (_sql is not null)
+        {
+            await _sql.DisposeAsync();
+        }
+
+        if (_network is not null)
+        {
+            await _network.DisposeAsync();
+        }
+
         File.Delete(_configFile);
     }
 

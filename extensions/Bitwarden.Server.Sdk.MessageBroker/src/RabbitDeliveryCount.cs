@@ -24,7 +24,9 @@ internal static class RabbitDeliveryCount
                 _ => null,
             };
             if (count is { } failed)
+            {
                 return failed + 1;
+            }
         }
 
         return redelivered ? 2 : 1;
