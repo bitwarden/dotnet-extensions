@@ -15,6 +15,33 @@ A command queue is the inbound side: one queue per receiving service, `{service}
 every command family that service accepts. Senders address it by name, and one receiver per queue
 reads each message's family wire name and hands it to that family's consumer.
 
+How one command travels from the sending service to the consumer. The family header picks the
+consumer, and the receiving service never learns who sent the command.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Sender as Sending service
+    participant Broker as Message broker
+    participant Receiver as Receiving service<br/>queue receiver
+    participant Handler as Receiving service<br/>family handler
+    participant Consumer as Receiving service<br/>consumer
+    Sender->>Broker: Send to the service's command queue<br/>with header x-bw-payload-family
+    Note over Broker: RabbitMQ returns an unroutable send<br/>so the sender throws
+    Broker->>Receiver: Deliver one command at a time
+    alt Family has a consumer here
+        Receiver->>Handler: Hand over the raw command
+        Handler->>Consumer: Decoded envelope, fresh scope
+        Consumer-->>Handler: Returns or throws
+        Handler->>Broker: Complete, or return for redelivery
+    else No consumer for the family
+        Receiver->>Broker: Dead-letter
+    end
+```
+
+In code, the participants are `Publisher`, `CommandQueueService`, `CommandFamilyHandler` and
+`IMessageConsumer`.
+
 ## Architecture
 
 ### Core abstractions
