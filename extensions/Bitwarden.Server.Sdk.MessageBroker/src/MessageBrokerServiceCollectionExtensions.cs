@@ -43,7 +43,7 @@ public static class MessageBrokerServiceCollectionExtensions
             }
             if (!string.IsNullOrEmpty(options.RabbitUri))
             {
-                return new RabbitPublisher<TPayload, TCeiling>(sp.GetRequiredService<RabbitConnection>(), name,
+                return new RabbitPublisher<TPayload, TCeiling>(sp.GetRequiredService<RabbitConnection>(),
                     exchangeName: name, routingKey: TPayload.WireName, mandatory: false, serializer, metrics);
             }
             return new ChannelPublisher<TPayload, TCeiling>(sp.GetRequiredKeyedService<ChannelTopic<TPayload, TCeiling>>(publisherKey), name, metrics,
@@ -239,7 +239,7 @@ public static class MessageBrokerServiceCollectionExtensions
             }
             if (!string.IsNullOrEmpty(options.RabbitUri))
             {
-                return new RabbitPublisher<TPayload, TCeiling>(sp.GetRequiredService<RabbitConnection>(), queueName,
+                return new RabbitPublisher<TPayload, TCeiling>(sp.GetRequiredService<RabbitConnection>(),
                     exchangeName: queueName, routingKey: queueName, mandatory: true, serializer, metrics);
             }
             return new ChannelCommandSender<TPayload, TCeiling>(sp.GetRequiredKeyedService<ChannelCommandQueue>(queueName), queueName, serializer, metrics);

@@ -8,7 +8,6 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
 {
-    private readonly string _destinationName;
     private readonly string _exchangeName;
     private readonly string _routingKey;
     private readonly bool _mandatory;
@@ -19,10 +18,9 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
     private IChannel? _channel;
 
     public RabbitPublisher(
-        RabbitConnection connection, string destinationName, string exchangeName, string routingKey, bool mandatory,
+        RabbitConnection connection, string exchangeName, string routingKey, bool mandatory,
         IMessageSerializer serializer, MessageBrokerMetrics metrics)
     {
-        _destinationName = destinationName;
         _exchangeName = exchangeName;
         _routingKey = routingKey;
         _mandatory = mandatory;
@@ -73,8 +71,8 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
         string messageId,
         CancellationToken cancellationToken)
     {
-        using var activity = MessageBrokerActivitySource.StartProducerActivity(_destinationName, TPayload.WireName);
-        _metrics.RecordPublish(_destinationName, TPayload.WireName);
+        using var activity = MessageBrokerActivitySource.StartProducerActivity(_exchangeName, TPayload.WireName);
+        _metrics.RecordPublish(_exchangeName, TPayload.WireName);
         try
         {
             var channel = await GetChannelAsync(cancellationToken);
@@ -94,15 +92,15 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
         }
         catch (BrokerUnreachableException ex)
         {
-            throw new BrokerUnavailableException(_destinationName, ex);
+            throw new BrokerUnavailableException(_exchangeName, ex);
         }
         catch (OperationInterruptedException ex)
         {
-            throw new BrokerUnavailableException(_destinationName, ex);
+            throw new BrokerUnavailableException(_exchangeName, ex);
         }
         catch (PublishException ex)
         {
-            throw new BrokerUnavailableException(_destinationName, ex);
+            throw new BrokerUnavailableException(_exchangeName, ex);
         }
     }
 
