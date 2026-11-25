@@ -331,7 +331,7 @@ public class RabbitCommandBehaviorTests : CommandBehaviorTests, IClassFixture<Ra
 
     protected override string QueueName => _queueName;
 
-    protected override Dictionary<string, string?> CreateConfig() => new() { ["RabbitUri"] = _fixture.GetUri() };
+    protected override Dictionary<string, string?> CreateConfig() => new() { ["RabbitUri"] = _fixture.GetUri(), ["VerifyTopologyAtStartup"] = "false" };
 
     // A quorum queue delivers a message once more than its x-delivery-limit before dead-lettering it.
     protected override int DeliveryLimit => 4;
@@ -449,7 +449,7 @@ public class AzureServiceBusCommandBehaviorTests : CommandBehaviorTests
     protected override string QueueName => "commands";
 
     protected override Dictionary<string, string?> CreateConfig() =>
-        new() { ["AzureServiceBusConnectionString"] = _fixture.GetConnectionString() };
+        new() { ["AzureServiceBusConnectionString"] = _fixture.GetConnectionString(), ["VerifyTopologyAtStartup"] = "false" };
 
     // The queue is shared by every test in the class: start each with it and its dead-letter queue empty.
     public override async ValueTask InitializeAsync()

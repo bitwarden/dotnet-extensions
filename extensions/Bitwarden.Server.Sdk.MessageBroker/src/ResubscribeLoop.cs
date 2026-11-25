@@ -11,6 +11,11 @@ internal static class ResubscribeLoop
     internal static readonly TimeSpan InitialDelay = TimeSpan.FromSeconds(1);
     internal static readonly TimeSpan MaximumDelay = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// The delay after one more failure in a row: double the last, up to <see cref="MaximumDelay"/>.
+    /// </summary>
+    internal static TimeSpan NextDelay(TimeSpan delay) => delay * 2 < MaximumDelay ? delay * 2 : MaximumDelay;
+
     /// <param name="receiveAsync">
     /// Opens the stream and handles messages until it ends. Calls its first argument once the
     /// subscription is in place, and its second after each message, which resets the delay: a
@@ -63,7 +68,7 @@ internal static class ResubscribeLoop
             {
                 return;
             }
-            delay = delay * 2 < MaximumDelay ? delay * 2 : MaximumDelay;
+            delay = NextDelay(delay);
         }
     }
 }

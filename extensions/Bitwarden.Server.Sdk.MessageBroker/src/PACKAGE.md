@@ -114,6 +114,13 @@ Every registration also declares the topology it needs as infrastructure require
 `MessagingRequirements`), so provisioning can be generated from a service's startup; see
 [BROKER-TOPOLOGY.md](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/BROKER-TOPOLOGY.md#collecting-a-services-topology).
 
+Once a service first reaches its broker, it checks that every topic, subscription and queue it
+needs exists, and if not stops with exit code 1, naming what is missing; an unreachable broker
+doesn't stop it. Set
+`VerifyTopologyAtStartup` to `false` to turn the check off, for example in tests that declare their
+topology after the host starts. See
+[BROKER-TOPOLOGY.md](https://github.com/bitwarden/dotnet-extensions/blob/main/extensions/Bitwarden.Server.Sdk.MessageBroker/src/BROKER-TOPOLOGY.md#checking-the-topology-at-startup).
+
 ## Defining a payload
 
 A payload is a family of variants forming a chain from the oldest known shape (**floor**) to the

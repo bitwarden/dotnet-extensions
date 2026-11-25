@@ -15,7 +15,8 @@ Services don't depend on which one is in use.
 | Self-host  | RabbitMQ 4.3.6    | Azure Service Bus |
 
 Topics, queues and subscriptions must exist before the services start. With a broker other than the
-default, the operator sets them up from the release's broker topology before each upgrade.
+default, the operator sets them up from the release's broker topology before each upgrade. A service
+that finds them missing stops at startup and names what is missing.
 
 ## Provisioning
 
@@ -49,6 +50,29 @@ flowchart LR
 
 Every queue and subscription has a delivery limit. A message that reaches it, or that the
 service sets aside, goes to a dead-letter queue rather than back to the service.
+
+## Checking the topology at startup
+
+Once a service first reaches its broker, it checks that the topology its registrations need exists,
+from the same requirements listed under
+[Collecting a service's topology](#collecting-a-services-topology). If anything is missing, it logs
+one critical message naming each missing object and stops with exit code 1. A broker that can't be
+reached doesn't stop it: it logs a warning and checks again until the broker answers. Set
+`VerifyTopologyAtStartup` to `false` to turn the check off.
+
+The check needs no rights beyond those the service already has (see
+[Users and permissions](#users-and-permissions) and
+[Access with a managed identity](#access-with-a-managed-identity)):
+
+- **RabbitMQ:** a passive declare of each of its topic exchanges, its subscription queues
+  (`{topic}.{subscription}`), its command queue and the exchange of each command queue it sends to.
+  A passive declare needs only the read or write right on the object, not configure. RabbitMQ
+  refuses one on an object the user has no rights to, whether or not it exists, so the check reports
+  such an object as missing or not permitted. It doesn't check bindings or policies.
+- **Azure Service Bus:** a peek at each of its subscriptions and its command queue, which needs only
+  the receive rights it has. Its topics and the queues it only sends to can't be checked without the
+  Manage right, which no service should have; a missing one shows up as sends that fail with
+  `BrokerUnavailableException`.
 
 ## Collecting a service's topology
 

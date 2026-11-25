@@ -44,7 +44,7 @@ public class AzureServiceBusLockRenewalTests : IAsyncLifetime
 
     private async Task<IHost> StartHostAsync(Action<IServiceCollection> configure, Dictionary<string, string?>? settings = null)
     {
-        var config = new Dictionary<string, string?> { ["AzureServiceBusConnectionString"] = _fixture.GetConnectionString() };
+        var config = new Dictionary<string, string?> { ["AzureServiceBusConnectionString"] = _fixture.GetConnectionString(), ["VerifyTopologyAtStartup"] = "false" };
         foreach (var (key, value) in settings ?? [])
         {
             config[key] = value;

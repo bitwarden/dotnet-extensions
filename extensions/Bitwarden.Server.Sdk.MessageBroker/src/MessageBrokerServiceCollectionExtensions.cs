@@ -415,6 +415,7 @@ public static class MessageBrokerServiceCollectionExtensions
         services.AddOptions<MessagingOptions>().ValidateOnStart();
         AddRabbitInfrastructure(services);
         AddAzureServiceBusInfrastructure(services);
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TopologyCheckService>());
     }
 
     // One serializer per destination and family; MessageBrokerSerializerOptions stays scoped by
