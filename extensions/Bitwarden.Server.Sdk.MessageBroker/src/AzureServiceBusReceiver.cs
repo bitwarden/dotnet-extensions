@@ -4,17 +4,22 @@ using Azure.Messaging.ServiceBus;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Receives every message on an Azure Service Bus queue.
+/// Receives every message on one Azure Service Bus queue or topic subscription.
 /// </summary>
-internal sealed class AzureServiceBusCommandQueueReceiver : IMessageReceiver
+internal sealed class AzureServiceBusReceiver : IMessageReceiver
 {
     private readonly AzureServiceBusConnection _connection;
-    private readonly string _queueName;
+    private readonly string _entityName;
+    private readonly string? _subscriptionName;
 
-    public AzureServiceBusCommandQueueReceiver(AzureServiceBusConnection connection, string queueName)
+    /// <param name="connection">The shared Azure Service Bus connection.</param>
+    /// <param name="entityName">The command queue, or the topic when <paramref name="subscriptionName"/> is set.</param>
+    /// <param name="subscriptionName">The topic subscription to receive from, or null for a queue.</param>
+    public AzureServiceBusReceiver(AzureServiceBusConnection connection, string entityName, string? subscriptionName)
     {
         _connection = connection;
-        _queueName = queueName;
+        _entityName = entityName;
+        _subscriptionName = subscriptionName;
     }
 
     public async IAsyncEnumerable<ReceivedMessage> ReceiveAsync([EnumeratorCancellation] CancellationToken cancellationToken)
@@ -22,8 +27,10 @@ internal sealed class AzureServiceBusCommandQueueReceiver : IMessageReceiver
         ServiceBusReceiver receiver;
         try
         {
-            receiver = _connection.Client
-                .CreateReceiver(_queueName, new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.PeekLock });
+            var options = new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.PeekLock };
+            receiver = _subscriptionName is null
+                ? _connection.Client.CreateReceiver(_entityName, options)
+                : _connection.Client.CreateReceiver(_entityName, _subscriptionName, options);
         }
         catch (ObjectDisposedException) when (_connection.IsClosing)
         {
@@ -54,7 +61,7 @@ internal sealed class AzureServiceBusCommandQueueReceiver : IMessageReceiver
             }
             catch (ServiceBusException ex)
             {
-                throw new BrokerDisconnectedException(_queueName, ex);
+                throw new BrokerDisconnectedException(_entityName, ex);
             }
 
             foreach (var sbMessage in received)

@@ -185,7 +185,7 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
     /// <summary>
     /// Verifies that calling <see cref="Envelope{TPayload, TCeiling}.RequeueAsync"/> after the iterator has been
     /// disposed (rabbitChannel closed) completes without error, covering the
-    /// <c>_channel.IsOpen ? ... : Task.CompletedTask</c> branch in <c>RabbitSubscriber.RequeueCoreAsync</c>.
+    /// <c>rabbitChannel.IsOpen</c> check in <c>RabbitQueueReceiver</c>'s requeue.
     /// </summary>
     [Fact(Timeout = 60 * 1000)]
     public async Task AbandonOnClosedChannelCompletesCleanly()

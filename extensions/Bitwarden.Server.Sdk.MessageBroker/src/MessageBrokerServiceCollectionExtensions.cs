@@ -105,11 +105,15 @@ public static class MessageBrokerServiceCollectionExtensions
             var metrics = sp.GetRequiredService<MessageBrokerMetrics>();
             if (!string.IsNullOrEmpty(options.AzureServiceBusConnectionString))
             {
-                return new AzureServiceBusSubscriber<TPayload, TCeiling>(sp.GetRequiredService<AzureServiceBusConnection>(), name, subscriptionName, serializer, metrics);
+                return new BrokerSubscriber<TPayload, TCeiling>(
+                    new AzureServiceBusReceiver(sp.GetRequiredService<AzureServiceBusConnection>(), name, subscriptionName),
+                    name, serializer, metrics);
             }
             if (!string.IsNullOrEmpty(options.RabbitUri))
             {
-                return new RabbitSubscriber<TPayload, TCeiling>(sp.GetRequiredService<RabbitConnection>(), name, subscriptionName, serializer, metrics);
+                return new BrokerSubscriber<TPayload, TCeiling>(
+                    new RabbitQueueReceiver(sp.GetRequiredService<RabbitConnection>(), RabbitQueueReceiver.SubscriptionQueueName(name, subscriptionName), name),
+                    name, serializer, metrics);
             }
             return new ChannelSubscriber<TPayload, TCeiling>(sp.GetRequiredKeyedService<ChannelTopic<TPayload, TCeiling>>(publisherKey).GetOrAddSubscription(subscriptionName).Reader, name, metrics);
         });
@@ -300,11 +304,11 @@ public static class MessageBrokerServiceCollectionExtensions
                 IMessageReceiver receiver;
                 if (!string.IsNullOrEmpty(options.AzureServiceBusConnectionString))
                 {
-                    receiver = new AzureServiceBusCommandQueueReceiver(sp.GetRequiredService<AzureServiceBusConnection>(), queueName);
+                    receiver = new AzureServiceBusReceiver(sp.GetRequiredService<AzureServiceBusConnection>(), queueName, subscriptionName: null);
                 }
                 else if (!string.IsNullOrEmpty(options.RabbitUri))
                 {
-                    receiver = new RabbitCommandQueueReceiver(sp.GetRequiredService<RabbitConnection>(), queueName);
+                    receiver = new RabbitQueueReceiver(sp.GetRequiredService<RabbitConnection>(), queueName, queueName);
                 }
                 else
                 {

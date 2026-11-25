@@ -223,6 +223,10 @@ public class AzureServiceBusBehaviorTests : BehaviorTests
         var deadLettered = await dlqReceiver.ReceiveMessageAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         Assert.NotNull(deadLettered);
         Assert.Equal(UserDeletedPayload.WireName, deadLettered.ApplicationProperties["x-bw-payload-family"]);
+        Assert.Equal(
+            $"This subscription on topic '{MisconfiguredTopic}' receives family '{UserCreatedPayload.WireName}', but the message " +
+            $"is family '{UserDeletedPayload.WireName}'. Check the subscription's binding or filter.",
+            deadLettered.DeadLetterReason);
     }
 }
 

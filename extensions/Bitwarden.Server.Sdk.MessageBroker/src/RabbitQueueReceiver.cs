@@ -7,18 +7,28 @@ using RabbitMQ.Client.Events;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Receives every message on a RabbitMQ command queue, which senders reach through its own exchange.
+/// Receives every message on one RabbitMQ quorum queue: a topic subscription's queue or a command queue.
 /// </summary>
-internal sealed class RabbitCommandQueueReceiver : IMessageReceiver
+internal sealed class RabbitQueueReceiver : IMessageReceiver
 {
     private readonly RabbitConnection _connection;
     private readonly string _queueName;
+    private readonly string _entityName;
 
-    public RabbitCommandQueueReceiver(RabbitConnection connection, string queueName)
+    /// <param name="connection">The shared RabbitMQ connection.</param>
+    /// <param name="queueName">The queue to consume.</param>
+    /// <param name="entityName">The topic or command queue the queue serves, named when the broker disconnects.</param>
+    public RabbitQueueReceiver(RabbitConnection connection, string queueName, string entityName)
     {
         _connection = connection;
         _queueName = queueName;
+        _entityName = entityName;
     }
+
+    /// <summary>
+    /// The queue a subscription reads on RabbitMQ, bound to its topic's exchange.
+    /// </summary>
+    public static string SubscriptionQueueName(string topic, string subscription) => $"{topic}.{subscription}";
 
     public async IAsyncEnumerable<ReceivedMessage> ReceiveAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -94,7 +104,7 @@ internal sealed class RabbitCommandQueueReceiver : IMessageReceiver
 
         if (brokerDisconnect is not null)
         {
-            throw new BrokerDisconnectedException(_queueName, brokerDisconnect);
+            throw new BrokerDisconnectedException(_entityName, brokerDisconnect);
         }
     }
 
