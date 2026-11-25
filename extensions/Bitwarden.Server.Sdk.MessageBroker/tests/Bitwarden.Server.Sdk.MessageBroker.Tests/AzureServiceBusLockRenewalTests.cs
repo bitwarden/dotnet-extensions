@@ -33,7 +33,11 @@ public class AzureServiceBusLockRenewalTests : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
-        if (_host is null) return;
+        if (_host is null)
+        {
+            return;
+        }
+
         await _host.StopAsync();
         _host.Dispose();
     }
@@ -41,7 +45,11 @@ public class AzureServiceBusLockRenewalTests : IAsyncLifetime
     private async Task<IHost> StartHostAsync(Action<IServiceCollection> configure, Dictionary<string, string?>? settings = null)
     {
         var config = new Dictionary<string, string?> { ["AzureServiceBusConnectionString"] = _fixture.GetConnectionString() };
-        foreach (var (key, value) in settings ?? []) config[key] = value;
+        foreach (var (key, value) in settings ?? [])
+        {
+            config[key] = value;
+        }
+
         _host = new HostBuilder()
             .ConfigureAppConfiguration(c => c.AddInMemoryCollection(config))
             .ConfigureServices(services =>
@@ -103,7 +111,9 @@ public class AzureServiceBusLockRenewalTests : IAsyncLifetime
             .Publish(new SendMail(id)).SendAsync(TestContext.Current.CancellationToken);
 
         while (!handling.Started.Any(s => s.Id == id && s.DeliveryCount == 2))
+        {
             await Task.Delay(200, TestContext.Current.CancellationToken);
+        }
     }
 
     public sealed class SlowHandling
@@ -121,7 +131,9 @@ public class AzureServiceBusLockRenewalTests : IAsyncLifetime
         public async Task AssertHandledOnceAsync(int id)
         {
             while (!Finished.Contains(id))
+            {
                 await Task.Delay(200, TestContext.Current.CancellationToken);
+            }
             // Time for a redelivery, had the lock been lost, and for completion to settle.
             await Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 

@@ -3,6 +3,9 @@ using System.Threading.Channels;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
+/// <summary>
+/// Receives one payload family from an in-memory subscription channel.
+/// </summary>
 internal sealed class ChannelSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>, ISignalsSubscribed<TPayload, TCeiling>
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling

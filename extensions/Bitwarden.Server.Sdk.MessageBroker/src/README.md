@@ -16,6 +16,33 @@ A command queue is the inbound side: one queue per receiving service, `{service}
 every command family that service accepts. Senders address it by name, and one receiver per queue
 reads each message's family wire name and hands it to that family's consumer.
 
+How one command travels from the sending service to the consumer. The family header picks the
+consumer, and the receiving service never learns who sent the command.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Sender as Sending service
+    participant Broker as Message broker
+    participant Receiver as Receiving service<br/>queue receiver
+    participant Handler as Receiving service<br/>family handler
+    participant Consumer as Receiving service<br/>consumer
+    Sender->>Broker: Send to the service's command queue<br/>with header x-bw-payload-family
+    Note over Broker: RabbitMQ returns an unroutable send<br/>so the sender throws
+    Broker->>Receiver: Deliver one command at a time
+    alt Family has a consumer here
+        Receiver->>Handler: Hand over the raw command
+        Handler->>Consumer: Decoded envelope, fresh scope
+        Consumer-->>Handler: Returns or throws
+        Handler->>Broker: Complete, or return for redelivery
+    else No consumer for the family
+        Receiver->>Broker: Dead-letter
+    end
+```
+
+In code, the participants are `Publisher`, `CommandQueueService`, `CommandFamilyHandler` and
+`IMessageConsumer`.
+
 ## Architecture
 
 ### Core abstractions
@@ -49,40 +76,6 @@ based on `MessagingOptions`:
 
 Setting both raises `OptionsValidationException` at startup via `MessagingOptionsValidator`.
 
-### Key source files
-
-| File                                                           | Purpose                                                                          |
-| -------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `MessageBrokerServiceCollectionExtensions.cs`                  | Service-collection registration; backend selection logic                         |
-| `MessageBrokerKeys.cs`                                         | Composite publisher keyed-service key builder                                    |
-| `MessagingRequirements.cs`                                     | The infrastructure requirements each registration declares                       |
-| `Envelope.cs`                                                  | Abstract base class for received messages                                        |
-| `IMessageConsumer.cs`                                          | Public interface for consumers registered via `AddMessageConsumer`               |
-| `ConsumerBackgroundService.cs`                                 | Hosted service that drives the consumer loop; auto-settles envelopes             |
-| `ConsumerInvocation.cs`                                        | Runs a hosted consumer on one message, for topics and command queues alike       |
-| `CommandQueueService.cs`                                       | Hosted receive loop for one command queue; dispatches each message by family     |
-| `CommandFamilyHandler.cs`                                      | Decodes one command family's messages into envelopes; dead-letters what it can't |
-| `CommandQueueMessage.cs`                                       | A command before its family is known, and `ICommandQueueReceiver`                |
-| `ResubscribeLoop.cs`                                           | Keeps a hosted consumer subscribing again, with backoff, through broker outages  |
-| `RetryDelay.cs`                                                | The wait after a consumer throws, before the message is redelivered              |
-| `SubscriptionReadiness.cs`                                     | The readiness check: whether each hosted consumer is receiving                   |
-| `ConsumerRetryOptions.cs`                                      | Per-subscription and per-queue retry settings; by default a failure isn't retried |
-| `IMessageEscrowStore.cs`                                       | Public interface for durable message escrow on shutdown                          |
-| `ChannelPublisher.cs` / `ChannelSubscriber.cs`                 | In-memory backend                                                                |
-| `ChannelEnvelope.cs`                                           | In-memory envelope; handles `RequeueAsync` requeue logic                         |
-| `ChannelTopic.cs`                                              | Fan-out channel; one `Channel<T>` per subscription; drains to escrow on shutdown |
-| `ChannelEscrowRegistration.cs`                                 | Registers startup recovery and shutdown drain callbacks with `ChannelTopic`      |
-| `ChannelCommandQueue.cs`                                       | In-memory command queue; no escrow                                               |
-| `RabbitPublisher.cs` / `RabbitSubscriber.cs`                   | RabbitMQ backend; the publisher also sends commands to a queue                   |
-| `RabbitCommandQueueReceiver.cs`                                | RabbitMQ command queue receiver                                                  |
-| `RabbitConnection.cs`                                          | The shared RabbitMQ connection; opened again on demand after an outage           |
-| `AzureServiceBusPublisher.cs` / `AzureServiceBusSubscriber.cs` | Azure Service Bus backend                                                        |
-| `AzureServiceBusLockRenewal.cs`                                | Renews a message's lock while it is handled and while its retry waits            |
-| `AzureServiceBusCommandQueueReceiver.cs`                       | Azure Service Bus command queue receiver                                         |
-| `MessageBrokerActivitySource.cs`                               | Shared `ActivitySource` for publish and consume spans                            |
-| `MessageBrokerMetrics.cs`                                      | Shared metrics (publish counter, consume counter, channel depth gauge)           |
-| `SystemTextJsonMessageSerializer.cs`                           | Default JSON serializer                                                          |
-
 ## RabbitMQ topology
 
 The library does not provision RabbitMQ topology; operators pre-declare it (see
@@ -91,7 +84,7 @@ expected shape is driven by two design choices:
 
 - **Quorum queues** for subscriber queues. The `x-delivery-count` header on quorum queues
   (RabbitMQ 3.12+)
-  is what `RabbitSubscriber` reads into `Envelope<TPayload, TCeiling>.DeliveryCount`. Classic
+  is what `RabbitQueueReceiver` reads into `Envelope<TPayload, TCeiling>.DeliveryCount`. Classic
   queues only expose a boolean `redelivered` flag, which is not enough to drive delivery-limit
   behavior.
 - **Topic exchanges** per topic, with one durable queue per subscription bound to the exchange
@@ -174,17 +167,6 @@ an aggregate exception if the declared variants are not complete, sparse, and li
 types or wire names, missing floor or ceiling, forks, cycles, or Next/Previous references that
 disagree with the variant list.
 
-### Key source files
-
-| File                                 | Purpose                                                                                                     |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `Payload.cs`                         | Variant-side interfaces (`IFloor`, `ICeiling`, `IPure`, `IAssisted`, `IAssist`, …) and payload base classes |
-| `ChainWalk.cs`                       | Reflects `TDown`/`TUp` off a variant type to walk the declared chain                                        |
-| `ChainValidator.cs`                  | Startup-time chain-shape validation                                                                         |
-| `Publisher.cs`                       | `Publisher<TPayload, TCeiling>` base + `PublishBuilder` fluent chain                                        |
-| `Envelope.cs`                        | Selects the received variant, upcasts it to the consumer's ceiling                                          |
-| `SystemTextJsonMessageSerializer.cs` | Polymorphic array wire format with `$type` discriminator                                                    |
-
 ## Running tests
 
 Tests require Docker so Testcontainers can start the RabbitMQ and Azure Service Bus emulator
@@ -207,4 +189,4 @@ The test suite covers all three backends via the shared `BehaviorTests` base cla
 queues via `CommandBehaviorTests`.
 Channel-specific tests (drain on shutdown, queue depth gauge) live in `ChannelBehaviorTests`.
 
-The RabbitMQ tests run against `rabbitmq:4.3.6`, the version the self-hosted install ships.
+The RabbitMQ tests run against RabbitMQ 4.3.6, the version the self-hosted install ships, pinned by digest in `AmqpTestBroker`.

@@ -413,7 +413,9 @@ public class MessageConsumerTests
         {
             var attempt = Interlocked.Increment(ref state.AttemptCount);
             if (state.FailFirstDelivery && attempt == 1)
+            {
                 throw new InvalidOperationException("simulated first-delivery failure");
+            }
 
             state.Ids.Add(envelope.Payload.Id);
             state.Received.Release();
