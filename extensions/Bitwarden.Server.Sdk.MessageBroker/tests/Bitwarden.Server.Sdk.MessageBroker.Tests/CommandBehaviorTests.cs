@@ -110,6 +110,11 @@ public abstract class CommandBehaviorTests : IAsyncLifetime
     protected abstract int DeliveryLimit { get; }
 
     /// <summary>
+    /// How many deliveries the send.mail consumer allows before it dead-letters a command itself.
+    /// </summary>
+    private const int MailMaxDeliveries = 5;
+
+    /// <summary>
     /// Fails unless the command with this identifier and family was set aside rather than redelivered.
     /// </summary>
     protected abstract Task AssertDeadLetteredAsync(IHost host, string family, string messageId);
@@ -140,7 +145,7 @@ public abstract class CommandBehaviorTests : IAsyncLifetime
                 services.AddCommandSender<SendMailPayload, SendMail>(QueueName);
                 services.AddCommandSender<SendPushPayload, SendPush>(QueueName);
                 services.AddCommandSender<SendSmsPayload, SendSms>(QueueName);
-                services.AddCommandConsumer<SendMailPayload, SendMail, SendMailConsumer>(QueueName);
+                services.AddCommandConsumer<SendMailPayload, SendMail, SendMailConsumer>(QueueName, retry => retry.MaxDeliveries = MailMaxDeliveries);
                 services.AddCommandConsumer<SendPushPayload, SendPush, SendPushConsumer>(QueueName);
                 services.AddOptions<MessagingOptions>().BindConfiguration("");
             })
@@ -206,6 +211,8 @@ public abstract class CommandBehaviorTests : IAsyncLifetime
     public async Task CommandThatFailsOnEveryDeliveryIsSetAsideAtTheDeliveryLimit()
     {
         var host = await CreateHostAsync();
+        // Whichever comes first: the consumer's own limit or the broker's.
+        var limit = Math.Min(MailMaxDeliveries, DeliveryLimit);
         var recorder = host.Services.GetRequiredService<CommandRecorder>();
         var (mailId, pushId) = (Random.Shared.Next(), Random.Shared.Next());
         recorder.FailDeliveries[mailId] = int.MaxValue;
@@ -213,7 +220,7 @@ public abstract class CommandBehaviorTests : IAsyncLifetime
 
         await Sender<SendMailPayload, SendMail>(host, QueueName).Publish(new SendMail(mailId))
             .SendAsync(mailMessageId, TestContext.Current.CancellationToken);
-        await recorder.WaitForAsync(c => c.Id == mailId, DeliveryLimit);
+        await recorder.WaitForAsync(c => c.Id == mailId, limit);
 
         // A command sent after the limit is reached is still handled, and no further delivery of the failing one arrives.
         await Sender<SendPushPayload, SendPush>(host, QueueName).Publish(new SendPush(pushId))
@@ -221,7 +228,7 @@ public abstract class CommandBehaviorTests : IAsyncLifetime
         await recorder.WaitForAsync(c => c.Id == pushId, 1);
         await Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
-        Assert.Equal(Enumerable.Range(1, DeliveryLimit),
+        Assert.Equal(Enumerable.Range(1, limit),
             recorder.Handled.Where(c => c.Id == mailId).Select(c => c.DeliveryCount).Order());
         await AssertDeadLetteredAsync(host, SendMailPayload.WireName, mailMessageId);
     }

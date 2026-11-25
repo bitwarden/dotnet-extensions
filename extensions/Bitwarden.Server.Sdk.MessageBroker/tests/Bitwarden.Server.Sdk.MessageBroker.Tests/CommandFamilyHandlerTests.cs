@@ -26,7 +26,8 @@ public sealed class CommandFamilyHandlerTests : IDisposable
             new SystemTextJsonMessageSerializer(
                 _services.GetRequiredService<IOptionsMonitor<MessageBrokerSerializerOptions>>(), Queue),
             _services.GetRequiredService<IServiceScopeFactory>(),
-            new MessageBrokerMetrics(_services.GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>()));
+            new MessageBrokerMetrics(_services.GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>()),
+            _services.GetRequiredService<IOptionsMonitor<ConsumerRetryOptions>>());
     }
 
     public void Dispose() => _services.Dispose();
@@ -91,7 +92,8 @@ public sealed class CommandFamilyHandlerTests : IDisposable
             new SystemTextJsonMessageSerializer(
                 services.GetRequiredService<IOptionsMonitor<MessageBrokerSerializerOptions>>(), Queue),
             services.GetRequiredService<IServiceScopeFactory>(),
-            new MessageBrokerMetrics(services.GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>()));
+            new MessageBrokerMetrics(services.GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>()),
+            services.GetRequiredService<IOptionsMonitor<ConsumerRetryOptions>>());
         var settlement = new Settlement();
 
         // v1 with no name: RenameV1.Upcast() throws on it, so no version reaches the RenameV2 ceiling.

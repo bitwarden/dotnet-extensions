@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Options;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -12,9 +14,13 @@ internal sealed class CommandFamilyHandler<TPayload, TCeiling, TConsumer> : ICom
     private readonly IMessageSerializer _serializer;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly MessageBrokerMetrics _metrics;
+    private readonly IOptionsMonitor<ConsumerRetryOptions> _retry;
 
-    public CommandFamilyHandler(string queueName, IMessageSerializer serializer, IServiceScopeFactory scopeFactory, MessageBrokerMetrics metrics)
+    public CommandFamilyHandler(
+        string queueName, IMessageSerializer serializer, IServiceScopeFactory scopeFactory, MessageBrokerMetrics metrics,
+        IOptionsMonitor<ConsumerRetryOptions> retry)
     {
+        _retry = retry;
         QueueName = queueName;
         _serializer = serializer;
         _scopeFactory = scopeFactory;
@@ -33,6 +39,6 @@ internal sealed class CommandFamilyHandler<TPayload, TCeiling, TConsumer> : ICom
             return;
         }
 
-        await ConsumerInvocation.RunAsync<TPayload, TCeiling, TConsumer>(_scopeFactory, envelope, stoppingToken);
+        await ConsumerInvocation.RunAsync<TPayload, TCeiling, TConsumer>(_scopeFactory, envelope, _retry.Get(QueueName), stoppingToken);
     }
 }

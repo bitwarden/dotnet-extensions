@@ -11,12 +11,15 @@ internal sealed class AzureServiceBusReceiver : IMessageReceiver
     private readonly AzureServiceBusConnection _connection;
     private readonly string _entityName;
     private readonly string? _subscriptionName;
+    private readonly TimeSpan _maxLockRenewal;
 
     /// <param name="connection">The shared Azure Service Bus connection.</param>
     /// <param name="entityName">The command queue, or the topic when <paramref name="subscriptionName"/> is set.</param>
     /// <param name="subscriptionName">The topic subscription to receive from, or null for a queue.</param>
-    public AzureServiceBusReceiver(AzureServiceBusConnection connection, string entityName, string? subscriptionName)
+    /// <param name="maxLockRenewal">How long to keep renewing a received message's lock while it is handled.</param>
+    public AzureServiceBusReceiver(AzureServiceBusConnection connection, string entityName, string? subscriptionName, TimeSpan maxLockRenewal)
     {
+        _maxLockRenewal = maxLockRenewal;
         _connection = connection;
         _entityName = entityName;
         _subscriptionName = subscriptionName;
@@ -66,6 +69,7 @@ internal sealed class AzureServiceBusReceiver : IMessageReceiver
 
             foreach (var sbMessage in received)
             {
+                var lockRenewal = new AzureServiceBusLockRenewal(receiver, sbMessage, _maxLockRenewal);
                 yield return new ReceivedMessage
                 {
                     Body = sbMessage.Body.ToMemory(),
@@ -77,14 +81,28 @@ internal sealed class AzureServiceBusReceiver : IMessageReceiver
                         ? tp as string
                         : null,
                     DeliveryCount = sbMessage.DeliveryCount,
-                    CompleteAsync = ct => receiver.CompleteMessageAsync(sbMessage, ct),
+                    CompleteAsync = async ct =>
+                    {
+                        await lockRenewal.StopAsync();
+                        await receiver.CompleteMessageAsync(sbMessage, ct);
+                    },
                     // A closed receiver released its locks, which is the same as abandoning.
-                    RequeueAsync = ct => receiver.IsClosed
-                        ? Task.CompletedTask
-                        : receiver.AbandonMessageAsync(sbMessage, cancellationToken: ct),
-                    DeadLetterAsync = (reason, ct) => receiver.IsClosed
-                        ? Task.CompletedTask
-                        : receiver.DeadLetterMessageAsync(sbMessage, deadLetterReason: reason, cancellationToken: ct),
+                    RequeueAsync = async ct =>
+                    {
+                        await lockRenewal.StopAsync();
+                        if (!receiver.IsClosed)
+                        {
+                            await receiver.AbandonMessageAsync(sbMessage, cancellationToken: ct);
+                        }
+                    },
+                    DeadLetterAsync = async (reason, ct) =>
+                    {
+                        await lockRenewal.StopAsync();
+                        if (!receiver.IsClosed)
+                        {
+                            await receiver.DeadLetterMessageAsync(sbMessage, deadLetterReason: reason, cancellationToken: ct);
+                        }
+                    },
                 };
             }
         }
