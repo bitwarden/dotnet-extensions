@@ -214,7 +214,8 @@ public static class MessageBrokerServiceCollectionExtensions
                 sp.GetRequiredService<ILogger<ConsumerBackgroundService<TPayload, TCeiling, TConsumer>>>(),
                 subscriptionKey,
                 sp.GetRequiredService<IOptionsMonitor<ConsumerRetryOptions>>(),
-                sp.GetRequiredService<SubscriptionReadiness>()));
+                sp.GetRequiredService<SubscriptionReadiness>(),
+                sp.GetRequiredService<TopologyGate>()));
         AddSubscriptionHealthCheck(services);
         if (consumerIsNew)
         {
@@ -343,7 +344,8 @@ public static class MessageBrokerServiceCollectionExtensions
                 }
 
                 return new CommandQueueService(queueName, receiver, sp.GetServices<ICommandFamilyHandler>(),
-                    sp.GetRequiredService<ILogger<CommandQueueService>>(), sp.GetRequiredService<SubscriptionReadiness>());
+                    sp.GetRequiredService<ILogger<CommandQueueService>>(), sp.GetRequiredService<SubscriptionReadiness>(),
+                    sp.GetRequiredService<TopologyGate>());
             });
             services.AddSingleton<IHostedService>(sp => sp.GetRequiredKeyedService<CommandQueueService>(queueName));
             AddSubscriptionHealthCheck(services);
@@ -415,7 +417,9 @@ public static class MessageBrokerServiceCollectionExtensions
         services.AddOptions<MessagingOptions>().ValidateOnStart();
         AddRabbitInfrastructure(services);
         AddAzureServiceBusInfrastructure(services);
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TopologyCheckService>());
+        services.AddBitwardenEnvironment();
+        services.TryAddSingleton<TopologyGate>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, TopologyStartupService>());
     }
 
     // One serializer per destination and family; MessageBrokerSerializerOptions stays scoped by

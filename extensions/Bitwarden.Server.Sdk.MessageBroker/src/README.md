@@ -78,8 +78,9 @@ Setting both raises `OptionsValidationException` at startup via `MessagingOption
 
 ## RabbitMQ topology
 
-The library does not provision RabbitMQ topology; operators pre-declare it (see
-[BROKER-TOPOLOGY.md](BROKER-TOPOLOGY.md) for the required exchanges, queues, bindings, and policies). The
+A service creates its RabbitMQ topology as it starts when `AutoProvisionTopology` is on (unset, when it is
+self-hosted); otherwise operators pre-declare it (see [BROKER-TOPOLOGY.md](BROKER-TOPOLOGY.md) for the
+required exchanges, queues, bindings, and policies). The
 expected shape is driven by two design choices:
 
 - **Quorum queues** for subscriber queues. The `x-delivery-count` header on quorum queues
