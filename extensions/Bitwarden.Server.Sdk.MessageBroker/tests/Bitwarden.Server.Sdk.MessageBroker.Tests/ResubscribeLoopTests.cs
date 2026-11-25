@@ -57,7 +57,10 @@ public class ResubscribeLoopTests
         var loop = RunAsync((onMessage, _) =>
         {
             if (++attempts == 3)
+            {
                 onMessage();
+            }
+
             throw new InvalidOperationException("broker gone");
         }, stopping.Token);
 

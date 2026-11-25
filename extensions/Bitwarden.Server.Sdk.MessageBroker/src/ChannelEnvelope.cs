@@ -4,6 +4,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
+/// <summary>
+/// An in-memory envelope; a requeue writes the message back to its subscription's channel until the delivery limit, then discards it.
+/// </summary>
 internal sealed class ChannelEnvelope<TPayload, TCeiling> : Envelope<TPayload, TCeiling>
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
@@ -71,7 +74,9 @@ internal sealed class ChannelEnvelope<TPayload, TCeiling> : Envelope<TPayload, T
         if (!_writer.TryWrite(redelivery))
         {
             if (_escrowFallback is not null)
+            {
                 return _escrowFallback(redelivery, cancellationToken);
+            }
 
             _logger.LogWarning(
                 "Message {MessageId} on topic {Topic} was abandoned during shutdown with no escrow configured; the message will be lost.",
