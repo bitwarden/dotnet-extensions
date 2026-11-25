@@ -7,6 +7,9 @@ using RabbitMQ.Client.Events;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
+/// <summary>
+/// Receives one payload family from a subscription's RabbitMQ quorum queue.
+/// </summary>
 internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling

@@ -4,6 +4,9 @@ using Azure.Messaging.ServiceBus;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
+/// <summary>
+/// Receives one payload family from an Azure Service Bus topic subscription, one message at a time.
+/// </summary>
 internal sealed class AzureServiceBusSubscriber<TPayload, TCeiling> : ISubscriber<TPayload, TCeiling>
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling

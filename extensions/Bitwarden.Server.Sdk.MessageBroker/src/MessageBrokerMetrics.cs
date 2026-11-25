@@ -3,6 +3,9 @@ using System.Diagnostics.Metrics;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
+/// <summary>
+/// The shared message broker metrics: publish and consume counters, and the in-memory channel depth.
+/// </summary>
 internal sealed class MessageBrokerMetrics
 {
     internal const string MeterName = "Bitwarden.Server.Sdk.MessageBroker";

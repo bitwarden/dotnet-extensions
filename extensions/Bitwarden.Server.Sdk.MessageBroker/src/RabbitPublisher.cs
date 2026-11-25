@@ -4,6 +4,9 @@ using RabbitMQ.Client.Exceptions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
+/// <summary>
+/// Publishes a payload family to a RabbitMQ topic exchange, or sends it to a command queue's exchange.
+/// </summary>
 internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, TCeiling>, IAsyncDisposable
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling

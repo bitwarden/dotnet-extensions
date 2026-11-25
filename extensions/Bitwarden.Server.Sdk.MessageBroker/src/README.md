@@ -48,35 +48,6 @@ based on `MessagingOptions`:
 
 Setting both raises `OptionsValidationException` at startup via `MessagingOptionsValidator`.
 
-### Key source files
-
-| File                                                           | Purpose                                                                          |
-| -------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `MessageBrokerServiceCollectionExtensions.cs`                  | Service-collection registration; backend selection logic                         |
-| `MessageBrokerKeys.cs`                                         | Composite publisher keyed-service key builder                                    |
-| `Envelope.cs`                                                  | Abstract base class for received messages                                        |
-| `IMessageConsumer.cs`                                          | Public interface for consumers registered via `AddMessageConsumer`               |
-| `ConsumerBackgroundService.cs`                                 | Hosted service that drives the consumer loop; auto-settles envelopes             |
-| `ConsumerInvocation.cs`                                        | Runs a hosted consumer on one message, for topics and command queues alike       |
-| `CommandQueueService.cs`                                       | Hosted receive loop for one command queue; dispatches each message by family     |
-| `CommandFamilyHandler.cs`                                      | Decodes one command family's messages into envelopes; dead-letters what it can't |
-| `CommandQueueMessage.cs`                                       | A command before its family is known, and `ICommandQueueReceiver`                |
-| `ResubscribeLoop.cs`                                           | Keeps a hosted consumer subscribing again, with backoff, through broker outages  |
-| `IMessageEscrowStore.cs`                                       | Public interface for durable message escrow on shutdown                          |
-| `ChannelPublisher.cs` / `ChannelSubscriber.cs`                 | In-memory backend                                                                |
-| `ChannelEnvelope.cs`                                           | In-memory envelope; handles `RequeueAsync` requeue logic                         |
-| `ChannelTopic.cs`                                              | Fan-out channel; one `Channel<T>` per subscription; drains to escrow on shutdown |
-| `ChannelEscrowRegistration.cs`                                 | Registers startup recovery and shutdown drain callbacks with `ChannelTopic`      |
-| `ChannelCommandQueue.cs`                                       | In-memory command queue; no escrow                                               |
-| `RabbitPublisher.cs` / `RabbitSubscriber.cs`                   | RabbitMQ backend; the publisher also sends commands to a queue                   |
-| `RabbitCommandQueueReceiver.cs`                                | RabbitMQ command queue receiver                                                  |
-| `RabbitConnection.cs`                                          | The shared RabbitMQ connection; opened again on demand after an outage           |
-| `AzureServiceBusPublisher.cs` / `AzureServiceBusSubscriber.cs` | Azure Service Bus backend                                                        |
-| `AzureServiceBusCommandQueueReceiver.cs`                       | Azure Service Bus command queue receiver                                         |
-| `MessageBrokerActivitySource.cs`                               | Shared `ActivitySource` for publish and consume spans                            |
-| `MessageBrokerMetrics.cs`                                      | Shared metrics (publish counter, consume counter, channel depth gauge)           |
-| `SystemTextJsonMessageSerializer.cs`                           | Default JSON serializer                                                          |
-
 ## RabbitMQ topology
 
 The library does not provision RabbitMQ topology; operators pre-declare it (see
@@ -167,17 +138,6 @@ position and the floor has been crossed, so a publisher cannot omit data an olde
 an aggregate exception if the declared variants are not complete, sparse, and linear: duplicate
 types or wire names, missing floor or ceiling, forks, cycles, or Next/Previous references that
 disagree with the variant list.
-
-### Key source files
-
-| File                                 | Purpose                                                                                                     |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `Payload.cs`                         | Variant-side interfaces (`IFloor`, `ICeiling`, `IPure`, `IAssisted`, `IAssist`, …) and payload base classes |
-| `ChainWalk.cs`                       | Reflects `TDown`/`TUp` off a variant type to walk the declared chain                                        |
-| `ChainValidator.cs`                  | Startup-time chain-shape validation                                                                         |
-| `Publisher.cs`                       | `Publisher<TPayload, TCeiling>` base + `PublishBuilder` fluent chain                                        |
-| `Envelope.cs`                        | Selects the received variant, upcasts it to the consumer's ceiling                                          |
-| `SystemTextJsonMessageSerializer.cs` | Polymorphic array wire format with `$type` discriminator                                                    |
 
 ## Running tests
 
