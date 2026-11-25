@@ -61,8 +61,10 @@ Docker:
 
 - `OutboxEngineTests` runs the claims, deletes, deferrals, prefix retraction and backlog count on
   SQL Server, PostgreSQL, MySQL and MariaDB, several instances sharing one outbox.
-- `BrokerDeliveryTests` sends through a real RabbitMQ 4.3.6 broker.
+- `BrokerDeliveryTests` sends through a real AMQP broker: RabbitMQ 4.3.6, or the image
+  `MESSAGING_TESTS_AMQP_IMAGE` names.
 
 ```bash
 dotnet test --project extensions/Bitwarden.Server.Sdk.MessageBroker.Sender/tests/Bitwarden.Server.Sdk.MessageBroker.Sender.Tests
+MESSAGING_TESTS_AMQP_IMAGE=cloudamqp/lavinmq:2.10.4@sha256:2d92aa41dda178e18ed1d64d3b48af47273a4c2134e82f61fcbc112797c378a9 dotnet test --project extensions/Bitwarden.Server.Sdk.MessageBroker.Sender/tests/Bitwarden.Server.Sdk.MessageBroker.Sender.Tests -- --filter-class "*.BrokerDeliveryTests"
 ```

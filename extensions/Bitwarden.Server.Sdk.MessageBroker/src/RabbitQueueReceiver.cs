@@ -26,7 +26,7 @@ internal sealed class RabbitQueueReceiver : IMessageReceiver
     }
 
     /// <summary>
-    /// The queue a subscription reads on RabbitMQ, bound to its topic's exchange.
+    /// The queue a subscription reads on RabbitMQ and LavinMQ, bound to its topic's exchange.
     /// </summary>
     public static string SubscriptionQueueName(string topic, string subscription) => $"{topic}.{subscription}";
 

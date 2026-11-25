@@ -5,13 +5,17 @@ namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 public class RabbitDeliveryCountTests
 {
     /// <summary>
-    /// RabbitMQ sends <c>x-delivery-count</c> as a 64-bit integer that counts failed deliveries from 0, so the
-    /// delivery count is one more, whatever the redelivered flag says.
+    /// RabbitMQ sends <c>x-delivery-count</c> as a 64-bit integer and LavinMQ as a 32-bit one; either counts failed
+    /// deliveries from 0, so the delivery count is one more, whatever the redelivered flag says.
     /// </summary>
     [Theory]
     [InlineData(0L, 1)]
     [InlineData(2L, 3)]
-    public void ReadsTheHeaderAsRabbitMqSendsIt(object header, int expected)
+    [InlineData(0, 1)]
+    [InlineData(2, 3)]
+    [InlineData((short)2, 3)]
+    [InlineData((byte)2, 3)]
+    public void ReadsTheHeaderAsEitherBrokerSendsIt(object header, int expected)
     {
         var headers = new Dictionary<string, object?> { ["x-delivery-count"] = header };
 

@@ -374,7 +374,7 @@ public class RabbitCommandBehaviorTests : CommandBehaviorTests, IClassFixture<Ra
             await channel.QueueBindAsync($"dlq.{queue}", $"dlx.{queue}", routingKey: "",
                 cancellationToken: TestContext.Current.CancellationToken);
             // The delivery limit and dead-letter exchange as queue arguments, which RabbitMQ treats as
-            // BROKER-TOPOLOGY.md's policy keys.
+            // BROKER-TOPOLOGY.md's policy keys. LavinMQ also needs the delivery limit to count x-delivery-count.
             await channel.QueueDeclareAsync(queue, durable: true, exclusive: false, autoDelete: false,
                 arguments: new Dictionary<string, object?>
                 {
