@@ -30,6 +30,12 @@ internal sealed class RabbitQueueReceiver : IMessageReceiver
     /// </summary>
     public static string SubscriptionQueueName(string topic, string subscription) => $"{topic}.{subscription}";
 
+    /// <summary>
+    /// The prefix of the dead-letter exchange and queue each subscription queue and command queue dead-letters to,
+    /// <c>dead-letter.{queue}</c>.
+    /// </summary>
+    internal const string DeadLetterPrefix = "dead-letter.";
+
     public async IAsyncEnumerable<ReceivedMessage> ReceiveAsync(Action onSubscribed, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // The host closing the connection during setup is a shutdown, not a broker failure.

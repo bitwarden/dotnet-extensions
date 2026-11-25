@@ -29,6 +29,12 @@ jobs:
       - name: Test solution
         run: dotnet test --configuration Debug -- --coverage --coverage-output-format cobertura --coverage-output "coverage.cobertura.xml" --report-xunit-trx --report-xunit-trx-filename "test-results.trx"
 
+      - name: Compile the Service Bus template
+        if: ${{ !cancelled() }}
+        run: |
+          az bicep install
+          az bicep build --file infra/messaging/message-broker.bicep --stdout > /dev/null
+
       - name: Report test results
         uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
         if: ${{ github.event.pull_request.head.repo.full_name == github.repository && !cancelled() }}

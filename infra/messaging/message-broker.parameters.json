@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "maxDeliveryCount": {
+      "value": 10
+    },
+    "topics": {
+      "value": [
+        {
+          "name": "identity.events",
+          "owner": "identity"
+        }
+      ]
+    },
+    "subscriptions": {
+      "value": [
+        {
+          "topic": "identity.events",
+          "name": "vault",
+          "family": "user.deleted",
+          "reader": "vault"
+        }
+      ]
+    },
+    "commandQueues": {
+      "value": [
+        {
+          "name": "notification.commands",
+          "owner": "notification"
+        }
+      ]
+    },
+    "commandSenders": {
+      "value": [
+        {
+          "queue": "notification.commands",
+          "service": "vault"
+        }
+      ]
+    }
+  }
+}
