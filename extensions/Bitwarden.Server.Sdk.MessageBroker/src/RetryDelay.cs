@@ -12,7 +12,10 @@ internal static class RetryDelay
     {
         var delay = options.RetryDelayAfter(deliveryCount);
         if (delay <= TimeSpan.Zero)
+        {
             return;
+        }
+
         try
         {
             await Task.Delay(delay, stoppingToken);

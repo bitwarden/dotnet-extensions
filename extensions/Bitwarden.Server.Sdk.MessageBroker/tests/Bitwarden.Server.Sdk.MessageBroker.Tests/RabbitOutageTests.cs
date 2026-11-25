@@ -45,7 +45,10 @@ public sealed class RabbitOutageTests : IAsyncLifetime
             await host.StopAsync();
             host.Dispose();
         }
-        if (_broker is not null) await _broker.DisposeAsync();
+        if (_broker is not null)
+        {
+            await _broker.DisposeAsync();
+        }
     }
 
     private static int FreePort()
@@ -60,9 +63,9 @@ public sealed class RabbitOutageTests : IAsyncLifetime
     private async Task StartBrokerAsync()
     {
         _broker ??= new ContainerBuilder()
-            .WithImage("rabbitmq")
+            .WithImage(AmqpTestBroker.Image)
             .WithPortBinding(_port, 5672)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Server startup complete"))
+            .WithWaitStrategy(AmqpTestBroker.Ready)
             .Build();
         await _broker.StartAsync(TestContext.Current.CancellationToken);
     }
