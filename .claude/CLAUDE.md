@@ -108,6 +108,42 @@ See the [README.md](README.md) for detailed information about each package. Main
 -   Pin exact versions using bracket notation: `[X.Y.Z]` in test projects
 -   Do not pin exact versions in packable projects
 
+## Lessons from Code Review
+
+Reviewers raised each of these on a pull request. Check every change against them before opening or updating a pull request, so no reviewer has to raise one twice.
+
+### Code
+
+-   Brace every `if`, `else`, `for`, `foreach`, `while`, `do`, `using`, `lock` and `fixed` body, even a single `return` or `continue`. `.editorconfig` enforces this, and CI's `dotnet format --verify-no-changes` fails without it.
+-   Don't add a parameter that every caller sets to the same value as another parameter. Use the existing one, and add a new one only when a caller passes something different.
+-   Put each top-level type in its own file, named for it. Nested private types can stay.
+-   Don't give a base type the same name as the type that implements it. If every member of an abstract class is abstract, make it an interface.
+-   Leave out comments that only restate the name of the thing they describe.
+-   A parser that claims to be strict refuses everything the underlying BCL parser also accepts: whitespace, sign and hex prefixes, braces, leading zeros, legacy forms.
+-   After moving or deleting code, remove any `PackageReference` that is no longer used, in src and tests, and commit the updated lock files.
+
+### Tests
+
+-   For theory cases longer than short scalars, use `ClassData` or `TheoryData` rows with a readable `TestDisplayName`, not long `[InlineData]` strings of code.
+-   Give each branch and each lookup-table row a case where only that branch decides the outcome, and assert the full message text, not only an id. Check that each test actually reaches the state its name claims.
+-   Pin every test container image by digest, with its version in a comment: `"rabbitmq@sha256:…"; // 4.4.1`. When a package has a shared definition of an image, use it.
+
+### Dependencies
+
+-   A new dependency of any kind, including a container image or a broker used only in CI, needs a Dependency Review (a VULN ticket with AppSec sign-off) and team agreement before the pull request. Keep it in its own pull request, with nothing else depending on it.
+
+### Documentation and pull requests
+
+-   Don't add file-by-file tables to a README. Describe each type in a short XML `<summary>` instead.
+-   Where a document describes a flow or a topology, add a Mermaid diagram. Name participants by their role in a service-oriented architecture (sending service, message broker, receiving service), not only by type name.
+-   Write messages, diagnostics and summaries in short, plain sentences that name the exact operation and object and say how to fix the problem.
+-   Every pull request has a Jira work item saying, in a human voice, why the change is needed and which problems it prevents.
+-   Keep the pull request description short at first glance, with detail in `<details>` blocks. Keep any AI-assisted review section to a line or two: it distracts the reviewer agents that read the description later.
+
+### Adding a lesson
+
+When a human reviewer's comment applies beyond the pull request it was made on, record it in its own pull request. If a tool can check it, enforce it in `.editorconfig`, an analyzer or CI. Otherwise, add it to this section.
+
 ## Important Notes
 
 ### Security
