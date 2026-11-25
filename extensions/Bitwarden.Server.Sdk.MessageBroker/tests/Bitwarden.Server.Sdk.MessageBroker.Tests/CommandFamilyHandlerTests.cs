@@ -78,6 +78,32 @@ public sealed class CommandFamilyHandlerTests : IDisposable
     }
 
     [Fact]
+    public async Task ACommandWhoseVersionCannotBeUpcastToTheCeiling_IsDeadLettered()
+    {
+        using var services = new ServiceCollection()
+            .AddMetrics()
+            .AddOptions()
+            .AddSingleton<CommandRecorder>()
+            .AddScoped<RenameConsumer>()
+            .BuildServiceProvider();
+        var handler = new CommandFamilyHandler<RenamePayload, RenameV2, RenameConsumer>(
+            Queue,
+            new SystemTextJsonMessageSerializer(
+                services.GetRequiredService<IOptionsMonitor<MessageBrokerSerializerOptions>>(), Queue),
+            services.GetRequiredService<IServiceScopeFactory>(),
+            new MessageBrokerMetrics(services.GetRequiredService<System.Diagnostics.Metrics.IMeterFactory>()));
+        var settlement = new Settlement();
+
+        // v1 with no name: RenameV1.Upcast() throws on it, so no version reaches the RenameV2 ceiling.
+        await handler.HandleAsync(Message("""[{"$type":"v1","Name":null}]""", settlement), TestContext.Current.CancellationToken);
+
+        Assert.True(settlement.DeadLettered);
+        Assert.False(settlement.Completed || settlement.Requeued);
+        Assert.Contains(nameof(RenameV2), settlement.DeadLetterReason);
+        Assert.Empty(services.GetRequiredService<CommandRecorder>().Handled);
+    }
+
+    [Fact]
     public async Task ACommandAfterOneSetAside_IsStillHandled()
     {
         await _handler.HandleAsync(Message("not json at all", new Settlement()), TestContext.Current.CancellationToken);
@@ -87,5 +113,30 @@ public sealed class CommandFamilyHandlerTests : IDisposable
 
         Assert.True(settlement.Completed);
         Assert.Equal(7, Assert.Single(_recorder.Handled).Id);
+    }
+}
+
+public sealed record RenameV1(string? Name) : RenamePayload.IFloor<RenameV2>
+{
+    public RenameV2 Upcast() => new(Name!.Trim());
+}
+
+public sealed record RenameV2(string Name) : RenamePayload.IPureCeiling<RenameV1>
+{
+    public RenameV1 Downcast() => new(Name);
+}
+
+public class RenamePayload : Payload<RenamePayload, RenameV1, RenameV2>, IPayloadVariants<RenamePayload>, IPayloadWireName<RenamePayload>
+{
+    public static string WireName => "rename";
+    public static IReadOnlyList<(Type, string)> Variants => [(typeof(RenameV1), "v1"), (typeof(RenameV2), "v2")];
+}
+
+public sealed class RenameConsumer(CommandRecorder recorder) : IMessageConsumer<RenamePayload, RenameV2>
+{
+    public Task HandleAsync(Envelope<RenamePayload, RenameV2> envelope, CancellationToken cancellationToken)
+    {
+        recorder.Record(new(RenamePayload.WireName, 0, envelope.MessageId, envelope.DeliveryCount));
+        return Task.CompletedTask;
     }
 }

@@ -3,6 +3,7 @@ using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
@@ -103,6 +104,16 @@ public abstract class CommandBehaviorTests : IAsyncLifetime
 
     protected virtual bool DetectsMissingQueue => true;
 
+    /// <summary>
+    /// How many times a command whose consumer always throws is delivered before it is set aside.
+    /// </summary>
+    protected abstract int DeliveryLimit { get; }
+
+    /// <summary>
+    /// Fails unless the command with this identifier and family was set aside rather than redelivered.
+    /// </summary>
+    protected abstract Task AssertDeadLetteredAsync(IHost host, string family, string messageId);
+
     protected virtual Task PreStartAsync(IHost host) => Task.CompletedTask;
 
     public virtual ValueTask InitializeAsync() => ValueTask.CompletedTask;
@@ -124,6 +135,7 @@ public abstract class CommandBehaviorTests : IAsyncLifetime
             .ConfigureServices(services =>
             {
                 services.AddMetrics();
+                services.AddFakeLogging();
                 services.AddSingleton<CommandRecorder>();
                 services.AddCommandSender<SendMailPayload, SendMail>(QueueName);
                 services.AddCommandSender<SendPushPayload, SendPush>(QueueName);
@@ -174,19 +186,45 @@ public abstract class CommandBehaviorTests : IAsyncLifetime
         var host = await CreateHostAsync();
         var recorder = host.Services.GetRequiredService<CommandRecorder>();
         var (smsId, mailId) = (Random.Shared.Next(), Random.Shared.Next());
+        var smsMessageId = Guid.CreateVersion7().ToString();
 
         // send.sms is accepted by no consumer in this host; it must not block the send.mail behind it.
         await Sender<SendSmsPayload, SendSms>(host, QueueName).Publish(new SendSms(smsId))
-            .SendAsync(TestContext.Current.CancellationToken);
+            .SendAsync(smsMessageId, TestContext.Current.CancellationToken);
         await Sender<SendMailPayload, SendMail>(host, QueueName).Publish(new SendMail(mailId))
             .SendAsync(TestContext.Current.CancellationToken);
 
         await recorder.WaitForAsync(c => c.Id == mailId, 1);
         Assert.DoesNotContain(recorder.Handled, c => c.Id == smsId);
-        await AssertDeadLetteredAsync(SendSmsPayload.WireName);
+        await AssertDeadLetteredAsync(host, SendSmsPayload.WireName, smsMessageId);
+        // Set aside once, not returned to the queue and seen again.
+        Assert.Single(host.Services.GetFakeLogCollector().GetSnapshot(), record =>
+            record.Category == typeof(CommandQueueService).FullName && record.Message.Contains(smsMessageId));
     }
 
-    protected virtual Task AssertDeadLetteredAsync(string family) => Task.CompletedTask;
+    [Fact(Timeout = 90 * 1000)]
+    public async Task CommandThatFailsOnEveryDeliveryIsSetAsideAtTheDeliveryLimit()
+    {
+        var host = await CreateHostAsync();
+        var recorder = host.Services.GetRequiredService<CommandRecorder>();
+        var (mailId, pushId) = (Random.Shared.Next(), Random.Shared.Next());
+        recorder.FailDeliveries[mailId] = int.MaxValue;
+        var mailMessageId = Guid.CreateVersion7().ToString();
+
+        await Sender<SendMailPayload, SendMail>(host, QueueName).Publish(new SendMail(mailId))
+            .SendAsync(mailMessageId, TestContext.Current.CancellationToken);
+        await recorder.WaitForAsync(c => c.Id == mailId, DeliveryLimit);
+
+        // A command sent after the limit is reached is still handled, and no further delivery of the failing one arrives.
+        await Sender<SendPushPayload, SendPush>(host, QueueName).Publish(new SendPush(pushId))
+            .SendAsync(TestContext.Current.CancellationToken);
+        await recorder.WaitForAsync(c => c.Id == pushId, 1);
+        await Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+
+        Assert.Equal(Enumerable.Range(1, DeliveryLimit),
+            recorder.Handled.Where(c => c.Id == mailId).Select(c => c.DeliveryCount).Order());
+        await AssertDeadLetteredAsync(host, SendMailPayload.WireName, mailMessageId);
+    }
 
     [Fact(Timeout = 60 * 1000)]
     public async Task ConsumerThatThrowsSeesTheSameCommandAgain()
@@ -262,6 +300,19 @@ public class ChannelCommandBehaviorTests : CommandBehaviorTests
     protected override string QueueName => _queueName;
     protected override bool DetectsMissingQueue => false;
     protected override Dictionary<string, string?> CreateConfig() => [];
+
+    protected override int DeliveryLimit => new MessagingOptions().MaxDeliveryCount;
+
+    // The in-memory queue keeps no dead-letter queue: it logs the command and discards it.
+    protected override Task AssertDeadLetteredAsync(IHost host, string family, string messageId)
+    {
+        Assert.Contains(host.Services.GetFakeLogCollector().GetSnapshot(), record =>
+            record.Level == LogLevel.Warning
+            && record.Category == typeof(ChannelCommandQueue).FullName
+            && record.Message.Contains(messageId)
+            && record.Message.Contains("will be discarded"));
+        return Task.CompletedTask;
+    }
 }
 
 public class RabbitCommandBehaviorTests : CommandBehaviorTests, IClassFixture<RabbitBehaviorTests.RabbitFixture>
@@ -275,6 +326,29 @@ public class RabbitCommandBehaviorTests : CommandBehaviorTests, IClassFixture<Ra
 
     protected override Dictionary<string, string?> CreateConfig() => new() { ["RabbitUri"] = _fixture.GetUri() };
 
+    // A quorum queue delivers a message once more than its x-delivery-limit before dead-lettering it.
+    protected override int DeliveryLimit => 4;
+
+    protected override async Task AssertDeadLetteredAsync(IHost host, string family, string messageId)
+    {
+        await using var conn = await new ConnectionFactory { Uri = new Uri(_fixture.GetUri()) }
+            .CreateConnectionAsync(TestContext.Current.CancellationToken);
+        await using var channel = await conn.CreateChannelAsync(cancellationToken: TestContext.Current.CancellationToken);
+        BasicGetResult? deadLettered = null;
+        for (var attempt = 0; attempt < 50 && deadLettered is null; attempt++)
+        {
+            deadLettered = await channel.BasicGetAsync($"dlq.{QueueName}", autoAck: true, TestContext.Current.CancellationToken);
+            if (deadLettered is null)
+            {
+                await Task.Delay(100, TestContext.Current.CancellationToken);
+            }
+        }
+        Assert.NotNull(deadLettered);
+        Assert.Equal(messageId, deadLettered.BasicProperties.MessageId);
+        Assert.Equal(family, System.Text.Encoding.UTF8.GetString(
+            Assert.IsType<byte[]>(deadLettered.BasicProperties.Headers?[BrokerProperties.PayloadFamily])));
+    }
+
     protected override async Task PreStartAsync(IHost host)
     {
         var uri = host.Services.GetRequiredService<IOptions<MessagingOptions>>().Value.RabbitUri!;
@@ -285,8 +359,22 @@ public class RabbitCommandBehaviorTests : CommandBehaviorTests, IClassFixture<Ra
         {
             await channel.ExchangeDeclareAsync(queue, ExchangeType.Direct, durable: true,
                 cancellationToken: TestContext.Current.CancellationToken);
-            await channel.QueueDeclareAsync(queue, durable: true, exclusive: false, autoDelete: false,
+            await channel.ExchangeDeclareAsync($"dlx.{queue}", ExchangeType.Fanout, durable: true,
+                cancellationToken: TestContext.Current.CancellationToken);
+            await channel.QueueDeclareAsync($"dlq.{queue}", durable: true, exclusive: false, autoDelete: false,
                 arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum" },
+                cancellationToken: TestContext.Current.CancellationToken);
+            await channel.QueueBindAsync($"dlq.{queue}", $"dlx.{queue}", routingKey: "",
+                cancellationToken: TestContext.Current.CancellationToken);
+            // The delivery limit and dead-letter exchange as queue arguments, which RabbitMQ treats as
+            // BROKER-TOPOLOGY.md's policy keys.
+            await channel.QueueDeclareAsync(queue, durable: true, exclusive: false, autoDelete: false,
+                arguments: new Dictionary<string, object?>
+                {
+                    ["x-queue-type"] = "quorum",
+                    ["x-delivery-limit"] = DeliveryLimit - 1,
+                    ["x-dead-letter-exchange"] = $"dlx.{queue}",
+                },
                 cancellationToken: TestContext.Current.CancellationToken);
             await channel.QueueBindAsync(queue, queue, routingKey: queue,
                 cancellationToken: TestContext.Current.CancellationToken);
@@ -378,14 +466,17 @@ public class AzureServiceBusCommandBehaviorTests : CommandBehaviorTests
         } while (batch.Count > 0);
     }
 
-    protected override async Task AssertDeadLetteredAsync(string family)
+    // The emulator's commands queue has MaxDeliveryCount 10.
+    protected override int DeliveryLimit => 10;
+
+    protected override async Task AssertDeadLetteredAsync(IHost host, string family, string messageId)
     {
         await using var client = new ServiceBusClient(_fixture.GetConnectionString());
         await using var receiver = client.CreateReceiver(QueueName, new ServiceBusReceiverOptions { SubQueue = SubQueue.DeadLetter });
         var message = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         Assert.NotNull(message);
+        Assert.Equal(messageId, message.MessageId);
         Assert.Equal(family, message.ApplicationProperties[BrokerProperties.PayloadFamily]);
-        Assert.Contains(family, message.DeadLetterReason);
         await receiver.CompleteMessageAsync(message, TestContext.Current.CancellationToken);
     }
 }
