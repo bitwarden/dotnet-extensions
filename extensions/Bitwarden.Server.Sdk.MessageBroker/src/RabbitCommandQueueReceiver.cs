@@ -69,7 +69,10 @@ internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
         rabbitChannel.ChannelShutdownAsync += (_, args) =>
         {
             if (args.Initiator != ShutdownInitiator.Application)
+            {
                 brokerDisconnect = new Exception(args.ReplyText);
+            }
+
             innerChannel.Writer.TryComplete();
             return Task.CompletedTask;
         };
@@ -85,10 +88,14 @@ internal sealed class RabbitCommandQueueReceiver : ICommandQueueReceiver
         }
 
         await foreach (var message in innerChannel.Reader.ReadAllAsync(cancellationToken))
+        {
             yield return message;
+        }
 
         if (brokerDisconnect is not null)
+        {
             throw new BrokerDisconnectedException(_queueName, brokerDisconnect);
+        }
     }
 
     private static string? ReadHeader(IDictionary<string, object?>? headers, string name) =>

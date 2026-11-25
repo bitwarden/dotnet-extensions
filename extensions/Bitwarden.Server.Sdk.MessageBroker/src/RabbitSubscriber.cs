@@ -114,7 +114,10 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
         rabbitChannel.ChannelShutdownAsync += (_, args) =>
         {
             if (args.Initiator != ShutdownInitiator.Application)
+            {
                 brokerDisconnect = new Exception(args.ReplyText);
+            }
+
             innerChannel.Writer.TryComplete();
             return Task.CompletedTask;
         };
@@ -138,7 +141,9 @@ internal sealed class RabbitSubscriber<TPayload, TCeiling> : ISubscriber<TPayloa
         }
 
         if (brokerDisconnect is not null)
+        {
             throw new BrokerDisconnectedException(_exchangeName, brokerDisconnect);
+        }
     }
 
     private sealed class RabbitEnvelope : Envelope<TPayload, TCeiling>

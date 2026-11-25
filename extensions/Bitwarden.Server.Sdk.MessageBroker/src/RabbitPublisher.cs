@@ -32,7 +32,9 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
     private async Task<IChannel> GetChannelAsync(CancellationToken cancellationToken)
     {
         if (_channel is { IsOpen: true } open)
+        {
             return open;
+        }
 
         // Before the gate, so concurrent sends share one attempt to connect.
         var conn = await _connection.GetConnectionAsync(cancellationToken);
@@ -41,7 +43,10 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
         try
         {
             if (_channel is { IsOpen: true } opened)
+            {
                 return opened;
+            }
+
             if (_channel is not null)
             {
                 try
@@ -107,6 +112,8 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
     public async ValueTask DisposeAsync()
     {
         if (_channel is not null)
+        {
             await _channel.DisposeAsync();
+        }
     }
 }

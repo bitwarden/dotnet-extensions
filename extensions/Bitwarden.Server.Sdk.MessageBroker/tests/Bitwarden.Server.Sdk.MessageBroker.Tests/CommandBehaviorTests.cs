@@ -54,7 +54,11 @@ public sealed class CommandRecorder
         while (DateTime.UtcNow < deadline)
         {
             var found = _handled.Where(match).ToList();
-            if (found.Count >= count) return found;
+            if (found.Count >= count)
+            {
+                return found;
+            }
+
             await Task.Delay(50, TestContext.Current.CancellationToken);
         }
         throw new TimeoutException($"Expected {count} matching commands; saw {_handled.Count(match)}.");
@@ -67,7 +71,10 @@ public sealed class SendMailConsumer(CommandRecorder recorder) : IMessageConsume
     {
         recorder.Record(new(SendMailPayload.WireName, envelope.Payload.Id, envelope.MessageId, envelope.DeliveryCount));
         if (recorder.FailDeliveries.TryGetValue(envelope.Payload.Id, out var failUpTo) && envelope.DeliveryCount <= failUpTo)
+        {
             throw new InvalidOperationException("Delivery fails on purpose.");
+        }
+
         return Task.CompletedTask;
     }
 }
@@ -128,7 +135,11 @@ public abstract class CommandBehaviorTests : IAsyncLifetime
             .Build();
         await PreStartAsync(host);
         await host.StartAsync(TestContext.Current.CancellationToken);
-        if (track) _hosts.Add(host);
+        if (track)
+        {
+            _hosts.Add(host);
+        }
+
         return host;
     }
 
@@ -210,7 +221,11 @@ public abstract class CommandBehaviorTests : IAsyncLifetime
                 host.Dispose();
 
                 var execution = service.ExecuteTask;
-                if (execution is null) continue;
+                if (execution is null)
+                {
+                    continue;
+                }
+
                 await Task.WhenAny(execution, Task.Delay(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
                 Assert.True(execution.IsCompleted, $"The receiver was still running after the host stopped (delay {delay} ms).");
                 Assert.False(execution.IsFaulted, $"The receiver faulted: {execution.Exception?.GetBaseException()}");
