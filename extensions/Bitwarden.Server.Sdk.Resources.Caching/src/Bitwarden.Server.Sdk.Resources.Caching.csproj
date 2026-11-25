@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- The service-owned cache reads entities through Entity Framework, which is not trim- or
+         AOT-safe and says so on its own API surface. -->
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <PreReleaseVersionLabel>alpha</PreReleaseVersionLabel>
+    <PreReleaseVersionIteration>1</PreReleaseVersionIteration>
+    <VersionSuffix Condition="'$(VersionSuffix)' == '' AND '$(IsPreRelease)' == 'true'">$(PreReleaseVersionLabel).$(PreReleaseVersionIteration)</VersionSuffix>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Description>A Bitwarden service's own cache in Redis: the resources its clients read instead of calling it, filled on read and invalidated just before each change commits.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="StackExchange.Redis" Version="2.13.17" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Declared resources are read through the platform's standard read, invalidated from the
+         change tracker as each change commits, and published in the contract. -->
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Authorization\src\Bitwarden.Server.Sdk.Authorization.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Context\src\Bitwarden.Server.Sdk.Context.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Data\src\Bitwarden.Server.Sdk.Data.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Errors\src\Bitwarden.Server.Sdk.Errors.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Resources\src\Bitwarden.Server.Sdk.Resources.csproj" />
+    <ProjectReference Include="..\..\Bitwarden.Server.Sdk.Resources.Caching.Abstractions\src\Bitwarden.Server.Sdk.Resources.Caching.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Resources.Caching.Tests" />
+    <InternalsVisibleTo Include="Bitwarden.Server.Sdk.Resources.Caching.Generated.Tests" />
+  </ItemGroup>
+
+</Project>
