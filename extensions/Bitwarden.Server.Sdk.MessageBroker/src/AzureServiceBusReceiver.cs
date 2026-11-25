@@ -4,28 +4,36 @@ using Azure.Messaging.ServiceBus;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Receives every message on an Azure Service Bus queue.
+/// Receives every message on one Azure Service Bus queue or topic subscription.
 /// </summary>
-internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceiver
+internal sealed class AzureServiceBusReceiver : IMessageReceiver
 {
     private readonly AzureServiceBusConnection _connection;
-    private readonly string _queueName;
+    private readonly string _entityName;
+    private readonly string? _subscriptionName;
     private readonly TimeSpan _maxLockRenewal;
 
-    public AzureServiceBusCommandQueueReceiver(AzureServiceBusConnection connection, string queueName, TimeSpan maxLockRenewal)
+    /// <param name="connection">The shared Azure Service Bus connection.</param>
+    /// <param name="entityName">The command queue, or the topic when <paramref name="subscriptionName"/> is set.</param>
+    /// <param name="subscriptionName">The topic subscription to receive from, or null for a queue.</param>
+    /// <param name="maxLockRenewal">How long to keep renewing a received message's lock while it is handled.</param>
+    public AzureServiceBusReceiver(AzureServiceBusConnection connection, string entityName, string? subscriptionName, TimeSpan maxLockRenewal)
     {
         _maxLockRenewal = maxLockRenewal;
         _connection = connection;
-        _queueName = queueName;
+        _entityName = entityName;
+        _subscriptionName = subscriptionName;
     }
 
-    public async IAsyncEnumerable<CommandQueueMessage> ReceiveAsync(Action onSubscribed, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<ReceivedMessage> ReceiveAsync(Action onSubscribed, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ServiceBusReceiver receiver;
         try
         {
-            receiver = _connection.Client
-                .CreateReceiver(_queueName, new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.PeekLock });
+            var options = new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.PeekLock };
+            receiver = _subscriptionName is null
+                ? _connection.Client.CreateReceiver(_entityName, options)
+                : _connection.Client.CreateReceiver(_entityName, _subscriptionName, options);
         }
         catch (ObjectDisposedException) when (_connection.IsClosing)
         {
@@ -36,7 +44,7 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
 
         using var stopWaiting = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _connection.Closed);
 
-        // A receive on a quiet queue waits for a message, so a successful peek signals subscribed.
+        // A receive on a quiet queue or subscription waits for a message, so a successful peek signals subscribed.
         var subscribed = false;
         try
         {
@@ -53,10 +61,13 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
         }
         catch (ServiceBusException ex)
         {
-            throw new BrokerDisconnectedException(_queueName, ex);
+            throw new BrokerDisconnectedException(_entityName, ex);
         }
         if (!subscribed)
+        {
             yield break;
+        }
+
         onSubscribed();
 
         while (!cancellationToken.IsCancellationRequested && !_connection.IsClosing)
@@ -80,13 +91,13 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
             }
             catch (ServiceBusException ex)
             {
-                throw new BrokerDisconnectedException(_queueName, ex);
+                throw new BrokerDisconnectedException(_entityName, ex);
             }
 
             foreach (var sbMessage in received)
             {
                 var lockRenewal = new AzureServiceBusLockRenewal(receiver, sbMessage, _maxLockRenewal);
-                yield return new CommandQueueMessage
+                yield return new ReceivedMessage
                 {
                     Body = sbMessage.Body.ToMemory(),
                     FamilyWireName = sbMessage.ApplicationProperties.TryGetValue(BrokerProperties.PayloadFamily, out var family)
@@ -107,13 +118,17 @@ internal sealed class AzureServiceBusCommandQueueReceiver : ICommandQueueReceive
                     {
                         await lockRenewal.StopAsync();
                         if (!receiver.IsClosed)
+                        {
                             await receiver.AbandonMessageAsync(sbMessage, cancellationToken: ct);
+                        }
                     },
                     DeadLetterAsync = async (reason, ct) =>
                     {
                         await lockRenewal.StopAsync();
                         if (!receiver.IsClosed)
+                        {
                             await receiver.DeadLetterMessageAsync(sbMessage, deadLetterReason: reason, cancellationToken: ct);
+                        }
                     },
                 };
             }

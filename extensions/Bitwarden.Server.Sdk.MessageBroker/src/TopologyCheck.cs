@@ -68,7 +68,9 @@ internal sealed class TopologyCheckService(
     {
         var value = options.Value;
         if (!value.VerifyTopologyAtStartup)
+        {
             return;
+        }
 
         var expected = ExpectedTopology.From(infrastructure.Value.Requirements);
         Func<CancellationToken, Task<CheckResult>>? check = null;
@@ -82,7 +84,9 @@ internal sealed class TopologyCheckService(
         }
 
         if (check is null || expected.IsEmpty)
+        {
             return;
+        }
 
         var delay = ResubscribeLoop.InitialDelay;
         while (!stoppingToken.IsCancellationRequested)
@@ -116,13 +120,20 @@ internal sealed class TopologyCheckService(
             {
                 // Say only what was checked: on Azure Service Bus some of the topology can't be.
                 if (result.Unchecked.Count == 0)
+                {
                     logger.LogInformation("The message broker has the topology this service needs ({Checked} objects checked).", result.Checked);
+                }
                 else if (result.Checked == 0)
+                {
                     logger.LogInformation("None of this service's topology can be checked on this broker: {Unchecked}.",
                         string.Join("; ", result.Unchecked));
+                }
                 else
+                {
                     logger.LogInformation("The message broker has the {Checked} objects checked; these can't be checked on this broker: {Unchecked}.",
                         result.Checked, string.Join("; ", result.Unchecked));
+                }
+
                 return;
             }
 
@@ -148,7 +159,7 @@ internal sealed class TopologyCheckService(
 
         var objects = new List<(string Label, string Name, bool IsQueue)>();
         objects.AddRange(expected.Topics.Select(topic => ("topic exchange", topic, false)));
-        objects.AddRange(expected.Subscriptions.Select(s => ("subscription queue", RabbitSubscriber.QueueName(s.Topic, s.Subscription), true)));
+        objects.AddRange(expected.Subscriptions.Select(s => ("subscription queue", RabbitQueueReceiver.SubscriptionQueueName(s.Topic, s.Subscription), true)));
         objects.AddRange(expected.CommandQueues.Select(queue => ("command queue", queue, true)));
         objects.AddRange(expected.SentToQueues.Select(queue => ("exchange of the command queue", queue, false)));
 
@@ -160,9 +171,13 @@ internal sealed class TopologyCheckService(
             try
             {
                 if (isQueue)
+                {
                     await channel.QueueDeclarePassiveAsync(name, cancellationToken);
+                }
                 else
+                {
                     await channel.ExchangeDeclarePassiveAsync(name, cancellationToken);
+                }
             }
             catch (OperationInterruptedException ex) when (ex.ShutdownReason?.ReplyCode == 404)
             {
