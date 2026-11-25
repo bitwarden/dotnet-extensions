@@ -62,7 +62,9 @@ internal sealed class TopologyGate
     {
         Provisions = TopologyStartupService.ShouldProvision(options.Value, () => services.GetRequiredService<IBitwardenEnvironment>());
         if (!Provisions)
+        {
             _open.TrySetResult();
+        }
     }
 
     /// <summary>
@@ -132,7 +134,9 @@ internal sealed class TopologyStartupService(
         {
             // A host that is stopping cancels the consumers' wait instead.
             if (!lifetime.ApplicationStopping.IsCancellationRequested)
+            {
                 gate.Open();
+            }
         }
     }
 
@@ -141,7 +145,9 @@ internal sealed class TopologyStartupService(
         var value = options.Value;
         var provision = gate.Provisions;
         if (!provision && !value.VerifyTopologyAtStartup)
+        {
             return;
+        }
 
         var expected = ExpectedTopology.From(infrastructure.Value.Requirements);
         Func<CancellationToken, Task<StepResult>>? step = (provision, value.UsesAzureServiceBus) switch
@@ -153,7 +159,9 @@ internal sealed class TopologyStartupService(
             _ => null,
         };
         if (step is null || expected.IsEmpty)
+        {
             return;
+        }
 
         var action = provision ? "provision" : "check";
         var delay = ResubscribeLoop.InitialDelay;
@@ -172,7 +180,10 @@ internal sealed class TopologyStartupService(
             {
                 logger.LogWarning("Couldn't {Action} the message broker's topology yet: {Reason} Trying again in {Delay}.", action, ex.Message, delay);
                 if (!await DelayAsync(delay, stoppingToken))
+                {
                     return;
+                }
+
                 delay = ResubscribeLoop.NextDelay(delay);
                 continue;
             }
@@ -181,7 +192,10 @@ internal sealed class TopologyStartupService(
                 // Unreachable, or went away part way: an outage. What was already made is left alone.
                 logger.LogWarning(ex, "Couldn't {Action} the message broker's topology yet; trying again in {Delay}.", action, delay);
                 if (!await DelayAsync(delay, stoppingToken))
+                {
                     return;
+                }
+
                 delay = ResubscribeLoop.NextDelay(delay);
                 continue;
             }
@@ -230,25 +244,39 @@ internal sealed class TopologyStartupService(
         if (provision)
         {
             if (result.Notes.Count > 0)
+            {
                 logger.LogWarning("Provisioning left these as they are, since the service may not see or change them: {Notes}.",
                     string.Join("; ", result.Notes));
+            }
+
             if (result.Created.Count == 0)
+            {
                 logger.LogInformation("The message broker already has the topology this service needs ({Checked} objects).", result.Checked);
+            }
             else
+            {
                 logger.LogInformation("Created topology this service needs on the message broker: {Created} ({Checked} objects in all).",
                     string.Join("; ", result.Created), result.Checked);
+            }
+
             return;
         }
 
         // Say only what was checked: on Azure Service Bus some of the topology can't be.
         if (result.Unchecked.Count == 0)
+        {
             logger.LogInformation("The message broker has the topology this service needs ({Checked} objects checked).", result.Checked);
+        }
         else if (result.Checked == 0)
+        {
             logger.LogInformation("None of this service's topology can be checked on this broker: {Unchecked}.",
                 string.Join("; ", result.Unchecked));
+        }
         else
+        {
             logger.LogInformation("The message broker has the {Checked} objects checked; these can't be checked on this broker: {Unchecked}.",
                 result.Checked, string.Join("; ", result.Unchecked));
+        }
     }
 
     /// <param name="Checked">How many objects were checked or provisioned.</param>
@@ -306,7 +334,7 @@ internal sealed class TopologyStartupService(
 
         var objects = new List<(string Label, string Name, bool IsQueue)>();
         objects.AddRange(expected.Topics.Select(topic => ("topic exchange", topic, false)));
-        objects.AddRange(expected.Subscriptions.Select(s => ("subscription queue", RabbitSubscriber.QueueName(s.Topic, s.Subscription), true)));
+        objects.AddRange(expected.Subscriptions.Select(s => ("subscription queue", RabbitQueueReceiver.SubscriptionQueueName(s.Topic, s.Subscription), true)));
         objects.AddRange(expected.CommandQueues.Select(queue => ("command queue", queue, true)));
         objects.AddRange(expected.SentToQueues.Select(queue => ("exchange of the command queue", queue, false)));
 
@@ -317,9 +345,13 @@ internal sealed class TopologyStartupService(
                 ? channel.QueueDeclarePassiveAsync(name, cancellationToken)
                 : channel.ExchangeDeclarePassiveAsync(name, cancellationToken), cancellationToken);
             if (refused == 404)
+            {
                 problems.Add($"{label} '{name}' doesn't exist");
+            }
             else if (refused is not null)
+            {
                 problems.Add($"{label} '{name}' is missing or the service may not use it");
+            }
         }
         return new StepResult(objects.Count, [], [], problems);
     }
@@ -377,18 +409,27 @@ internal sealed class TopologyStartupService(
             count++;
             var passive = await PassiveAsync(queue, true);
             if (passive is null)
+            {
                 return false;
+            }
+
             var deadLetter = $"dead-letter.{queue}";
             if (passive == 404)
             {
                 if (!await EnsureExchangeAsync("dead-letter exchange", deadLetter, ExchangeType.Fanout))
+                {
                     return null;
+                }
+
                 count++;
                 var deadLetterPassive = await PassiveAsync(deadLetter, true);
                 if (deadLetterPassive is not null && !await CreateAsync("dead-letter queue", deadLetter, deadLetterPassive, channel =>
                         channel.QueueDeclareAsync(deadLetter, durable: true, exclusive: false, autoDelete: false,
                             arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum" }, cancellationToken: cancellationToken)))
+                {
                     return null;
+                }
+
                 if (await BindAsync(deadLetter, deadLetter, "") is not null)
                 {
                     problems.Add($"dead-letter queue '{deadLetter}' couldn't be bound to its exchange");
@@ -414,20 +455,30 @@ internal sealed class TopologyStartupService(
         void Refused(bool queueCreated, string what)
         {
             if (queueCreated)
+            {
                 problems.Add($"{what} couldn't be made");
+            }
             else
+            {
                 notes.Add(what);
+            }
         }
 
         // Its own topics. Topics it subscribes to are their owners' to create: making them here would need the
         // right to configure, and so to delete, another service's exchange.
         foreach (var topic in expected.Topics)
+        {
             await EnsureExchangeAsync("topic exchange", topic, ExchangeType.Topic);
+        }
+
         foreach (var (topic, subscription) in expected.Subscriptions)
         {
-            var queue = RabbitSubscriber.QueueName(topic, subscription);
+            var queue = RabbitQueueReceiver.SubscriptionQueueName(topic, subscription);
             if (await EnsureQueueAsync("subscription queue", queue) is not { } queueCreated)
+            {
                 continue;
+            }
+
             foreach (var (_, _, family) in expected.SubscriptionFamilies.Where(f => f.Topic == topic && f.Subscription == subscription))
             {
                 var refused = await BindAsync(queue, topic, family);
@@ -437,20 +488,30 @@ internal sealed class TopologyStartupService(
                     break;
                 }
                 if (refused is not null)
+                {
                     Refused(queueCreated, $"binding of queue '{queue}' to topic exchange '{topic}' for '{family}'");
+                }
             }
         }
         foreach (var queue in expected.CommandQueues)
         {
             if (!await EnsureExchangeAsync("command queue exchange", queue, ExchangeType.Direct)
                 || await EnsureQueueAsync("command queue", queue) is not { } queueCreated)
+            {
                 continue;
+            }
+
             if (await BindAsync(queue, queue, queue) is not null)
+            {
                 Refused(queueCreated, $"binding of command queue '{queue}' to its exchange");
+            }
         }
 
         if (problems.Count == 0 && waiting.Count > 0)
+        {
             throw new TopologyNotReadyException($"Waiting for {string.Join("; ", waiting.Distinct())}.");
+        }
+
         return new StepResult(count, [], created, problems) { Notes = notes };
     }
 
@@ -526,7 +587,10 @@ internal sealed class TopologyStartupService(
             await EnsureAsync($"topic '{topic}'", async () =>
             {
                 if ((await admin.TopicExistsAsync(topic, cancellationToken)).Value)
+                {
                     return;
+                }
+
                 await admin.CreateTopicAsync(TopicOptions(topic), cancellationToken);
                 created.Add($"topic '{topic}'");
             });
@@ -558,7 +622,10 @@ internal sealed class TopologyStartupService(
                 // A rule for each family no rule admits yet, such as one a release added.
                 var filters = new List<RuleFilter>();
                 await foreach (var rule in admin.GetRulesAsync(topic, subscription, cancellationToken))
+                {
                     filters.Add(rule.Filter);
+                }
+
                 foreach (var family in MissingFamilies(filters, families))
                 {
                     try
@@ -577,14 +644,20 @@ internal sealed class TopologyStartupService(
             await EnsureAsync($"command queue '{queue}'", async () =>
             {
                 if ((await admin.QueueExistsAsync(queue, cancellationToken)).Value)
+                {
                     return;
+                }
+
                 await admin.CreateQueueAsync(QueueOptions(queue, value.MaxDeliveryCount), cancellationToken);
                 created.Add($"command queue '{queue}'");
             });
         }
 
         if (problems.Count == 0 && waiting.Count > 0)
+        {
             throw new TopologyNotReadyException($"Waiting for {string.Join("; ", waiting.Distinct())}.");
+        }
+
         return new StepResult(count, [], created, problems);
     }
 
@@ -596,7 +669,10 @@ internal sealed class TopologyStartupService(
     {
         var list = filters.ToList();
         if (list.Any(filter => filter is TrueRuleFilter))
+        {
             return [];
+        }
+
         var admitted = list.OfType<CorrelationRuleFilter>()
             .Where(filter => filter.ApplicationProperties.Count == 1
                 && filter.ApplicationProperties.TryGetValue(BrokerProperties.PayloadFamily, out var family) && family is string)

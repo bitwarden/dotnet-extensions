@@ -17,7 +17,9 @@ public class AzureServiceBusBenchmarks : MessageBrokerBenchmarks
     protected override async Task StartInfrastructureAsync()
     {
         if (System.Environment.GetEnvironmentVariable("AZURE_SERVICE_BUS_CONNECTION_STRING") is not null)
+        {
             return;
+        }
 
         _network = new NetworkBuilder().Build();
         await _network.CreateAsync();
@@ -88,10 +90,25 @@ public class AzureServiceBusBenchmarks : MessageBrokerBenchmarks
 
     protected override async Task StopInfrastructureAsync()
     {
-        if (_emulatorContainer is not null) await _emulatorContainer.DisposeAsync();
-        if (_sqlContainer is not null) await _sqlContainer.DisposeAsync();
-        if (_network is not null) await _network.DisposeAsync();
-        if (_configFile is not null) File.Delete(_configFile);
+        if (_emulatorContainer is not null)
+        {
+            await _emulatorContainer.DisposeAsync();
+        }
+
+        if (_sqlContainer is not null)
+        {
+            await _sqlContainer.DisposeAsync();
+        }
+
+        if (_network is not null)
+        {
+            await _network.DisposeAsync();
+        }
+
+        if (_configFile is not null)
+        {
+            File.Delete(_configFile);
+        }
     }
 
     protected override Dictionary<string, string?> CreateConfig()

@@ -49,7 +49,10 @@ public sealed class BrokerDeliveryTests(AmqpBrokerFixture broker) : IClassFixtur
             })
             .Build();
         await using (var scope = _host.Services.CreateAsyncScope())
+        {
             await scope.ServiceProvider.GetRequiredService<ShopContext>().Database.EnsureCreatedAsync(Token);
+        }
+
         await _host.StartAsync(Token);
 
         await using (var scope = _host.Services.CreateAsyncScope())
@@ -71,7 +74,10 @@ public sealed class BrokerDeliveryTests(AmqpBrokerFixture broker) : IClassFixtur
         {
             await using var scope = _host.Services.CreateAsyncScope();
             if (!await scope.ServiceProvider.GetRequiredService<ShopContext>().Set<OutboxMessage>().AnyAsync(Token))
+            {
                 break;
+            }
+
             Assert.True(DateTime.UtcNow < deadline, "The sent messages' rows were never deleted.");
             await Task.Delay(100, Token);
         }

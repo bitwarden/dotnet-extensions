@@ -32,7 +32,9 @@ internal sealed class OutboxBacklog<TContext>
     {
         var now = _time.GetUtcNow();
         if (_last is { } last && now - last.TakenAt < _options.Value.BacklogSampleInterval)
+        {
             return last;
+        }
 
         await using var scope = _services.CreateAsyncScope();
         var outbox = scope.ServiceProvider.GetRequiredService<TContext>().Set<OutboxMessage>().AsNoTracking();

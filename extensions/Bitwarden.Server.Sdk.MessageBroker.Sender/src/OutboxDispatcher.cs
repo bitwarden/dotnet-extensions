@@ -141,7 +141,10 @@ internal sealed class OutboxDispatcher<TContext> : BackgroundService
             }
 
             if (claimed >= Options.BatchSize)
+            {
                 continue;
+            }
+
             try
             {
                 await WaitAsync(stoppingToken);
@@ -214,12 +217,22 @@ internal sealed class OutboxDispatcher<TContext> : BackgroundService
             {
                 var toBroker = route.Destination != MessageOutbox.Local;
                 if (toBroker)
+                {
                     foreach (var observer in _observers)
+                    {
                         observer.Sending(row);
+                    }
+                }
+
                 await SendAsync(route, row, cancellationToken);
                 if (toBroker)
+                {
                     foreach (var observer in _observers)
+                    {
                         observer.Sent(row);
+                    }
+                }
+
                 sent.Add(row.MessageId);
                 _metrics.Sent(_database, row, _time.GetUtcNow() - DateTimeOffset.FromUnixTimeMilliseconds(row.DueAt));
             }
@@ -255,7 +268,10 @@ internal sealed class OutboxDispatcher<TContext> : BackgroundService
         // Continue the trace of the code that sent it, so the time it waited shows in that trace.
         ActivityContext parent = default;
         if (row.TraceParent is not null)
+        {
             ActivityContext.TryParse(row.TraceParent, null, isRemote: true, out parent);
+        }
+
         using var activity = Activities.StartActivity($"{row.Destination} outbox", ActivityKind.Internal, parent);
         await route.SendAsync(row, cancellationToken);
     }
@@ -279,7 +295,9 @@ internal sealed class OutboxDispatcher<TContext> : BackgroundService
             .Take(Options.BatchSize)
             .ToListAsync(cancellationToken);
         if (candidates.Count == 0)
+        {
             return ([], start);
+        }
 
         // Repeats the test, so a row another instance claimed since it was read is left alone.
         await outbox

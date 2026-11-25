@@ -23,7 +23,9 @@ public sealed class OutboxMetricsTests : IAsyncDisposable
             {
                 // This host's meter only: other tests' hosts run alongside and share the name.
                 if (instrument.Meter.Name == OutboxMetrics.MeterName && instrument.Meter.Scope == meters)
+                {
                     l.EnableMeasurementEvents(instrument);
+                }
             },
         };
         listener.SetMeasurementEventCallback<long>((instrument, _, tags, _) =>

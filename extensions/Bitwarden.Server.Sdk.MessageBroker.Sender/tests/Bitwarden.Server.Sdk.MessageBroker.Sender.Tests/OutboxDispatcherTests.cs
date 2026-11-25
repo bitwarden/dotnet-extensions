@@ -305,7 +305,9 @@ public sealed class OutboxDispatcherTests : IAsyncDisposable
         {
             Sending.Enqueue(message.MessageId);
             if (Unavailable is not null)
+            {
                 throw Unavailable;
+            }
         }
 
         void IOutboxSendObserver.Sent(OutboxMessage message) => Sent.Enqueue(message.MessageId);

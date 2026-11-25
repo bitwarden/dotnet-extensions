@@ -48,7 +48,9 @@ internal static class ConsumerInvocation
                 {
                     // Return the message at once, without the retry delay or the dead-letter decision.
                     if (!envelope.IsSettled)
+                    {
                         await envelope.RequeueAsync("The consumer stopped.", CancellationToken.None);
+                    }
                 }
                 else if (failure is null)
                 {

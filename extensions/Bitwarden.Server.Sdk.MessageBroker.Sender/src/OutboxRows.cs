@@ -30,9 +30,12 @@ internal static class OutboxRows
         serializer.SerializeVariants<TPayload>(variants, buffer);
         // A local message never reaches a broker, so no broker's size limit applies.
         if (buffer.WrittenCount > maxMessageSize && destination != MessageOutbox.Local)
+        {
             throw new InvalidOperationException(
                 $"A '{TPayload.WireName}' message to '{destination}' is {buffer.WrittenCount} bytes, more than the " +
                 $"{maxMessageSize} the outbox accepts (MessageOutboxOptions.MaxMessageSize). Send identifiers, not contents.");
+        }
+
         var now = time.GetUtcNow().ToUnixTimeMilliseconds();
         var due = Math.Max(now, notBefore?.ToUnixTimeMilliseconds() ?? now);
         return new OutboxMessage

@@ -87,7 +87,10 @@ public static class MessageOutboxServiceCollectionExtensions
         var key = MessageBrokerKeys.Publisher<TPayload>(destination);
         var registration = new OutboxRegistrationKey(destination, TPayload.WireName, typeof(TContext));
         if (services.Any(d => d.ServiceType == typeof(OutboxRegistrationKey) && registration.Equals(d.ImplementationInstance)))
+        {
             return services;
+        }
+
         services.AddSingleton(registration);
 
         // Scoped, like the DbContext it writes to.
@@ -118,7 +121,10 @@ public static class MessageOutboxServiceCollectionExtensions
         where TContext : DbContext, IMessageOutboxContext
     {
         if (services.Any(d => d.ServiceType == typeof(OutboxWake<TContext>)))
+        {
             return;
+        }
+
         services.AddSingleton<OutboxWake<TContext>>();
         services.AddSingleton<OutboxSendOnCommitInterceptor<TContext>>();
         services.ConfigureDbContext<TContext>((provider, options) =>
@@ -132,9 +138,11 @@ public static class MessageOutboxServiceCollectionExtensions
     {
         var key = MessageBrokerKeys.Publisher<TPayload>(destination);
         if (services.Any(d => d.ServiceType == typeof(Publisher<TPayload, TCeiling>) && Equals(d.ServiceKey, key) && d.Lifetime == ServiceLifetime.Singleton))
+        {
             throw new InvalidOperationException(
                 $"'{TPayload.WireName}' to '{destination}' is already registered to send straight to the broker. " +
                 "Register it through the outbox only, so a send can't be lost.");
+        }
     }
 
     private sealed record OutboxRegistrationKey(string Destination, string MessageType, Type Context);
