@@ -107,6 +107,7 @@ See the [README.md](README.md) for detailed information about each package. Main
 
 -   Pin exact versions using bracket notation: `[X.Y.Z]` in test projects
 -   Do not pin exact versions in packable projects
+-   A new dependency needs a Dependency Review and team agreement before the pull request. See [Dependencies](#dependencies) under Lessons from Code Review.
 
 ## Lessons from Code Review
 
@@ -142,7 +143,7 @@ Reviewers raised each of these on a pull request. Check every change against the
 
 ### Adding a lesson
 
-When a human reviewer's comment applies beyond the pull request it was made on, record it in its own pull request. If a tool can check it, enforce it in `.editorconfig`, an analyzer or CI. Otherwise, add it to this section.
+When a human reviewer's comment applies beyond the pull request it was made on, record it in its own pull request. If a tool can check it, enforce it in `.editorconfig`, an analyzer or CI, and list it here too when knowing it up front saves a failing CI run. Otherwise, add it to this section.
 
 ## Important Notes
 
