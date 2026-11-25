@@ -1,0 +1,48 @@
+using Bitwarden.Server.Sdk.Context;
+using Microsoft.AspNetCore.Http;
+
+namespace Bitwarden.Server.Sdk.Authorization;
+
+/// <summary>
+/// Refuses a request to a product service that carries any header only another service may send.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A product service holds people's sessions and takes whom a request concerns from the session it
+/// validated: the person, the organization and the provider are signed claims, and
+/// where the request came from is its connection. The context headers
+/// (<see cref="BitwardenHeaders.All"/>) are how one service tells another those things, and the call
+/// chain (<see cref="BitwardenHeaders.CallChain"/>) which services a call passed through. A person has
+/// no business sending any of them (<see cref="BitwardenHeaders.ServiceOnly"/>): a browser sends its
+/// token and Bitwarden's standard client headers, nothing else.
+/// </para>
+/// <para>
+/// Refused rather than ignored. A caller sending one has misunderstood which kind of service this
+/// is, and silently answering for the session instead of what they named would hide the mistake
+/// until it mattered. Refused before authentication, as one list, so the answer does not depend on
+/// whether the token was any good: the headers are wrong here whoever sends them.
+/// </para>
+/// </remarks>
+/// <param name="next">The rest of the pipeline.</param>
+internal sealed class ContextRefusal(RequestDelegate next)
+{
+    /// <summary>
+    /// What the caller is told, for the header named.
+    /// </summary>
+    internal static string Detail(string header) =>
+        $"The '{header}' header is not accepted by this service. It is a product service, called by "
+        + "people, so whom a request concerns is what the session token names.";
+
+    public async Task InvokeAsync(HttpContext http)
+    {
+        var refused = BitwardenHeaders.ServiceOnly.FirstOrDefault(header => http.Request.Headers.ContainsKey(header));
+
+        if (refused is null)
+        {
+            await next(http);
+            return;
+        }
+
+        await ContextHeaders.RefuseAsync(http, refused, Detail(refused));
+    }
+}

@@ -1,0 +1,13 @@
+{% comment %}
+NSwag 14.7.0's own template, with one change: a date-time
+parameter is moved to UTC (.ToUniversalTime()) before it is formatted, so the clients' format,
+yyyy-MM-ddTHH:mm:ss.FFFFFFFZ, always names the right instant. Each client names this directory
+with /TemplateDirectory; every template not here is NSwag's own.
+{% endcomment %}
+{% if parameter.IsStringArray -%}
+request_.Headers.TryAddWithoutValidation("{{ parameter.Name }}", {{ parameter.VariableName }});
+{% elsif parameter.IsDateTime -%}
+request_.Headers.TryAddWithoutValidation("{{ parameter.Name }}", ConvertToString({{ parameter.VariableName }}{% if parameter.IsNullable %}?{% endif %}.ToUniversalTime().ToString("{{ ParameterDateTimeFormat }}"), System.Globalization.CultureInfo.InvariantCulture));
+{% else -%}
+request_.Headers.TryAddWithoutValidation("{{ parameter.Name }}", ConvertToString({{ parameter.VariableName }}, System.Globalization.CultureInfo.InvariantCulture));
+{%- endif %}
