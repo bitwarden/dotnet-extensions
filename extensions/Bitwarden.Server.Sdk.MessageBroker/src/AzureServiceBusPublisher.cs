@@ -3,6 +3,9 @@ using Azure.Messaging.ServiceBus;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
+/// <summary>
+/// Publishes a payload family to an Azure Service Bus topic, or sends it to a command queue.
+/// </summary>
 internal sealed class AzureServiceBusPublisher<TPayload, TCeiling> : Publisher<TPayload, TCeiling>, IAsyncDisposable
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling

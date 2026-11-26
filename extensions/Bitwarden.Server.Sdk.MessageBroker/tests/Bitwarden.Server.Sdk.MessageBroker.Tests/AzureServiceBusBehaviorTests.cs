@@ -7,7 +7,8 @@ using Microsoft.Extensions.Hosting;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 
-public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureServiceBusFixture>
+[Collection(AzureServiceBusCollection.Name)]
+public class AzureServiceBusBehaviorTests : BehaviorTests
 {
     private readonly AzureServiceBusFixture _fixture;
 
@@ -222,6 +223,10 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
         var deadLettered = await dlqReceiver.ReceiveMessageAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         Assert.NotNull(deadLettered);
         Assert.Equal(UserDeletedPayload.WireName, deadLettered.ApplicationProperties["x-bw-payload-family"]);
+        Assert.Equal(
+            $"This subscription on topic '{MisconfiguredTopic}' receives family '{UserCreatedPayload.WireName}', but the message " +
+            $"is family '{UserDeletedPayload.WireName}'. Check the subscription's binding or filter.",
+            deadLettered.DeadLetterReason);
     }
 }
 
@@ -231,6 +236,12 @@ public class OversizedPayload : Payload<OversizedPayload, OversizedVariant, Over
 {
     public static string WireName => "oversized";
     public static IReadOnlyList<(Type, string)> Variants => [(typeof(OversizedVariant), nameof(OversizedVariant))];
+}
+
+[CollectionDefinition(Name)]
+public class AzureServiceBusCollection : ICollectionFixture<AzureServiceBusFixture>
+{
+    public const string Name = "AzureServiceBus";
 }
 
 public class AzureServiceBusFixture : IAsyncLifetime
@@ -285,7 +296,22 @@ public class AzureServiceBusFixture : IAsyncLifetime
                     "Properties": {
                       "MaxAllowedConnections": 100
                     },
-                    "Queues": [],
+                    "Queues": [
+                      {
+                        "Name": "commands",
+                        "Properties": {
+                          "DeadLetteringOnMessageExpiration": false,
+                          "DefaultMessageTimeToLive": "PT1H",
+                          "DuplicateDetectionHistoryTimeWindow": "PT20S",
+                          "ForwardDeadLetteredMessagesTo": "",
+                          "ForwardTo": "",
+                          "LockDuration": "PT30S",
+                          "MaxDeliveryCount": 10,
+                          "RequiresDuplicateDetection": false,
+                          "RequiresSession": false
+                        }
+                      }
+                    ],
                     "Topics": [
                       {
                         "Name": "behavior",

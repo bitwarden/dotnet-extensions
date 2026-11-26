@@ -132,9 +132,9 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
         TrySetupDroppableBrokerAsync()
     {
         _droppableContainer = new ContainerBuilder()
-            .WithImage("rabbitmq")
+            .WithImage(AmqpTestBroker.Image)
             .WithPortBinding(5672, true)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Server startup complete"))
+            .WithWaitStrategy(AmqpTestBroker.Ready)
             .Build();
         await _droppableContainer.StartAsync(TestContext.Current.CancellationToken);
         var config = new Dictionary<string, string?> { { "RabbitUri", GetContainerUri(_droppableContainer) } };
@@ -150,9 +150,9 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
     public async Task PublishThrowsBrokerUnavailableExceptionWhenBrokerGoesDown()
     {
         await using var container = new ContainerBuilder()
-            .WithImage("rabbitmq")
+            .WithImage(AmqpTestBroker.Image)
             .WithPortBinding(5672, true)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Server startup complete"))
+            .WithWaitStrategy(AmqpTestBroker.Ready)
             .Build();
         await container.StartAsync(TestContext.Current.CancellationToken);
 
@@ -185,7 +185,7 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
     /// <summary>
     /// Verifies that calling <see cref="Envelope{TPayload, TCeiling}.RequeueAsync"/> after the iterator has been
     /// disposed (rabbitChannel closed) completes without error, covering the
-    /// <c>_channel.IsOpen ? ... : Task.CompletedTask</c> branch in <c>RabbitSubscriber.RequeueCoreAsync</c>.
+    /// <c>rabbitChannel.IsOpen</c> check in <c>RabbitQueueReceiver</c>'s requeue.
     /// </summary>
     [Fact(Timeout = 60 * 1000)]
     public async Task AbandonOnClosedChannelCompletesCleanly()
@@ -386,8 +386,8 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
         var deadLetterExchange = $"dlx.{topic}";
         var deadLetterQueue = $"dlq.{topic}.{Subscription}";
 
-        // The delivery limit and dead-letter exchange as queue arguments, which RabbitMQ and LavinMQ
-        // treat as BROKER-TOPOLOGY.md's policy keys.
+        // The delivery limit and dead-letter exchange as queue arguments, which RabbitMQ treats as
+        // BROKER-TOPOLOGY.md's policy keys.
         await using (var conn = await new ConnectionFactory { Uri = new Uri(_fixture.GetUri()) }
             .CreateConnectionAsync(TestContext.Current.CancellationToken))
         await using (var channel = await conn.CreateChannelAsync(cancellationToken: TestContext.Current.CancellationToken))
@@ -476,9 +476,9 @@ public class RabbitBehaviorTests : BehaviorTests, IClassFixture<RabbitBehaviorTe
         public async ValueTask InitializeAsync()
         {
             _container = new ContainerBuilder()
-                .WithImage("rabbitmq")
+                .WithImage(AmqpTestBroker.Image)
                 .WithPortBinding(5672, true)
-                .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Server startup complete"))
+                .WithWaitStrategy(AmqpTestBroker.Ready)
                 .Build();
 
             await _container.StartAsync(TestContext.Current.CancellationToken);

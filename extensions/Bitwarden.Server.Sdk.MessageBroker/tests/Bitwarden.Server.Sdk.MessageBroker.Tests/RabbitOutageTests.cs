@@ -34,6 +34,8 @@ public sealed class RabbitOutageTests : IAsyncLifetime
     private readonly List<IHost> _hosts = [];
     private IContainer? _broker;
 
+    private string Queue => $"{_topic}.commands";
+
     public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
     public async ValueTask DisposeAsync()
@@ -61,9 +63,9 @@ public sealed class RabbitOutageTests : IAsyncLifetime
     private async Task StartBrokerAsync()
     {
         _broker ??= new ContainerBuilder()
-            .WithImage("rabbitmq")
+            .WithImage(AmqpTestBroker.Image)
             .WithPortBinding(_port, 5672)
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Server startup complete"))
+            .WithWaitStrategy(AmqpTestBroker.Ready)
             .Build();
         await _broker.StartAsync(TestContext.Current.CancellationToken);
     }
@@ -75,8 +77,11 @@ public sealed class RabbitOutageTests : IAsyncLifetime
         {
             services.AddMetrics();
             services.AddSingleton<ItemRecorder>();
+            services.AddSingleton<CommandRecorder>();
             services.AddPublisher<MyItemPayload, MyItem>(_topic);
             services.AddMessageConsumer<MyItemPayload, MyItem, RecordingItemConsumer>(_topic, "outage");
+            services.AddCommandSender<SendMailPayload, SendMail>(Queue);
+            services.AddCommandConsumer<SendMailPayload, SendMail, SendMailConsumer>(Queue);
             services.AddOptions<MessagingOptions>().BindConfiguration("");
         })
         .Build();
@@ -93,6 +98,10 @@ public sealed class RabbitOutageTests : IAsyncLifetime
             cancellationToken: TestContext.Current.CancellationToken);
         await channel.QueueBindAsync($"{_topic}.outage", _topic, routingKey: MyItemPayload.WireName,
             cancellationToken: TestContext.Current.CancellationToken);
+        await channel.ExchangeDeclareAsync(Queue, ExchangeType.Direct, durable: true, cancellationToken: TestContext.Current.CancellationToken);
+        await channel.QueueDeclareAsync(Queue, durable: true, exclusive: false, autoDelete: false, arguments: quorum,
+            cancellationToken: TestContext.Current.CancellationToken);
+        await channel.QueueBindAsync(Queue, Queue, routingKey: Queue, cancellationToken: TestContext.Current.CancellationToken);
     }
 
     // After a restart the container's wait strategy returns before the broker accepts connections.
@@ -112,15 +121,17 @@ public sealed class RabbitOutageTests : IAsyncLifetime
         }
     }
 
-    private static async Task SendAsync(IHost host, string topic, int id)
+    private static async Task SendBothAsync(IHost host, string topic, string queue, int id)
     {
         var item = host.Services.GetRequiredKeyedService<Publisher<MyItemPayload, MyItem>>(MessageBrokerKeys.Publisher<MyItemPayload>(topic));
+        var mail = host.Services.GetRequiredKeyedService<Publisher<SendMailPayload, SendMail>>(MessageBrokerKeys.Publisher<SendMailPayload>(queue));
         var deadline = DateTime.UtcNow + RecoveryTimeout;
         while (true)
         {
             try
             {
                 await item.Publish(new MyItem(id)).SendAsync(TestContext.Current.CancellationToken);
+                await mail.Publish(new SendMail(id)).SendAsync(TestContext.Current.CancellationToken);
                 return;
             }
             catch (BrokerUnavailableException) when (DateTime.UtcNow < deadline)
@@ -130,13 +141,15 @@ public sealed class RabbitOutageTests : IAsyncLifetime
         }
     }
 
-    private static async Task WaitForAsync(IHost host, int id)
+    private static async Task WaitForBothAsync(IHost host, int id)
     {
         var items = host.Services.GetRequiredService<ItemRecorder>();
+        var commands = host.Services.GetRequiredService<CommandRecorder>();
         var deadline = DateTime.UtcNow + RecoveryTimeout;
-        while (!items.Received.Contains(id))
+        while (!(items.Received.Contains(id) && commands.Handled.Any(c => c.Id == id)))
         {
-            Assert.True(DateTime.UtcNow < deadline, $"Item {id} wasn't received.");
+            Assert.True(DateTime.UtcNow < deadline,
+                $"Item received: {items.Received.Contains(id)}; command handled: {commands.Handled.Any(c => c.Id == id)}.");
             await Task.Delay(100, TestContext.Current.CancellationToken);
         }
     }
@@ -156,16 +169,16 @@ public sealed class RabbitOutageTests : IAsyncLifetime
         await DeclareTopologyAsync();
         var host = await StartHostAsync();
 
-        await SendAsync(host, _topic, 1);
-        await WaitForAsync(host, 1);
+        await SendBothAsync(host, _topic, Queue, 1);
+        await WaitForBothAsync(host, 1);
 
         await _broker!.StopAsync(TestContext.Current.CancellationToken);
         await Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
         await _broker.StartAsync(TestContext.Current.CancellationToken);
         await DeclareTopologyAsync();
 
-        await SendAsync(host, _topic, 2);
-        await WaitForAsync(host, 2);
+        await SendBothAsync(host, _topic, Queue, 2);
+        await WaitForBothAsync(host, 2);
     }
 
     [Fact(Timeout = 120 * 1000)]
@@ -212,7 +225,7 @@ public sealed class RabbitOutageTests : IAsyncLifetime
         await StartBrokerAsync();
         await DeclareTopologyAsync();
 
-        await SendAsync(host, _topic, 1);
-        await WaitForAsync(host, 1);
+        await SendBothAsync(host, _topic, Queue, 1);
+        await WaitForBothAsync(host, 1);
     }
 }

@@ -2,6 +2,9 @@ using System.Diagnostics;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
+/// <summary>
+/// The shared <see cref="System.Diagnostics.ActivitySource"/> for publish and consume spans.
+/// </summary>
 internal static class MessageBrokerActivitySource
 {
     internal const string Name = "Bitwarden.Server.Sdk.MessageBroker";
