@@ -7,7 +7,8 @@ using Microsoft.Extensions.Hosting;
 
 namespace Bitwarden.Server.Sdk.MessageBroker.Tests;
 
-public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureServiceBusFixture>
+[Collection(AzureServiceBusCollection.Name)]
+public class AzureServiceBusBehaviorTests : BehaviorTests
 {
     private readonly AzureServiceBusFixture _fixture;
 
@@ -53,10 +54,15 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
                 {
                     var message = await deadLetters.ReceiveMessageAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
                     if (message is null)
+                    {
                         continue;
+                    }
+
                     await deadLetters.CompleteMessageAsync(message, TestContext.Current.CancellationToken);
                     if (message.MessageId == messageId)
+                    {
                         return;
+                    }
                 }
                 Assert.Fail($"Message {messageId} wasn't in the subscription's dead-letter queue.");
             });
@@ -217,6 +223,10 @@ public class AzureServiceBusBehaviorTests : BehaviorTests, IClassFixture<AzureSe
         var deadLettered = await dlqReceiver.ReceiveMessageAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         Assert.NotNull(deadLettered);
         Assert.Equal(UserDeletedPayload.WireName, deadLettered.ApplicationProperties["x-bw-payload-family"]);
+        Assert.Equal(
+            $"This subscription on topic '{MisconfiguredTopic}' receives family '{UserCreatedPayload.WireName}', but the message " +
+            $"is family '{UserDeletedPayload.WireName}'. Check the subscription's binding or filter.",
+            deadLettered.DeadLetterReason);
     }
 }
 
@@ -226,6 +236,12 @@ public class OversizedPayload : Payload<OversizedPayload, OversizedVariant, Over
 {
     public static string WireName => "oversized";
     public static IReadOnlyList<(Type, string)> Variants => [(typeof(OversizedVariant), nameof(OversizedVariant))];
+}
+
+[CollectionDefinition(Name)]
+public class AzureServiceBusCollection : ICollectionFixture<AzureServiceBusFixture>
+{
+    public const string Name = "AzureServiceBus";
 }
 
 public class AzureServiceBusFixture : IAsyncLifetime
@@ -280,7 +296,22 @@ public class AzureServiceBusFixture : IAsyncLifetime
                     "Properties": {
                       "MaxAllowedConnections": 100
                     },
-                    "Queues": [],
+                    "Queues": [
+                      {
+                        "Name": "commands",
+                        "Properties": {
+                          "DeadLetteringOnMessageExpiration": false,
+                          "DefaultMessageTimeToLive": "PT1H",
+                          "DuplicateDetectionHistoryTimeWindow": "PT20S",
+                          "ForwardDeadLetteredMessagesTo": "",
+                          "ForwardTo": "",
+                          "LockDuration": "PT30S",
+                          "MaxDeliveryCount": 10,
+                          "RequiresDuplicateDetection": false,
+                          "RequiresSession": false
+                        }
+                      }
+                    ],
                     "Topics": [
                       {
                         "Name": "behavior",
@@ -447,9 +478,24 @@ public class AzureServiceBusFixture : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
-        if (_emulatorContainer != null) await _emulatorContainer.DisposeAsync();
-        if (_sqlContainer != null) await _sqlContainer.DisposeAsync();
-        if (_network != null) await _network.DisposeAsync();
-        if (_configFile != null) File.Delete(_configFile);
+        if (_emulatorContainer != null)
+        {
+            await _emulatorContainer.DisposeAsync();
+        }
+
+        if (_sqlContainer != null)
+        {
+            await _sqlContainer.DisposeAsync();
+        }
+
+        if (_network != null)
+        {
+            await _network.DisposeAsync();
+        }
+
+        if (_configFile != null)
+        {
+            File.Delete(_configFile);
+        }
     }
 }

@@ -4,20 +4,29 @@ using RabbitMQ.Client.Exceptions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
+/// <summary>
+/// Publishes a payload family to a RabbitMQ topic exchange, or sends it to a command queue's exchange.
+/// </summary>
 internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, TCeiling>, IAsyncDisposable
     where TPayload : PayloadCeiling<TPayload, TCeiling>, IPayloadVariants<TPayload>, IPayloadWireName<TPayload>
     where TCeiling : Payload<TPayload>.ICeiling
 {
     private readonly string _exchangeName;
+    private readonly string _routingKey;
+    private readonly bool _mandatory;
     private readonly IMessageSerializer _serializer;
     private readonly MessageBrokerMetrics _metrics;
     private readonly RabbitConnection _connection;
     private readonly SemaphoreSlim _channelGate = new(1, 1);
     private IChannel? _channel;
 
-    public RabbitPublisher(RabbitConnection connection, string exchangeName, IMessageSerializer serializer, MessageBrokerMetrics metrics)
+    public RabbitPublisher(
+        RabbitConnection connection, string exchangeName, string routingKey, bool mandatory,
+        IMessageSerializer serializer, MessageBrokerMetrics metrics)
     {
         _exchangeName = exchangeName;
+        _routingKey = routingKey;
+        _mandatory = mandatory;
         _serializer = serializer;
         _metrics = metrics;
         _connection = connection;
@@ -26,7 +35,9 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
     private async Task<IChannel> GetChannelAsync(CancellationToken cancellationToken)
     {
         if (_channel is { IsOpen: true } open)
+        {
             return open;
+        }
 
         // Before the gate, so concurrent sends share one attempt to connect.
         var conn = await _connection.GetConnectionAsync(cancellationToken);
@@ -35,7 +46,10 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
         try
         {
             if (_channel is { IsOpen: true } opened)
+            {
                 return opened;
+            }
+
             if (_channel is not null)
             {
                 try
@@ -81,7 +95,7 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
                     [BrokerProperties.PayloadFamily] = TPayload.WireName,
                 },
             };
-            await channel.BasicPublishAsync(_exchangeName, routingKey: TPayload.WireName, mandatory: false,
+            await channel.BasicPublishAsync(_exchangeName, _routingKey, _mandatory,
                 props, buffer.WrittenMemory, cancellationToken);
         }
         catch (BrokerUnreachableException ex)
@@ -101,6 +115,8 @@ internal sealed class RabbitPublisher<TPayload, TCeiling> : Publisher<TPayload, 
     public async ValueTask DisposeAsync()
     {
         if (_channel is not null)
+        {
             await _channel.DisposeAsync();
+        }
     }
 }

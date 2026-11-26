@@ -299,13 +299,13 @@ broker metadata:
 
 ### Broker outages
 
-Consumers registered with `AddMessageConsumer` keep running through a broker outage: they subscribe
-again, waiting one second at first and up to thirty seconds between attempts. A host whose broker
-is down when it starts still starts. On RabbitMQ, a send while the broker is unreachable throws
-`BrokerUnavailableException` rather than waiting for it. On Azure Service Bus, the client retries
-first, and a send throws `BrokerUnavailableException` once its retry policy gives up. A raw
-`ISubscriber` stream (registered with `AddSubscriber`) ends with `BrokerDisconnectedException`
-instead; subscribing again is up to you.
+Consumers registered with `AddMessageConsumer` or `AddCommandConsumer` keep running through a broker
+outage: they subscribe again, waiting one second at first and up to thirty seconds between attempts.
+A host whose broker is down when it starts still starts. On RabbitMQ, a send while the broker is
+unreachable throws `BrokerUnavailableException` rather than waiting for it. On Azure Service Bus,
+the client retries first, and a send throws `BrokerUnavailableException` once its retry policy gives
+up. A raw `ISubscriber` stream (registered with `AddSubscriber`) ends with
+`BrokerDisconnectedException` instead; subscribing again is up to you.
 
 ### Stopping gracefully
 
@@ -324,6 +324,41 @@ services.AddSingleton<IMessageEscrowStore, MyDatabaseEscrowStore>();
 Without a registered `IMessageEscrowStore`, undelivered messages are logged as errors and
 discarded. Consumers should be idempotent — escrow provides at-least-once delivery rather than
 exactly-once.
+
+## Commands
+
+A command asks one service to do something, such as `send.mail`. The receiving service owns one
+command queue, `{service}.commands`, carrying every command family it accepts. Senders send to it;
+only its owner reads it.
+
+Register a sender for each command family you send, and send exactly as you publish:
+
+```csharp
+services.AddCommandSender<SendMailPayload, SendMail>("notification.commands");
+
+public class InviteService(
+    [FromKeyedServices("notification.commands#send.mail")] Publisher<SendMailPayload, SendMail> mail)
+{
+    public Task InviteAsync(Invitation invitation, CancellationToken ct) =>
+        mail.Publish(new SendMail(invitation.Email, "invite")).SendAsync(ct);
+}
+```
+
+The receiving service registers one consumer per command family it accepts:
+
+```csharp
+services.AddCommandConsumer<SendMailPayload, SendMail, SendMailConsumer>("notification.commands");
+services.AddCommandConsumer<SendPushPayload, SendPush, SendPushConsumer>("notification.commands");
+```
+
+Consumers implement `IMessageConsumer<TPayload, TCeiling>` and are hosted like those registered
+with `AddMessageConsumer`. A command whose family has no consumer is dead-lettered.
+
+Unlike an event, a command nobody will receive is an error: if the receiver's queue doesn't exist,
+or on RabbitMQ isn't bound to its exchange yet, `SendAsync` throws `BrokerUnavailableException`.
+
+Commands are versioned the same way as events. The in-memory backend doesn't escrow commands, so
+commands still queued at shutdown are lost.
 
 ## Observability
 
