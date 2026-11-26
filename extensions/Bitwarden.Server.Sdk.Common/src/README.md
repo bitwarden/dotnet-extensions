@@ -26,8 +26,8 @@ The package reads one setting itself: `OwnedAnswerKey.ReadSecret` reads and chec
 service and its callers agree on them.
 
 Every setting the package names is a public constant on the type it belongs to, named `Key` or
-`Section` or ending in one of them (for example `OwnedCacheEntry.ConnectionKey`,
-`OwnedCacheEntry.ResourcesSection` and `InternalTls.Section`). Its XML documentation says what the
+`Section` or ending in one of them (for example `OwnedCacheEntry.ConnectionKey` and
+`OwnedCacheEntry.ResourcesSection`). Its XML documentation says what the
 setting does and what happens when it is unset. Look there for the full list; this file does not
 repeat it.
 
