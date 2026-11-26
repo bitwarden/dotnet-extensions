@@ -42,7 +42,10 @@ internal sealed class SystemTextJsonMessageSerializer : IMessageSerializer
         using var writer = new Utf8JsonWriter(destination);
         writer.WriteStartArray();
         foreach (var variant in variants)
+        {
             JsonSerializer.Serialize(writer, variant, typeInfo);
+        }
+
         writer.WriteEndArray();
     }
 
@@ -55,7 +58,9 @@ internal sealed class SystemTextJsonMessageSerializer : IMessageSerializer
         var reader = new Utf8JsonReader(source);
         var document = JsonElement.ParseValue(ref reader);
         if (document.ValueKind != JsonValueKind.Array)
+        {
             throw new JsonException("Expected a JSON array of variants.");
+        }
 
         // Filter on the discriminator before calling Deserialize. The polymorphism options have
         // IgnoreUnrecognizedTypeDiscriminators set, but STJ's documented fallback in that mode is
@@ -68,12 +73,24 @@ internal sealed class SystemTextJsonMessageSerializer : IMessageSerializer
         foreach (var element in document.EnumerateArray())
         {
             if (!element.TryGetProperty("$type", out var discriminator))
+            {
                 throw new JsonException("Variant entry is missing the '$type' discriminator.");
+            }
+
             if (discriminator.ValueKind != JsonValueKind.String)
+            {
                 throw new JsonException("The '$type' discriminator must be a string.");
+            }
+
             if (!knownWireNames.Contains(discriminator.GetString()!))
+            {
                 continue;
-            if (element.Deserialize(typeInfo) is { } variant) result.Add(variant);
+            }
+
+            if (element.Deserialize(typeInfo) is { } variant)
+            {
+                result.Add(variant);
+            }
         }
         return result;
     }
@@ -133,13 +150,20 @@ internal sealed class PolymorphicVariantResolver(
         Justification = "CreateJsonTypeInfo is used only to attach polymorphism metadata to an interface; concrete variants come from the user's source-gen context.")]
     public JsonTypeInfo? GetTypeInfo(Type type, JsonSerializerOptions options)
     {
-        if (type != _variantInterface) return null;
+        if (type != _variantInterface)
+        {
+            return null;
+        }
 
         // A resolver may be called with any options instance, but this one is bound to a specific
         // per-TPayload clone the serializer built. Cache once and hand back the same JsonTypeInfo.
         lock (_lock)
         {
-            if (_cached is not null) return _cached;
+            if (_cached is not null)
+            {
+                return _cached;
+            }
+
             var info = JsonTypeInfo.CreateJsonTypeInfo(_variantInterface, options);
             var poly = new JsonPolymorphismOptions
             {
@@ -148,7 +172,10 @@ internal sealed class PolymorphicVariantResolver(
                 UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization,
             };
             foreach (var (variantType, wireName) in _variants)
+            {
                 poly.DerivedTypes.Add(new JsonDerivedType(variantType, wireName));
+            }
+
             info.PolymorphismOptions = poly;
             _cached = info;
             return info;

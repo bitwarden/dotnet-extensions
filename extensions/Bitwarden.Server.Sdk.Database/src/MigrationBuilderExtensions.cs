@@ -72,7 +72,9 @@ public static class MigrationBuilderExtensions
         }
 
         if (candidates.Count == 1)
+        {
             return candidates[0];
+        }
 
         var forProvider = candidates
             .Where(name => provider is not null

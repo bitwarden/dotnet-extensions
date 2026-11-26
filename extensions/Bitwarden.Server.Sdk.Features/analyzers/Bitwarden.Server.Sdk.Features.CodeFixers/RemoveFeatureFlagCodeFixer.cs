@@ -278,7 +278,11 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
                      b.Right is LiteralExpressionSyntax l2 &&
                          (l2.IsKind(SyntaxKind.TrueLiteralExpression) || l2.IsKind(SyntaxKind.FalseLiteralExpression))));
 
-            if (binary is null) break;
+            if (binary is null)
+            {
+                break;
+            }
+
             root = root.ReplaceNode(binary, FoldBooleanBinary(binary));
         }
 
@@ -291,7 +295,10 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
                 .FirstOrDefault(static s => s.Condition is LiteralExpressionSyntax lit &&
                     (lit.IsKind(SyntaxKind.TrueLiteralExpression) || lit.IsKind(SyntaxKind.FalseLiteralExpression)));
 
-            if (literalIf is null) break;
+            if (literalIf is null)
+            {
+                break;
+            }
 
             var condition = (LiteralExpressionSyntax)literalIf.Condition;
             var stmts = condition.IsKind(SyntaxKind.TrueLiteralExpression)
@@ -398,10 +405,12 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
         {
             var leftIsTrue = leftLiteral.IsKind(SyntaxKind.TrueLiteralExpression);
             if (isOr)
+            {
                 // true || X → true (short-circuits), false || X → X
                 return leftIsTrue
                     ? leftLiteral.WithTriviaFrom(binary)
                     : binary.Right.WithLeadingTrivia(binary.Left.GetLeadingTrivia());
+            }
             // true && X → X, false && X → false (short-circuits)
             return leftIsTrue
                 ? binary.Right.WithLeadingTrivia(binary.Left.GetLeadingTrivia())
@@ -411,10 +420,12 @@ public class RemoveFeatureFlagCodeFixer : CodeFixProvider
         var rightLiteral = (LiteralExpressionSyntax)binary.Right;
         var rightIsTrue = rightLiteral.IsKind(SyntaxKind.TrueLiteralExpression);
         if (isOr)
+        {
             // X || true → true, X || false → X
             return rightIsTrue
                 ? rightLiteral.WithTriviaFrom(binary)
                 : binary.Left.WithTrailingTrivia(binary.Right.GetTrailingTrivia());
+        }
         // X && true → X, X && false → false
         return rightIsTrue
             ? binary.Left.WithTrailingTrivia(binary.Right.GetTrailingTrivia())

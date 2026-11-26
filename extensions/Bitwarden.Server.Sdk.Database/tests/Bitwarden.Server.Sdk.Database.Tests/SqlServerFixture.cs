@@ -35,7 +35,9 @@ public sealed class SqlServerFixture : IAsyncLifetime
     private async Task<MsSqlContainer> EnsureStartedAsync()
     {
         if (_container is not null)
+        {
             return _container;
+        }
 
         await _gate.WaitAsync(TestContext.Current.CancellationToken);
         try
@@ -64,6 +66,8 @@ public sealed class SqlServerFixture : IAsyncLifetime
         _gate.Dispose();
 
         if (_container is not null)
+        {
             await _container.DisposeAsync();
+        }
     }
 }

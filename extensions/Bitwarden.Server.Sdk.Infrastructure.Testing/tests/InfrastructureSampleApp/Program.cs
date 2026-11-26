@@ -26,9 +26,13 @@ builder.Services.AddOptions<SelfHostDetails>()
     .Configure<IConfiguration>((details, config) =>
     {
         if (config.GetValue<bool>("globalSettings:selfHosted"))
+        {
             details.MakeSelfHost(config["globalSettings:selfHostFlavor"] ?? "unknown");
+        }
         else
+        {
             details.MakeCloud();
+        }
     });
 
 // The collector post-configures SelfHostDetails, overriding the configuration-based setup above.

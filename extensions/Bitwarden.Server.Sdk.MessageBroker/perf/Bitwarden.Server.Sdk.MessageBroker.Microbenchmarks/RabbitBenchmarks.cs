@@ -10,7 +10,9 @@ public class RabbitBenchmarks : MessageBrokerBenchmarks
     protected override async Task StartInfrastructureAsync()
     {
         if (Environment.GetEnvironmentVariable("RABBITMQ_URI") is not null)
+        {
             return;
+        }
 
         _container = new ContainerBuilder()
             .WithImage("rabbitmq")
@@ -23,7 +25,9 @@ public class RabbitBenchmarks : MessageBrokerBenchmarks
     protected override async Task StopInfrastructureAsync()
     {
         if (_container is not null)
+        {
             await _container.DisposeAsync();
+        }
     }
 
     protected override Dictionary<string, string?> CreateConfig() =>

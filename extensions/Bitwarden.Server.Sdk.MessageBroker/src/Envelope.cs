@@ -37,7 +37,10 @@ public abstract class Envelope<TPayload, TCeiling>
     {
         _variantsByType = [];
         foreach (var variant in variants)
+        {
             _variantsByType[variant.GetType()] = variant;
+        }
+
         _activity = activity;
         (Payload, ConsumedVariantWireName) = ResolvePayload();
     }
@@ -74,7 +77,10 @@ public abstract class Envelope<TPayload, TCeiling>
         // and the receive path avoids reflection and Variants-list rematerialization per message.
         foreach (var cur in ChainResolutionCache.PositionsFromCeilingDown)
         {
-            if (!_variantsByType.TryGetValue(cur, out var variant)) continue;
+            if (!_variantsByType.TryGetValue(cur, out var variant))
+            {
+                continue;
+            }
 
             var wireName = ChainResolutionCache.WireNamesByType[cur];
             var current = variant;
@@ -94,7 +100,10 @@ public abstract class Envelope<TPayload, TCeiling>
                 }
             }
 
-            if (current is TCeiling reached) return (reached, wireName);
+            if (current is TCeiling reached)
+            {
+                return (reached, wireName);
+            }
         }
 
         throw new InvalidOperationException(
@@ -122,7 +131,10 @@ public abstract class Envelope<TPayload, TCeiling>
         {
             var positions = new List<Type>();
             for (Type? cur = typeof(TCeiling); cur is not null; cur = ChainWalk.PreviousInChain(cur))
+            {
                 positions.Add(cur);
+            }
+
             return [.. positions];
         }
 
@@ -130,7 +142,10 @@ public abstract class Envelope<TPayload, TCeiling>
         {
             var map = new Dictionary<Type, string>();
             foreach (var (type, name) in TPayload.Variants)
+            {
                 map[type] = name;
+            }
+
             return map;
         }
     }
@@ -158,7 +173,11 @@ public abstract class Envelope<TPayload, TCeiling>
     /// <summary>Acknowledges the message, removing it from the queue permanently.</summary>
     public Task CompleteAsync(CancellationToken cancellationToken = default)
     {
-        if (_settled) return Task.CompletedTask;
+        if (_settled)
+        {
+            return Task.CompletedTask;
+        }
+
         _settled = true;
         _activity?.Dispose();
         return CompleteAsyncCore(cancellationToken);
@@ -173,7 +192,11 @@ public abstract class Envelope<TPayload, TCeiling>
     /// </summary>
     public Task RequeueAsync(string? reason = null, CancellationToken cancellationToken = default)
     {
-        if (_settled) return Task.CompletedTask;
+        if (_settled)
+        {
+            return Task.CompletedTask;
+        }
+
         _settled = true;
         _activity?.SetStatus(ActivityStatusCode.Error, reason);
         _activity?.Dispose();
@@ -196,7 +219,11 @@ public abstract class Envelope<TPayload, TCeiling>
     /// </remarks>
     public Task DeadLetterAsync(string? reason = null, CancellationToken cancellationToken = default)
     {
-        if (_settled) return Task.CompletedTask;
+        if (_settled)
+        {
+            return Task.CompletedTask;
+        }
+
         _settled = true;
         _activity?.SetStatus(ActivityStatusCode.Error, reason);
         _activity?.Dispose();

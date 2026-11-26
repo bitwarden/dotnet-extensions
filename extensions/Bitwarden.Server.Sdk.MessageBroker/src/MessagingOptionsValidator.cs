@@ -11,10 +11,12 @@ internal sealed class MessagingOptionsValidator : IValidateOptions<MessagingOpti
     {
         if (!string.IsNullOrEmpty(options.AzureServiceBusConnectionString) &&
             !string.IsNullOrEmpty(options.RabbitUri))
+        {
             return ValidateOptionsResult.Fail(
                 $"Both {nameof(MessagingOptions.AzureServiceBusConnectionString)} and " +
                 $"{nameof(MessagingOptions.RabbitUri)} are configured; " +
                 "only one messaging backend can be active at a time.");
+        }
 
         return ValidateOptionsResult.Success;
     }
