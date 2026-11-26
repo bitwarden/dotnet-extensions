@@ -16,7 +16,7 @@ internal static class ResubscribeLoop
     /// message, which resets the delay: a failure after a working stream is a new outage.
     /// </param>
     /// <param name="logger">The logger for the consumer.</param>
-    /// <param name="source">The topic subscription being consumed.</param>
+    /// <param name="source">The topic subscription or command queue being consumed.</param>
     /// <param name="timeProvider">The time provider.</param>
     /// <param name="stoppingToken">The token that stops the loop.</param>
     internal static async Task RunAsync(

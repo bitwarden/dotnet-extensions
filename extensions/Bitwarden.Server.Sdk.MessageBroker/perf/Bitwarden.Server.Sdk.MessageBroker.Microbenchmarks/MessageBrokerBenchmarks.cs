@@ -93,7 +93,9 @@ public abstract class MessageBrokerBenchmarks
     public async Task PublishAndConsumeRoundTrip()
     {
         if (!_configured)
+        {
             return;
+        }
 
         var received = 0;
         using var cts = new CancellationTokenSource();
@@ -106,14 +108,18 @@ public abstract class MessageBrokerBenchmarks
                 {
                     await envelope.CompleteAsync();
                     if (Interlocked.Increment(ref received) >= MessageCount)
+                    {
                         cts.Cancel();
+                    }
                 }
             }
             catch (OperationCanceledException) { }
         });
 
         for (var i = 0; i < MessageCount; i++)
+        {
             await _publisher!.Publish(new BenchmarkMessage(i)).SendAsync(CancellationToken.None);
+        }
 
         await consumeTask;
     }

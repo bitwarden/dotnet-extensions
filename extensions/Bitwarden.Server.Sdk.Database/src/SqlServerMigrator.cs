@@ -154,7 +154,9 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
     {
         var builder = new SqlConnectionStringBuilder(connectionString);
         if (string.IsNullOrWhiteSpace(builder.InitialCatalog))
+        {
             builder.InitialCatalog = optionsName.ToLowerInvariant();
+        }
 
         return (builder.ConnectionString, builder.InitialCatalog);
     }
@@ -292,7 +294,9 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
             }
 
             if (result < 0)
+            {
                 throw new InvalidOperationException($"Could not take the lock '{resource}' (sp_getapplock returned {result}).");
+            }
 
             return new MigrationLock(connection, resource);
         }
@@ -348,7 +352,9 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
     {
         var options = MigrationOptions;
         if (!ShouldRenameJournalEntries(options))
+        {
             return;
+        }
 
         var previous = options.PreviousScriptPrefix!.TrimEnd('.');
         var current = options.ScriptPrefix.TrimEnd('.');
@@ -385,9 +391,14 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
         // the script upgrade mode retry can see it.
         var result = upgrader.PerformUpgrade();
         if (result.Error is DbException dbException)
+        {
             ExceptionDispatchInfo.Capture(dbException).Throw();
+        }
+
         if (!result.Successful)
+        {
             throw new InvalidOperationException("SQL Server migration failed.", result.Error);
+        }
 
         return Task.CompletedTask;
     }
@@ -407,7 +418,9 @@ internal sealed class SqlServerMigrator : IDatabaseMigrator, IDatabaseAvailabili
             MigrationOptions.Phase);
 
         foreach (var script in pending)
+        {
             _logger.LogInformation("Would apply {Script}.", script.Name);
+        }
     }
 
     private DbUp.Engine.UpgradeEngine BuildUpgrader(string connectionString)

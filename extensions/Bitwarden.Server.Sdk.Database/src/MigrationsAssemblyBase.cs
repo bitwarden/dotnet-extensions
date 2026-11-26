@@ -65,7 +65,9 @@ public abstract class MigrationsAssemblyBase : IMigrationsAssembly
     public string? FindMigrationId(string nameOrId)
     {
         if (Migrations.ContainsKey(nameOrId))
+        {
             return nameOrId;
+        }
 
         var matches = Migrations.Keys
             .Where(id => id.EndsWith(nameOrId, StringComparison.OrdinalIgnoreCase))
@@ -83,9 +85,11 @@ public abstract class MigrationsAssemblyBase : IMigrationsAssembly
     public Migration CreateMigration(TypeInfo migrationClass, string activeProvider)
     {
         if (!_factories.TryGetValue(migrationClass.AsType(), out var factory))
+        {
             throw new InvalidOperationException(
                 $"No factory registered for migration '{migrationClass.Name}'. " +
                 $"Ensure the source generator has run and the migration type is in the expected namespace.");
+        }
 
         var migration = factory();
         migration.ActiveProvider = activeProvider;

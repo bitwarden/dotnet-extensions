@@ -106,7 +106,9 @@ internal sealed class FakeMySqlServer : IAsyncDisposable
         using (client)
         {
             if (_refuseConnections)
+            {
                 return;
+            }
 
             try
             {
@@ -115,11 +117,16 @@ internal sealed class FakeMySqlServer : IAsyncDisposable
 
                 // The handshake response, whatever its credentials.
                 if (await ReadPacketAsync(stream) is not { } response)
+                {
                     return;
+                }
+
                 await WritePacketAsync(stream, (byte)(response.Sequence + 1), Ok);
 
                 while (await ReadPacketAsync(stream) is { } command && command.Payload[0] != ComQuit)
+                {
                     await WritePacketAsync(stream, (byte)(command.Sequence + 1), Ok);
+                }
             }
             catch (Exception e) when (e is IOException or SocketException or ObjectDisposedException)
             {
@@ -168,11 +175,15 @@ internal sealed class FakeMySqlServer : IAsyncDisposable
     {
         var header = new byte[4];
         if (!await ReadExactlyOrEndAsync(stream, header))
+        {
             return null;
+        }
 
         var payload = new byte[header[0] | header[1] << 8 | header[2] << 16];
         if (!await ReadExactlyOrEndAsync(stream, payload))
+        {
             return null;
+        }
 
         return (header[3], payload);
     }

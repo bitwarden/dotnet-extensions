@@ -1,0 +1,61 @@
+using System.Threading.Channels;
+using Microsoft.Extensions.Logging;
+
+namespace Microsoft.Extensions.DependencyInjection;
+
+/// <summary>
+/// An in-memory command queue, shared by every sender and the receiver in one process. It keeps no
+/// escrow: commands still queued when the host stops are lost.
+/// </summary>
+internal sealed class ChannelCommandQueue : IMessageReceiver
+{
+    private readonly Channel<ReceivedMessage> _channel = Channel.CreateUnbounded<ReceivedMessage>();
+    private readonly string _queueName;
+    private readonly int _maxDeliveryCount;
+    private readonly ILogger<ChannelCommandQueue> _logger;
+
+    public ChannelCommandQueue(string queueName, int maxDeliveryCount, ILogger<ChannelCommandQueue> logger)
+    {
+        _queueName = queueName;
+        _maxDeliveryCount = maxDeliveryCount;
+        _logger = logger;
+    }
+
+    public IAsyncEnumerable<ReceivedMessage> ReceiveAsync(CancellationToken cancellationToken) =>
+        _channel.Reader.ReadAllAsync(cancellationToken);
+
+    public ValueTask WriteAsync(
+        ReadOnlyMemory<byte> body, string familyWireName, string messageId, string? traceParent,
+        CancellationToken cancellationToken) =>
+        _channel.Writer.WriteAsync(Create(body, familyWireName, messageId, traceParent, deliveryCount: 1), cancellationToken);
+
+    private ReceivedMessage Create(
+        ReadOnlyMemory<byte> body, string familyWireName, string messageId, string? traceParent, int deliveryCount) => new()
+        {
+            Body = body,
+            FamilyWireName = familyWireName,
+            MessageId = messageId,
+            TraceParent = traceParent,
+            DeliveryCount = deliveryCount,
+            CompleteAsync = _ => Task.CompletedTask,
+            RequeueAsync = async _ =>
+            {
+                if (deliveryCount >= _maxDeliveryCount)
+                {
+                    _logger.LogWarning(
+                        "Command {MessageId} on queue {Queue} has been abandoned {DeliveryCount} times, the maximum; it will be discarded.",
+                        messageId, _queueName, deliveryCount);
+                    return;
+                }
+                await _channel.Writer.WriteAsync(
+                    Create(body, familyWireName, messageId, traceParent, deliveryCount + 1), CancellationToken.None);
+            },
+            DeadLetterAsync = (reason, _) =>
+            {
+                _logger.LogWarning(
+                    "Command {MessageId} on queue {Queue} was dead-lettered and will be discarded. Reason: {Reason}",
+                    messageId, _queueName, reason);
+                return Task.CompletedTask;
+            },
+        };
+}

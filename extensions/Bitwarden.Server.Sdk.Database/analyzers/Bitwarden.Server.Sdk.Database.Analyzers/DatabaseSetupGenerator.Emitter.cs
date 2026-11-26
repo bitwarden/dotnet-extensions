@@ -72,14 +72,18 @@ public sealed partial class DatabaseSetupGenerator
         var scaffolded = providers.Where(p => IsEfCore(attr, p)).ToImmutableArray();
 
         if (scaffolded.Length == 0)
+        {
             return migrationsAssembly;
+        }
 
         var subcontexts = string.Join("\n", scaffolded.Select(p => EmitSubcontext(p.Name, attr)));
 
         var factories = string.Join("\n\n", scaffolded.Select(p => EmitFactory(p.Name, attr)));
 
         if (NeedsDesignTimeServices(attr))
+        {
             factories += "\n\n" + EmitDesignTimeActivator(attr);
+        }
 
         return $$"""
         // Provider subcontexts are internal so EF Designer.cs files can reference
@@ -112,7 +116,9 @@ public sealed partial class DatabaseSetupGenerator
         var ctor = attr.Constructor!.Value;
 
         if (ctor.Parameters.Array.Length == 1 && !ctor.GenericOptions)
+        {
             return $"internal sealed class {className}(DbContextOptions<{className}> o) : {attr.TypeName}(o);";
+        }
 
         var parameters = string.Join(", ", ctor.Parameters.Array.Select((p, i) =>
         {
@@ -299,7 +305,9 @@ public sealed partial class DatabaseSetupGenerator
             "\n\n",
             new[] { entryArrays, snapshots }.Where(section => section.Length > 0));
         if (fields.Length > 0)
+        {
             fields += "\n";
+        }
 
         return $$"""
         // Migrations assembly dispatcher, file-scoped since only Add{{attr.SchemaName}} below uses it.
@@ -364,7 +372,9 @@ public sealed partial class DatabaseSetupGenerator
             "                break;"));
 
         if (attr.SqlServerEfCore)
+        {
             return EmitEfCoreDiExtension(attr, providers, cases);
+        }
 
         var configureScripts = $$"""
                     services.Configure<SqlServerMigrationOptions>({{Literal(attr.MigratorKey)}}, o =>

@@ -138,8 +138,10 @@ public static class DatabaseMigrationCli
             await process.WaitForExitAsync();
 
             if (process.ExitCode != 0)
+            {
                 Console.Error.WriteLine(
                     $"Warning: migration generation failed for {context} (exit code {process.ExitCode}). Skipping.");
+            }
         }
     }
 }

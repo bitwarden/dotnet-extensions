@@ -2275,10 +2275,14 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
                               StringComparer.OrdinalIgnoreCase));
 
         foreach (var dll in references)
+        {
             project = project.AddMetadataReference(MetadataReference.CreateFromFile(dll));
+        }
 
         if (additionalReferences is not null)
+        {
             project = project.AddMetadataReferences(additionalReferences);
+        }
 
         project = project
             .AddDocument("TestSource.cs", SourceText.From(source, Encoding.UTF8))
@@ -2286,7 +2290,9 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
 
         var compilation = await project.GetCompilationAsync(TestContext.Current.CancellationToken);
         if (compilation is null)
+        {
             Assert.Fail("Could not compile test project");
+        }
 
         return compilation;
     }
@@ -2321,9 +2327,14 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
 
         var buildProperties = new Dictionary<string, string>();
         if (scriptPrefix is not null)
+        {
             buildProperties["build_property.BitSqlServerScriptPrefix"] = scriptPrefix;
+        }
+
         if (previousScriptPrefix is not null)
+        {
             buildProperties["build_property.BitPreviousSqlServerScriptPrefix"] = previousScriptPrefix;
+        }
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             generators: [new DatabaseSetupGenerator().AsSourceGenerator()],
@@ -2368,13 +2379,19 @@ public partial class DatabaseSetupGeneratorTests : IClassFixture<Database.Tests.
             var buildProperties = new Dictionary<string, string>();
 
             if (projectDir is not null)
+            {
                 buildProperties["build_property.MSBuildProjectDirectory"] = projectDir;
+            }
 
             if (scriptPrefix is not null)
+            {
                 buildProperties["build_property.BitSqlServerScriptPrefix"] = scriptPrefix;
+            }
 
             if (previousScriptPrefix is not null)
+            {
                 buildProperties["build_property.BitPreviousSqlServerScriptPrefix"] = previousScriptPrefix;
+            }
 
             optionsProvider = new MockAnalyzerConfigOptionsProvider(buildProperties);
         }

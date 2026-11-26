@@ -76,7 +76,9 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(_options.Value.RabbitUri))
+        {
             return;
+        }
 
         try
         {
@@ -111,7 +113,9 @@ internal sealed class RabbitConnection : IHostedService, IAsyncDisposable
         _closed.Cancel();
 
         if (connection is not null)
+        {
             await connection.DisposeAsync();
+        }
     }
 
     // Called under _sync: a connection the broker closed is replaced, and disposed off the lock.

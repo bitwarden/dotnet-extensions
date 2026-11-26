@@ -22,7 +22,9 @@ internal static class ChainWalk
         foreach (var iface in variant.GetInterfaces())
         {
             if (iface.IsGenericType && iface.GetGenericTypeDefinition() == typeof(Payload<>.IPureUp<>))
+            {
                 return iface.GetGenericArguments()[1];
+            }
         }
         return null;
     }
@@ -39,14 +41,20 @@ internal static class ChainWalk
     {
         foreach (var iface in variant.GetInterfaces())
         {
-            if (!iface.IsGenericType) continue;
+            if (!iface.IsGenericType)
+            {
+                continue;
+            }
+
             var def = iface.GetGenericTypeDefinition();
             if (def == typeof(Payload<>.IPure<,>)
                 || def == typeof(Payload<>.IPureCeiling<>)
                 || def == typeof(Payload<>.IPureAboveAssist<,,>)
                 || def == typeof(Payload<>.IPureAboveAssistCeiling<,>)
                 || def == typeof(Payload<>.IAssistedDowncast<,,>))
+            {
                 return iface.GetGenericArguments()[1];
+            }
         }
         return null;
     }

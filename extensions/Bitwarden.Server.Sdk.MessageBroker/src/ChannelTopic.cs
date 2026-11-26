@@ -29,11 +29,17 @@ internal sealed class ChannelTopic<TPayload, TCeiling> : IHostedService
         _topicName = topicName;
 
         foreach (var name in subscriptionNames)
+        {
             _subscribers.TryAdd(name, new Subscription());
+        }
 
         foreach (var reg in escrowRegistrations)
+        {
             if (reg.TopicName == topicName)
+            {
                 reg.RegisterWith(this);
+            }
+        }
 
         metrics.RegisterQueueDepthProvider(topicName, TPayload.WireName, () => _subscribers.Values.Sum(s => (long)s.Channel.Reader.Count));
     }
@@ -66,7 +72,9 @@ internal sealed class ChannelTopic<TPayload, TCeiling> : IHostedService
         try
         {
             foreach (var (_, sub) in _subscribers)
+            {
                 await sub.Channel.Writer.WriteAsync(factory(sub.Channel.Writer, sub.EscrowFallback), cancellationToken);
+            }
         }
         catch (ChannelClosedException ex)
         {
@@ -77,8 +85,12 @@ internal sealed class ChannelTopic<TPayload, TCeiling> : IHostedService
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         foreach (var (_, sub) in _subscribers)
+        {
             if (sub.StartupRecovery is not null)
+            {
                 await sub.StartupRecovery(sub.Channel.Writer, cancellationToken);
+            }
+        }
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
@@ -89,9 +101,14 @@ internal sealed class ChannelTopic<TPayload, TCeiling> : IHostedService
             {
                 var remaining = new List<Envelope<TPayload, TCeiling>>();
                 while (sub.Channel.Reader.TryRead(out var envelope))
+                {
                     remaining.Add(envelope);
+                }
+
                 if (remaining.Count > 0)
+                {
                     await sub.ShutdownDrain(remaining, cancellationToken);
+                }
             }
 
             sub.Channel.Writer.TryComplete();

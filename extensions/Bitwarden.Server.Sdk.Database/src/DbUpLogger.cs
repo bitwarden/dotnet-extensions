@@ -39,7 +39,9 @@ internal sealed class DbUpLogger : IUpgradeLog
     private static string Redacted(string format, object[] args)
     {
         if (args.Length == 0)
+        {
             return format.Contains("Exception", StringComparison.Ordinal) ? "[redacted]" : format;
+        }
 
         var safe = args.Select(arg => arg is byte or short or int or long ? arg : "[redacted]").ToArray();
         return string.Format(System.Globalization.CultureInfo.InvariantCulture, format, safe);

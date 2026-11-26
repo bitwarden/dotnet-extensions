@@ -12,7 +12,10 @@ internal static class ChainValidator<TPayload, TCeiling>
     /// <summary>Throws if any problem was found in <typeparamref name="TPayload"/>'s chain.</summary>
     public static void ThrowIfInvalid()
     {
-        if (_error is not null) throw _error;
+        if (_error is not null)
+        {
+            throw _error;
+        }
     }
 
     private static AggregateException? ValidateChain()
@@ -35,8 +38,10 @@ internal static class ChainValidator<TPayload, TCeiling>
         for (var i = 0; i < variants.Length; i++)
         {
             if (!indexByType.TryAdd(variants[i], i))
+            {
                 errors.Add(new InvalidOperationException(
                     $"{typeof(TPayload).Name}.Variants lists {variants[i].Name} more than once."));
+            }
         }
 
         // Wire names must be unique so the polymorphic deserializer can dispatch unambiguously.
@@ -44,22 +49,31 @@ internal static class ChainValidator<TPayload, TCeiling>
         foreach (var (type, wireName) in declared)
         {
             if (seenWireNames.TryGetValue(wireName, out var priorType))
+            {
                 errors.Add(new InvalidOperationException(
                     $"{typeof(TPayload).Name}.Variants assigns wire name \"{wireName}\" to both " +
                     $"{priorType.Name} and {type.Name}. Wire names must be unique."));
+            }
             else
+            {
                 seenWireNames[wireName] = type;
+            }
         }
 
         // Every next/previous reference must land on a variant in the list.
         foreach (var variant in variants)
         {
             if (ChainWalk.NextInChain(variant) is { } next && !indexByType.ContainsKey(next))
+            {
                 errors.Add(new InvalidOperationException(
                     $"{variant.Name}.TUp references {next.Name}, which is not listed in {typeof(TPayload).Name}.Variants."));
+            }
+
             if (ChainWalk.PreviousInChain(variant) is { } prev && !indexByType.ContainsKey(prev))
+            {
                 errors.Add(new InvalidOperationException(
                     $"{variant.Name}.TDown references {prev.Name}, which is not listed in {typeof(TPayload).Name}.Variants."));
+            }
         }
 
         // Floor = variant with no previous. Ceiling = variant with no next.
@@ -68,26 +82,37 @@ internal static class ChainValidator<TPayload, TCeiling>
         var ceilings = variants.Where(v => ChainWalk.NextInChain(v) is null).ToList();
 
         if (floors.Count == 0)
+        {
             errors.Add(new InvalidOperationException(
                 $"{typeof(TPayload).Name} declares no floor: every variant has a Downcast target. " +
                 "Exactly one variant must implement IFloor or ISole."));
+        }
         else if (floors.Count > 1)
+        {
             errors.Add(new InvalidOperationException(
                 $"{typeof(TPayload).Name} declares {floors.Count} floors ({string.Join(", ", floors.Select(f => f.Name))}). " +
                 "Exactly one variant may omit Downcast (i.e., implement IFloor or ISole)."));
+        }
 
         if (ceilings.Count == 0)
+        {
             errors.Add(new InvalidOperationException(
                 $"{typeof(TPayload).Name} declares no ceiling: every variant has an Upcast target. " +
                 "Exactly one variant must implement one of the ICeiling variant kinds (or ISole)."));
+        }
         else if (ceilings.Count > 1)
+        {
             errors.Add(new InvalidOperationException(
                 $"{typeof(TPayload).Name} declares {ceilings.Count} ceilings ({string.Join(", ", ceilings.Select(c => c.Name))}). " +
                 "Exactly one variant may omit Upcast."));
+        }
 
         // === Exit 1: Phase 2 relies on no dupes, all refs valid, and exactly one floor/ceiling.
         // Any Phase 1 error violates at least one of those, so bail before the structural walk.
-        if (errors.Count > 0) return Wrap(errors);
+        if (errors.Count > 0)
+        {
+            return Wrap(errors);
+        }
 
         // === Phase 2: structural walk ===
         // Sort via NextInChain, then walk the sorted chain to verify each variant's previous
@@ -102,9 +127,11 @@ internal static class ChainValidator<TPayload, TCeiling>
                 // Phase 1 guarantees exactly one floor (at index 0 after sort), so every
                 // non-floor variant declares a Downcast — actual is non-null here.
                 if (actual != expected)
+                {
                     errors.Add(new InvalidOperationException(
                         $"Chain inconsistency: {current.Name}.TDown is {actual!.Name}, but at position {i} " +
                         $"the chain places {expected.Name} below it."));
+                }
             }
         }
 
@@ -169,7 +196,11 @@ internal static class ChainValidator<TPayload, TCeiling>
 
     private static void Swap(Type[] variants, Dictionary<Type, int> indexByType, int i, int j)
     {
-        if (i == j) return;
+        if (i == j)
+        {
+            return;
+        }
+
         (variants[i], variants[j]) = (variants[j], variants[i]);
         indexByType[variants[i]] = i;
         indexByType[variants[j]] = j;

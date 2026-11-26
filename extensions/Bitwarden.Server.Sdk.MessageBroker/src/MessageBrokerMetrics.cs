@@ -3,6 +3,9 @@ using System.Diagnostics.Metrics;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
+/// <summary>
+/// The shared message broker metrics: publish and consume counters, and the in-memory channel depth.
+/// </summary>
 internal sealed class MessageBrokerMetrics
 {
     internal const string MeterName = "Bitwarden.Server.Sdk.MessageBroker";
@@ -49,8 +52,10 @@ internal sealed class MessageBrokerMetrics
     private IEnumerable<Measurement<long>> ObserveQueueDepths()
     {
         foreach (var ((topicName, familyWireName), getCount) in _queueDepthProviders)
+        {
             yield return new Measurement<long>(getCount(),
                 new KeyValuePair<string, object?>(DestinationTag, topicName),
                 new KeyValuePair<string, object?>(PayloadFamilyTag, familyWireName));
+        }
     }
 }

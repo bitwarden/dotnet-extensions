@@ -265,6 +265,126 @@ the SQL Server script naming, so they can never be picked up as migrations DbUp 
 that doesn't resolve throws immediately, listing what is embedded, rather than failing part-way
 through a migration run.
 
+### Changing a schema the previous release still uses
+
+During a rolling deployment, instances of the previous release keep running against the schema the
+new release's migrations produce. A migration must not take away anything the previous release
+still reads or writes. EF Core migrations apply in order, all at once, with no phases, so a breaking
+change is spread across releases instead:
+
+- **Drop a column in two releases.** In the first, remove the property from the model completely
+  and delete the `DropColumn` EF generates from that release's migration. If the column is `NOT NULL`
+  with no default, make that migration give it a default, since this release no longer writes it.
+  Don't make it nullable instead: the previous release still maps it as required, and fails to read
+  a row holding `NULL`. In the next release, add a migration with `add-migration` (the package finds
+  migrations by the attributes in the file EF generates beside it) and write the `DropColumn` in it.
+  EF generates nothing for it, because its snapshot already has no such column.
+- **Drop a table the same way:** stop mapping it in one release, drop it in the next.
+- **Rename a column in four releases.** First, add the new column and write both, still reading the
+  old. Second, copy the old column into the new one in every row where they differ, read the new
+  column, and keep writing both, since the release before still reads the old. Then drop the old
+  column in two releases, as above. A table is renamed the same way, with a new table in place of
+  the new column.
+
+On a large table, copy in batches, one `migrationBuilder.Sql(..., suppressTransaction: true)` call
+per batch, and write each batch to be safe to repeat. EF Core runs a migration's other steps in one
+transaction, so batches inside it keep their locks until the last one finishes. A helper script
+always runs inside the transaction.
+
+Don't use a shadow property to stop a release using a column. A shadow property is still mapped, so
+EF selects it in entity queries and writes it on insert, exactly as it would a CLR property.
+
+The package's analyzer checks each migration's `Up` against these rules.
+[`BW0026`](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#BW0026)
+reports a step that breaks the previous release, and
+[`BW0027`](https://github.com/bitwarden/dotnet-extensions/blob/main/docs/diagnostics.md#BW0027) a
+constraint that existing rows or the previous release's writes may not satisfy. Their entries list
+the steps each covers. Neither reports a step on a table created earlier in the same `Up`, apart
+from BW0026 on a foreign key from a new table to an existing one, and neither reads `Down`, `Sql`
+or a helper script. When a step is right, such as the drop in the second release, suppress the
+warning on the migration and say why.
+
+`Migrations/PostgreSql/20261201000000_DropItemsLegacy.cs`:
+
+```csharp
+using System.Diagnostics.CodeAnalysis;
+using Microsoft.EntityFrameworkCore.Migrations;
+
+[SuppressMessage("Bitwarden.Database", "BW0026", Justification = "Items.Legacy unmapped since 2026.11.0")]
+public partial class DropItemsLegacy : Migration
+{
+    protected override void Up(MigrationBuilder migrationBuilder)
+        => migrationBuilder.DropColumn(name: "Legacy", table: "Items");
+
+    protected override void Down(MigrationBuilder migrationBuilder)
+        => migrationBuilder.AddColumn<string>(name: "Legacy", table: "Items", nullable: true);
+}
+```
+
+Migrations already applied in every environment when you adopt the analyzer can be suppressed the
+same way, with a justification saying so.
+
+#### Building an index online
+
+The `CreateIndex` EF generates blocks writes to the table while the index builds. Each engine has
+its own way to build one online:
+
+- **SQL Server:** `WITH (ONLINE = ON)`, on Enterprise and Developer editions, Azure SQL Database and
+  Azure SQL Managed Instance. Other editions refuse it.
+- **PostgreSQL:** `CREATE INDEX CONCURRENTLY`, which can't run inside a transaction.
+- **MySQL and MariaDB:** InnoDB adds a secondary index online by default.
+
+EF Core runs migrations in a transaction, and an online build inside one still holds a lock that
+blocks writers until the transaction commits. Run the build outside it with
+`suppressTransaction: true`. EF then commits the steps before the build, runs the build on its own,
+and records the migration afterwards, outside any transaction. If the migrator stops between the
+build and the record, the next run builds the index again, so write the build to be safe to repeat.
+
+On PostgreSQL an interrupted `CREATE INDEX CONCURRENTLY` leaves an invalid index of that name, which
+`CREATE INDEX CONCURRENTLY IF NOT EXISTS` then skips. Drop it first with
+`DROP INDEX CONCURRENTLY IF EXISTS`, then create it, each statement in its own
+`Sql(..., suppressTransaction: true)` call, since neither can run in a transaction block. A repeat
+after a build that succeeded drops and rebuilds the index, so use this only for an index name the
+previous release doesn't have.
+
+Two more things matter on PostgreSQL:
+
+- **The command timeout.** Npgsql's default command timeout, 30 seconds, applies to migrations and
+  cancels a longer build, leaving the invalid index. Give the migrator a longer one, such as
+  `Command Timeout=3600` in its connection string.
+- **One migrator at a time.** EF Core releases its migration lock before a step that suppresses
+  the transaction, so two migrators running the same migration can deadlock. The drop and create
+  above still end with a valid index, but run the migration from one place.
+
+`Migrations/SqlServer/20261201000000_IndexItemsName.cs`:
+
+```csharp
+using Microsoft.EntityFrameworkCore.Migrations;
+
+public partial class IndexItemsName : Migration
+{
+    protected override void Up(MigrationBuilder migrationBuilder)
+        => migrationBuilder.Sql(
+            """
+            IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Items_Name' AND object_id = OBJECT_ID(N'[Items]'))
+            BEGIN
+                IF SERVERPROPERTY('EngineEdition') IN (3, 5, 8)
+                    EXEC(N'CREATE INDEX [IX_Items_Name] ON [Items] ([Name]) WITH (ONLINE = ON)');
+                ELSE
+                    CREATE INDEX [IX_Items_Name] ON [Items] ([Name]);
+            END
+            """,
+            suppressTransaction: true);
+
+    protected override void Down(MigrationBuilder migrationBuilder)
+        => migrationBuilder.DropIndex(name: "IX_Items_Name", table: "Items");
+}
+```
+
+`AlterColumn` can rewrite a whole table on SQL Server, a collation change among others, holding a
+lock on it throughout. On a large table, add a new column, copy the data in batches as a rename
+does, and switch over across releases instead.
+
 ## EF Core migrations for SQL Server
 
 By default SQL Server is migrated by DbUp from hand-authored scripts. A schema whose SQL Server

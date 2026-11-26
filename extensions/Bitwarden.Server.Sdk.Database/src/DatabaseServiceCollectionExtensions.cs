@@ -127,7 +127,9 @@ public static class DatabaseServiceCollectionExtensions
         => services.PostConfigure<DatabaseOptions>(name, opts =>
         {
             if (opts.Provider == DatabaseProvider.SqlServer)
+            {
                 opts.ConnectionString = SqlServerMigrator.ResolveDatabase(opts.ConnectionString, name).ConnectionString;
+            }
         });
 
     private static SqlServerMigrator CreateSqlServerMigrator(
