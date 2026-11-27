@@ -21,40 +21,13 @@ owns.
 
 ## Configuration
 
-The package reads one setting itself: `OwnedAnswerKey.ReadSecret` reads and checks
-`Caching:Owned:AnswerSecret`. It names the rest, which the hosting and client packages read, so a
-service and its callers agree on them.
+The package reads no setting itself. It names the ones a host reads, so a service and its callers
+agree on them.
 
 Every setting the package names is a public constant on the type it belongs to, named `Key` or
-`Section` or ending in one of them (for example `OwnedCacheEntry.ConnectionKey`,
-`OwnedCacheEntry.ResourcesSection` and `InternalTls.Section`). Its XML documentation says what the
+`Section` or ending in one of them. Its XML documentation says what the
 setting does and what happens when it is unset. Look there for the full list; this file does not
 repeat it.
-
-### The answer secret
-
-An answer keyed by text, such as an email address, is stored under a digest of that text, never
-the text itself. With no secret the digest is plain SHA-256, which anyone can compute. Someone who
-can read the cache and guess an address can then confirm it is there.
-
-So outside the `Development` environment, a host with a service cache requires
-`Caching:Owned:AnswerSecret`, which makes the digest an HMAC that only holders of the secret can
-compute. `OwnedAnswerKey.ReadSecret(configuration, environmentName)` throws without one, and a
-host calls it as it starts, so it fails to start. In `Development` the plain digest is allowed, so
-a developer's machine needs no secret. Treat it like any other secret:
-
-- **Clients learn of the secret from their own configuration, not from the contract.** An owner
-  publishes `"digest": "sha-256"` whether or not a secret keys it, because the contract is the same
-  in every deployment and the secret is not.
-- **Every service and client sharing the cache must hold the same secret.** One holding a different
-  secret, or none, computes subjects that no owner fills. It never reads a wrong answer: it always
-  misses and asks the owner, so a mismatch costs speed, not correctness.
-- **Changing the secret moves every answer keyed by text.** The cache misses until owners fill the
-  new subjects, and entries under the old ones expire on their own.
-- **A secret that is not base64 or is shorter than 32 bytes** makes `OwnedAnswerKey.ReadSecret`
-  throw, without echoing the value, and the host fails to start.
-
-Answers keyed by an identifier are stored under the identifier itself and are not affected.
 
 ## Testing
 
