@@ -115,35 +115,37 @@ Reviewers raised each of these on a pull request. Check every change against the
 
 ### Code
 
--   Brace every `if`, `else`, `for`, `foreach`, `while`, `do`, `using`, `lock` and `fixed` body, even a single `return` or `continue`. `.editorconfig` enforces this, and CI's `dotnet format --verify-no-changes` fails without it.
--   Don't add a parameter that every caller sets to the same value as another parameter. Use the existing one, and add a new one only when a caller passes something different.
--   Put each top-level type in its own file, named for it. Nested private types can stay.
--   Don't give a base type the same name as the type that implements it. If every member of an abstract class is abstract, make it an interface.
--   Leave out comments that only restate the name of the thing they describe.
--   A parser that claims to be strict refuses everything the underlying BCL parser also accepts: whitespace, sign and hex prefixes, braces, leading zeros, legacy forms.
--   After moving or deleting code, remove any `PackageReference` that is no longer used, in src and tests, and commit the updated lock files.
+-   Brace every `if`, `else`, `for`, `foreach`, `while`, `do`, `using`, `lock` and `fixed` body, even a single `return` or `continue`. `.editorconfig` enforces this, and CI's `dotnet format --verify-no-changes` fails without it. (#493)
+-   Don't add a parameter that every caller sets to the same value as another parameter. Use the existing one, and add a new one only when a caller passes something different. (#493)
+-   Put each top-level type in its own file, named for it. Nested private types can stay. (#493)
+-   Don't give a base type the same name as the type that implements it. If every member of an abstract class is abstract, make it an interface. (#493)
+-   Leave out comments that only restate the name of the thing they describe. (#493)
+-   A parser that claims to be strict refuses everything the underlying BCL parser also accepts: whitespace, sign and hex prefixes, braces, leading zeros, legacy forms. (#380)
+-   After moving or deleting code, remove any `PackageReference` that is no longer used, in src and tests, and commit the updated lock files. (#380)
 
 ### Tests
 
--   For theory cases longer than short scalars, use `ClassData` or `TheoryData` rows with a readable `TestDisplayName`, not long `[InlineData]` strings of code.
--   Give each branch and each lookup-table row a case where only that branch decides the outcome, and assert the full message text, not only an id. Check that each test actually reaches the state its name claims.
--   Pin every test container image by digest, with its version in a comment: `"rabbitmq@sha256:…"; // 4.4.1`. When a package has a shared definition of an image, use it.
+-   For theory cases longer than short scalars, use `ClassData` or `TheoryData` rows with a readable `TestDisplayName`, not long `[InlineData]` strings of code. (#514)
+-   Give each branch and each lookup-table row a case where only that branch decides the outcome, and assert the full message text, not only an id. Check that each test actually reaches the state its name claims. (#514, #380)
+-   Pin every test container image by digest, with its version in a comment: `"rabbitmq@sha256:…"; // 4.4.1`. When a package has a shared definition of an image, use it. (#493)
 
 ### Dependencies
 
--   A new dependency of any kind, including a container image or a broker used only in CI, needs a Dependency Review (a VULN ticket with AppSec sign-off) and team agreement before the pull request. Keep it in its own pull request, with nothing else depending on it.
+-   A new dependency of any kind, including a container image or a broker used only in CI, needs a Dependency Review (a VULN ticket with AppSec sign-off) and team agreement before the pull request. Keep it in its own pull request, with nothing else depending on it. (#489)
 
 ### Documentation and pull requests
 
--   Don't add file-by-file tables to a README. Describe each type in a short XML `<summary>` instead.
--   Where a document describes a flow or a topology, add a Mermaid diagram. Name participants by their role in a service-oriented architecture (sending service, message broker, receiving service), not only by type name.
--   Write messages, diagnostics and summaries in short, plain sentences that name the exact operation and object and say how to fix the problem.
--   Every pull request a person opens has a Jira work item saying, in a human voice, why the change is needed and which problems it prevents. Renovate's dependency-update pull requests don't need one.
--   Keep the pull request description short at first glance, with detail in `<details>` blocks. Keep any AI-assisted review section to a line or two: it distracts the reviewer agents that read the description later.
+-   Don't add file-by-file tables to a README. Describe each type in a short XML `<summary>` instead. (#493)
+-   Where a document describes a flow or a topology, add a Mermaid diagram. Name participants by their role in a service-oriented architecture (sending service, message broker, receiving service), not only by type name. (#514, #493)
+-   Write messages, diagnostics and summaries in short, plain sentences that name the exact operation and object and say how to fix the problem. (#514)
+-   Every pull request a person opens has a Jira work item saying, in a human voice, why the change is needed and which problems it prevents. Renovate's dependency-update pull requests don't need one. (#514, #526)
+-   Keep the pull request description short at first glance, with detail in `<details>` blocks. Keep any AI-assisted review section to a line or two: it distracts the reviewer agents that read the description later. (#514, #493)
 
 ### Adding a lesson
 
 When a human reviewer's comment applies beyond the pull request it was made on, record it in its own pull request. If a tool can check it, enforce it in `.editorconfig`, an analyzer or CI, and list it here too when knowing it up front saves a failing CI run. Otherwise, add it to this section.
+
+End each lesson with the pull requests it came from, such as `(#514)`. This section loads into every session, so remove a lesson when the code it guards is gone or a newer lesson replaces it. Remove a lesson a tool enforces once knowing it up front no longer saves a failing CI run.
 
 ## Important Notes
 
