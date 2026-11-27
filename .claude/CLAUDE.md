@@ -138,7 +138,7 @@ Reviewers raised each of these on a pull request. Check every change against the
 -   Don't add file-by-file tables to a README. Describe each type in a short XML `<summary>` instead.
 -   Where a document describes a flow or a topology, add a Mermaid diagram. Name participants by their role in a service-oriented architecture (sending service, message broker, receiving service), not only by type name.
 -   Write messages, diagnostics and summaries in short, plain sentences that name the exact operation and object and say how to fix the problem.
--   Every pull request has a Jira work item saying, in a human voice, why the change is needed and which problems it prevents.
+-   Every pull request a person opens has a Jira work item saying, in a human voice, why the change is needed and which problems it prevents. Renovate's dependency-update pull requests don't need one.
 -   Keep the pull request description short at first glance, with detail in `<details>` blocks. Keep any AI-assisted review section to a line or two: it distracts the reviewer agents that read the description later.
 
 ### Adding a lesson
