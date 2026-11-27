@@ -129,10 +129,4 @@ public static class ErrorDetails
     /// <param name="actual">The resource type the caller declared.</param>
     public static string InvalidResourceType(string expected, string actual) =>
         $"A resource of type '{expected}' was expected, but '{actual}' was declared.";
-
-    /// <summary>
-    /// Detail for a request refused while the person's keys are rotating.
-    /// </summary>
-    public const string KeyRotationInProgress =
-        "The account's encryption keys are being rotated. Retry once the rotation has finished.";
 }
