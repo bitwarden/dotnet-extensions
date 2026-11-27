@@ -40,27 +40,6 @@ See the [README.md](README.md) for detailed information about each package. Main
 -   Test projects use exact version pinning: `Version="[X.Y.Z]"`
 -   `<Using Include="Xunit" />` for global xUnit usings
 
-### Readable Test Cases
-
--   Write test cases a person can read at a glance. When a theory's cases are code, SQL or other long strings, put them in a `TheoryData` class used with `[ClassData]`, not in `[InlineData]`.
--   Name each case with a `TheoryDataRow` whose `TestDisplayName` says what the case is, and lay out long code over several lines in a raw string literal. A description passed as a value instead becomes a parameter the test doesn't use, which is xUnit1026, and this repo builds warnings as errors.
-
-    ```csharp
-    public sealed class DroppedColumns : TheoryData<string, int>
-    {
-        public DroppedColumns()
-        {
-            Add(new TheoryDataRow<string, int>(
-                """
-                ALTER TABLE [Items]
-                    DROP COLUMN [Legacy];
-                """,
-                1) { TestDisplayName = "Dropping a column" });
-        }
-    }
-    ```
--   Keep `[InlineData]` for short values, such as numbers, names or one-word strings.
-
 ## Code Style and Conventions
 
 ### C# Language Features
@@ -146,7 +125,23 @@ Reviewers raised each of these on a pull request. Check every change against the
 
 ### Tests
 
--   For theory cases longer than short scalars, use `ClassData` or `TheoryData` rows with a readable `TestDisplayName`, not long `[InlineData]` strings of code.
+-   For theory cases holding code, SQL or other long strings, use a `TheoryData` class with `[ClassData]`, not `[InlineData]`. Name each case with a `TheoryDataRow` whose `TestDisplayName` says what it is, and lay out long code in a raw string literal. A description passed as a value becomes an unused parameter (xUnit1026), which this repo builds as an error. Keep `[InlineData]` for short values such as numbers, names or one-word strings.
+
+    ```csharp
+    public sealed class DroppedColumns : TheoryData<string, int>
+    {
+        public DroppedColumns()
+        {
+            Add(new TheoryDataRow<string, int>(
+                """
+                ALTER TABLE [Items]
+                    DROP COLUMN [Legacy];
+                """,
+                1) { TestDisplayName = "Dropping a column" });
+        }
+    }
+    ```
+
 -   Give each branch and each lookup-table row a case where only that branch decides the outcome, and assert the full message text, not only an id. Check that each test actually reaches the state its name claims.
 -   Pin every test container image by digest, with its version in a comment: `"rabbitmq@sha256:…"; // 4.4.1`. When a package has a shared definition of an image, use it.
 
