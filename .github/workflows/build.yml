@@ -24,6 +24,15 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
 
+      # Bitwarden.Server.Sdk.Crypto wraps a Rust library built in sdk-internal.
+      - name: Fetch Rust SDK native library
+        run: extensions/Bitwarden.Server.Sdk.Crypto/scripts/fetch-native.sh --from-pinned linux-x64
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Check Rust SDK bindings are up to date
+        run: extensions/Bitwarden.Server.Sdk.Crypto/scripts/generate-bindings.sh --check
+
       - name: Build solution
         run: dotnet build
 

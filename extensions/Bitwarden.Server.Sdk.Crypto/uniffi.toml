@@ -1,0 +1,5 @@
+# C# binding settings for uniffi-bindgen-cs. Owned here rather than in sdk-internal, so generation
+# needs only the native library, not the Rust sources.
+[bindings.csharp]
+cdylib_name = "bitwarden_uniffi_server"
+namespace = "Bitwarden.Server.Sdk.Crypto.Native"
