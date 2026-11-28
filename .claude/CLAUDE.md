@@ -125,7 +125,7 @@ Reviewers raised each of these on a pull request. Check every change against the
 
 ### Tests
 
--   For theory cases holding code, SQL or other long strings, use a `TheoryData` class with `[ClassData]`, not `[InlineData]`. Name each case with a `TheoryDataRow` whose `TestDisplayName` says what it is, and lay out long code in a raw string literal. A description passed as a value becomes an unused parameter (xUnit1026), which this repo builds as an error. Keep `[InlineData]` for short values such as numbers, names or one-word strings.
+-   For theory cases holding code, SQL or other long strings, use a `TheoryData` class with `[ClassData]`, not `[InlineData]`. Name each case with a `TheoryDataRow` whose `TestDisplayName` says what it is, and lay out long code in a raw string literal. Prefer `TestDisplayName` over a description passed as a value: a value the test never uses is xUnit1026, which this repo builds as an error. Keep `[InlineData]` for short values such as numbers, names or one-word strings.
 
     ```csharp
     public sealed class DroppedColumns : TheoryData<string, int>
