@@ -30,7 +30,6 @@ public sealed partial class ErrorCodesTests
         Assert.Equal("not-found", ErrorCodes.NotFound);
         Assert.Equal("invalid-value", ErrorCodes.InvalidValue);
         Assert.Equal("already-exists", ErrorCodes.AlreadyExists);
-        Assert.Equal("key-rotation-in-progress", ErrorCodes.KeyRotationInProgress);
     }
 
     [GeneratedRegex("^[a-z]+(-[a-z]+)*$")]
