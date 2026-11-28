@@ -22,11 +22,11 @@
       },
       "Microsoft.Diagnostics.Tracing.TraceEvent": {
         "type": "Direct",
-        "requested": "[3.2.8, 3.2.8]",
-        "resolved": "3.2.8",
-        "contentHash": "QDtQEOaAB/btecYg/RS0sFscAFttqfbqqzt5+R0M3x2ePYff5qcK3meIyGsxT64cWcaDlK4i54EoTF745ehkRA==",
+        "requested": "[4.0.2, 4.0.2]",
+        "resolved": "4.0.2",
+        "contentHash": "HW3sc0BS/snPlvvdtXWu7YloANo1dXbTb0vOqDXKvmCl7Xg1fGwEtKIjSKfE56PG+GvMD1Mvy2v+DjTMauKwwQ==",
         "dependencies": {
-          "Microsoft.Diagnostics.NETCore.Client": "0.2.510501",
+          "Microsoft.Diagnostics.NETCore.Client": "0.2.661903",
           "System.Reflection.TypeExtensions": "4.7.0"
         }
       },
@@ -226,10 +226,10 @@
       },
       "Microsoft.Diagnostics.NETCore.Client": {
         "type": "Transitive",
-        "resolved": "0.2.510501",
-        "contentHash": "juoqJYMDs+lRrrZyOkXXMImJHneCF23cuvO4waFRd2Ds7j+ZuGIPbJm0Y/zz34BdeaGiiwGWraMUlln05W1PCQ==",
+        "resolved": "0.2.661903",
+        "contentHash": "3ISv5jXar4dHBt/7Rz3YdnR3VpnC94BhSdSvuq8ZuKgCOcVuTdmgRnq0hUzJyL/z8Ge4VekFjhui2aufUXPdvg==",
         "dependencies": {
-          "Microsoft.Extensions.Logging": "6.0.0"
+          "Microsoft.Extensions.Logging.Abstractions": "8.0.3"
         }
       },
       "Microsoft.Diagnostics.Runtime": {
